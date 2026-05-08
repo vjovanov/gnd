@@ -1,0 +1,69 @@
+# e2e
+
+End-to-end tests for `gnd`. Each case is a tiny repository plus golden command results. The Rust integration test in `tests/e2e.rs` discovers every directory under `e2e/cases/` and runs the built `gnd` binary.
+
+## Case layout
+
+```
+e2e/cases/<case-name>/
+├── repo/
+│   └── ... files scanned by gnd ...
+├── spec.refs
+├── expected.exit
+├── expected.stdout
+└── expected.stderr
+```
+
+`spec.refs` is required. Every non-empty line must cite a functional spec ID such as `FS-001-check.3.1`; the harness rejects cases that do not cite the behavior they exercise.
+
+`expected.exit` contains `0`, `1`, or `2`. `expected.stdout` and `expected.stderr` are compared byte-for-byte, except that a file containing only one newline is treated as empty so empty golden files can be represented cleanly in patches.
+
+Most cases run `gnd <repo>`. A case may override the command with `command.args`; use `{repo}` for the fixture repo path. For write-mode tests, use `{repo_copy}` so the harness copies the fixture under `target/e2e-work/` before running the command.
+
+Error output is part of the contract. Non-zero cases should keep `expected.stderr` concise: one actionable diagnostic per line, no aggregate footer, and no long explanatory prose that makes editor and agent consumption harder.
+
+## Current coverage
+
+- basic Markdown valid references
+- dangling Markdown citation
+- missing Markdown section
+- duplicate Markdown declaration
+- fenced Markdown examples ignored
+- marker-prefixed citations
+- optional-mode bare citations
+- strict-mode bare tokens ignored
+- strict-mode marker citations accepted
+- config unknown-key failure
+- config custom marker in strict mode
+- config include/exclude/extensions
+- explicit `check` subcommand
+- invalid subcommand failure
+- help output
+- JSON report output
+- `fmt --check` trigger-to-marker report
+- `fmt` custom trigger and marker from config
+- `fmt --write` trigger-to-marker mutation path
+- `fmt --marker --check` bare-to-marker report
+- `fmt` idempotence
+- `fmt` skips declaration headings and fenced Markdown
+- `show` full Markdown declaration
+- `show` Markdown section extraction
+- `show --head`
+- `show` missing ID failure
+- `show` missing section failure
+- `show` Rust inline declaration extraction
+- Markdown stub to Rust inline declaration
+- broken Markdown-to-Rust inline stub
+- Rust source comment to Markdown citation
+- Rust `///` doc-comment declaration
+- Rust block doc-comment declaration
+- Go line doc-comment declaration
+- Python docstring declaration
+- missing `Defined-in:` target
+- `Defined-in:` target is a directory
+- `Defined-in:` target has an unsupported extension
+- skipped output/hidden directories
+- unsupported extension ignored
+- deterministic multiple-error output
+
+Warnings are intentionally not covered here yet. They are lower priority than the error, retrieval, formatting, and configuration contracts.

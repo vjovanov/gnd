@@ -1,0 +1,15 @@
+[package]
+name = "gnd"
+version = "0.1.0"
+edition = "2024"
+description = "Agent grounding tool — verify and read ID-based references in league-of-code style docs"
+
+[dependencies]
+walkdir = "2"
+regex = "1"
+anyhow = "1"
+once_cell = "1"
+
+[profile.release]
+lto = true
+codegen-units = 1

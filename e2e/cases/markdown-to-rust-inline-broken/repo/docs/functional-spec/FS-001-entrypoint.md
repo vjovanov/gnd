@@ -1,0 +1,8 @@
+# FS-001-entrypoint: Request entrypoint
+
+Implemented by AS-001-router.
+
+## 1. Request flow
+
+Incoming requests are routed.
+
