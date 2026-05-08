@@ -1,6 +1,3 @@
-# AS-001-router: Router
-
-Defined-in: src/router.txt
+# AS-001-router: [src/router.txt](src/router.txt)
 
 Serves FS-001-entrypoint.
-

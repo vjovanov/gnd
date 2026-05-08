@@ -1,4 +1,1 @@
-# AS-001-router: Router
-
-Defined-in: src/router.py
-
+# AS-001-router: [src/router.py](src/router.py)

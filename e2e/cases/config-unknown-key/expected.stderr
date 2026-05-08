@@ -1,1 +1,1 @@
-e2e/cases/config-unknown-key/repo/gnd.toml:2: unknown config key `strcit`
+e2e/cases/config-unknown-key/repo/.agents/gnd.toml:2: unknown config key `strcit`

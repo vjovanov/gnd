@@ -4,7 +4,7 @@ The checker takes the `Findings` produced by AS-001-scanner and produces a `Repo
 
 ## 1. Inputs and outputs
 
-- Input: `Findings` from the scanner, plus the repo root (needed to resolve `Defined-in:` paths).
+- Input: `Findings` from the scanner, plus the repo root (needed to resolve stub-link paths).
 - Output: a `Report` containing two ordered lists: `errors` and `warnings`. Order is deterministic for G-005-friendliness-first.
 
 ## 2. Rules
@@ -25,7 +25,7 @@ For each citation with a section path, look up the section in the matching decla
 
 ### 2.4 Broken inline-spec stubs (FS-001-check.3.4)
 
-For each declaration that contains a `Defined-in:` line, resolve the path against the repo root, verify the path exists, then re-scan that file for an inline declaration of the same ID. Either failure → one error at the stub site.
+For each declaration whose H1 has the stub shape `# <ID>: [<text>](<path>)` (description after the colon is a single bare markdown link), extract the link target, resolve it against the repo root, verify the path exists, then re-scan that file for an inline declaration of the same ID. Either failure → one error at the stub site.
 
 ### 2.5 Unused declarations (FS-001-check.4.1)
 

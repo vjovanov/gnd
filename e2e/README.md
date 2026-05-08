@@ -59,9 +59,9 @@ Error output is part of the contract. Non-zero cases should keep `expected.stder
 - Rust block doc-comment declaration
 - Go line doc-comment declaration
 - Python docstring declaration
-- missing `Defined-in:` target
-- `Defined-in:` target is a directory
-- `Defined-in:` target has an unsupported extension
+- missing stub-link target
+- stub-link target is a directory
+- stub-link target has an unsupported extension
 - skipped output/hidden directories
 - unsupported extension ignored
 - deterministic multiple-error output

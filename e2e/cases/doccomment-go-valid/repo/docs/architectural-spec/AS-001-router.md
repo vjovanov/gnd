@@ -1,4 +1,1 @@
-# AS-001-router: Router
-
-Defined-in: src/router.go
-
+# AS-001-router: [src/router.go](src/router.go)

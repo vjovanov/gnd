@@ -56,7 +56,7 @@ This is the only structured output the scanner produces. Everything downstream (
 
 ## 4. Inline declarations in language doc-comments
 
-The scanner is designed so that an inline declaration — most commonly an `AS-NNN-<slug>` for an architectural spec — can live inside the **class, method, module, or package doc-comment** of any major language. This makes class-level documentation a first-class place to put architecture specs: the spec body sits with the code it describes, and a stub under `docs/architectural-spec/` points at it via `Defined-in:`.
+The scanner is designed so that an inline declaration — most commonly an `AS-NNN-<slug>` for an architectural spec — can live inside the **class, method, module, or package doc-comment** of any major language. This makes class-level documentation a first-class place to put architecture specs: the spec body sits with the code it describes, and a stub under `docs/architectural-spec/` points at it through a single-line H1 of the form `# <ID>: [<path>](<path>)`.
 
 The recognized doc-comment forms (matched as comment prefixes preceding the heading line):
 
@@ -91,9 +91,7 @@ public final class EventBus { … }
 Matched by the matching stub `docs/architectural-spec/AS-014-event-bus.md`:
 
 ```
-# AS-014-event-bus
-
-Defined-in: src/main/java/com/example/EventBus.java
+# AS-014-event-bus: [src/main/java/com/example/EventBus.java](src/main/java/com/example/EventBus.java)
 ```
 
 ### 4.1 Ruby and Python edge cases
@@ -105,6 +103,6 @@ Defined-in: src/main/java/com/example/EventBus.java
 
 Specs live in markdown *and* in source-file doc-comments across half a dozen languages. A real parser per language would be far more code and far slower than a single line-oriented regex pass. The scheme is deliberately designed to be regex-recognizable: the heading shape is unambiguous and the citation shape is anchored on word boundaries.
 
-The trade-off: we cannot reason about the surrounding code structure. We do not need to — IDs are syntactic, not semantic. The `Defined-in:` pointer is the only structural link between a stub and the code that hosts the inline spec, and it is verified by AS-002-checker.2.4.
+The trade-off: we cannot reason about the surrounding code structure. We do not need to — IDs are syntactic, not semantic. The link in the stub heading is the only structural pointer between a stub and the code that hosts the inline spec, and it is verified by AS-002-checker.2.4.
 
 The marker character recognized in citations follows DF-001-reference-marker; the regex shape changes when the marker is reconfigured per G-006-configurable.

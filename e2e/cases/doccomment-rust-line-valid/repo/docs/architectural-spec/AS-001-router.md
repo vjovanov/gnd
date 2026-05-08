@@ -1,4 +1,1 @@
-# AS-001-router: Router
-
-Defined-in: src/router.rs
-
+# AS-001-router: [src/router.rs](src/router.rs)

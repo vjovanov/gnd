@@ -13,7 +13,7 @@ When you run `gnd <path>`:
 1. Every cited ID resolves to a declaration. *(dangling references)*
 2. Every section coordinate (`.3.1`) resolves to a heading inside the declaration. *(missing sections)*
 3. No ID is declared in two places. *(duplicates)*
-4. Every `Defined-in:` stub points at a file that actually contains the inline declaration. *(broken stubs)*
+4. Every stub heading (`# <ID>: [<text>](<path>)`) points at a file that actually contains the inline declaration. *(broken stubs)*
 5. Declared-but-uncited IDs are flagged. *(unused — warning, not error)*
 
 It does **not** check markdown links, URLs, spelling, or grammar. Use [`lychee`](https://github.com/lycheeverse/lychee), `vale`, etc. for those.
@@ -28,14 +28,14 @@ It does **not** check markdown links, URLs, spelling, or grammar. Use [`lychee`]
 
 - `G` — **goal.** What we measure ourselves against. Declared as a heading inside `docs/goals/goals.md` (one file, all goals inline). Resolves to a short, observable success criterion — typically a paragraph or two.
 - `FS` — **functional spec.** External behavior — what the system does. Declared as the H1 of a file in `docs/functional-spec/`. Resolves to that file's body: numbered sections describing inputs, outputs, behavior, exit codes.
-- `AS` — **architectural spec.** Internals — components, boundaries, data flow. Declared as the H1 of a file in `docs/architectural-spec/`, **or** inline in a class/module-level doc-comment with a one-line stub at `docs/architectural-spec/AS-….md` containing `Defined-in: <path>`. Resolves to the spec body, with comment markers stripped when the home is in code.
+- `AS` — **architectural spec.** Internals — components, boundaries, data flow. Declared as the H1 of a file in `docs/architectural-spec/`, **or** inline in a class/module-level doc-comment with a one-line stub at `docs/architectural-spec/AS-….md` whose H1 is `# <ID>: [<path>](<path>)`. Resolves to the spec body, with comment markers stripped when the home is in code.
 - `DF` — **functional decision.** Append-only record of a choice that shaped the *what*. Declared as the H1 of a file in `docs/decisions/functional/`. Resolves to a dated entry: options considered, chosen path, rationale.
 - `DA` — **architectural decision.** Append-only record of a choice that shaped the *how*. Declared as the H1 of a file in `docs/decisions/architectural/`. Resolves to the same shape as `DF`.
 - `E2E` — **end-to-end test.** Executable proof that a functional spec holds. Declared per case directory under `e2e/cases/<id>/`. Resolves to the case's fixtures (`repo/`, `expected.stdout`, `expected.stderr`, `expected.exit`) — the test *is* the body.
 
 Section coordinates (`.3.1`) resolve to a heading **inside** the declaration body — `### 3.1 …` for a markdown declaration, or the same heading shape inside a doc-comment for an inline one. `gnd show <ID>.<section>` returns just that subtree.
 
-Citations are written prefixed by the marker `§`, e.g. `§FS-042-user-login.3.1`. Type `$$` in a `gnd`-aware editor and it's rewritten to `§` automatically. Both marker and trigger are configurable in `gnd.toml`.
+Citations are written prefixed by the marker `§`, e.g. `§FS-042-user-login.3.1`. Type `$$` in a `gnd`-aware editor and it's rewritten to `§` automatically. Both marker and trigger are configurable in `.agents/gnd.toml`.
 
 ## Try it
 
@@ -49,15 +49,15 @@ A passing repo prints nothing on stdout and exits 0. Errors go to stderr as `<pa
 ## Set up a repo
 
 ```bash
-gnd init                       # writes agents.md and gnd.toml in the cwd
+gnd init                       # writes agents.md and .agents/gnd.toml in the cwd
 gnd init --docs                # also scaffolds docs/ and e2e/ trees in the cwd
 gnd init --docs path/to/repo   # any form accepts a target path; default is .
+gnd init --force               # rewrite agents.md and .agents/gnd.toml from the canonical templates
 ```
 
-See [`FS-008-init`](docs/functional-spec/FS-008-init.md). `init` is non-interactive and refuses to clobber existing files unless `--force` is passed.
+`init` is non-interactive and **idempotent**: re-running it never errors on existing files. If `agents.md` is already present, `init` either appends a versioned `<!-- gnd:init:agents:v1 ... -->` block (when none is there yet), updates an older block in place, or leaves a current block untouched. Every other target file (`.agents/gnd.toml`, the `--docs` scaffolds) is reported `exists` and left as-is unless `--force` is passed. See [`FS-008-init`](docs/functional-spec/FS-008-init.md) for the full state table.
 
-###
-    Pre-commit hook
+### Pre-commit hook
 
 Run `gnd check` before each commit so dangling references never land on `main`. With [pre-commit](https://pre-commit.com/), add to `.pre-commit-config.yaml`:
 
@@ -84,9 +84,10 @@ exec gnd check
 
 | Command                    | What it does                                                                       |
 | -------------------------- | ---------------------------------------------------------------------------------- |
-| `gnd check [path]`       | Validate references. The default —`gnd <path>` is shorthand.                    |
-| `gnd show <ID> [--head]` | Print just the body of a declaration, for pulling spec content into agent prompts. |
-| `gnd fmt [path]`         | Rewrite `$$` triggers to `§`; with `--marker`, also upgrade bare citations. |
+| `gnd check [path]`         | Validate references. The default — `gnd <path>` is shorthand.                      |
+| `gnd init [path] [--docs] [--force]` | Scaffold `agents.md` and `.agents/gnd.toml`; idempotent by default — appends/updates the managed block in an existing `agents.md`, reports `exists` for other files. `--docs` also seeds `docs/` and `e2e/`; `--force` overwrites. |
+| `gnd show <ID> [--head]`   | Print just the body of a declaration, for pulling spec content into agent prompts. |
+| `gnd fmt [path]`           | Rewrite `$$` triggers to `§`; with `--marker`, also upgrade bare citations.        |
 
 Full surface in [`docs/functional-spec/`](docs/functional-spec/).
 
@@ -140,9 +141,7 @@ The stub under `docs/`:
 
 ```markdown
 # docs/architectural-spec/AS-014-event-bus.md
-# AS-014-event-bus
-
-Defined-in: src/bus.rs
+# AS-014-event-bus: [src/bus.rs](src/bus.rs)
 ```
 
 The class doc-comment in code, citing back into the functional spec:
@@ -163,7 +162,7 @@ pub struct EventBus { /* … */ }
 
 Two references cross the docs/code boundary in opposite directions:
 
-- **Doc → code:** `AS-014-event-bus.md` declares the ID; `Defined-in: src/bus.rs` tells `gnd` the body lives in the Rustdoc on `EventBus`. `gnd show AS-014-event-bus` strips the `///` markers and prints the Rustdoc prose.
+- **Doc → code:** `AS-014-event-bus.md` declares the ID; the link in `# AS-014-event-bus: [src/bus.rs](src/bus.rs)` tells `gnd` the body lives in the Rustdoc on `EventBus`. `gnd show AS-014-event-bus` strips the `///` markers and prints the Rustdoc prose.
 - **Code → doc:** the Rustdoc cites `§FS-021-events` and `§FS-021-events.4`. Those have to resolve to a markdown declaration under `docs/functional-spec/`. If `FS-021-events` is renamed or deleted, `gnd check` flags `src/bus.rs` immediately — even though the spec lives in `.md` and the cite lives in `.rs`.
 
 The same `gnd check` walks both files, treats the doc-comment as prose, and validates every citation in either direction.
@@ -201,7 +200,7 @@ Optional path argument; defaults to the current directory.
 
 `show` prints prose verbatim — it does not strip cites that `check` would flag. A dangling citation in a fetched body is information, not noise: the agent sees what the spec actually claims.
 
-The same works when the declaration lives inline in source — a Rustdoc, Javadoc, or Python docstring containing `# AS-014-event-bus: …`. `gnd show AS-014-event-bus` strips the comment markers and returns the prose, identical to what an IDE hover would render. The stub at `docs/architectural-spec/AS-014-event-bus.md` only carries `Defined-in: <path>`; `show` follows the stub.
+The same works when the declaration lives inline in source — a Rustdoc, Javadoc, or Python docstring containing `# AS-014-event-bus: …`. `gnd show AS-014-event-bus` strips the comment markers and returns the prose, identical to what an IDE hover would render. The stub at `docs/architectural-spec/AS-014-event-bus.md` is a single-line H1 — `# AS-014-event-bus: [<path>](<path>)` — and `show` follows the link.
 
 JSON for tooling:
 
@@ -276,7 +275,7 @@ $ gnd show --format json AS-014-event-bus | jq -r '.path + ":" + (.line|tostring
 src/bus.rs:42
 ```
 
-If a stub at `docs/architectural-spec/AS-014-event-bus.md` says `Defined-in: src/bus.rs`, `show` follows it; the path printed is the inline declaration's home, not the stub. An agent verifying that a spec's prose still matches its implementation always lands on the file it actually needs to read.
+If a stub at `docs/architectural-spec/AS-014-event-bus.md` reads `# AS-014-event-bus: [src/bus.rs](src/bus.rs)`, `show` follows the link; the path printed is the inline declaration's home, not the stub. An agent verifying that a spec's prose still matches its implementation always lands on the file it actually needs to read.
 
 ## Project layout
 

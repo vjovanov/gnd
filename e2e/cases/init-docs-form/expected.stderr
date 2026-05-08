@@ -1,0 +1,11 @@
+wrote agents.md
+wrote .agents/gnd.toml
+wrote docs/raison-detre.md
+wrote docs/state-and-direction.md
+wrote docs/goals/goals.md
+wrote docs/functional-spec/.gitkeep
+wrote docs/architectural-spec/.gitkeep
+wrote docs/decisions/architectural/.gitkeep
+wrote docs/decisions/functional/.gitkeep
+wrote e2e/README.md
+wrote e2e/cases/.gitkeep

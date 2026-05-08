@@ -12,7 +12,7 @@ A citation `§FS-042-user-login.3.1` resolves when:
 
 - A declaration of `FS-042-user-login` exists somewhere in the scanned tree.
 - The declaration body contains a numbered section `3.1` (recursively, at any depth — see FS-006-config.3.3).
-- If the declaration is a stub with `Defined-in:`, the pointed-at file contains an inline declaration of the same ID.
+- If the declaration is a stub (H1 of the form `# <ID>: [<text>](<path>)`), the pointed-at file contains an inline declaration of the same ID.
 
 ### 2. Measurable
 

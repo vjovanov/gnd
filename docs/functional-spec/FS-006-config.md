@@ -1,12 +1,14 @@
-# FS-006-config: gnd reads a TOML config file at the repo root
+# FS-006-config: gnd reads a TOML config file under .agents/
 
 `gnd` is zero-config out of the box (G-003-zero-config) and fully configurable when a project's conventions diverge (G-006-configurable). This spec defines the contract: where the config lives, what it contains, what it overrides, and how malformed configs are reported.
 
 ## 1. File location and discovery
 
-The config file is **`gnd.toml`** at the repo root. Discovery walks upward from the working directory until a `gnd.toml` is found, mirroring how `cargo` finds `Cargo.toml`. The directory containing the discovered file is the **config root**; relative paths inside the config are resolved against it.
+The config file is **`.agents/gnd.toml`** — the `gnd.toml` lives inside an `.agents/` directory at the repo root. Discovery walks upward from the working directory until a directory containing `.agents/gnd.toml` is found, mirroring how `cargo` finds `Cargo.toml`. The directory **containing `.agents/`** is the **config root**; relative paths inside the config are resolved against it (not against `.agents/`).
 
-If no `gnd.toml` is found, `gnd` runs with the built-in defaults defined in this spec. The defaults are the canonical `gnd` grammar — they are not stored in any file.
+`.agents/` is a single-purpose directory: it holds agent-facing tooling configuration that does not belong at the repo root next to the project's own metadata files. Other agent tools may colocate their configuration here in the future; `gnd` only owns `.agents/gnd.toml`.
+
+If no `.agents/gnd.toml` is found, `gnd` runs with the built-in defaults defined in this spec. The defaults are the canonical `gnd` grammar — they are not stored in any file.
 
 ## 2. Precedence
 

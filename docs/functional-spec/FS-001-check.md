@@ -68,7 +68,11 @@ The same `<KIND>-<NNN>-<slug>` declared as a heading in more than one file. Repo
 
 ### 3.4 Broken inline-spec stub
 
-A `docs/` file with a `Defined-in: <path>` line where either the path does not exist, or the file at that path contains no inline declaration of the same ID.
+A `docs/` file whose H1 has the stub shape `# <ID>: [<text>](<path>)` where either the path does not exist, or the file at that path contains no inline declaration of the same ID.
+
+### 3.5 Invalid `agents.md` init block
+
+If `<path>/agents.md` exists, `check` verifies the versioned `gnd init` block defined by FS-008-init.2.3. A missing block, malformed begin/end marker pair, older block version, or newer unsupported block version is an error. This lets CI catch repos whose agent entry point was never initialized or needs to be refreshed with `gnd init`.
 
 ## 4. Warnings
 

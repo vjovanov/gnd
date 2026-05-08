@@ -1,0 +1,5 @@
+[scan]
+include = ["docs"]
+exclude = ["ignored"]
+extensions = ["md"]
+

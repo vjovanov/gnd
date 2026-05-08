@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Treat rustc warnings as errors for the binary itself. NOTE: this does not
+  # deny clippy lints — clippy is intentionally not part of CI here. Add a
+  # `cargo clippy --no-deps -- -D warnings` step if/when we want lint enforcement.
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  test:
+    name: cargo test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Run every matrix leg even if one fails so we can see Linux + macOS results
+      # together rather than aborting after the first failure.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned to a tagged release rather than @master so a compromise of the
+      # action repo doesn't silently change CI behavior on unrelated PRs.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo build
+        run: cargo build --all-targets --locked
+
+      # tests/e2e.rs walks every fixture under e2e/cases and asserts each case's
+      # exit code, stdout, and stderr against its expected.* files; tests/init.rs
+      # covers the file-content / config-validation contract for `gnd init`. So
+      # `cargo test` runs the full e2e suite plus the unit tests in src/main.rs.
+      - name: cargo test
+        run: cargo test --all-targets --locked

@@ -56,7 +56,7 @@ Add fixture directories and golden expectations for:
 - dangling citation
 - missing section
 - duplicate declaration
-- broken `Defined-in:` path
+- broken stub-link path
 - stub target exists but lacks the matching declaration
 - fenced examples ignored
 - marker-prefixed citation

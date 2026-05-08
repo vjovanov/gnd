@@ -33,19 +33,19 @@ If a declaration has no lead paragraph (its body opens directly with `## 1. ...`
 
 ### 2.2.1 Ambiguous ID
 
-If multiple declarations of the same ID exist (the duplicate-declaration error from FS-001-check.3.3), `show` does not pick one. It exits 1 with a single bare stderr line (no `<path>:<line>:` prefix, since there is no single site to point at):
+If an ID has more than one home — the duplicate-declaration error from FS-001-check.3.3 — `show` does not pick one. A stub paired with the inline declaration it points at is *one* home, not two; ambiguity means two or more independent declarations remain after that pairing collapses. When ambiguous, `show` exits 1 with a single bare stderr line (no `<path>:<line>:` prefix, since there is no single site to point at):
 
 ```
 ambiguous ID: <ID> (declared at <path>:<line>, <path>:<line>[, ...])
 ```
 
-The repo must be fixed (run `gnd check` first) before `show` will return a body. This shape matches the bare-message form used for `ID not found` and `section not found` (FS-002-show.3): all three are queries that found something other than exactly one body.
+Sites are listed in lexicographic `path:line` order so the message is stable across runs. The repo must be fixed (run `gnd check` first) before `show` will return a body. This shape matches the bare-message form used for `ID not found` and `section not found` (FS-002-show.3): all three are queries that found something other than exactly one body.
 
 ### 2.3 Inline declarations in code and doc-comments
 
 When the ID's home is in code (per FS-001-check.3.4 stub semantics), `show` extracts the comment block surrounding the inline declaration, strips comment markers, and prints the resulting prose. The same section logic applies.
 
-The scanner recognizes the same doc-comment forms enumerated in AS-001-scanner.4 — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, PHPDoc, Rustdoc (`///`, `//!`, `/** … */`), C# XML doc comments, Go's `// …` doc blocks, Ruby `#` comments, and Python `""" … """` docstrings. This means an architectural spec can live directly in the class-level Javadoc, and `gnd show AS-014-event-bus` returns the rendered Javadoc body — same content the IDE plugin shows on hover (FS-003-ide-plugins.1.2). The stub at `docs/architectural-spec/AS-014-event-bus.md` only needs `Defined-in:` to point at the file.
+The scanner recognizes the same doc-comment forms enumerated in AS-001-scanner.4 — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, PHPDoc, Rustdoc (`///`, `//!`, `/** … */`), C# XML doc comments, Go's `// …` doc blocks, Ruby `#` comments, and Python `""" … """` docstrings. This means an architectural spec can live directly in the class-level Javadoc, and `gnd show AS-014-event-bus` returns the rendered Javadoc body — same content the IDE plugin shows on hover (FS-003-ide-plugins.1.2). The stub at `docs/architectural-spec/AS-014-event-bus.md` is a single-line H1 — `# AS-014-event-bus: [<path>](<path>)` — pointing at the file.
 
 #### 2.3.1 What counts as the "comment block"
 
@@ -84,7 +84,7 @@ Section selection (`AS-014-event-bus.2`) works the same way inside a doc-comment
 ## 3. Outputs
 
 - `0` — printed successfully.
-- `1` — ID not found, or section not found in declaration.
+- `1` — ID not found, ambiguous ID (multiple homes — FS-002-show.2.2.1), or section not found in declaration.
 - `2` — I/O error.
 
 Stdout for the body. Stderr for errors. Empty stdout on error.

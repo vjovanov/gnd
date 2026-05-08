@@ -14,7 +14,7 @@ A non-goal is not the same as "we'll do it later." Non-goals are commitments. To
 
 ## 3. Code AST parsing
 
-`gnd` does not parse code. It does line-oriented regex over comments and doc-comments (per AS-001-scanner). It does not understand classes, methods, types, scopes, or call graphs. The `Defined-in:` pointer is a file path, not a symbol reference. Reasoning: G-002-fast-feedback rules out per-language parsers, and IDs are syntactic by design.
+`gnd` does not parse code. It does line-oriented regex over comments and doc-comments (per AS-001-scanner). It does not understand classes, methods, types, scopes, or call graphs. The stub-heading link is a file path, not a symbol reference. Reasoning: G-002-fast-feedback rules out per-language parsers, and IDs are syntactic by design.
 
 ## 4. Cross-workspace ID renaming
 
