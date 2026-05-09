@@ -22,6 +22,7 @@ This project uses the [`gnd`](https://github.com/anthropics/gnd) reference schem
 | `docs/functional-spec/` | **How does the system behave to achieve the goals?** External behavior — the *what*. |
 | `docs/architectural-spec/` | **How is the system built?** Components, boundaries, data flow — the *how*. |
 | `docs/decisions/` | **How did we get to the state we are in?** Append-only decision records, split into `architectural/` and `functional/`. |
+| `docs/discussions/` | **What ideas are still open?** Discussion notes and proposals, declared with the project-local `DISC-*` kind. |
 
 ## The e2e/ folder
 
@@ -33,7 +34,7 @@ End-to-end tests live in `e2e/`. They are not documentation — they are executa
 
 ## References
 
-The `gnd` ID scheme: `<KIND>-<NNN>-<slug>[.<section>]`, where `KIND` ∈ `{G, FS, AS, DA, DF, E2E}` by default (configurable per `gnd`'s §FS-config). Citations are written prefixed by the marker `§` (per `gnd`'s §DF-reference-marker). Bare tokens are also recognized for backward compatibility unless `[reference] strict = true` is set in `.agents/gnd.toml`.
+The `gnd` ID scheme: `<KIND>-<slug>[.<section>]` in this repo, where `KIND` ∈ `{G, FS, AS, DA, DF, E2E, DISC}` per `.agents/gnd.toml` (configurable per `gnd`'s §FS-config). Citations are written prefixed by the marker `§` (per `gnd`'s §DF-reference-marker). Bare tokens are ignored because `[reference] strict = true` is set in `.agents/gnd.toml`.
 
 Declarations are heading lines: `# FS-user-login: A player can log in …` in a markdown file, or the same shape inside a code doc-comment (Javadoc, JSDoc, Rustdoc, Python docstring, Go `//` block, etc.). An architectural spec, in particular, can live directly in the class-level doc-comment of the class it describes, with a one-line stub under `docs/architectural-spec/` whose H1 is `# <ID>: [<path>](<path>)` (a markdown link to the file with the inline declaration). See `gnd`'s §AS-scanner.4 for the exhaustive list of supported doc-comment forms.
 
@@ -80,6 +81,7 @@ This project uses the [`gnd`](https://github.com/anthropics/gnd) reference schem
 | `docs/functional-spec/` | **How does the system behave to achieve the goals?** External behavior — the *what*. |
 | `docs/architectural-spec/` | **How is the system built?** Components, boundaries, data flow — the *how*. |
 | `docs/decisions/` | **How did we get to the state we are in?** Append-only decision records, split into `architectural/` and `functional/`. |
+| `docs/discussions/` | **What ideas are still open?** Discussion notes and proposals, declared with the project-local `DISC-*` kind. |
 
 ## The e2e/ folder
 
@@ -91,7 +93,7 @@ End-to-end tests live in `e2e/`. They are not documentation — they are executa
 
 ## References
 
-The `gnd` ID scheme: `<KIND>-<NNN>-<slug>[.<section>]`, where `KIND` ∈ `{G, FS, AS, DA, DF, E2E}` by default (configurable per `gnd`'s §FS-config). Citations are written prefixed by the marker `§` (per `gnd`'s §DF-reference-marker). Bare tokens are also recognized for backward compatibility unless `[reference] strict = true` is set in `.agents/gnd.toml`.
+The `gnd` ID scheme: `<KIND>-<slug>[.<section>]` in this repo, where `KIND` ∈ `{G, FS, AS, DA, DF, E2E, DISC}` per `.agents/gnd.toml` (configurable per `gnd`'s §FS-config). Citations are written prefixed by the marker `§` (per `gnd`'s §DF-reference-marker). Bare tokens are ignored because `[reference] strict = true` is set in `.agents/gnd.toml`.
 
 Declarations are heading lines: `# FS-user-login: A player can log in …` in a markdown file, or the same shape inside a code doc-comment (Javadoc, JSDoc, Rustdoc, Python docstring, Go `//` block, etc.). An architectural spec, in particular, can live directly in the class-level doc-comment of the class it describes, with a one-line stub under `docs/architectural-spec/` whose H1 is `# <ID>: [<path>](<path>)` (a markdown link to the file with the inline declaration). See `gnd`'s §AS-scanner.4 for the exhaustive list of supported doc-comment forms.
 

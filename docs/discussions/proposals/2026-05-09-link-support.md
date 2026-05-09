@@ -1,0 +1,54 @@
+# DISC-link-support: Link support as a derived presentation layer
+
+## Status
+
+Discussion.
+
+## Context
+
+Readers often want clickable navigation in rendered Markdown, while `gnd`'s core
+model is based on stable ID citations. A Markdown link is useful for a human in a
+browser or IDE preview, but it is path-coupled and anchor-coupled. An ID citation
+is location-independent and works across Markdown and source doc-comments.
+
+The current direction in §DF-md-link-emission and §FS-fmt.6 is to keep IDs as the
+source of truth and let `gnd fmt --md-links` generate Markdown links around
+marker-prefixed citations in `.md` files.
+
+## Proposed shape
+
+Keep this form canonical:
+
+```text
+§FS-fmt.6
+```
+
+Allow `fmt` to derive this rendered-Markdown convenience form:
+
+```markdown
+[§FS-fmt.6](../functional-spec/FS-fmt.md#...)
+```
+
+The link target should be regenerated from the ID graph, not edited by hand as
+the authoritative reference. If a file moves or a heading changes, a later
+`gnd fmt --md-links --write` pass updates the generated URL.
+
+## Boundaries
+
+- `gnd check` should continue to validate the underlying ID citation, not general
+  Markdown links.
+- General Markdown link validation remains out of scope for `gnd` per
+  §FS-non-goals.1; tools such as lychee remain better suited to `[text](url)`
+  and HTTP validation.
+- Source files should not be rewritten with Markdown link syntax. The universal
+  form in source comments remains the marker-prefixed ID citation.
+
+## Open questions
+
+- Should repositories be able to opt into `--md-links` globally through config,
+  or should it stay invocation-only until the formatter behavior is mature?
+- Should generated links to source-hosted declarations point only at the file, or
+  should `gnd` eventually support best-effort line anchors where hosts support
+  them?
+- Should CI recommend both `gnd fmt --md-links --check` and a separate lychee
+  pass, or leave that composition entirely to the project?

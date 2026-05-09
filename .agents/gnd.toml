@@ -44,6 +44,11 @@ prefix = "E2E"
 folder = "e2e/cases"
 title = "End-to-end test"
 
+[[kinds]]
+prefix = "DISC"
+folder = "docs/discussions"
+title = "Discussion"
+
 [scan]
 include = ["docs", "e2e", "src"]
 exclude = ["target", "node_modules", ".git", "dist", "build", ".venv"]
