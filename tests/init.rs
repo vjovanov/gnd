@@ -30,7 +30,7 @@ fn run_gnd<P: AsRef<Path>>(args: &[&str], cwd: P) -> Output {
 fn init_default_writes_canonical_pair_and_passes_check() {
     // FS-init.2.1 (default form) + FS-config.1 (.agents/gnd.toml location).
     let target = workdir("init_default_writes_canonical_pair_and_passes_check");
-    let output = run_gnd(&["init", target.to_str().unwrap()], &manifest_dir());
+    let output = run_gnd(&["init", target.to_str().unwrap()], manifest_dir());
     assert!(
         output.status.success(),
         "init failed: stderr={}",
@@ -52,7 +52,7 @@ fn init_default_writes_canonical_pair_and_passes_check() {
 
     let validate = run_gnd(
         &["config", "validate", target.to_str().unwrap()],
-        &manifest_dir(),
+        manifest_dir(),
     );
     assert!(
         validate.status.success(),
@@ -74,7 +74,7 @@ fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
             "--name",
             "DemoProject",
         ],
-        &manifest_dir(),
+        manifest_dir(),
     );
     assert!(
         output.status.success(),
@@ -111,7 +111,7 @@ fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
         ".agents/gnd.toml must carry project_name from --name"
     );
 
-    let check = run_gnd(&["check", target.to_str().unwrap()], &manifest_dir());
+    let check = run_gnd(&["check", target.to_str().unwrap()], manifest_dir());
     assert!(
         check.status.success(),
         "freshly init'd tree should be gnd-clean but produced:\n{}",
@@ -127,7 +127,7 @@ fn init_is_byte_deterministic() {
     for target in [&a, &b] {
         let out = run_gnd(
             &["init", target.to_str().unwrap(), "--name", "Same"],
-            &manifest_dir(),
+            manifest_dir(),
         );
         assert!(out.status.success());
     }

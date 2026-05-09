@@ -6,8 +6,8 @@ An architectural spec may live inline in the class- or module-level doc-comment 
 
 | ID | Subject |
 |---|---|
-| [AS-scanner](AS-scanner.md) | how `gnd` discovers declarations and citations |
-| [AS-checker](AS-checker.md) | how `gnd` validates the scanner's findings |
-| [AS-bindings](AS-bindings.md) | how the same Rust engine is exposed on three platforms |
+| [§AS-scanner](AS-scanner.md) | how `gnd` discovers declarations and citations |
+| [§AS-checker](AS-checker.md) | how `gnd` validates the scanner's findings |
+| [§AS-bindings](AS-bindings.md) | how the same Rust engine is exposed on three platforms |
 
 This index is navigational — citations should target the spec ID directly, never this file.

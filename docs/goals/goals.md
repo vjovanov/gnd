@@ -2,13 +2,15 @@
 
 What `gnd` measures itself against. If a change does not advance one of these, it is not worth doing. Goals are declared inline below so a human can read the whole picture top-to-bottom; each declaration is a stable ID and may be cited from anywhere in the repo.
 
+Current goals: §G-no-dangling-refs, §G-fast-feedback, §G-zero-config, §G-multi-language, §G-friendliness-first, §G-configurable, §G-no-silent-breakage, and §G-small-and-large.
+
 ## G-no-dangling-refs: every cited ID resolves to a declaration
 
 A repo that passes `gnd` has zero dangling references and zero broken section coordinates. False negatives are bugs. This is the load-bearing promise; everything else exists in service of this one.
 
 ### 1. What "resolves" means
 
-A citation `§FS-user-login.3.1` resolves when:
+A citation `FS-user-login.3.1` resolves when:
 
 - A declaration of `FS-user-login` exists somewhere in the scanned tree.
 - The declaration body contains a numbered section `3.1` (recursively, at any depth — see FS-config.3.3).

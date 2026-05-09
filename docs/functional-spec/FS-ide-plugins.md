@@ -24,7 +24,7 @@ Typing a partial ID (e.g. `FS-`) offers an autocompletion list of declared IDs i
 
 ### 1.5 Trigger-to-marker live transform
 
-Per DF-reference-marker, the plugins watch for the configured trigger sequence (default `$$`) and replace it with the marker (default `§`) the moment it is followed by a token matching the configured ID grammar's leading `{kind}` placeholder and a digit (FS-config.3.2). Type `$$FS-check`; see `§FS-check`. This is what makes the marker practical to use without leaving the keyboard.
+Per DF-reference-marker, the plugins watch for the configured trigger sequence (default `$$`) and replace it with the marker (default `§`) the moment it is followed by a token matching the configured ID grammar's leading `{kind}` placeholder and a digit (FS-config.3.2). Type the trigger before `FS-check`; see `§FS-check`. This is what makes the marker practical to use without leaving the keyboard.
 
 The trigger, marker, and ID grammar are read from `gnd.toml` so the editor experience matches the project's choices. If no config is present, the defaults from DF-reference-marker and FS-config apply.
 

@@ -46,14 +46,14 @@ Why `$$`:
 
 `gnd` owns the trigger transformation. It runs in two places:
 
-- **Live, in the gnd IDE plugins (FS-ide-plugins).** Type `$$FS-check`; `$$` becomes `§` as soon as the regex matches.
+- **Live, in the gnd IDE plugins (FS-ide-plugins).** Type the trigger before `FS-check`; `$$` becomes `§` as soon as the regex matches.
 - **Bulk, via `gnd fmt` (FS-fmt).** Walk files and rewrite `<trigger><ID>` to `<marker><ID>`. Idempotent. Used as a pre-commit hook and a CI safety net.
 
 Editor-native input methods (snippets, Compose, OS Unicode entry) remain available for power users — they bypass the trigger and write `§` directly.
 
 ### 2.4 Strict vs optional
 
-**Default: optional.** Bare `FS-user-login` is still a valid citation; gnd recognizes it. `§FS-user-login` is preferred; tooling and editor previews use the marker form.
+**Default: optional.** Bare `FS-user-login` is still a valid citation; gnd recognizes it. The marker-prefixed form is preferred; tooling and editor previews use the marker form.
 
 **Opt-in strict mode.** Setting `[reference] strict = true` in `gnd.toml` makes the marker mandatory: bare tokens stop being treated as citations, eliminating false positives in repos that adopt the discipline fully. Strict mode is recommended once a repo has been migrated.
 

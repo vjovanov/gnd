@@ -4,7 +4,7 @@ project_name = "gnd"
 [reference]
 marker = "§"
 trigger = "$$"
-strict = false
+strict = true
 
 [id]
 # Slug-only IDs — see FS-config.3.2. Slugs must be unique within a kind.

@@ -28,6 +28,7 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 
 - Initial scheme in place: `gnd_config_version = 1` (FS-config.5), `agents.md` init block at **v1** (FS-init.2).
 - Working `gnd check` prototype against the canonical grammar (FS-check).
+- Decision records in scope: §DA-reference-checker-name and §DF-reference-marker.
 
 ### 2.2 Changed
 

@@ -1,6 +1,6 @@
 Usage:
   gnd [check] [path] [--format text|json]
-  gnd show <ID> [path] [--section <section>] [--head]
+  gnd show <ID> [path] [--section <section>] [--head] [--format text|md|json]
   gnd fmt [path] [--check] [--marker] [--write]
   gnd init [path] [--name <name>] [--docs] [--force] [--append]
   gnd config validate [path]
