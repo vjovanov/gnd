@@ -7,10 +7,12 @@ trigger = "$$"
 strict = false
 
 [id]
-format = "{kind}-{number}-{slug}"
+# Slug-only IDs — see FS-config.3.2. Slugs must be unique within a kind.
+# Slug must start with a letter so digit-prefixed tokens (e.g. `FS-001`
+# in illustrative prose) are not picked up as citations.
+format = "{kind}-{slug}"
 section_separator = "."
-number_pattern = "\\d+"
-slug_pattern = "[a-z0-9][a-z0-9-]*"
+slug_pattern = "[a-z][a-z0-9-]*"
 
 [[kinds]]
 prefix = "G"

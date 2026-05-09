@@ -14,7 +14,7 @@ fn e2e_cases_match_expected_reports() {
 
 #[test]
 fn e2e_output_is_deterministic() {
-    // G-005-friendliness-first.3 / FS-007-non-goals.13: same input → same output, byte-for-byte.
+    // G-friendliness-first.3 / FS-non-goals.13: same input → same output, byte-for-byte.
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     for case in discover_cases(&manifest_dir) {
         let name = case

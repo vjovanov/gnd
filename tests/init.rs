@@ -28,7 +28,7 @@ fn run_gnd<P: AsRef<Path>>(args: &[&str], cwd: P) -> Output {
 
 #[test]
 fn init_default_writes_canonical_pair_and_passes_check() {
-    // FS-008-init.2.1 (default form) + FS-006-config.1 (.agents/gnd.toml location).
+    // FS-init.2.1 (default form) + FS-config.1 (.agents/gnd.toml location).
     let target = workdir("init_default_writes_canonical_pair_and_passes_check");
     let output = run_gnd(&["init", target.to_str().unwrap()], &manifest_dir());
     assert!(
@@ -63,7 +63,7 @@ fn init_default_writes_canonical_pair_and_passes_check() {
 
 #[test]
 fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
-    // FS-008-init.2.1 (--docs form). The scaffolded tree must satisfy `gnd check` —
+    // FS-init.2.1 (--docs form). The scaffolded tree must satisfy `gnd check` —
     // i.e. the canonical agents.md + gnd.toml + docs skeleton is internally consistent.
     let target = workdir("init_docs_form_emits_full_scaffold_and_check_is_clean");
     let output = run_gnd(
@@ -86,10 +86,9 @@ fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
         "agents.md",
         ".agents/gnd.toml",
         "docs/raison-detre.md",
-        "docs/state-and-direction.md",
         "docs/goals/goals.md",
-        "docs/functional-spec/.gitkeep",
-        "docs/architectural-spec/.gitkeep",
+        "docs/functional-spec/README.md",
+        "docs/architectural-spec/README.md",
         "docs/decisions/architectural/.gitkeep",
         "docs/decisions/functional/.gitkeep",
         "e2e/README.md",
@@ -122,7 +121,7 @@ fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
 
 #[test]
 fn init_is_byte_deterministic() {
-    // FS-007-non-goals.13: same input → byte-identical output.
+    // FS-non-goals.13: same input → byte-identical output.
     let a = workdir("init_is_byte_deterministic_a");
     let b = workdir("init_is_byte_deterministic_b");
     for target in [&a, &b] {

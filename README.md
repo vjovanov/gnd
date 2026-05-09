@@ -2,7 +2,7 @@
 
 **Agent grounding tool.** A small, fast Rust CLI that keeps every agent — human or AI — pointing at the same facts.
 
-`gnd` validates an ID-based reference scheme across your docs, tests, and source. Things like `§FS-042-user-login.3.1` aren't markdown links and aren't URLs, so `lychee` can't check them. `gnd` does.
+`gnd` validates an ID-based reference scheme across your docs, tests, and source. Things like `§FS-user-login.3.1` aren't markdown links and aren't URLs, so `lychee` can't check them. `gnd` does.
 
 > Status: early. The spec under `docs/` is the source of truth; the binary is being implemented against it. `gnd` is its own first user — running `gnd .` at the repo root checks the project's own specs.
 
@@ -35,7 +35,7 @@ It does **not** check markdown links, URLs, spelling, or grammar. Use [`lychee`]
 
 Section coordinates (`.3.1`) resolve to a heading **inside** the declaration body — `### 3.1 …` for a markdown declaration, or the same heading shape inside a doc-comment for an inline one. `gnd show <ID>.<section>` returns just that subtree.
 
-Citations are written prefixed by the marker `§`, e.g. `§FS-042-user-login.3.1`. Type `$$` in a `gnd`-aware editor and it's rewritten to `§` automatically. Both marker and trigger are configurable in `.agents/gnd.toml`.
+Citations are written prefixed by the marker `§`, e.g. `§FS-user-login.3.1`. Type `$$` in a `gnd`-aware editor and it's rewritten to `§` automatically. Both marker and trigger are configurable in `.agents/gnd.toml`.
 
 ## Try it
 
@@ -55,7 +55,7 @@ gnd init --docs path/to/repo   # any form accepts a target path; default is .
 gnd init --force               # rewrite agents.md and .agents/gnd.toml from the canonical templates
 ```
 
-`init` is non-interactive and **idempotent**: re-running it never errors on existing files. If `agents.md` is already present, `init` either appends a versioned `<!-- gnd:init:agents:v1 ... -->` block (when none is there yet), updates an older block in place, or leaves a current block untouched. Every other target file (`.agents/gnd.toml`, the `--docs` scaffolds) is reported `exists` and left as-is unless `--force` is passed. See [`FS-008-init`](docs/functional-spec/FS-008-init.md) for the full state table.
+`init` is non-interactive and **idempotent**: re-running it never errors on existing files. If `agents.md` is already present, `init` either appends a versioned `<!-- gnd:init:agents:v1 ... -->` block (when none is there yet), updates an older block in place, or leaves a current block untouched. Every other target file (`.agents/gnd.toml`, the `--docs` scaffolds) is reported `exists` and left as-is unless `--force` is passed. See [`FS-init`](docs/functional-spec/FS-init.md) for the full state table.
 
 ### Pre-commit hook
 
@@ -99,18 +99,18 @@ One engine, three registries, idiomatic API on each:
 - **npm** — `gnd-cli` (prebuilt binary + Node API via `napi-rs`)
 - **PyPI** — `gnd` (Python API via PyO3, wheels via `maturin`)
 
-See [`FS-004-distribution`](docs/functional-spec/FS-004-distribution.md).
+See [`FS-distribution`](docs/functional-spec/FS-distribution.md).
 
 ## Example
 
 Two spec files in a small `gnd` repo, citing each other:
 
 ```markdown
-# docs/functional-spec/FS-001-check.md
-# FS-001-check: gnd validates every reference in a repo
+# docs/functional-spec/FS-check.md
+# FS-check: gnd validates every reference in a repo
 
 Walks a repo and reports every violation. Companion read path is
-FS-002-show. Tracked under G-999-clarity.
+FS-show. Tracked under G-clarity.
 
 ## 1. Inputs
 
@@ -118,20 +118,20 @@ Optional path argument; defaults to the current directory.
 ```
 
 ```markdown
-# docs/functional-spec/FS-002-show.md
-# FS-002-show: gnd reads a single declaration body by ID
+# docs/functional-spec/FS-show.md
+# FS-show: gnd reads a single declaration body by ID
 
 Prints the body of a declaration, given an ID. Default path matches
-FS-001-check.1.
+FS-check.1.
 ```
 
 `gnd .` reports the one dangling citation and exits non-zero:
 
 ```
-docs/functional-spec/FS-001-check.md:4: unknown reference G-999-clarity
+docs/functional-spec/FS-check.md:4: unknown reference G-clarity
 ```
 
-`FS-002-show` resolves to the second file. `FS-001-check.1` resolves to the `## 1. Inputs` heading. Only `G-999-clarity` has no declaration anywhere in the tree.
+`FS-show` resolves to the second file. `FS-check.1` resolves to the `## 1. Inputs` heading. Only `G-clarity` has no declaration anywhere in the tree.
 
 ## Example: spec in code
 
@@ -140,8 +140,8 @@ An architectural spec often reads better next to the class it describes. `gnd` l
 The stub under `docs/`:
 
 ```markdown
-# docs/architectural-spec/AS-014-event-bus.md
-# AS-014-event-bus: [src/bus.rs](src/bus.rs)
+# docs/architectural-spec/AS-event-bus.md
+# AS-event-bus: [src/bus.rs](src/bus.rs)
 ```
 
 The class doc-comment in code, citing back into the functional spec:
@@ -149,10 +149,10 @@ The class doc-comment in code, citing back into the functional spec:
 ```rust
 // src/bus.rs
 
-/// # AS-014-event-bus: In-process event broadcaster
+/// # AS-event-bus: In-process event broadcaster
 ///
-/// Implements the publish-subscribe contract from §FS-021-events.
-/// Slow receivers are dropped silently as required by §FS-021-events.4.
+/// Implements the publish-subscribe contract from §FS-events.
+/// Slow receivers are dropped silently as required by §FS-events.4.
 ///
 /// ## 1. Topology
 ///
@@ -162,36 +162,36 @@ pub struct EventBus { /* … */ }
 
 Two references cross the docs/code boundary in opposite directions:
 
-- **Doc → code:** `AS-014-event-bus.md` declares the ID; the link in `# AS-014-event-bus: [src/bus.rs](src/bus.rs)` tells `gnd` the body lives in the Rustdoc on `EventBus`. `gnd show AS-014-event-bus` strips the `///` markers and prints the Rustdoc prose.
-- **Code → doc:** the Rustdoc cites `§FS-021-events` and `§FS-021-events.4`. Those have to resolve to a markdown declaration under `docs/functional-spec/`. If `FS-021-events` is renamed or deleted, `gnd check` flags `src/bus.rs` immediately — even though the spec lives in `.md` and the cite lives in `.rs`.
+- **Doc → code:** `AS-event-bus.md` declares the ID; the link in `# AS-event-bus: [src/bus.rs](src/bus.rs)` tells `gnd` the body lives in the Rustdoc on `EventBus`. `gnd show AS-event-bus` strips the `///` markers and prints the Rustdoc prose.
+- **Code → doc:** the Rustdoc cites `§FS-events` and `§FS-events.4`. Those have to resolve to a markdown declaration under `docs/functional-spec/`. If `FS-events` is renamed or deleted, `gnd check` flags `src/bus.rs` immediately — even though the spec lives in `.md` and the cite lives in `.rs`.
 
 The same `gnd check` walks both files, treats the doc-comment as prose, and validates every citation in either direction.
 
 ## Reading a reference
 
-When an agent (human or AI) sees a citation in code or docs — say `§FS-001-check.1` in a comment — it pulls the grounded body with `gnd show`:
+When an agent (human or AI) sees a citation in code or docs — say `§FS-check.1` in a comment — it pulls the grounded body with `gnd show`:
 
 ```bash
-$ gnd show FS-001-check.1
+$ gnd show FS-check.1
 Optional path argument; defaults to the current directory.
 ```
 
 Skim the lead paragraph of a declaration without loading sections:
 
 ```bash
-$ gnd show --head FS-002-show
+$ gnd show --head FS-show
 Prints the body of a declaration, given an ID. Default path matches
-FS-001-check.1.
+FS-check.1.
 ```
 
 The whole declaration:
 
 ```bash
-$ gnd show FS-001-check
-# FS-001-check: gnd validates every reference in a repo
+$ gnd show FS-check
+# FS-check: gnd validates every reference in a repo
 
 Walks a repo and reports every violation. Companion read path is
-FS-002-show. Tracked under G-999-clarity.
+FS-show. Tracked under G-clarity.
 
 ## 1. Inputs
 
@@ -200,16 +200,16 @@ Optional path argument; defaults to the current directory.
 
 `show` prints prose verbatim — it does not strip cites that `check` would flag. A dangling citation in a fetched body is information, not noise: the agent sees what the spec actually claims.
 
-The same works when the declaration lives inline in source — a Rustdoc, Javadoc, or Python docstring containing `# AS-014-event-bus: …`. `gnd show AS-014-event-bus` strips the comment markers and returns the prose, identical to what an IDE hover would render. The stub at `docs/architectural-spec/AS-014-event-bus.md` is a single-line H1 — `# AS-014-event-bus: [<path>](<path>)` — and `show` follows the link.
+The same works when the declaration lives inline in source — a Rustdoc, Javadoc, or Python docstring containing `# AS-event-bus: …`. `gnd show AS-event-bus` strips the comment markers and returns the prose, identical to what an IDE hover would render. The stub at `docs/architectural-spec/AS-event-bus.md` is a single-line H1 — `# AS-event-bus: [<path>](<path>)` — and `show` follows the link.
 
 JSON for tooling:
 
 ```bash
-$ gnd show --format json FS-001-check.1
-{"id":"FS-001-check","section":"1","body":"Optional path argument; defaults to the current directory.\n","path":"docs/functional-spec/FS-001-check.md","line":7}
+$ gnd show --format json FS-check.1
+{"id":"FS-check","section":"1","body":"Optional path argument; defaults to the current directory.\n","path":"docs/functional-spec/FS-check.md","line":7}
 ```
 
-Errors are bare lines on stderr with empty stdout — exit `1` for a missing ID or missing section, exit `1` with `ambiguous ID: …` if duplicates exist (run `gnd check` first). See [`FS-002-show`](docs/functional-spec/FS-002-show.md).
+Errors are bare lines on stderr with empty stdout — exit `1` for a missing ID or missing section, exit `1` with `ambiguous ID: …` if duplicates exist (run `gnd check` first). See [`FS-show`](docs/functional-spec/FS-show.md).
 
 ### Agent prompt pattern
 
@@ -227,10 +227,10 @@ Before changing a file, an agent typically wants to know two things: *which spec
 
 ```bash
 $ grep -oE '§[A-Z]+-[0-9]+-[a-z0-9-]+(\.[0-9.]+)?' src/scanner.rs | sort -u
-§AS-001-scanner.2.1
-§AS-001-scanner.4
-§FS-001-check.1.1
-§G-002-fast-feedback
+§AS-scanner.2.1
+§AS-scanner.4
+§FS-check.1.1
+§G-fast-feedback
 ```
 
 Four cites. The agent now knows exactly which declarations the file leans on.
@@ -249,8 +249,8 @@ Silent + exit 0 means every cite resolves. A regression looks like:
 
 ```bash
 $ gnd check src/scanner.rs
-src/scanner.rs:142: unknown reference FS-001-check.9.9
-src/scanner.rs:201: section 4.7 not found in AS-001-scanner
+src/scanner.rs:142: unknown reference FS-check.9.9
+src/scanner.rs:201: section 4.7 not found in AS-scanner
 ```
 
 ### Fetch each cited body and compare against the code
@@ -264,26 +264,28 @@ $ for id in $(grep -oE '§[A-Z]+-[0-9]+-[a-z0-9-]+(\.[0-9.]+)?' src/scanner.rs |
   done
 ```
 
-Now the agent can answer concrete questions: does `src/scanner.rs` actually implement the doc-comment forms enumerated in `AS-001-scanner.4`? If the spec lists Javadoc, JSDoc, Rustdoc, Python docstrings, and Go `//` blocks, but the code only handles three of them, the file's claim to ground itself in `§AS-001-scanner.4` is a lie — and the verification surfaces it.
+Now the agent can answer concrete questions: does `src/scanner.rs` actually implement the doc-comment forms enumerated in `AS-scanner.4`? If the spec lists Javadoc, JSDoc, Rustdoc, Python docstrings, and Go `//` blocks, but the code only handles three of them, the file's claim to ground itself in `§AS-scanner.4` is a lie — and the verification surfaces it.
 
 ### Find which file owns a declaration
 
 The reverse direction — *who declares this ID?* — is a single command and uses the JSON shape so the agent can program against it:
 
 ```bash
-$ gnd show --format json AS-014-event-bus | jq -r '.path + ":" + (.line|tostring)'
+$ gnd show --format json AS-event-bus | jq -r '.path + ":" + (.line|tostring)'
 src/bus.rs:42
 ```
 
-If a stub at `docs/architectural-spec/AS-014-event-bus.md` reads `# AS-014-event-bus: [src/bus.rs](src/bus.rs)`, `show` follows the link; the path printed is the inline declaration's home, not the stub. An agent verifying that a spec's prose still matches its implementation always lands on the file it actually needs to read.
+If a stub at `docs/architectural-spec/AS-event-bus.md` reads `# AS-event-bus: [src/bus.rs](src/bus.rs)`, `show` follows the link; the path printed is the inline declaration's home, not the stub. An agent verifying that a spec's prose still matches its implementation always lands on the file it actually needs to read.
 
 ## Project layout
 
 `gnd` follows its own scheme. Start at [`agents.md`](agents.md), then read down through [`docs/`](docs/):
 
-- `docs/raison-detre.md` — why this exists
-- `docs/goals/` — what we measure ourselves against
-- `docs/functional-spec/` — external behavior
-- `docs/architectural-spec/` — internals
-- `docs/decisions/` — how we got here
-- `e2e/` — executable proof that the spec holds
+- [`docs/raison-detre.md`](docs/raison-detre.md) — why this exists
+- [`docs/goals/`](docs/goals/) — what we measure ourselves against
+- [`docs/roadmap.md`](docs/roadmap.md) — what's next, with IDed milestones
+- [`docs/changelog.md`](docs/changelog.md) — what changed, latest release inline
+- [`docs/functional-spec/`](docs/functional-spec/) — external behavior
+- [`docs/architectural-spec/`](docs/architectural-spec/) — internals
+- [`docs/decisions/`](docs/decisions/) — how we got here
+- [`e2e/`](e2e/) — executable proof that the spec holds

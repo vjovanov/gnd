@@ -4,7 +4,7 @@
 
 Software projects increasingly involve many agents — humans and AIs — collaborating on the same codebase over long horizons. Each agent has limited context. Without a shared, mechanically-checked reference frame, knowledge silently fragments: specs drift from code, decisions are forgotten, e2e tests prove the wrong things, and "the why" lives in someone's head until that someone moves on.
 
-The **gnd reference scheme** addresses this by giving every spec, goal, decision, and test a stable ID, and forbidding agents from hoarding context outside the docs. But the scheme is only as strong as its enforcement: a dangling `FS-042-user-login.3.1` in prose is invisible until something breaks.
+The **gnd reference scheme** addresses this by giving every spec, goal, decision, and test a stable ID, and forbidding agents from hoarding context outside the docs. But the scheme is only as strong as its enforcement: a dangling `FS-user-login.3.1` in prose is invisible until something breaks.
 
 ## 2. What gnd does about it
 
@@ -17,7 +17,7 @@ The **gnd reference scheme** addresses this by giving every spec, goal, decision
 
 It also helps agents *use* the scheme: `gnd show <ID>` prints just the declaration body, so an agent can pull a single spec section into context without loading entire files.
 
-This serves G-001-no-dangling-refs and G-002-fast-feedback.
+This serves G-no-dangling-refs and G-fast-feedback.
 
 ## 3. Who it is for
 

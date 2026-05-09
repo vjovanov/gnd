@@ -7,40 +7,13 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use walkdir::WalkDir;
 
-const KIND_GROUP: &str = r"(?P<kind>FS|AS|DA|DF|G|E2E)";
-const NUM_GROUP: &str = r"(?P<num>\d+)";
-const SLUG_GROUP: &str = r"(?P<slug>[a-z0-9][a-z0-9-]*)";
 const SEC_GROUP: &str = r"(?P<sec>\d+(?:\.\d+)*)";
 const COMMENT_PREFIX: &str = r"(?://[/!]?|#|;|--|\*|/\*)";
-
-static DECL_HEADING: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(&format!(
-        r"^\s*{}?\s*#+\s+{}-{}-{}\b",
-        COMMENT_PREFIX, KIND_GROUP, NUM_GROUP, SLUG_GROUP
-    ))
-    .unwrap()
-});
 
 static SECTION_HEADING: Lazy<Regex> = Lazy::new(|| {
     Regex::new(&format!(
         r"^\s*{}?\s*#+\s+{}\.?\s+\S",
         COMMENT_PREFIX, SEC_GROUP
-    ))
-    .unwrap()
-});
-
-static CITATION_CORE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(&format!(
-        r"\b{}-{}-{}(?:\.{})?",
-        KIND_GROUP, NUM_GROUP, SLUG_GROUP, SEC_GROUP
-    ))
-    .unwrap()
-});
-
-static ID_INPUT: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(&format!(
-        r"^{}-{}-{}(?:\.{})?$",
-        KIND_GROUP, NUM_GROUP, SLUG_GROUP, SEC_GROUP
     ))
     .unwrap()
 });
@@ -52,16 +25,134 @@ static AGENTS_BLOCK_BEGIN: Lazy<Regex> =
 static AGENTS_BLOCK_END: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"<!--\s*gnd:init:agents:v\d+\s+end\s*-->").unwrap());
 
+/// ID grammar compiled from [id].format + [[kinds]] — the single place that knows the
+/// shape of a declaration heading or a citation. Built once per config load.
+#[derive(Clone)]
+struct Grammar {
+    decl_re: Regex,
+    citation_re: Regex,
+    id_input_re: Regex,
+}
+
+impl Grammar {
+    fn build(
+        format: &str,
+        kinds: &[String],
+        number_pattern: &str,
+        slug_pattern: &str,
+        section_separator: &str,
+    ) -> Result<Self> {
+        let kind_alt = if kinds.is_empty() {
+            return Err(anyhow!("[id] grammar needs at least one [[kinds]] entry"));
+        } else {
+            kinds
+                .iter()
+                .map(|k| regex::escape(k))
+                .collect::<Vec<_>>()
+                .join("|")
+        };
+        let kind_group = format!("(?P<kind>{})", kind_alt);
+        let num_group = format!("(?P<num>{})", number_pattern);
+        let slug_group = format!("(?P<slug>{})", slug_pattern);
+
+        let mut id_pat = String::new();
+        let mut has_kind = false;
+        let mut has_number = false;
+        let mut has_slug = false;
+        let mut cursor = 0;
+        let bytes = format.as_bytes();
+        while cursor < bytes.len() {
+            if let Some(end) = format[cursor..].find('}') {
+                let abs_end = cursor + end;
+                if let Some(start_rel) = format[cursor..].find('{') {
+                    let abs_start = cursor + start_rel;
+                    if abs_start < abs_end {
+                        // Append literal between cursor and abs_start (escaped).
+                        id_pat.push_str(&regex::escape(&format[cursor..abs_start]));
+                        let placeholder = &format[abs_start + 1..abs_end];
+                        match placeholder {
+                            "kind" => {
+                                if has_kind {
+                                    return Err(anyhow!("[id].format: {{kind}} appears twice"));
+                                }
+                                has_kind = true;
+                                id_pat.push_str(&kind_group);
+                            }
+                            "number" => {
+                                if has_number {
+                                    return Err(anyhow!("[id].format: {{number}} appears twice"));
+                                }
+                                has_number = true;
+                                id_pat.push_str(&num_group);
+                            }
+                            "slug" => {
+                                if has_slug {
+                                    return Err(anyhow!("[id].format: {{slug}} appears twice"));
+                                }
+                                has_slug = true;
+                                id_pat.push_str(&slug_group);
+                            }
+                            other => {
+                                return Err(anyhow!(
+                                    "[id].format: unknown placeholder `{{{other}}}`"
+                                ));
+                            }
+                        }
+                        cursor = abs_end + 1;
+                        continue;
+                    }
+                }
+                return Err(anyhow!("[id].format: stray `}}` in template"));
+            }
+            // No more placeholders — append the rest as literal.
+            id_pat.push_str(&regex::escape(&format[cursor..]));
+            break;
+        }
+
+        if !has_kind {
+            return Err(anyhow!("[id].format must contain {{kind}}"));
+        }
+        if !has_number && !has_slug {
+            return Err(anyhow!(
+                "[id].format must contain at least one of {{number}} or {{slug}}"
+            ));
+        }
+
+        let sep_quoted = regex::escape(section_separator);
+        let sec_suffix = format!(r"(?:{}{})?", sep_quoted, SEC_GROUP);
+
+        let decl_re = Regex::new(&format!(
+            r"^\s*{}?\s*#+\s+{}\b",
+            COMMENT_PREFIX, id_pat
+        ))?;
+        let citation_re = Regex::new(&format!(r"\b{}{}", id_pat, sec_suffix))?;
+        let id_input_re = Regex::new(&format!(r"^{}{}$", id_pat, sec_suffix))?;
+
+        Ok(Self {
+            decl_re,
+            citation_re,
+            id_input_re,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 struct Id {
     kind: String,
-    num: u32,
-    slug: String,
+    num: Option<u32>,
+    slug: Option<String>,
 }
 
 impl std::fmt::Display for Id {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}-{:03}-{}", self.kind, self.num, self.slug)
+        write!(f, "{}", self.kind)?;
+        if let Some(n) = self.num {
+            write!(f, "-{:03}", n)?;
+        }
+        if let Some(s) = &self.slug {
+            write!(f, "-{}", s)?;
+        }
+        Ok(())
     }
 }
 
@@ -98,10 +189,31 @@ struct Config {
     exclude: Vec<String>,
     extensions: Vec<String>,
     output_format: String,
+    id_format: String,
+    section_separator: String,
+    number_pattern: String,
+    slug_pattern: String,
+    kinds: Vec<String>,
+    grammar: Grammar,
 }
+
+const DEFAULT_KINDS: &[&str] = &["G", "FS", "AS", "DA", "DF", "E2E"];
+const DEFAULT_ID_FORMAT: &str = "{kind}-{number}-{slug}";
+const DEFAULT_SECTION_SEPARATOR: &str = ".";
+const DEFAULT_NUMBER_PATTERN: &str = r"\d+";
+const DEFAULT_SLUG_PATTERN: &str = r"[a-z0-9][a-z0-9-]*";
 
 impl Config {
     fn default_for(_root: PathBuf) -> Self {
+        let kinds: Vec<String> = DEFAULT_KINDS.iter().map(|s| s.to_string()).collect();
+        let grammar = Grammar::build(
+            DEFAULT_ID_FORMAT,
+            &kinds,
+            DEFAULT_NUMBER_PATTERN,
+            DEFAULT_SLUG_PATTERN,
+            DEFAULT_SECTION_SEPARATOR,
+        )
+        .expect("default grammar must compile");
         Self {
             marker: "§".to_string(),
             trigger: "$$".to_string(),
@@ -140,7 +252,24 @@ impl Config {
                 "toml".into(),
             ],
             output_format: "text".into(),
+            id_format: DEFAULT_ID_FORMAT.into(),
+            section_separator: DEFAULT_SECTION_SEPARATOR.into(),
+            number_pattern: DEFAULT_NUMBER_PATTERN.into(),
+            slug_pattern: DEFAULT_SLUG_PATTERN.into(),
+            kinds,
+            grammar,
         }
+    }
+
+    fn rebuild_grammar(&mut self) -> Result<()> {
+        self.grammar = Grammar::build(
+            &self.id_format,
+            &self.kinds,
+            &self.number_pattern,
+            &self.slug_pattern,
+            &self.section_separator,
+        )?;
+        Ok(())
     }
 }
 
@@ -151,15 +280,18 @@ struct Report {
 }
 
 fn parse_id(caps: &regex::Captures) -> Option<Id> {
-    Some(Id {
-        kind: caps.name("kind")?.as_str().to_string(),
-        num: caps.name("num")?.as_str().parse().ok()?,
-        slug: caps.name("slug")?.as_str().to_string(),
-    })
+    let kind = caps.name("kind")?.as_str().to_string();
+    let num = match caps.name("num") {
+        Some(m) => Some(m.as_str().parse().ok()?),
+        None => None,
+    };
+    let slug = caps.name("slug").map(|m| m.as_str().to_string());
+    Some(Id { kind, num, slug })
 }
 
-fn parse_id_arg(raw: &str) -> Result<(Id, Option<String>)> {
-    let caps = ID_INPUT
+fn parse_id_arg(raw: &str, grammar: &Grammar) -> Result<(Id, Option<String>)> {
+    let caps = grammar
+        .id_input_re
         .captures(raw)
         .ok_or_else(|| anyhow!("invalid ID `{raw}`"))?;
     let id = parse_id(&caps).ok_or_else(|| anyhow!("invalid ID `{raw}`"))?;
@@ -188,6 +320,10 @@ fn load_config(start: &Path) -> Result<Config> {
 fn parse_config_file(path: &Path, config: &mut Config) -> Result<()> {
     let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let mut section = String::new();
+    let mut id_seen = false;
+    let mut parsed_kinds: Vec<String> = Vec::new();
+    let mut current_kind: Option<String> = None;
+    let mut kinds_block_seen = false;
     for (idx, raw_line) in text.lines().enumerate() {
         let line_no = idx + 1;
         let line = strip_comment(raw_line).trim();
@@ -195,9 +331,25 @@ fn parse_config_file(path: &Path, config: &mut Config) -> Result<()> {
             continue;
         }
         if line.starts_with('[') && line.ends_with(']') {
+            let is_array_table = line.starts_with("[[") && line.ends_with("]]");
             section = line.trim_matches(['[', ']']).to_string();
             match section.as_str() {
-                "reference" | "scan" | "output" | "id" | "kinds" => {}
+                "reference" | "scan" | "output" | "id" => {}
+                "kinds" => {
+                    if !is_array_table {
+                        bail_config(
+                            path,
+                            line_no,
+                            "expected `[[kinds]]` (array of tables)".to_string(),
+                        )?;
+                    }
+                    // Flush any open kind entry, then start a new one.
+                    if let Some(prefix) = current_kind.take() {
+                        parsed_kinds.push(prefix);
+                    }
+                    current_kind = Some(String::new());
+                    kinds_block_seen = true;
+                }
                 other => bail_config(path, line_no, format!("unknown config section `{other}`"))?,
             }
             continue;
@@ -221,10 +373,35 @@ fn parse_config_file(path: &Path, config: &mut Config) -> Result<()> {
             ("reference", "marker") => config.marker = parse_string(path, line_no, value)?,
             ("reference", "trigger") => config.trigger = parse_string(path, line_no, value)?,
             ("reference", "strict") => config.strict = parse_bool(path, line_no, value)?,
-            ("id", "format" | "section_separator" | "number_pattern" | "slug_pattern") => {
-                parse_string(path, line_no, value)?;
+            ("id", "format") => {
+                config.id_format = parse_string(path, line_no, value)?;
+                id_seen = true;
             }
-            ("kinds", "prefix" | "folder" | "title") => {
+            ("id", "section_separator") => {
+                config.section_separator = parse_string(path, line_no, value)?;
+                id_seen = true;
+            }
+            ("id", "number_pattern") => {
+                config.number_pattern = parse_string(path, line_no, value)?;
+                id_seen = true;
+            }
+            ("id", "slug_pattern") => {
+                config.slug_pattern = parse_string(path, line_no, value)?;
+                id_seen = true;
+            }
+            ("kinds", "prefix") => {
+                let prefix = parse_string(path, line_no, value)?;
+                if let Some(slot) = current_kind.as_mut() {
+                    *slot = prefix;
+                } else {
+                    bail_config(
+                        path,
+                        line_no,
+                        "`prefix` outside of [[kinds]] block".to_string(),
+                    )?;
+                }
+            }
+            ("kinds", "folder" | "title") => {
                 parse_string(path, line_no, value)?;
             }
             ("scan", "include") => config.include = Some(parse_string_list(path, line_no, value)?),
@@ -246,11 +423,49 @@ fn parse_config_file(path: &Path, config: &mut Config) -> Result<()> {
             _ => bail_config(path, line_no, format!("unknown config key `{key}`"))?,
         }
     }
+    if let Some(prefix) = current_kind.take() {
+        parsed_kinds.push(prefix);
+    }
     if config.strict && config.marker.is_empty() {
         return Err(anyhow!(
             "{}: reference.strict requires a non-empty marker",
             path.display()
         ));
+    }
+    if kinds_block_seen {
+        // [[kinds]] replaces defaults entirely, per FS-config.3.4.
+        if parsed_kinds.iter().any(|p| p.is_empty()) {
+            return Err(anyhow!(
+                "{}: every [[kinds]] entry must declare a `prefix`",
+                path.display()
+            ));
+        }
+        if parsed_kinds.is_empty() {
+            return Err(anyhow!(
+                "{}: at least one [[kinds]] entry must declare a `prefix`",
+                path.display()
+            ));
+        }
+        // Reject kinds whose prefix is itself a prefix of another kind's prefix
+        // (FS-config.3.4 — would make tokenization ambiguous).
+        for (i, a) in parsed_kinds.iter().enumerate() {
+            for (j, b) in parsed_kinds.iter().enumerate() {
+                if i != j && a.len() <= b.len() && b.starts_with(a.as_str()) {
+                    return Err(anyhow!(
+                        "{}: kinds `{}` and `{}` collide (one is a prefix of the other)",
+                        path.display(),
+                        a,
+                        b
+                    ));
+                }
+            }
+        }
+        config.kinds = parsed_kinds;
+    }
+    if id_seen || kinds_block_seen {
+        config
+            .rebuild_grammar()
+            .with_context(|| format!("{}: invalid [id] grammar", path.display()))?;
     }
     Ok(())
 }
@@ -287,11 +502,36 @@ fn bail_config<T>(path: &Path, line: usize, message: String) -> Result<T> {
 }
 
 fn parse_string(path: &Path, line: usize, value: &str) -> Result<String> {
-    if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
-        Ok(value[1..value.len() - 1].to_string())
-    } else {
-        bail_config(path, line, "expected string".to_string())
+    if !(value.starts_with('"') && value.ends_with('"') && value.len() >= 2) {
+        return bail_config(path, line, "expected string".to_string());
     }
+    let inner = &value[1..value.len() - 1];
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('\\') => out.push('\\'),
+            Some('"') => out.push('"'),
+            Some('n') => out.push('\n'),
+            Some('t') => out.push('\t'),
+            Some('r') => out.push('\r'),
+            Some(other) => {
+                return bail_config(
+                    path,
+                    line,
+                    format!("invalid escape sequence `\\{other}` in string"),
+                );
+            }
+            None => {
+                return bail_config(path, line, "trailing backslash in string".to_string());
+            }
+        }
+    }
+    Ok(out)
 }
 
 fn parse_bool(path: &Path, line: usize, value: &str) -> Result<bool> {
@@ -363,7 +603,7 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
             line
         };
 
-        if let Some(caps) = DECL_HEADING.captures(scan_line) {
+        if let Some(caps) = config.grammar.decl_re.captures(scan_line) {
             if let Some(id) = parse_id(&caps) {
                 if let Some(prev) = current.take() {
                     findings
@@ -401,7 +641,7 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
             }
         }
 
-        for caps in CITATION_CORE.captures_iter(scan_line) {
+        for caps in config.grammar.citation_re.captures_iter(scan_line) {
             let Some(full) = caps.get(0) else { continue };
             let has_marker = scan_line[..full.start()].ends_with(&config.marker);
             if config.strict && !has_marker {
@@ -466,7 +706,7 @@ fn scan_tree(root: &Path, config: &Config) -> Result<Findings> {
     Ok(findings)
 }
 
-fn check(root: &Path, findings: &Findings) -> Report {
+fn check(root: &Path, findings: &Findings, config: &Config) -> Report {
     let mut report = Report::default();
     check_agents_block_version(root, &mut report);
 
@@ -535,10 +775,8 @@ fn check(root: &Path, findings: &Findings) -> Report {
                 ));
                 continue;
             }
-            let inline_ok = if resolved.is_file()
-                && is_scannable(&resolved, &Config::default_for(root.to_path_buf()))
-            {
-                file_declares(&resolved, id).unwrap_or(false)
+            let inline_ok = if resolved.is_file() && is_scannable(&resolved, config) {
+                file_declares(&resolved, id, &config.grammar).unwrap_or(false)
             } else {
                 false
             };
@@ -644,13 +882,12 @@ fn is_stub_for_inline_decl(root: &Path, decl: &Declaration, decls: &[Declaration
         .any(|other| other.file == resolved && other.file != decl.file)
 }
 
-fn file_declares(path: &Path, id: &Id) -> Result<bool> {
+fn file_declares(path: &Path, id: &Id, grammar: &Grammar) -> Result<bool> {
     let text = fs::read_to_string(path)?;
-    let target = id.to_string();
     for line in text.lines() {
-        if let Some(caps) = DECL_HEADING.captures(line) {
+        if let Some(caps) = grammar.decl_re.captures(line) {
             if let Some(found) = parse_id(&caps) {
-                if found.to_string() == target {
+                if &found == id {
                     return Ok(true);
                 }
             }
@@ -729,7 +966,7 @@ fn command_check(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let report = check(&path, &findings);
+    let report = check(&path, &findings, &config);
     let format = format_override.unwrap_or_else(|| config.output_format.clone());
     if format == "json" {
         print_json_report(&report);
@@ -787,14 +1024,6 @@ fn command_show(args: &[String]) -> ExitCode {
         eprintln!("error: show requires an ID");
         return ExitCode::from(2);
     };
-    let (id, inline_section) = match parse_id_arg(&id_arg) {
-        Ok(parsed) => parsed,
-        Err(err) => {
-            eprintln!("{err:#}");
-            return ExitCode::FAILURE;
-        }
-    };
-    let section = section_override.or(inline_section);
     let config = match load_config(&path) {
         Ok(config) => config,
         Err(err) => {
@@ -802,6 +1031,14 @@ fn command_show(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    let (id, inline_section) = match parse_id_arg(&id_arg, &config.grammar) {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            eprintln!("{err:#}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let section = section_override.or(inline_section);
     let findings = match scan_tree(&path, &config) {
         Ok(f) => f,
         Err(e) => {
@@ -809,7 +1046,7 @@ fn command_show(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    match show_declaration(&path, &findings, &id, section.as_deref(), head) {
+    match show_declaration(&path, &findings, &id, section.as_deref(), head, &config.grammar) {
         Ok(body) => {
             print!("{body}");
             ExitCode::SUCCESS
@@ -827,6 +1064,7 @@ fn show_declaration(
     id: &Id,
     section: Option<&str>,
     head: bool,
+    grammar: &Grammar,
 ) -> Result<String> {
     let decls = findings
         .declarations
@@ -858,7 +1096,7 @@ fn show_declaration(
     } else {
         decl.file.clone()
     };
-    extract_declaration_body(&file, id, section, head)
+    extract_declaration_body(&file, id, section, head, grammar)
 }
 
 fn extract_declaration_body(
@@ -866,6 +1104,7 @@ fn extract_declaration_body(
     id: &Id,
     section: Option<&str>,
     head: bool,
+    grammar: &Grammar,
 ) -> Result<String> {
     let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
@@ -875,7 +1114,7 @@ fn extract_declaration_body(
     let mut lines = Vec::new();
 
     for line in text.lines() {
-        if let Some(caps) = DECL_HEADING.captures(line) {
+        if let Some(caps) = grammar.decl_re.captures(line) {
             let found = parse_id(&caps);
             if in_decl && found.as_ref() != Some(id) {
                 break;
@@ -1034,7 +1273,7 @@ fn fmt_tree(
                 changed_lines.push(line.to_string());
                 continue;
             }
-            if in_fence || DECL_HEADING.is_match(line) {
+            if in_fence || config.grammar.decl_re.is_match(line) {
                 changed_lines.push(line.to_string());
                 continue;
             }
@@ -1071,7 +1310,7 @@ fn replace_trigger(line: &str, config: &Config) -> String {
     while let Some(relative) = line[cursor..].find(&config.trigger) {
         let start = cursor + relative;
         let after = start + config.trigger.len();
-        if let Some(found) = CITATION_CORE.find_at(line, after) {
+        if let Some(found) = config.grammar.citation_re.find_at(line, after) {
             if found.start() == after {
                 output.push_str(&line[cursor..start]);
                 output.push_str(&config.marker);
@@ -1089,7 +1328,7 @@ fn replace_trigger(line: &str, config: &Config) -> String {
 fn add_markers(line: &str, config: &Config) -> String {
     let mut output = String::new();
     let mut cursor = 0;
-    for found in CITATION_CORE.find_iter(line) {
+    for found in config.grammar.citation_re.find_iter(line) {
         if line[..found.start()].ends_with(&config.marker) {
             continue;
         }
@@ -1140,9 +1379,10 @@ fn command_config(args: &[String]) -> ExitCode {
 const AGENTS_TEMPLATE: &str = include_str!("../templates/agents.md");
 const GND_TOML_TEMPLATE: &str = include_str!("../templates/gnd.toml");
 const RAISON_DETRE_TEMPLATE: &str = include_str!("../templates/raison-detre.md");
-const STATE_TEMPLATE: &str = include_str!("../templates/state-and-direction.md");
 const GOALS_TEMPLATE: &str = include_str!("../templates/goals.md");
 const E2E_README_TEMPLATE: &str = include_str!("../templates/e2e-README.md");
+const FS_README_TEMPLATE: &str = include_str!("../templates/functional-spec-README.md");
+const AS_README_TEMPLATE: &str = include_str!("../templates/architectural-spec-README.md");
 const GITKEEP_TEMPLATE: &str = include_str!("../templates/gitkeep.md");
 const AGENTS_BLOCK_VERSION: u32 = 1;
 const AGENTS_APPEND_BEGIN: &str = "<!-- gnd:init:agents:v1 begin -->";
@@ -1370,15 +1610,14 @@ fn derive_default_name(target: &Path) -> Result<String> {
 fn docs_scaffold() -> Vec<(&'static str, String)> {
     vec![
         ("docs/raison-detre.md", RAISON_DETRE_TEMPLATE.to_string()),
-        ("docs/state-and-direction.md", STATE_TEMPLATE.to_string()),
         ("docs/goals/goals.md", GOALS_TEMPLATE.to_string()),
         (
-            "docs/functional-spec/.gitkeep",
-            GITKEEP_TEMPLATE.to_string(),
+            "docs/functional-spec/README.md",
+            FS_README_TEMPLATE.to_string(),
         ),
         (
-            "docs/architectural-spec/.gitkeep",
-            GITKEEP_TEMPLATE.to_string(),
+            "docs/architectural-spec/README.md",
+            AS_README_TEMPLATE.to_string(),
         ),
         (
             "docs/decisions/architectural/.gitkeep",
@@ -1440,7 +1679,7 @@ mod tests {
 
     #[test]
     fn agents_update_keeps_current_block_in_middle_position() {
-        // FS-008-init.2.3.1: a v1 block that already sits between user-authored
+        // FS-init.2.3.1: a v1 block that already sits between user-authored
         // sections must be recognized as `AlreadyCurrent` and the file must not be
         // rewritten — the position of the block within the file is preserved.
         let existing = format!(
@@ -1462,7 +1701,7 @@ mod tests {
 
     #[test]
     fn agents_update_handles_crlf_line_endings() {
-        // FS-008-init.2.3.2: a CRLF-encoded agents.md with a v0 block sandwiched
+        // FS-init.2.3.2: a CRLF-encoded agents.md with a v0 block sandwiched
         // between user-authored sections must still be detected and updated, with
         // CRLF preserved outside the managed block.
         let v0_lf = current_block()

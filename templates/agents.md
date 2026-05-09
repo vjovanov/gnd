@@ -17,8 +17,9 @@ This project uses the [`gnd`](https://github.com/anthropics/gnd) reference schem
 | Document | Question it answers |
 |---|---|
 | `docs/raison-detre.md` | **Why does this exist?** The problem we are solving and who it is for. |
-| `docs/state-and-direction.md` | **Where are we now, and how do we get there?** Current state and the path forward. |
 | `docs/goals/goals.md` | **What do we measure?** Concrete, observable goals declared inline in a single file so a human can read them top-to-bottom. |
+| `docs/roadmap.md` | **What's next?** Forward-looking, IDed milestones (`RM-NNN`) with a soft direction paragraph. |
+| `docs/changelog.md` | **What changed?** Latest release inline; older releases under `docs/changelog/`. |
 | `docs/functional-spec/` | **How does the system behave to achieve the goals?** External behavior — the *what*. |
 | `docs/architectural-spec/` | **How is the system built?** Components, boundaries, data flow — the *how*. |
 | `docs/decisions/` | **How did we get to the state we are in?** Append-only decision records, split into `architectural/` and `functional/`. |
