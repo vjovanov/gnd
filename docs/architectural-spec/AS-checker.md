@@ -42,5 +42,5 @@ Findings without a single source location (CLI launch errors, malformed configur
 The scanner produces a complete view of the world; the checker enforces rules on that view. Keeping them separate means:
 
 - New rules can be added without touching the scanner.
-- IDE-side hot loops (FS-ide-plugins) can run a subset of checks (e.g., only dangling references on the active file's citations) against a cached scan.
+- The optional LSP server (§AS-lsp) can run a subset of checks (e.g., only dangling references on the active file's citations) against a cached scan.
 - Tests can feed synthetic `Findings` directly to the checker without disk I/O.

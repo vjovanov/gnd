@@ -28,14 +28,14 @@ folder = "docs/architectural-spec"
 title = "Architectural spec"
 
 [[kinds]]
-prefix = "DA"
-folder = "docs/decisions/architectural"
-title = "Architectural decision"
-
-[[kinds]]
 prefix = "DF"
 folder = "docs/decisions/functional"
 title = "Functional decision"
+
+[[kinds]]
+prefix = "DA"
+folder = "docs/decisions/architectural"
+title = "Architectural decision"
 
 [[kinds]]
 prefix = "E2E"
@@ -54,3 +54,7 @@ respect_gitignore = true
 format = "text"
 color = "auto"
 relative_paths = true
+
+[fmt.md_links]
+enabled = false
+anchor_format = "github"

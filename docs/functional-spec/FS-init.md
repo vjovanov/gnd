@@ -12,7 +12,7 @@ gnd init [<path>] [--name <name>] [--docs] [--force] [--append]
 
 - `<path>` — directory in which to scaffold. Defaults to `.` (the current directory). Applies to every form of `init` — including `--docs` — and prefixes every emitted path in §2.1. Must exist; `init` does not create the target directory itself (a missing target is a user error, not something to silently paper over).
 - `--name <name>` — human-readable project name baked into the generated `agents.md` heading and the `.agents/gnd.toml` `project_name` key. Defaults to the basename of `<path>` resolved to an absolute path.
-- `--docs` — also scaffold the canonical `docs/` tree (empty `raison-detre.md`, `goals/goals.md`, `functional-spec/`, `architectural-spec/`, `decisions/architectural/`, `decisions/functional/`) and an empty `e2e/` directory with a stub `README.md`. Off by default — most adopters already have a `docs/` of some shape and want only the entry point and config. Composes with `<path>`: every scaffolded file lands under `<path>/`.
+- `--docs` — also scaffold the canonical `docs/` tree (stub `raison-detre.md`, `goals/goals.md`, `roadmap.md`, `changelog.md`, `functional-spec/`, `architectural-spec/`, `decisions/architectural/`, `decisions/functional/`) and an empty `e2e/` directory with a stub `README.md`. The `roadmap.md` and `changelog.md` stubs are scaffolded because the generated `agents.md` block's `docs/` table links to them (§2.3). Off by default — most adopters already have a `docs/` of some shape and want only the entry point and config. Composes with `<path>`: every scaffolded file lands under `<path>/`.
 - `--force` — overwrite files that already exist at the target paths. Off by default. Mutually exclusive with `--append`: passing both is a CLI-level error and exits 2 without touching the working tree (per §4).
 - `--append` — explicitly request the default `agents.md` behavior: keep existing content and append or update the managed `gnd` block. This flag is accepted for scripts that want to state intent, but it is not required.
 
@@ -44,6 +44,8 @@ With `--docs`, additionally:
 
 - `<path>/docs/raison-detre.md`
 - `<path>/docs/goals/goals.md`
+- `<path>/docs/roadmap.md`
+- `<path>/docs/changelog.md`
 - `<path>/docs/functional-spec/README.md`
 - `<path>/docs/architectural-spec/README.md`
 - `<path>/docs/decisions/architectural/.gitkeep`
@@ -51,7 +53,15 @@ With `--docs`, additionally:
 - `<path>/e2e/README.md`
 - `<path>/e2e/cases/.gitkeep`
 
-The `.gitkeep` files exist solely so the empty directories survive a `git add`. Their content is a single line: `# placeholder — replace this directory's contents with real declarations`.
+Each scaffolded markdown file is a minimal starter — enough structure to teach the layout, no real content:
+
+- `raison-detre.md` — the canonical H1 plus the three H2 sections (`## 1. The problem`, `## 2. What this project does about it`, `## 3. Who it is for`), each with a one-line italic prompt to be replaced.
+- `goals/goals.md` — the H1 plus a one-line note on how goals are declared inline (`# G-NNN-slug: …`).
+- `roadmap.md`, `changelog.md` — the H1 plus a single `<!-- placeholder - replace with real content -->` line.
+- `functional-spec/README.md`, `architectural-spec/README.md` — the H1, the navigational note about how `FS-`/`AS-` IDs declare into the directory and the convention that the index lists every spec, and an empty `| ID | Subject |` table to fill in.
+- `e2e/README.md` — the H1 (`# e2e`) plus a one-line note that every behaviour under `docs/functional-spec/` has at least one case.
+
+The exact bytes for a given `gnd` version are embedded in the binary; reference copies live under `templates/` in the `gnd` source tree, and two `gnd init --docs` runs at the same version with the same `--name` produce byte-identical scaffolds (FS-non-goals.13). `gnd check` is clean against the freshly-scaffolded tree. The `.gitkeep` files exist solely so the empty directories survive a `git add`; their content is a single line: `# placeholder — replace this directory's contents with real declarations`.
 
 ### 2.2 Stdout / stderr
 
@@ -68,7 +78,7 @@ Paths are relative to `<path>`. Stdout is always empty (consistent with G-friend
 
 ### 2.3 Generated `agents.md`
 
-The emitted `agents.md` content is a canonical managed block: it explains the ID grammar, points at the `docs/` layout, and lists the rules for agents (mirrors the rules in this repo's own `agents.md`). The `<name>` from `--name` is interpolated into the H1 and the opening sentence; everything else is fixed boilerplate. The boilerplate content is part of this spec — two `gnd init` runs at the same `gnd` version with the same `--name` produce byte-identical managed blocks. (FS-non-goals.13.)
+The emitted `agents.md` content is a canonical managed block: it explains the ID grammar, points at the `docs/` layout (including `roadmap.md` and `changelog.md`), and lists the rules for agents (mirrors the rules in this repo's own `agents.md`). The canonical text for a given block version `vN` is embedded in the `gnd` binary; the reference copy lives at `templates/agents.md` in the `gnd` source tree, and the `vN` marker (§2.3) is what versions it under G-no-silent-breakage. The `<name>` from `--name` is interpolated into the H1 and the opening sentence; everything else is fixed for that `vN`. The contract this spec makes is the *determinism and versioning*, not a literal transcript: two `gnd init` runs at the same `gnd` version with the same `--name` produce byte-identical managed blocks (FS-non-goals.13), and `gnd check`'s `agents.md` validation (FS-check.3.5) checks the begin/end marker pair and the version, not a byte-diff against the canonical text.
 
 The managed block is wrapped in version markers:
 
@@ -92,7 +102,7 @@ The managed block's **position within `agents.md` is preserved on update**. `ini
 - The block-recognition regex tolerates any whitespace (including `\r`) between the marker tokens, so a CRLF-encoded file with a v0 block is detected and updated correctly.
 - The freshly-written block uses LF endings (the bytes embedded in the binary). On a CRLF-encoded host file the result is mixed line endings inside the managed region and CRLF outside; this is intentional. Normalizing the rest of the file would violate the "leave content alone" guarantee.
 
-The generated file uses the canonical `gnd` reference grammar even before any IDs exist in the repo — citations of `G-no-dangling-refs`, `FS-check`, etc. inside the boilerplate point at the **gnd project's own** documentation, not the new repo's. This is intentional: the boilerplate is a teaching surface, and the IDs anchor the teaching to a stable source. The generated `.agents/gnd.toml` (§2.4) sets `[scan] include = ["docs", "e2e", "src"]` so the boilerplate's pedagogical citations in `agents.md` are not themselves scanned (the file lives at the repo root, outside `include`). See AS-authoring.1 for why this is safe.
+The generated file uses the canonical `gnd` reference grammar even before any IDs exist in the repo — citations of `G-no-dangling-refs`, `FS-check`, etc. inside the boilerplate point at the **gnd project's own** documentation, not the new repo's. This is intentional: the boilerplate is a teaching surface, and the IDs anchor the teaching to a stable source. The generated `.agents/gnd.toml` (§2.4) sets `[scan] include = ["docs", "e2e", "src"]` so the boilerplate's pedagogical citations in `agents.md` are not themselves scanned (the file lives at the repo root, outside `include`) — the citations remain inert text in the host repo and never flow into its findings.
 
 ### 2.4 Generated `.agents/gnd.toml`
 
@@ -115,7 +125,7 @@ The `--docs` mode applies the same rule across the docs tree: existing scaffold 
 ## 4. Exit codes
 
 - `0` — every requested file was written, appended, updated, or already current.
-- `2` — I/O error (target path does not exist, permission denied, disk full, etc.).
+- `2` — I/O error (target path does not exist, permission denied, disk full, etc.); a CLI-level error such as `--append` and `--force` together (§1); or an existing `agents.md` contains a managed block whose schema version is newer than the running binary supports (§2.3), in which case the file is left unchanged.
 
 Exit-code mapping is fixed per G-friendliness-first.2 and FS-non-goals.9.
 

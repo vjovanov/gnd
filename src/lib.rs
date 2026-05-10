@@ -1,22 +1,16 @@
 use anyhow::{Context, Result, anyhow};
+use ignore::WalkBuilder;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use walkdir::WalkDir;
+use unicode_normalization::UnicodeNormalization;
 
 const SEC_GROUP: &str = r"(?P<sec>\d+(?:\.\d+)*)";
-const COMMENT_PREFIX: &str = r"(?://[/!]?|#|;|--|\*|/\*)";
-
-static SECTION_HEADING: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(&format!(
-        r"^\s*{}?\s*#+\s+{}\.?\s+\S",
-        COMMENT_PREFIX, SEC_GROUP
-    ))
-    .unwrap()
-});
+const DEFAULT_INCLUDE: &[&str] = &["docs", "e2e", "src"];
+const DEFAULT_COMMENT_PREFIXES: &[&str] = &["//", "#", ";", "--", "*", "/*"];
 
 static STUB_LINK_HEADING: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^\s*:\s*\[[^\]]*\]\(\s*(?P<path>[^)\s]+)\s*\)\s*$").unwrap());
@@ -30,6 +24,7 @@ static AGENTS_BLOCK_END: Lazy<Regex> =
 #[derive(Clone)]
 struct Grammar {
     decl_re: Regex,
+    section_re: Regex,
     citation_re: Regex,
     id_input_re: Regex,
 }
@@ -41,6 +36,7 @@ impl Grammar {
         number_pattern: &str,
         slug_pattern: &str,
         section_separator: &str,
+        comment_prefixes: &[String],
     ) -> Result<Self> {
         let kind_alt = if kinds.is_empty() {
             return Err(anyhow!("[id] grammar needs at least one [[kinds]] entry"));
@@ -56,6 +52,7 @@ impl Grammar {
         let slug_group = format!("(?P<slug>{})", slug_pattern);
 
         let mut id_pat = String::new();
+        let mut literals: Vec<String> = Vec::new();
         let mut has_kind = false;
         let mut has_number = false;
         let mut has_slug = false;
@@ -68,6 +65,9 @@ impl Grammar {
                     let abs_start = cursor + start_rel;
                     if abs_start < abs_end {
                         // Append literal between cursor and abs_start (escaped).
+                        if abs_start > cursor {
+                            literals.push(format[cursor..abs_start].to_string());
+                        }
                         id_pat.push_str(&regex::escape(&format[cursor..abs_start]));
                         let placeholder = &format[abs_start + 1..abs_end];
                         match placeholder {
@@ -105,6 +105,9 @@ impl Grammar {
                 return Err(anyhow!("[id].format: stray `}}` in template"));
             }
             // No more placeholders — append the rest as literal.
+            if cursor < format.len() {
+                literals.push(format[cursor..].to_string());
+            }
             id_pat.push_str(&regex::escape(&format[cursor..]));
             break;
         }
@@ -118,18 +121,76 @@ impl Grammar {
             ));
         }
 
+        // FS-config.3.2: the section separator must be lexically distinguishable
+        // from the ID grammar — otherwise a citation like `FS-foo<sep>bar` could
+        // not be split into ID and section unambiguously.
+        if section_separator.is_empty() {
+            return Err(anyhow!("[id].section_separator must not be empty"));
+        }
+        if literals.iter().any(|lit| lit.contains(section_separator)) {
+            return Err(anyhow!(
+                "[id].section_separator `{section_separator}` collides with a literal in [id].format"
+            ));
+        }
+        if Regex::new(slug_pattern)
+            .map(|re| re.is_match(section_separator))
+            .unwrap_or(false)
+        {
+            return Err(anyhow!(
+                "[id].section_separator `{section_separator}` is matched by [id].slug_pattern"
+            ));
+        }
+        if has_number
+            && Regex::new(number_pattern)
+                .map(|re| re.is_match(section_separator))
+                .unwrap_or(false)
+        {
+            return Err(anyhow!(
+                "[id].section_separator `{section_separator}` is matched by [id].number_pattern"
+            ));
+        }
+
         let sep_quoted = regex::escape(section_separator);
         let sec_suffix = format!(r"(?:{}{})?", sep_quoted, SEC_GROUP);
 
-        let decl_re = Regex::new(&format!(r"^\s*{}?\s*#+\s+{}\b", COMMENT_PREFIX, id_pat))?;
+        let comment_prefix = comment_prefix_regex(comment_prefixes);
+        let decl_re = Regex::new(&format!(
+            r"^\s*(?:{})?\s*(?P<hashes>#+)\s+{}\b",
+            comment_prefix, id_pat
+        ))?;
+        let section_re = Regex::new(&format!(
+            r"^\s*(?:{})?\s*(?P<hashes>#+)\s+{}\.?\s+\S",
+            comment_prefix, SEC_GROUP
+        ))?;
         let citation_re = Regex::new(&format!(r"\b{}{}", id_pat, sec_suffix))?;
         let id_input_re = Regex::new(&format!(r"^{}{}$", id_pat, sec_suffix))?;
 
         Ok(Self {
             decl_re,
+            section_re,
             citation_re,
             id_input_re,
         })
+    }
+}
+
+fn comment_prefix_regex(comment_prefixes: &[String]) -> String {
+    let mut prefixes = comment_prefixes
+        .iter()
+        .filter(|prefix| !prefix.is_empty())
+        .map(|prefix| {
+            if prefix == "//" {
+                r"//[/!]?".to_string()
+            } else {
+                regex::escape(prefix)
+            }
+        })
+        .collect::<Vec<_>>();
+    prefixes.sort_by_key(|prefix| std::cmp::Reverse(prefix.len()));
+    if prefixes.is_empty() {
+        "(?!)".to_string()
+    } else {
+        format!("(?:{})", prefixes.join("|"))
     }
 }
 
@@ -140,25 +201,18 @@ struct Id {
     slug: Option<String>,
 }
 
-impl std::fmt::Display for Id {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.kind)?;
-        if let Some(n) = self.num {
-            write!(f, "-{:03}", n)?;
-        }
-        if let Some(s) = &self.slug {
-            write!(f, "-{}", s)?;
-        }
-        Ok(())
-    }
-}
+// `Id` is rendered for output via `render_id` / `format_id`, which honour the
+// repo's `[id] format` and `--width`. There is deliberately no `Display` impl —
+// a bare `{}` would have to guess the format and would be wrong on any repo that
+// configured a non-default one.
 
 #[derive(Debug)]
 struct Declaration {
     id: Id,
     file: PathBuf,
     line: usize,
-    sections: BTreeSet<String>,
+    heading_level: usize,
+    sections: BTreeMap<String, String>,
     is_stub: bool,
     defined_in: Option<PathBuf>,
 }
@@ -169,6 +223,9 @@ struct Citation {
     section: Option<String>,
     file: PathBuf,
     line: usize,
+    column: usize,
+    has_marker: bool,
+    text: String,
 }
 
 #[derive(Default)]
@@ -178,51 +235,87 @@ struct Findings {
 }
 
 #[derive(Clone)]
+struct KindConfig {
+    prefix: String,
+    folder: Option<String>,
+    title: Option<String>,
+}
+
+#[derive(Clone)]
 struct Config {
+    root: PathBuf,
+    /// The resolved path argument (or cwd) — the base for reports when
+    /// `[output] relative_paths = false`, i.e. the base `gnd` would use if no
+    /// `.agents/gnd.toml` were discovered (FS-config.3.6).
+    cli_base: PathBuf,
     marker: String,
     trigger: String,
     strict: bool,
     include: Option<Vec<String>>,
     exclude: Vec<String>,
     extensions: Vec<String>,
+    comment_prefixes: Vec<String>,
+    docstring_python: bool,
+    respect_gitignore: bool,
     output_format: String,
+    relative_paths: bool,
     id_format: String,
     section_separator: String,
     number_pattern: String,
     slug_pattern: String,
-    kinds: Vec<String>,
+    kinds: Vec<KindConfig>,
+    fmt_md_links_enabled: bool,
+    md_link_anchor_format: String,
     grammar: Grammar,
 }
 
-const DEFAULT_KINDS: &[&str] = &["G", "FS", "AS", "DA", "DF", "E2E"];
+const DEFAULT_KINDS: &[&str] = &["G", "FS", "AS", "DF", "DA", "E2E"];
 const DEFAULT_ID_FORMAT: &str = "{kind}-{number}-{slug}";
 const DEFAULT_SECTION_SEPARATOR: &str = ".";
 const DEFAULT_NUMBER_PATTERN: &str = r"\d+";
 const DEFAULT_SLUG_PATTERN: &str = r"[a-z0-9][a-z0-9-]*";
 
 impl Config {
-    fn default_for(_root: PathBuf) -> Self {
-        let kinds: Vec<String> = DEFAULT_KINDS.iter().map(|s| s.to_string()).collect();
+    fn default_for(root: PathBuf) -> Self {
+        let kinds: Vec<KindConfig> = DEFAULT_KINDS
+            .iter()
+            .map(|prefix| KindConfig {
+                prefix: prefix.to_string(),
+                folder: default_kind_folder(prefix).map(str::to_string),
+                title: default_kind_title(prefix).map(str::to_string),
+            })
+            .collect();
+        let kind_prefixes = kind_prefixes(&kinds);
         let grammar = Grammar::build(
             DEFAULT_ID_FORMAT,
-            &kinds,
+            &kind_prefixes,
             DEFAULT_NUMBER_PATTERN,
             DEFAULT_SLUG_PATTERN,
             DEFAULT_SECTION_SEPARATOR,
+            &DEFAULT_COMMENT_PREFIXES
+                .iter()
+                .map(|prefix| prefix.to_string())
+                .collect::<Vec<_>>(),
         )
         .expect("default grammar must compile");
         Self {
+            cli_base: root.clone(),
+            root,
             marker: "§".to_string(),
             trigger: "$$".to_string(),
             strict: false,
-            include: None,
+            include: Some(
+                DEFAULT_INCLUDE
+                    .iter()
+                    .map(|path| path.to_string())
+                    .collect(),
+            ),
             exclude: vec![
-                ".git".into(),
                 "target".into(),
                 "node_modules".into(),
+                ".git".into(),
                 "dist".into(),
                 "build".into(),
-                ".next".into(),
                 ".venv".into(),
             ],
             extensions: vec![
@@ -234,46 +327,94 @@ impl Config {
                 "ts".into(),
                 "tsx".into(),
                 "js".into(),
-                "jsx".into(),
                 "py".into(),
                 "c".into(),
-                "h".into(),
                 "cpp".into(),
-                "hpp".into(),
                 "swift".into(),
                 "scala".into(),
                 "rb".into(),
-                "sh".into(),
-                "yaml".into(),
-                "yml".into(),
-                "toml".into(),
+                "php".into(),
+                "cs".into(),
             ],
+            comment_prefixes: DEFAULT_COMMENT_PREFIXES
+                .iter()
+                .map(|prefix| prefix.to_string())
+                .collect(),
+            docstring_python: true,
+            respect_gitignore: true,
             output_format: "text".into(),
+            relative_paths: true,
             id_format: DEFAULT_ID_FORMAT.into(),
             section_separator: DEFAULT_SECTION_SEPARATOR.into(),
             number_pattern: DEFAULT_NUMBER_PATTERN.into(),
             slug_pattern: DEFAULT_SLUG_PATTERN.into(),
             kinds,
+            fmt_md_links_enabled: false,
+            md_link_anchor_format: "github".into(),
             grammar,
         }
     }
 
     fn rebuild_grammar(&mut self) -> Result<()> {
+        let prefixes = kind_prefixes(&self.kinds);
         self.grammar = Grammar::build(
             &self.id_format,
-            &self.kinds,
+            &prefixes,
             &self.number_pattern,
             &self.slug_pattern,
             &self.section_separator,
+            &self.comment_prefixes,
         )?;
         Ok(())
     }
 }
 
+fn kind_prefixes(kinds: &[KindConfig]) -> Vec<String> {
+    kinds.iter().map(|kind| kind.prefix.clone()).collect()
+}
+
+fn default_kind_folder(prefix: &str) -> Option<&'static str> {
+    match prefix {
+        "G" => Some("docs/goals"),
+        "FS" => Some("docs/functional-spec"),
+        "AS" => Some("docs/architectural-spec"),
+        "DA" => Some("docs/decisions/architectural"),
+        "DF" => Some("docs/decisions/functional"),
+        "E2E" => Some("e2e/cases"),
+        _ => None,
+    }
+}
+
+fn default_kind_title(prefix: &str) -> Option<&'static str> {
+    match prefix {
+        "G" => Some("Goal"),
+        "FS" => Some("Functional spec"),
+        "AS" => Some("Architectural spec"),
+        "DA" => Some("Architectural decision"),
+        "DF" => Some("Functional decision"),
+        "E2E" => Some("End-to-end test"),
+        _ => None,
+    }
+}
+
+#[derive(Clone)]
+struct Site {
+    path: PathBuf,
+    line: usize,
+}
+
+struct Diagnostic {
+    code: &'static str,
+    path: Option<PathBuf>,
+    line: Option<usize>,
+    message: String,
+    sites: Vec<Site>,
+}
+
 #[derive(Default)]
 struct Report {
-    errors: Vec<String>,
-    warnings: Vec<String>,
+    errors: Vec<Diagnostic>,
+    warnings: Vec<Diagnostic>,
 }
 
 struct ShowOutput {
@@ -307,25 +448,40 @@ fn load_config(start: &Path) -> Result<Config> {
     } else {
         start.to_path_buf()
     };
-    let mut cursor = Some(start_dir.as_path());
+    // Resolve to an absolute path before walking up, mirroring how `cargo` finds
+    // `Cargo.toml` (FS-config.1): a relative `.` or `subdir/` must still discover
+    // a `.agents/gnd.toml` in an ancestor directory.
+    let walk_start = fs::canonicalize(&start_dir).unwrap_or(start_dir);
+    let mut cursor = Some(walk_start.as_path());
     while let Some(dir) = cursor {
         let candidate = dir.join(".agents").join("gnd.toml");
         if candidate.exists() {
             let mut config = Config::default_for(dir.to_path_buf());
-            parse_config_file(&candidate, &mut config)?;
+            config.cli_base = walk_start.clone();
+            // Report config errors against a stable relative path, never the
+            // absolute discovered path (FS-errors.4: deterministic, no absolute
+            // paths outside the configured root).
+            let report_path = candidate
+                .strip_prefix(dir)
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|_| candidate.clone());
+            parse_config_file(&candidate, &report_path, &mut config)?;
             return Ok(config);
         }
         cursor = dir.parent();
     }
-    Ok(Config::default_for(start_dir))
+    Ok(Config::default_for(walk_start))
 }
 
-fn parse_config_file(path: &Path, config: &mut Config) -> Result<()> {
-    let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) -> Result<()> {
+    let text =
+        fs::read_to_string(read_path).with_context(|| format!("read {}", report_path.display()))?;
+    // Everything below reports problems against the stable relative path.
+    let path = report_path;
     let mut section = String::new();
-    let mut id_seen = false;
-    let mut parsed_kinds: Vec<String> = Vec::new();
-    let mut current_kind: Option<String> = None;
+    let mut grammar_dirty = false;
+    let mut parsed_kinds: Vec<KindConfig> = Vec::new();
+    let mut current_kind: Option<KindConfig> = None;
     let mut kinds_block_seen = false;
     for (idx, raw_line) in text.lines().enumerate() {
         let line_no = idx + 1;
@@ -337,7 +493,7 @@ fn parse_config_file(path: &Path, config: &mut Config) -> Result<()> {
             let is_array_table = line.starts_with("[[") && line.ends_with("]]");
             section = line.trim_matches(['[', ']']).to_string();
             match section.as_str() {
-                "reference" | "scan" | "output" | "id" => {}
+                "reference" | "scan" | "output" | "id" | "fmt.md_links" => {}
                 "kinds" => {
                     if !is_array_table {
                         bail_config(
@@ -350,7 +506,11 @@ fn parse_config_file(path: &Path, config: &mut Config) -> Result<()> {
                     if let Some(prefix) = current_kind.take() {
                         parsed_kinds.push(prefix);
                     }
-                    current_kind = Some(String::new());
+                    current_kind = Some(KindConfig {
+                        prefix: String::new(),
+                        folder: None,
+                        title: None,
+                    });
                     kinds_block_seen = true;
                 }
                 other => bail_config(path, line_no, format!("unknown config section `{other}`"))?,
@@ -378,24 +538,24 @@ fn parse_config_file(path: &Path, config: &mut Config) -> Result<()> {
             ("reference", "strict") => config.strict = parse_bool(path, line_no, value)?,
             ("id", "format") => {
                 config.id_format = parse_string(path, line_no, value)?;
-                id_seen = true;
+                grammar_dirty = true;
             }
             ("id", "section_separator") => {
                 config.section_separator = parse_string(path, line_no, value)?;
-                id_seen = true;
+                grammar_dirty = true;
             }
             ("id", "number_pattern") => {
                 config.number_pattern = parse_string(path, line_no, value)?;
-                id_seen = true;
+                grammar_dirty = true;
             }
             ("id", "slug_pattern") => {
                 config.slug_pattern = parse_string(path, line_no, value)?;
-                id_seen = true;
+                grammar_dirty = true;
             }
             ("kinds", "prefix") => {
                 let prefix = parse_string(path, line_no, value)?;
                 if let Some(slot) = current_kind.as_mut() {
-                    *slot = prefix;
+                    slot.prefix = prefix;
                 } else {
                     bail_config(
                         path,
@@ -404,24 +564,68 @@ fn parse_config_file(path: &Path, config: &mut Config) -> Result<()> {
                     )?;
                 }
             }
-            ("kinds", "folder" | "title") => {
-                parse_string(path, line_no, value)?;
+            ("kinds", "folder") => {
+                let folder = parse_string(path, line_no, value)?;
+                if let Some(slot) = current_kind.as_mut() {
+                    slot.folder = Some(folder);
+                } else {
+                    bail_config(
+                        path,
+                        line_no,
+                        "`folder` outside of [[kinds]] block".to_string(),
+                    )?;
+                }
+            }
+            ("kinds", "title") => {
+                let title = parse_string(path, line_no, value)?;
+                if let Some(slot) = current_kind.as_mut() {
+                    slot.title = Some(title);
+                } else {
+                    bail_config(
+                        path,
+                        line_no,
+                        "`title` outside of [[kinds]] block".to_string(),
+                    )?;
+                }
             }
             ("scan", "include") => config.include = Some(parse_string_list(path, line_no, value)?),
             ("scan", "exclude") => config.exclude = parse_string_list(path, line_no, value)?,
             ("scan", "extensions") => config.extensions = parse_string_list(path, line_no, value)?,
             ("scan", "comment_prefixes") => {
-                parse_string_list(path, line_no, value)?;
+                config.comment_prefixes = parse_string_list(path, line_no, value)?;
+                grammar_dirty = true;
             }
-            ("scan", "docstring_python" | "respect_gitignore") => {
-                parse_bool(path, line_no, value)?;
+            ("scan", "docstring_python") => {
+                config.docstring_python = parse_bool(path, line_no, value)?;
             }
-            ("output", "format") => config.output_format = parse_string(path, line_no, value)?,
+            ("scan", "respect_gitignore") => {
+                config.respect_gitignore = parse_bool(path, line_no, value)?;
+            }
+            ("output", "format") => {
+                let format = parse_string(path, line_no, value)?;
+                if !matches!(format.as_str(), "text" | "json") {
+                    bail_config(path, line_no, "unsupported output format".to_string())?;
+                }
+                config.output_format = format;
+            }
             ("output", "color") => {
                 parse_string(path, line_no, value)?;
             }
             ("output", "relative_paths") => {
-                parse_bool(path, line_no, value)?;
+                config.relative_paths = parse_bool(path, line_no, value)?;
+            }
+            ("fmt.md_links", "enabled") => {
+                config.fmt_md_links_enabled = parse_bool(path, line_no, value)?;
+            }
+            ("fmt.md_links", "anchor_format") => {
+                let format = parse_string(path, line_no, value)?;
+                if !matches!(
+                    format.as_str(),
+                    "github" | "gitlab" | "mkdocs" | "pandoc" | "none"
+                ) {
+                    bail_config(path, line_no, "unknown md link anchor format".to_string())?;
+                }
+                config.md_link_anchor_format = format;
             }
             _ => bail_config(path, line_no, format!("unknown config key `{key}`"))?,
         }
@@ -437,7 +641,7 @@ fn parse_config_file(path: &Path, config: &mut Config) -> Result<()> {
     }
     if kinds_block_seen {
         // [[kinds]] replaces defaults entirely, per FS-config.3.4.
-        if parsed_kinds.iter().any(|p| p.is_empty()) {
+        if parsed_kinds.iter().any(|p| p.prefix.is_empty()) {
             return Err(anyhow!(
                 "{}: every [[kinds]] entry must declare a `prefix`",
                 path.display()
@@ -453,19 +657,22 @@ fn parse_config_file(path: &Path, config: &mut Config) -> Result<()> {
         // (FS-config.3.4 — would make tokenization ambiguous).
         for (i, a) in parsed_kinds.iter().enumerate() {
             for (j, b) in parsed_kinds.iter().enumerate() {
-                if i != j && a.len() <= b.len() && b.starts_with(a.as_str()) {
+                if i != j
+                    && a.prefix.len() <= b.prefix.len()
+                    && b.prefix.starts_with(a.prefix.as_str())
+                {
                     return Err(anyhow!(
                         "{}: kinds `{}` and `{}` collide (one is a prefix of the other)",
                         path.display(),
-                        a,
-                        b
+                        a.prefix,
+                        b.prefix
                     ));
                 }
             }
         }
         config.kinds = parsed_kinds;
     }
-    if id_seen || kinds_block_seen {
+    if grammar_dirty || kinds_block_seen {
         config
             .rebuild_grammar()
             .with_context(|| format!("{}: invalid [id] grammar", path.display()))?;
@@ -570,15 +777,8 @@ fn is_scannable(path: &Path, config: &Config) -> bool {
     config.extensions.iter().any(|allowed| allowed == ext)
 }
 
-fn skip_dir(path: &Path, config: &Config) -> bool {
-    let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-        return false;
-    };
-    name.starts_with('.') || config.exclude.iter().any(|excluded| excluded == name)
-}
-
 fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()> {
-    let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    let text = fs::read_to_string(path)?;
     let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
     let is_py = path.extension().and_then(|e| e.to_str()) == Some("py");
     let in_docs = path.components().any(|c| c.as_os_str() == "docs");
@@ -596,7 +796,10 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
         if in_fence {
             continue;
         }
-        if is_py && (trimmed.starts_with("\"\"\"") || trimmed.starts_with("'''")) {
+        if config.docstring_python
+            && is_py
+            && (trimmed.starts_with("\"\"\"") || trimmed.starts_with("'''"))
+        {
             in_py_docstring = !in_py_docstring;
             continue;
         }
@@ -629,24 +832,33 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
                 id,
                 file: path.to_path_buf(),
                 line: lineno,
-                sections: BTreeSet::new(),
+                heading_level: heading_level_for_line(scan_line, is_md || in_py_docstring, &caps),
+                sections: BTreeMap::new(),
                 is_stub,
                 defined_in,
             });
             continue;
         }
 
-        if let Some(caps) = SECTION_HEADING.captures(scan_line)
+        if let Some(caps) = config.grammar.section_re.captures(scan_line)
             && let Some(decl) = current.as_mut()
             && let Some(sec) = caps.name("sec")
+            && heading_level_for_line(scan_line, is_md || in_py_docstring, &caps)
+                > decl.heading_level
         {
-            decl.sections.insert(sec.as_str().to_string());
+            decl.sections.insert(
+                sec.as_str().to_string(),
+                section_anchor_text(scan_line, sec.as_str()),
+            );
         }
 
         for caps in config.grammar.citation_re.captures_iter(scan_line) {
             let Some(full) = caps.get(0) else { continue };
             let has_marker = scan_line[..full.start()].ends_with(&config.marker);
             if config.strict && !has_marker {
+                continue;
+            }
+            if !is_md && !has_marker && is_inside_string_literal(scan_line, full.start()) {
                 continue;
             }
             let Some(id) = parse_id(&caps) else { continue };
@@ -656,11 +868,20 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
             {
                 continue;
             }
+            let start = if has_marker {
+                full.start().saturating_sub(config.marker.len())
+            } else {
+                full.start()
+            };
+            let text = scan_line[start..full.end()].to_string();
             findings.citations.push(Citation {
                 id,
                 section: caps.name("sec").map(|m| m.as_str().to_string()),
                 file: path.to_path_buf(),
                 line: lineno,
+                column: start + 1,
+                has_marker,
+                text,
             });
         }
     }
@@ -675,83 +896,198 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
     Ok(())
 }
 
-fn scan_tree(root: &Path, config: &Config) -> Result<Findings> {
-    let mut findings = Findings::default();
-    let roots = if let Some(include) = &config.include {
-        include
-            .iter()
-            .map(|path| root.join(path))
-            .collect::<Vec<_>>()
-    } else {
-        vec![root.to_path_buf()]
-    };
+fn heading_level_for_line(line: &str, markdown_heading: bool, caps: &regex::Captures) -> usize {
+    if markdown_heading {
+        return line
+            .trim_start()
+            .chars()
+            .take_while(|ch| *ch == '#')
+            .count()
+            .max(1);
+    }
+    caps.name("hashes").map(|m| m.as_str().len()).unwrap_or(1)
+}
+
+fn walk_scannable_files(
+    config: &Config,
+    scope: Option<&Path>,
+    explicit_scope: bool,
+) -> Result<Vec<PathBuf>> {
+    let roots = scan_roots(config, scope, explicit_scope)?;
+    let mut files = Vec::new();
     for scan_root in roots {
         if !scan_root.exists() {
             continue;
         }
-        let walker = WalkDir::new(scan_root).into_iter().filter_entry(|e| {
+        if scan_root.is_file() {
+            if is_scannable(&scan_root, config) {
+                files.push(scan_root);
+            }
+            continue;
+        }
+        let mut builder = WalkBuilder::new(&scan_root);
+        builder.hidden(false);
+        if !config.respect_gitignore {
+            builder
+                .ignore(false)
+                .git_ignore(false)
+                .git_global(false)
+                .git_exclude(false)
+                .parents(false);
+        }
+        let excluded = config.exclude.clone();
+        builder.filter_entry(move |e| {
             if e.depth() == 0 {
                 return true;
             }
-            if e.file_type().is_dir() {
-                return !skip_dir(e.path(), config);
+            if e.file_type().is_some_and(|file_type| file_type.is_dir()) {
+                let Some(name) = e.path().file_name().and_then(|name| name.to_str()) else {
+                    return true;
+                };
+                return !name.starts_with('.') && !excluded.iter().any(|item| item == name);
             }
             true
         });
+        let walker = builder.build();
         for entry in walker {
             let entry = entry?;
-            if !entry.file_type().is_file() || !is_scannable(entry.path(), config) {
+            if !entry
+                .file_type()
+                .is_some_and(|file_type| file_type.is_file())
+                || !is_scannable(entry.path(), config)
+            {
                 continue;
             }
-            scan_file(entry.path(), config, &mut findings)?;
+            files.push(entry.path().to_path_buf());
         }
+    }
+    files.sort();
+    Ok(files)
+}
+
+fn scan_roots(config: &Config, scope: Option<&Path>, explicit_scope: bool) -> Result<Vec<PathBuf>> {
+    if explicit_scope {
+        let scope = scope.unwrap_or(Path::new("."));
+        if !scope.exists() {
+            return Err(anyhow!("path does not exist: {}", scope.display()));
+        }
+        let scope = fs::canonicalize(scope).unwrap_or_else(|_| scope.to_path_buf());
+        if scope.is_file() {
+            return Ok(vec![scope]);
+        }
+        if scope == config.root
+            && let Some(include) = &config.include
+        {
+            return Ok(include.iter().map(|path| config.root.join(path)).collect());
+        }
+        return Ok(vec![scope]);
+    }
+    if let Some(include) = &config.include {
+        Ok(include.iter().map(|path| config.root.join(path)).collect())
+    } else {
+        Ok(vec![config.root.clone()])
+    }
+}
+
+/// A file that could not be read or decoded during the walk. The walk continues
+/// past it (FS-check.2); callers that are point queries treat any entry here as
+/// fatal, `check` and `refs` report it and exit 2 with a still-printed report.
+type ScanError = (PathBuf, String);
+
+fn scan_tree(
+    config: &Config,
+    scope: Option<&Path>,
+    explicit_scope: bool,
+) -> Result<(Findings, Vec<ScanError>)> {
+    let mut findings = Findings::default();
+    let mut errors = Vec::new();
+    for file in walk_scannable_files(config, scope, explicit_scope)? {
+        if let Err(err) = scan_file(&file, config, &mut findings) {
+            errors.push((file, format!("{err:#}")));
+        }
+    }
+    Ok((findings, errors))
+}
+
+/// Scan helper for point-query subcommands (`show`, `name`): any unreadable file
+/// is fatal — a partial view of the tree could miss the declaration entirely or
+/// allocate a colliding number (FS-show.3, FS-name.4).
+fn scan_tree_strict(
+    config: &Config,
+    scope: Option<&Path>,
+    explicit_scope: bool,
+) -> Result<Findings> {
+    let (findings, errors) = scan_tree(config, scope, explicit_scope)?;
+    if let Some((path, message)) = errors.into_iter().next() {
+        return Err(anyhow!("{}: {}", display_path(config, &path), message));
     }
     Ok(findings)
 }
 
-fn check(root: &Path, findings: &Findings, config: &Config) -> Report {
+fn check(findings: &Findings, config: &Config) -> Report {
     let mut report = Report::default();
-    check_agents_block_version(root, &mut report);
+    check_agents_block_version(&config.root, &mut report);
 
     for (id, decls) in &findings.declarations {
         let duplicate_homes: Vec<&Declaration> = decls
             .iter()
-            .filter(|decl| !is_stub_for_inline_decl(root, decl, decls))
+            .filter(|decl| !is_stub_for_inline_decl(&config.root, decl, decls))
             .collect();
         if duplicate_homes.len() > 1 {
-            let mut locs: Vec<String> = duplicate_homes
+            let mut sites: Vec<Site> = duplicate_homes
                 .iter()
-                .map(|d| format!("{}:{}", d.file.display(), d.line))
+                .map(|d| Site {
+                    path: d.file.clone(),
+                    line: d.line,
+                })
                 .collect();
-            locs.sort();
-            for loc in locs {
-                report
-                    .errors
-                    .push(format!("{}: duplicate declaration of {}", loc, id));
-            }
+            sites.sort_by(|a, b| (a.path.as_os_str(), a.line).cmp(&(b.path.as_os_str(), b.line)));
+            let primary = sites[0].clone();
+            let others = sites[1..]
+                .iter()
+                .map(|site| format!("{}:{}", display_path(config, &site.path), site.line))
+                .collect::<Vec<_>>();
+            let suffix = if others.is_empty() {
+                String::new()
+            } else {
+                format!(" (also declared at {})", others.join(", "))
+            };
+            report.errors.push(Diagnostic {
+                code: "duplicate",
+                path: Some(primary.path),
+                line: Some(primary.line),
+                message: format!("duplicate declaration of {}{suffix}", render_id(config, id)),
+                sites,
+            });
         }
     }
 
     for cite in &findings.citations {
         let Some(decls) = findings.declarations.get(&cite.id) else {
-            report.errors.push(format!(
-                "{}:{}: unknown reference {}",
-                cite.file.display(),
-                cite.line,
-                cite.id
-            ));
+            report.errors.push(Diagnostic {
+                code: "dangling",
+                path: Some(cite.file.clone()),
+                line: Some(cite.line),
+                message: format!("unknown reference {}", render_id(config, &cite.id)),
+                sites: Vec::new(),
+            });
             continue;
         };
         if let Some(sec) = &cite.section {
-            let any_match = decls.iter().any(|d| d.sections.contains(sec));
+            let any_match = decls.iter().any(|d| d.sections.contains_key(sec));
             if !any_match {
-                report.errors.push(format!(
-                    "{}:{}: missing section {}.{}",
-                    cite.file.display(),
-                    cite.line,
-                    cite.id,
-                    sec
-                ));
+                report.errors.push(Diagnostic {
+                    code: "missing-section",
+                    path: Some(cite.file.clone()),
+                    line: Some(cite.line),
+                    message: format!(
+                        "missing section {}{}{}",
+                        render_id(config, &cite.id),
+                        config.section_separator,
+                        sec
+                    ),
+                    sites: Vec::new(),
+                });
             }
         }
     }
@@ -767,46 +1103,78 @@ fn check(root: &Path, findings: &Findings, config: &Config) -> Report {
             let resolved = if target.is_absolute() {
                 target.clone()
             } else {
-                root.join(target)
+                config.root.join(target)
             };
             if !resolved.exists() {
-                report.errors.push(format!(
-                    "{}:{}: stub link target missing: {}",
-                    decl.file.display(),
-                    decl.line,
-                    target.display()
-                ));
+                report.errors.push(Diagnostic {
+                    code: "broken-stub",
+                    path: Some(decl.file.clone()),
+                    line: Some(decl.line),
+                    message: format!("stub link target missing: {}", target.display()),
+                    sites: Vec::new(),
+                });
                 continue;
             }
             let inline_ok = if resolved.is_file() && is_scannable(&resolved, config) {
-                file_declares(&resolved, id, &config.grammar).unwrap_or(false)
+                file_declares_inline_home(&resolved, id, &config.grammar).unwrap_or(false)
             } else {
                 false
             };
             if !inline_ok {
-                report.errors.push(format!(
-                    "{}:{}: stub link target lacks {}: {}",
-                    decl.file.display(),
-                    decl.line,
-                    id,
-                    target.display()
-                ));
+                report.errors.push(Diagnostic {
+                    code: "broken-stub",
+                    path: Some(decl.file.clone()),
+                    line: Some(decl.line),
+                    message: format!(
+                        "stub link target lacks {}: {}",
+                        render_id(config, id),
+                        target.display()
+                    ),
+                    sites: Vec::new(),
+                });
             }
         }
     }
 
     let cited: BTreeSet<&Id> = findings.citations.iter().map(|c| &c.id).collect();
-    for id in findings.declarations.keys() {
+    for (id, decls) in &findings.declarations {
         if !cited.contains(id) {
-            report
-                .warnings
-                .push(format!("declared but never cited: {}", id));
+            if let Some(decl) = decls
+                .iter()
+                .find(|decl| !is_stub_for_inline_decl(&config.root, decl, decls))
+                .or_else(|| decls.first())
+            {
+                report.warnings.push(Diagnostic {
+                    code: "unused",
+                    path: Some(decl.file.clone()),
+                    line: Some(decl.line),
+                    message: format!("declared but never cited: {}", render_id(config, id)),
+                    sites: Vec::new(),
+                });
+            }
         }
     }
 
-    report.errors.sort();
-    report.warnings.sort();
+    sort_diagnostics(&mut report.errors);
+    sort_diagnostics(&mut report.warnings);
     report
+}
+
+fn sort_diagnostics(diagnostics: &mut [Diagnostic]) {
+    diagnostics.sort_by(diagnostic_cmp);
+}
+
+fn diagnostic_cmp(a: &Diagnostic, b: &Diagnostic) -> std::cmp::Ordering {
+    (
+        a.path.as_ref().map(|p| p.as_os_str()),
+        a.line.unwrap_or(0),
+        a.message.as_str(),
+    )
+        .cmp(&(
+            b.path.as_ref().map(|p| p.as_os_str()),
+            b.line.unwrap_or(0),
+            b.message.as_str(),
+        ))
 }
 
 fn check_agents_block_version(root: &Path, report: &mut Report) {
@@ -815,29 +1183,39 @@ fn check_agents_block_version(root: &Path, report: &mut Report) {
         return;
     }
     let Ok(text) = fs::read_to_string(&path) else {
-        report
-            .errors
-            .push(format!("{}:1: cannot read agents.md", path.display()));
+        report.errors.push(Diagnostic {
+            code: "io",
+            path: Some(path),
+            line: Some(1),
+            message: "cannot read agents.md".to_string(),
+            sites: Vec::new(),
+        });
         return;
     };
     if let Some(block) = find_agents_block(&text) {
         let line = line_for_byte_index(&text, block.start);
         if block.version < AGENTS_BLOCK_VERSION {
-            report.errors.push(format!(
-                "{}:{}: outdated gnd init block v{} (run `gnd init` to update to v{})",
-                path.display(),
-                line,
-                block.version,
-                AGENTS_BLOCK_VERSION
-            ));
+            report.errors.push(Diagnostic {
+                code: "agents-init",
+                path: Some(path.clone()),
+                line: Some(line),
+                message: format!(
+                    "outdated gnd init block v{} (run `gnd init` to update to v{})",
+                    block.version, AGENTS_BLOCK_VERSION
+                ),
+                sites: Vec::new(),
+            });
         } else if block.version > AGENTS_BLOCK_VERSION {
-            report.errors.push(format!(
-                "{}:{}: unsupported gnd init block v{} (this gnd supports v{})",
-                path.display(),
-                line,
-                block.version,
-                AGENTS_BLOCK_VERSION
-            ));
+            report.errors.push(Diagnostic {
+                code: "agents-init",
+                path: Some(path.clone()),
+                line: Some(line),
+                message: format!(
+                    "unsupported gnd init block v{} (this gnd supports v{})",
+                    block.version, AGENTS_BLOCK_VERSION
+                ),
+                sites: Vec::new(),
+            });
         }
         return;
     }
@@ -846,17 +1224,21 @@ fn check_agents_block_version(root: &Path, report: &mut Report) {
             .find(&text)
             .map(|m| line_for_byte_index(&text, m.start()))
             .unwrap_or(1);
-        report.errors.push(format!(
-            "{}:{}: malformed gnd init block",
-            path.display(),
-            line
-        ));
+        report.errors.push(Diagnostic {
+            code: "agents-init",
+            path: Some(path.clone()),
+            line: Some(line),
+            message: "malformed gnd init block".to_string(),
+            sites: Vec::new(),
+        });
     } else {
-        report.errors.push(format!(
-            "{}:1: missing gnd init block v{}",
-            path.display(),
-            AGENTS_BLOCK_VERSION
-        ));
+        report.errors.push(Diagnostic {
+            code: "agents-init",
+            path: Some(path.clone()),
+            line: Some(1),
+            message: format!("missing gnd init block v{}", AGENTS_BLOCK_VERSION),
+            sites: Vec::new(),
+        });
     }
 }
 
@@ -885,45 +1267,108 @@ fn is_stub_for_inline_decl(root: &Path, decl: &Declaration, decls: &[Declaration
         .any(|other| other.file == resolved && other.file != decl.file)
 }
 
-fn file_declares(path: &Path, id: &Id, grammar: &Grammar) -> Result<bool> {
+fn file_declares_inline_home(path: &Path, id: &Id, grammar: &Grammar) -> Result<bool> {
     let text = fs::read_to_string(path)?;
     for line in text.lines() {
         if let Some(caps) = grammar.decl_re.captures(line)
             && let Some(found) = parse_id(&caps)
             && &found == id
         {
+            let tail = &line[caps.get(0).unwrap().end()..];
+            if STUB_LINK_HEADING.is_match(tail) {
+                continue;
+            }
             return Ok(true);
         }
     }
     Ok(false)
 }
 
-fn print_report(report: &Report) {
+fn print_report(config: &Config, report: &Report) {
     if report.errors.is_empty() && report.warnings.is_empty() {
         return;
     }
-    for w in &report.warnings {
-        eprintln!("warning: {}", w);
-    }
-    for e in &report.errors {
-        eprintln!("{}", e);
+    let mut diagnostics = report
+        .warnings
+        .iter()
+        .chain(report.errors.iter())
+        .collect::<Vec<_>>();
+    diagnostics.sort_by(|a, b| diagnostic_cmp(a, b));
+    for diagnostic in diagnostics {
+        eprintln!("{}", render_diagnostic_text(config, diagnostic));
     }
 }
 
-fn print_json_report(report: &Report) {
-    let errors = report
-        .errors
-        .iter()
-        .map(|message| format!("{{\"message\":\"{}\"}}", json_escape(message)))
-        .collect::<Vec<_>>()
-        .join(",");
-    let warnings = report
+fn render_diagnostic_text(config: &Config, diagnostic: &Diagnostic) -> String {
+    match (&diagnostic.path, diagnostic.line) {
+        (Some(path), Some(line)) => {
+            format!(
+                "{}:{}: {}",
+                display_path(config, path),
+                line,
+                diagnostic.message
+            )
+        }
+        // A file-level finding with no line to point at (e.g. an unreadable file
+        // discovered mid-walk) uses the CLI-error shape — FS-check.2, FS-errors.2.2.
+        (Some(path), None) => format!(
+            "error: {}: {}",
+            display_path(config, path),
+            diagnostic.message
+        ),
+        _ => diagnostic.message.clone(),
+    }
+}
+
+fn print_json_report(config: &Config, report: &Report) {
+    let mut diagnostics = report
         .warnings
         .iter()
-        .map(|message| format!("{{\"message\":\"{}\"}}", json_escape(message)))
-        .collect::<Vec<_>>()
-        .join(",");
-    println!("{{\"errors\":[{}],\"warnings\":[{}]}}", errors, warnings);
+        .map(|diagnostic| ("warning", diagnostic))
+        .chain(report.errors.iter().map(|diagnostic| ("error", diagnostic)))
+        .collect::<Vec<_>>();
+    diagnostics.sort_by(|(_, a), (_, b)| diagnostic_cmp(a, b));
+    for (severity, diagnostic) in diagnostics {
+        eprintln!("{}", render_diagnostic_json(config, severity, diagnostic));
+    }
+}
+
+fn render_diagnostic_json(config: &Config, severity: &str, diagnostic: &Diagnostic) -> String {
+    let path = diagnostic
+        .path
+        .as_ref()
+        .map(|path| format!("\"{}\"", json_escape(&display_path(config, path))))
+        .unwrap_or_else(|| "null".to_string());
+    let line = diagnostic
+        .line
+        .map(|line| line.to_string())
+        .unwrap_or_else(|| "null".to_string());
+    let sites = if diagnostic.sites.is_empty() {
+        "null".to_string()
+    } else {
+        let values = diagnostic
+            .sites
+            .iter()
+            .map(|site| {
+                format!(
+                    "{{\"path\":\"{}\",\"line\":{}}}",
+                    json_escape(&display_path(config, &site.path)),
+                    site.line
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!("[{}]", values)
+    };
+    format!(
+        "{{\"severity\":\"{}\",\"path\":{},\"line\":{},\"code\":\"{}\",\"message\":\"{}\",\"sites\":{}}}",
+        severity,
+        path,
+        line,
+        diagnostic.code,
+        json_escape(&diagnostic.message),
+        sites
+    )
 }
 
 fn json_escape(raw: &str) -> String {
@@ -942,8 +1387,13 @@ fn json_escape(raw: &str) -> String {
     escaped
 }
 
-fn display_path(root: &Path, path: &Path) -> String {
-    path.strip_prefix(root)
+fn display_path(config: &Config, path: &Path) -> String {
+    let base = if config.relative_paths {
+        &config.root
+    } else {
+        &config.cli_base
+    };
+    path.strip_prefix(base)
         .unwrap_or(path)
         .to_string_lossy()
         .into_owned()
@@ -951,6 +1401,7 @@ fn display_path(root: &Path, path: &Path) -> String {
 
 fn command_check(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
+    let mut path_provided = false;
     let mut format_override = None;
     let mut idx = 0;
     while idx < args.len() {
@@ -969,32 +1420,61 @@ fn command_check(args: &[String]) -> ExitCode {
                 eprintln!("error: unknown flag `{other}`");
                 return ExitCode::from(2);
             }
-            other => path = PathBuf::from(other),
+            other => {
+                path = PathBuf::from(other);
+                path_provided = true;
+            }
         }
         idx += 1;
+    }
+    if let Some(format) = &format_override
+        && !matches!(format.as_str(), "text" | "json")
+    {
+        eprintln!("error: unsupported check format `{format}`");
+        return ExitCode::from(2);
     }
     let config = match load_config(&path) {
         Ok(config) => config,
         Err(err) => {
-            eprintln!("{err:#}");
+            eprintln!("error: {err:#}");
             return ExitCode::from(2);
         }
     };
-    let findings = match scan_tree(&path, &config) {
-        Ok(f) => f,
+    let (findings, scan_errors) = match scan_tree(&config, Some(&path), path_provided) {
+        Ok(out) => out,
         Err(e) => {
-            eprintln!("scan failed: {:#}", e);
+            eprintln!("error: {:#}", e);
             return ExitCode::from(2);
         }
     };
-    let report = check(&path, &findings, &config);
-    let format = format_override.unwrap_or_else(|| config.output_format.clone());
-    if format == "json" {
-        print_json_report(&report);
-    } else {
-        print_report(&report);
+    let mut report = check(&findings, &config);
+    // A file that could not be read mid-walk is reported as a CLI-shaped
+    // `error: <path>: <reason>` finding (FS-check.2): the walk continued, the
+    // findings below are real, but the view of the tree was incomplete → exit 2.
+    let had_scan_errors = !scan_errors.is_empty();
+    for (file, message) in scan_errors {
+        report.errors.push(Diagnostic {
+            code: "io",
+            path: Some(file),
+            line: None,
+            message,
+            sites: Vec::new(),
+        });
     }
-    if report.errors.is_empty() {
+    sort_diagnostics(&mut report.errors);
+    let format = format_override.unwrap_or_else(|| config.output_format.clone());
+    if !matches!(format.as_str(), "text" | "json") {
+        eprintln!("error: unsupported check format `{format}`");
+        return ExitCode::from(2);
+    }
+    if format == "json" {
+        print_json_report(&config, &report);
+    } else {
+        print_report(&config, &report);
+    }
+    if had_scan_errors {
+        ExitCode::from(2)
+    } else if report.errors.is_empty() {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
@@ -1008,14 +1488,23 @@ fn command_show(args: &[String]) -> ExitCode {
     }
     let mut id_arg = None;
     let mut path = PathBuf::from(".");
+    let mut path_provided = false;
     let mut head = false;
+    let mut saw_head = false;
+    let mut saw_full = false;
     let mut section_override = None;
     let mut format = "text".to_string();
     let mut idx = 0;
     while idx < args.len() {
         match args[idx].as_str() {
-            "--head" => head = true,
-            "--full" => head = false,
+            "--head" => {
+                saw_head = true;
+                head = true;
+            }
+            "--full" => {
+                saw_full = true;
+                head = false;
+            }
             "--format=json" => format = "json".to_string(),
             "--format=text" => format = "text".to_string(),
             "--format=md" => format = "md".to_string(),
@@ -1034,6 +1523,7 @@ fn command_show(args: &[String]) -> ExitCode {
                     return ExitCode::from(2);
                 }
                 path = PathBuf::from(&args[idx]);
+                path_provided = true;
             }
             "--format" => {
                 idx += 1;
@@ -1048,7 +1538,10 @@ fn command_show(args: &[String]) -> ExitCode {
                 return ExitCode::from(2);
             }
             other if id_arg.is_none() => id_arg = Some(other.to_string()),
-            other => path = PathBuf::from(other),
+            other => {
+                path = PathBuf::from(other);
+                path_provided = true;
+            }
         }
         idx += 1;
     }
@@ -1056,10 +1549,14 @@ fn command_show(args: &[String]) -> ExitCode {
         eprintln!("error: show requires an ID");
         return ExitCode::from(2);
     };
+    if saw_head && saw_full {
+        eprintln!("error: --head and --full cannot be used together");
+        return ExitCode::from(2);
+    }
     let config = match load_config(&path) {
         Ok(config) => config,
         Err(err) => {
-            eprintln!("{err:#}");
+            eprintln!("error: {err:#}");
             return ExitCode::from(2);
         }
     };
@@ -1070,37 +1567,41 @@ fn command_show(args: &[String]) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    if section_override.is_some() && inline_section.is_some() {
+        eprintln!("error: --section cannot be combined with an inline section");
+        return ExitCode::from(2);
+    }
     let section = section_override.or(inline_section);
     if !matches!(format.as_str(), "text" | "md" | "json") {
         eprintln!("error: unsupported show format `{format}`");
         return ExitCode::from(2);
     }
-    let findings = match scan_tree(&path, &config) {
+    let findings = match scan_tree_strict(&config, Some(&path), path_provided) {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("scan failed: {:#}", e);
+            eprintln!("error: {:#}", e);
             return ExitCode::from(2);
         }
     };
     match show_declaration(
-        &path,
+        &config,
         &findings,
         &id,
         section.as_deref(),
         head,
-        &config.grammar,
+        format == "md",
     ) {
         Ok(output) => {
             if format == "json" {
                 println!(
                     "{{\"id\":\"{}\",\"section\":{},\"body\":\"{}\",\"path\":\"{}\",\"line\":{}}}",
-                    json_escape(&id.to_string()),
+                    json_escape(&render_id(&config, &id)),
                     match section.as_deref() {
                         Some(section) => format!("\"{}\"", json_escape(section)),
                         None => "null".to_string(),
                     },
                     json_escape(&output.body),
-                    json_escape(&display_path(&path, &output.path)),
+                    json_escape(&display_path(&config, &output.path)),
                     output.line
                 );
             } else {
@@ -1116,17 +1617,18 @@ fn command_show(args: &[String]) -> ExitCode {
 }
 
 fn show_declaration(
-    root: &Path,
+    config: &Config,
     findings: &Findings,
     id: &Id,
     section: Option<&str>,
     head: bool,
-    grammar: &Grammar,
+    include_heading: bool,
 ) -> Result<ShowOutput> {
+    let root = &config.root;
     let decls = findings
         .declarations
         .get(id)
-        .ok_or_else(|| anyhow!("ID not found: {id}"))?;
+        .ok_or_else(|| anyhow!("ID not found: {}", render_id(config, id)))?;
     let homes: Vec<&Declaration> = decls
         .iter()
         .filter(|decl| !is_stub_for_inline_decl(root, decl, decls))
@@ -1134,12 +1636,12 @@ fn show_declaration(
     if homes.len() > 1 {
         let mut sites: Vec<String> = homes
             .iter()
-            .map(|d| format!("{}:{}", d.file.display(), d.line))
+            .map(|d| format!("{}:{}", display_path(config, &d.file), d.line))
             .collect();
         sites.sort();
         return Err(anyhow!(
             "ambiguous ID: {} (declared at {})",
-            id,
+            render_id(config, id),
             sites.join(", ")
         ));
     }
@@ -1153,7 +1655,28 @@ fn show_declaration(
     } else {
         decl.file.clone()
     };
-    extract_declaration_body(&file, id, section, head, grammar)
+    if decl.is_stub {
+        if !file.exists() {
+            return Err(anyhow!(
+                "broken stub: {} (stub at {}:{} points at {}, which does not exist)",
+                render_id(config, id),
+                display_path(config, &decl.file),
+                decl.line,
+                decl.defined_in.as_ref().unwrap().display()
+            ));
+        }
+        if !file_declares_inline_home(&file, id, &config.grammar).unwrap_or(false) {
+            return Err(anyhow!(
+                "broken stub: {} (stub at {}:{} points at {}, which contains no inline declaration of {})",
+                render_id(config, id),
+                display_path(config, &decl.file),
+                decl.line,
+                decl.defined_in.as_ref().unwrap().display(),
+                render_id(config, id)
+            ));
+        }
+    }
+    extract_declaration_body(&file, id, section, head, include_heading, config)
 }
 
 fn extract_declaration_body(
@@ -1161,11 +1684,15 @@ fn extract_declaration_body(
     id: &Id,
     section: Option<&str>,
     head: bool,
-    grammar: &Grammar,
+    include_heading: bool,
+    config: &Config,
 ) -> Result<ShowOutput> {
     let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
+    let is_py = path.extension().and_then(|e| e.to_str()) == Some("py");
     let mut in_decl = false;
+    let mut line_style_comment = false;
+    let mut in_py_docstring = false;
     let mut found_section = section.is_none();
     let mut target_depth = usize::MAX;
     let mut lines = Vec::new();
@@ -1173,24 +1700,55 @@ fn extract_declaration_body(
 
     for (idx, line) in text.lines().enumerate() {
         let lineno = idx + 1;
-        if let Some(caps) = grammar.decl_re.captures(line) {
+        let trimmed = line.trim_start();
+        if config.docstring_python
+            && is_py
+            && (trimmed.starts_with("\"\"\"") || trimmed.starts_with("'''"))
+        {
+            if in_decl && in_py_docstring {
+                break;
+            }
+            in_py_docstring = !in_py_docstring;
+            continue;
+        }
+        let scan_line = if in_py_docstring { trimmed } else { line };
+        if let Some(caps) = config.grammar.decl_re.captures(scan_line) {
             let found = parse_id(&caps);
             if in_decl && found.as_ref() != Some(id) {
                 break;
             }
             if found.as_ref() == Some(id) {
                 in_decl = true;
+                line_style_comment = is_line_style_comment_line(scan_line);
                 output_line = lineno;
+                // `md` format keeps the heading verbatim — including for `--head`,
+                // which then prints heading + lead prose (FS-show.3.1).
+                if include_heading && section.is_none() {
+                    lines.push(clean_body_line(scan_line, is_md || in_py_docstring));
+                }
                 continue;
             }
         }
         if !in_decl {
             continue;
         }
-        if !is_md && !is_comment_body_line(line) && !line.trim().is_empty() {
-            break;
+        if !is_md {
+            let blank = line.trim().is_empty();
+            if in_py_docstring {
+                // Python docstring content is plain Markdown; the surrounding
+                // triple-quote lines are skipped above (FS-show.2.3.2).
+            } else if blank {
+                // A blank line ends a line-style comment block (`//`, `#`, …);
+                // inside a `/* … */` block or a docstring it is part of the body
+                // (FS-show.2.3.1).
+                if line_style_comment {
+                    break;
+                }
+            } else if !is_comment_body_line(scan_line) {
+                break;
+            }
         }
-        if let Some(caps) = SECTION_HEADING.captures(line) {
+        if let Some(caps) = config.grammar.section_re.captures(scan_line) {
             let sec = caps.name("sec").map(|m| m.as_str()).unwrap_or("");
             if head {
                 break;
@@ -1209,17 +1767,18 @@ fn extract_declaration_body(
             }
         }
         if found_section {
-            lines.push(clean_body_line(line, is_md));
+            lines.push(clean_body_line(scan_line, is_md || in_py_docstring));
         }
     }
 
     if !in_decl {
-        return Err(anyhow!("ID not found: {id}"));
+        return Err(anyhow!("ID not found: {}", render_id(config, id)));
     }
     if !found_section {
         return Err(anyhow!(
-            "section not found: {}.{}",
-            id,
+            "section not found: {}{}{}",
+            render_id(config, id),
+            config.section_separator,
             section.unwrap_or("")
         ));
     }
@@ -1262,42 +1821,72 @@ fn is_comment_body_line(line: &str) -> bool {
         .any(|prefix| trimmed.starts_with(prefix))
 }
 
+/// Whether a declaration heading line sits inside a *line-style* comment
+/// (`//`-family, `#`, `;`, `--`) as opposed to a `/* … */` block (which opens
+/// `*` continuation lines). Line-style blocks end at a blank line; block-style
+/// ones end at `*/` (FS-show.2.3.1).
+fn is_line_style_comment_line(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    trimmed.starts_with("//")
+        || trimmed.starts_with('#')
+        || trimmed.starts_with(';')
+        || trimmed.starts_with("--")
+}
+
 fn command_fmt(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
+    let mut path_provided = false;
     let mut write = false;
+    let mut check_flag = false;
     let mut marker = false;
+    let mut md_links = false;
     for arg in args {
         match arg.as_str() {
-            "--check" => {}
+            "--check" => check_flag = true,
             "--write" => write = true,
             "--marker" => marker = true,
+            "--md-links" => md_links = true,
             other if other.starts_with('-') => {
                 eprintln!("error: unknown flag `{other}`");
                 return ExitCode::from(2);
             }
-            other => path = PathBuf::from(other),
+            other => {
+                path = PathBuf::from(other);
+                path_provided = true;
+            }
         }
+    }
+    if write && check_flag {
+        eprintln!("error: --check and --write cannot be used together");
+        return ExitCode::from(2);
     }
     let config = match load_config(&path) {
         Ok(config) => config,
         Err(err) => {
-            eprintln!("{err:#}");
+            eprintln!("error: {err:#}");
             return ExitCode::from(2);
         }
     };
-    let changes = match fmt_tree(&path, &config, marker, write) {
+    let md_links = md_links || (write && config.fmt_md_links_enabled);
+    let changes = match fmt_tree(&config, Some(&path), path_provided, marker, md_links, write) {
         Ok(changes) => changes,
         Err(err) => {
-            eprintln!("{err:#}");
+            eprintln!("error: {err:#}");
             return ExitCode::from(2);
         }
     };
-    if !write {
-        for (path, line) in &changes {
-            eprintln!("{}:{}: would rewrite reference", path.display(), line);
+    if write {
+        eprintln!(
+            "rewrote {} reference{}",
+            changes.len(),
+            if changes.len() == 1 { "" } else { "s" }
+        );
+    } else {
+        for (path, line, label) in &changes {
+            eprintln!("{}:{}: {}", display_path(&config, path), line, label);
         }
     }
-    if changes.is_empty() {
+    if write || changes.is_empty() {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
@@ -1305,29 +1894,22 @@ fn command_fmt(args: &[String]) -> ExitCode {
 }
 
 fn fmt_tree(
-    root: &Path,
     config: &Config,
+    scope: Option<&Path>,
+    explicit_scope: bool,
     add_marker: bool,
+    md_links: bool,
     write: bool,
-) -> Result<Vec<(PathBuf, usize)>> {
+) -> Result<Vec<(PathBuf, usize, &'static str)>> {
     let mut changes = Vec::new();
-    let walker = WalkDir::new(root).into_iter().filter_entry(|e| {
-        if e.depth() == 0 {
-            return true;
-        }
-        if e.file_type().is_dir() {
-            return !skip_dir(e.path(), config);
-        }
-        true
-    });
-    for entry in walker {
-        let entry = entry?;
-        if !entry.file_type().is_file() || !is_scannable(entry.path(), config) {
-            continue;
-        }
-        let path = entry.path();
+    let findings = if md_links {
+        Some(scan_tree_strict(config, scope, explicit_scope)?)
+    } else {
+        None
+    };
+    for path in walk_scannable_files(config, scope, explicit_scope)? {
         let original =
-            fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+            fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
         let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
         let mut in_fence = false;
         let mut changed_lines = Vec::new();
@@ -1343,9 +1925,17 @@ fn fmt_tree(
                 changed_lines.push(line.to_string());
                 continue;
             }
-            let new_line = fmt_line(line, config, add_marker);
+            let (new_line, label) = fmt_line(
+                line,
+                &path,
+                config,
+                add_marker,
+                md_links,
+                is_md,
+                findings.as_ref(),
+            );
             if new_line != line {
-                changes.push((path.to_path_buf(), idx + 1));
+                changes.push((path.clone(), idx + 1, label));
                 changed = true;
             }
             changed_lines.push(new_line);
@@ -1355,22 +1945,51 @@ fn fmt_tree(
             if original.ends_with('\n') {
                 output.push('\n');
             }
-            fs::write(path, output).with_context(|| format!("write {}", path.display()))?;
+            fs::write(&path, output).with_context(|| format!("write {}", path.display()))?;
         }
     }
     Ok(changes)
 }
 
-fn fmt_line(line: &str, config: &Config, add_marker: bool) -> String {
-    let triggered = replace_trigger(line, config);
-    if add_marker {
-        add_markers(&triggered, config)
+fn fmt_line(
+    line: &str,
+    path: &Path,
+    config: &Config,
+    add_marker: bool,
+    md_links: bool,
+    is_md: bool,
+    findings: Option<&Findings>,
+) -> (String, &'static str) {
+    let triggered = replace_trigger(line, config, is_md);
+    let trigger_changed = triggered != line;
+    let marked = if add_marker {
+        add_markers(&triggered, config, is_md)
     } else {
-        triggered
-    }
+        triggered.clone()
+    };
+    let marker_changed = marked != triggered;
+    let final_line = if md_links && is_md {
+        match findings {
+            Some(findings) => wrap_markdown_links(&marked, path, config, findings),
+            None => marked.clone(),
+        }
+    } else {
+        marked.clone()
+    };
+    let link_changed = final_line != marked;
+    let label = if trigger_changed {
+        "trigger \u{2192} marker"
+    } else if marker_changed {
+        "bare \u{2192} marker"
+    } else if link_changed {
+        "markdown link"
+    } else {
+        ""
+    };
+    (final_line, label)
 }
 
-fn replace_trigger(line: &str, config: &Config) -> String {
+fn replace_trigger(line: &str, config: &Config, is_md: bool) -> String {
     let mut output = String::new();
     let mut cursor = 0;
     while let Some(relative) = line[cursor..].find(&config.trigger) {
@@ -1378,6 +1997,7 @@ fn replace_trigger(line: &str, config: &Config) -> String {
         let after = start + config.trigger.len();
         if let Some(found) = config.grammar.citation_re.find_at(line, after)
             && found.start() == after
+            && (is_md || !is_inside_string_literal(line, start))
         {
             output.push_str(&line[cursor..start]);
             output.push_str(&config.marker);
@@ -1391,11 +2011,14 @@ fn replace_trigger(line: &str, config: &Config) -> String {
     output
 }
 
-fn add_markers(line: &str, config: &Config) -> String {
+fn add_markers(line: &str, config: &Config, is_md: bool) -> String {
     let mut output = String::new();
     let mut cursor = 0;
     for found in config.grammar.citation_re.find_iter(line) {
         if line[..found.start()].ends_with(&config.marker) {
+            continue;
+        }
+        if !is_md && is_inside_string_literal(line, found.start()) {
             continue;
         }
         output.push_str(&line[cursor..found.start()]);
@@ -1407,6 +2030,270 @@ fn add_markers(line: &str, config: &Config) -> String {
     output
 }
 
+fn is_inside_string_literal(line: &str, pos: usize) -> bool {
+    let bytes = line.as_bytes();
+    let mut single = false;
+    let mut double = false;
+    let mut backtick = false;
+    let mut i = 0;
+    while i < pos && i < bytes.len() {
+        match bytes[i] {
+            b'\'' if !double && !backtick && !is_escaped(bytes, i) => single = !single,
+            b'"' if !single && !backtick && !is_escaped(bytes, i) => double = !double,
+            b'`' if !single && !double && !is_escaped(bytes, i) => backtick = !backtick,
+            _ => {}
+        }
+        i += 1;
+    }
+    single || double || backtick
+}
+
+fn is_inside_inline_code(line: &str, pos: usize) -> bool {
+    let bytes = line.as_bytes();
+    let mut in_code = false;
+    let mut i = 0;
+    while i < pos && i < bytes.len() {
+        if bytes[i] == b'`' && !is_escaped(bytes, i) {
+            in_code = !in_code;
+        }
+        i += 1;
+    }
+    in_code
+}
+
+fn wrap_markdown_links(line: &str, path: &Path, config: &Config, findings: &Findings) -> String {
+    let mut output = String::new();
+    let mut cursor = 0;
+    for caps in config.grammar.citation_re.captures_iter(line) {
+        let Some(full) = caps.get(0) else { continue };
+        let marker_start = full.start().saturating_sub(config.marker.len());
+        if !line[..full.start()].ends_with(&config.marker) {
+            continue;
+        }
+        if is_inside_inline_code(line, marker_start) {
+            continue;
+        }
+        if marker_start < cursor {
+            continue;
+        }
+        let Some(id) = parse_id(&caps) else { continue };
+        let section = caps.name("sec").map(|m| m.as_str().to_string());
+        let Some(target) = markdown_link_target(path, &id, section.as_deref(), config, findings)
+        else {
+            continue;
+        };
+        let marked_end = full.end();
+        let already_wrapped = marker_start > 0 && line.as_bytes()[marker_start - 1] == b'[';
+        if already_wrapped && line[marked_end..].starts_with("](") {
+            let url_start = marked_end + 2;
+            if let Some(close_rel) = line[url_start..].find(')') {
+                let close = url_start + close_rel;
+                output.push_str(&line[cursor..url_start]);
+                output.push_str(&target);
+                cursor = close;
+                continue;
+            }
+        }
+        output.push_str(&line[cursor..marker_start]);
+        let citation = &line[marker_start..marked_end];
+        output.push('[');
+        output.push_str(citation);
+        output.push_str("](");
+        output.push_str(&target);
+        output.push(')');
+        cursor = marked_end;
+    }
+    output.push_str(&line[cursor..]);
+    output
+}
+
+fn markdown_link_target(
+    from_file: &Path,
+    id: &Id,
+    section: Option<&str>,
+    config: &Config,
+    findings: &Findings,
+) -> Option<String> {
+    let decls = findings.declarations.get(id)?;
+    let stub = decls.iter().find(|decl| decl.is_stub);
+    let home_decl = decls
+        .iter()
+        .find(|decl| !is_stub_for_inline_decl(&config.root, decl, decls))
+        .or_else(|| decls.first())?;
+    let home = if let Some(stub) = stub {
+        let target = stub.defined_in.as_ref()?;
+        if target.is_absolute() {
+            target.clone()
+        } else {
+            config.root.join(target)
+        }
+    } else {
+        home_decl.file.clone()
+    };
+    let rel = relative_url(from_file, &home, config);
+    let is_md = home.extension().and_then(|e| e.to_str()) == Some("md");
+    if !is_md || section.is_none() || config.md_link_anchor_format == "none" {
+        return Some(rel);
+    }
+    let heading = home_decl.sections.get(section?).cloned().or_else(|| {
+        section_heading_text(&home, id, section?, config)
+            .ok()
+            .flatten()
+    })?;
+    let anchor = anchor_slug(&heading, &config.md_link_anchor_format);
+    Some(format!("{}#{}", rel, anchor))
+}
+
+fn relative_url(from_file: &Path, to_file: &Path, config: &Config) -> String {
+    let from_rel = from_file.strip_prefix(&config.root).unwrap_or(from_file);
+    let to_rel = to_file.strip_prefix(&config.root).unwrap_or(to_file);
+    let from_dir = from_rel.parent().unwrap_or(Path::new(""));
+    let from_components = path_components(from_dir);
+    let to_components = path_components(to_rel);
+    let mut common = 0;
+    while common < from_components.len()
+        && common < to_components.len()
+        && from_components[common] == to_components[common]
+    {
+        common += 1;
+    }
+    let mut parts = Vec::new();
+    for _ in common..from_components.len() {
+        parts.push("..".to_string());
+    }
+    parts.extend(to_components[common..].iter().cloned());
+    if parts.is_empty() {
+        ".".to_string()
+    } else {
+        parts.join("/")
+    }
+}
+
+fn path_components(path: &Path) -> Vec<String> {
+    path.components()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(part) => Some(part.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn section_anchor_text(line: &str, section: &str) -> String {
+    let trimmed = line.trim_start();
+    let heading = trimmed
+        .trim_start_matches('#')
+        .trim_start()
+        .trim_start_matches(section)
+        .trim_start_matches('.')
+        .trim_start()
+        .to_string();
+    format!("{} {}", section.replace('.', ""), heading)
+        .trim()
+        .to_string()
+}
+
+fn section_heading_text(
+    path: &Path,
+    id: &Id,
+    section: &str,
+    config: &Config,
+) -> Result<Option<String>> {
+    let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    let mut in_decl = false;
+    for line in text.lines() {
+        if let Some(caps) = config.grammar.decl_re.captures(line) {
+            let found = parse_id(&caps);
+            if in_decl && found.as_ref() != Some(id) {
+                break;
+            }
+            if found.as_ref() == Some(id) {
+                in_decl = true;
+                continue;
+            }
+        }
+        if !in_decl {
+            continue;
+        }
+        if let Some(caps) = config.grammar.section_re.captures(line)
+            && caps.name("sec").is_some_and(|sec| sec.as_str() == section)
+        {
+            return Ok(Some(section_anchor_text(line, section)));
+        }
+    }
+    Ok(None)
+}
+
+fn anchor_slug(text: &str, profile: &str) -> String {
+    match profile {
+        "pandoc" => anchor_slug_pandoc(text),
+        "mkdocs" => anchor_slug_mkdocs(text),
+        "gitlab" => anchor_slug_gitlab(text),
+        _ => anchor_slug_github(text),
+    }
+}
+
+fn anchor_slug_github(text: &str) -> String {
+    let mut out = String::new();
+    let mut last_dash = false;
+    for ch in text.nfkd() {
+        let lower = ch.to_ascii_lowercase();
+        if lower.is_ascii_alphanumeric() {
+            out.push(lower);
+            last_dash = false;
+        } else if (lower.is_ascii_whitespace() || lower == '-') && !last_dash && !out.is_empty() {
+            out.push('-');
+            last_dash = true;
+        }
+    }
+    while out.ends_with('-') {
+        out.pop();
+    }
+    out
+}
+
+fn anchor_slug_gitlab(text: &str) -> String {
+    // Close to GitHub for the ASCII headings gnd emits in its own specs.
+    anchor_slug_github(text)
+}
+
+fn anchor_slug_mkdocs(text: &str) -> String {
+    let mut out = String::new();
+    let mut last_dash = false;
+    for ch in text.nfkd() {
+        let lower = ch.to_ascii_lowercase();
+        if lower.is_ascii_alphanumeric() || lower == '_' {
+            out.push(lower);
+            last_dash = false;
+        } else if lower.is_ascii_whitespace() && !last_dash && !out.is_empty() {
+            out.push('-');
+            last_dash = true;
+        }
+    }
+    while out.ends_with('-') {
+        out.pop();
+    }
+    out
+}
+
+fn anchor_slug_pandoc(text: &str) -> String {
+    let mut out = String::new();
+    let mut last_dash = false;
+    for ch in text.nfkd() {
+        let lower = ch.to_ascii_lowercase();
+        if lower.is_ascii_alphanumeric() || lower == '_' || lower == '-' || lower == '.' {
+            out.push(lower);
+            last_dash = lower == '-';
+        } else if lower.is_ascii_whitespace() && !last_dash && !out.is_empty() {
+            out.push('-');
+            last_dash = true;
+        }
+    }
+    while out.ends_with('-') {
+        out.pop();
+    }
+    out
+}
+
 fn command_config(args: &[String]) -> ExitCode {
     match args.first().map(|arg| arg.as_str()) {
         Some("validate") => {
@@ -1414,8 +2301,8 @@ fn command_config(args: &[String]) -> ExitCode {
             match load_config(&path) {
                 Ok(_) => ExitCode::SUCCESS,
                 Err(err) => {
-                    eprintln!("{err:#}");
-                    ExitCode::from(2)
+                    eprintln!("error: {err:#}");
+                    ExitCode::FAILURE
                 }
             }
         }
@@ -1423,14 +2310,65 @@ fn command_config(args: &[String]) -> ExitCode {
             let path = args.get(1).map(PathBuf::from).unwrap_or_else(|| ".".into());
             match load_config(&path) {
                 Ok(config) => {
+                    println!("gnd_config_version = 1");
+                    println!();
                     println!("[reference]");
                     println!("marker = \"{}\"", config.marker);
                     println!("trigger = \"{}\"", config.trigger);
                     println!("strict = {}", config.strict);
+                    println!();
+                    println!("[id]");
+                    println!("format = \"{}\"", config.id_format);
+                    println!("section_separator = \"{}\"", config.section_separator);
+                    println!(
+                        "number_pattern = \"{}\"",
+                        escape_toml_basic(&config.number_pattern)
+                    );
+                    println!(
+                        "slug_pattern = \"{}\"",
+                        escape_toml_basic(&config.slug_pattern)
+                    );
+                    println!();
+                    for kind in &config.kinds {
+                        println!("[[kinds]]");
+                        println!("prefix = \"{}\"", escape_toml_basic(&kind.prefix));
+                        if let Some(folder) = &kind.folder {
+                            println!("folder = \"{}\"", escape_toml_basic(folder));
+                        }
+                        if let Some(title) = &kind.title {
+                            println!("title = \"{}\"", escape_toml_basic(title));
+                        }
+                        println!();
+                    }
+                    println!("[scan]");
+                    println!(
+                        "include = {}",
+                        format_toml_string_list(config.include.as_deref().unwrap_or(&[]))
+                    );
+                    println!("exclude = {}", format_toml_string_list(&config.exclude));
+                    println!(
+                        "extensions = {}",
+                        format_toml_string_list(&config.extensions)
+                    );
+                    println!(
+                        "comment_prefixes = {}",
+                        format_toml_string_list(&config.comment_prefixes)
+                    );
+                    println!("docstring_python = {}", config.docstring_python);
+                    println!("respect_gitignore = {}", config.respect_gitignore);
+                    println!();
+                    println!("[output]");
+                    println!("format = \"{}\"", config.output_format);
+                    println!("color = \"auto\"");
+                    println!("relative_paths = {}", config.relative_paths);
+                    println!();
+                    println!("[fmt.md_links]");
+                    println!("enabled = {}", config.fmt_md_links_enabled);
+                    println!("anchor_format = \"{}\"", config.md_link_anchor_format);
                     ExitCode::SUCCESS
                 }
                 Err(err) => {
-                    eprintln!("{err:#}");
+                    eprintln!("error: {err:#}");
                     ExitCode::from(2)
                 }
             }
@@ -1440,6 +2378,351 @@ fn command_config(args: &[String]) -> ExitCode {
             ExitCode::from(2)
         }
     }
+}
+
+fn format_toml_string_list(values: &[String]) -> String {
+    format!(
+        "[{}]",
+        values
+            .iter()
+            .map(|value| format!("\"{}\"", escape_toml_basic(value)))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn command_name(args: &[String]) -> ExitCode {
+    let mut positional = Vec::new();
+    let mut width = 3usize;
+    let mut format = "text".to_string();
+    let mut idx = 0;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--width" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --width requires a value");
+                    return ExitCode::from(2);
+                }
+                width = match args[idx].parse::<usize>() {
+                    Ok(value) => value,
+                    Err(_) => {
+                        eprintln!("error: --width requires a positive integer");
+                        return ExitCode::from(2);
+                    }
+                };
+            }
+            "--format=json" => format = "json".to_string(),
+            "--format=text" => format = "text".to_string(),
+            "--format" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --format requires a value");
+                    return ExitCode::from(2);
+                }
+                format = args[idx].clone();
+            }
+            other if other.starts_with('-') => {
+                eprintln!("error: unknown flag `{other}`");
+                return ExitCode::from(2);
+            }
+            other => positional.push(other.to_string()),
+        }
+        idx += 1;
+    }
+    if positional.len() < 2 || positional.len() > 3 {
+        eprintln!("error: name requires <KIND> and <title>");
+        return ExitCode::from(2);
+    }
+    if !matches!(format.as_str(), "text" | "json") {
+        eprintln!("error: unsupported name format `{format}`");
+        return ExitCode::from(2);
+    }
+    let kind = &positional[0];
+    let title = &positional[1];
+    let path_provided = positional.get(2).is_some();
+    let path = positional
+        .get(2)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let config = match load_config(&path) {
+        Ok(config) => config,
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            return ExitCode::from(2);
+        }
+    };
+    let kind_config = match config
+        .kinds
+        .iter()
+        .find(|candidate| &candidate.prefix == kind)
+    {
+        Some(kind_config) => kind_config,
+        None => {
+            eprintln!("error: unknown kind \"{}\"", kind);
+            return ExitCode::FAILURE;
+        }
+    };
+    let slug = slugify_title(title, &config.slug_pattern);
+    if slug.is_empty() {
+        eprintln!(
+            "error: title produces empty slug after normalization: \"{}\"",
+            title
+        );
+        return ExitCode::FAILURE;
+    }
+    let findings = match scan_tree_strict(&config, Some(&path), path_provided) {
+        Ok(findings) => findings,
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            return ExitCode::from(2);
+        }
+    };
+    let uses_number = config.id_format.contains("{number}");
+    let number = if uses_number {
+        let max = findings
+            .declarations
+            .keys()
+            .filter(|id| &id.kind == kind)
+            .filter_map(|id| id.num)
+            .max()
+            .unwrap_or(0);
+        Some(max + 1)
+    } else {
+        None
+    };
+    let id = Id {
+        kind: kind.clone(),
+        num: number,
+        slug: if config.id_format.contains("{slug}") {
+            Some(slug.clone())
+        } else {
+            None
+        },
+    };
+    if let Some(decls) = findings.declarations.get(&id)
+        && let Some(decl) = decls.first()
+    {
+        eprintln!(
+            "error: proposed ID {} already declared at {}:{}",
+            format_id(&id, &config, width),
+            display_path(&config, &decl.file),
+            decl.line
+        );
+        return ExitCode::FAILURE;
+    }
+    let rendered = format_id(&id, &config, width);
+    if format == "json" {
+        let folder = kind_config.folder.as_deref().unwrap_or("");
+        println!(
+            "{{\"id\":\"{}\",\"kind\":\"{}\",\"number\":{},\"slug\":\"{}\",\"folder\":\"{}\"}}",
+            json_escape(&rendered),
+            json_escape(kind),
+            number
+                .map(|number| number.to_string())
+                .unwrap_or_else(|| "null".to_string()),
+            json_escape(&slug),
+            json_escape(folder)
+        );
+    } else {
+        println!("{rendered}");
+    }
+    ExitCode::SUCCESS
+}
+
+fn command_refs(args: &[String]) -> ExitCode {
+    if args.is_empty() {
+        eprintln!("error: refs requires an ID");
+        return ExitCode::from(2);
+    }
+    let mut id_arg = None;
+    let mut path = PathBuf::from(".");
+    let mut path_provided = false;
+    let mut section_override: Option<String> = None;
+    let mut format_override: Option<String> = None;
+    let mut idx = 0;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--section" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --section requires a value");
+                    return ExitCode::from(2);
+                }
+                section_override = Some(args[idx].clone());
+            }
+            "--format=json" => format_override = Some("json".to_string()),
+            "--format=text" => format_override = Some("text".to_string()),
+            "--format" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --format requires a value");
+                    return ExitCode::from(2);
+                }
+                format_override = Some(args[idx].clone());
+            }
+            other if other.starts_with('-') => {
+                eprintln!("error: unknown flag `{other}`");
+                return ExitCode::from(2);
+            }
+            other if id_arg.is_none() => id_arg = Some(other.to_string()),
+            other => {
+                path = PathBuf::from(other);
+                path_provided = true;
+            }
+        }
+        idx += 1;
+    }
+    let Some(id_arg) = id_arg else {
+        eprintln!("error: refs requires an ID");
+        return ExitCode::from(2);
+    };
+    let config = match load_config(&path) {
+        Ok(config) => config,
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            return ExitCode::from(2);
+        }
+    };
+    let (id, inline_section) = match parse_id_arg(&id_arg, &config.grammar) {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            return ExitCode::from(2);
+        }
+    };
+    if section_override.is_some() && inline_section.is_some() {
+        eprintln!("error: --section cannot be combined with an inline section");
+        return ExitCode::from(2);
+    }
+    let section = section_override.or(inline_section);
+    let format = format_override.unwrap_or_else(|| config.output_format.clone());
+    if !matches!(format.as_str(), "text" | "json") {
+        eprintln!("error: unsupported refs format `{format}`");
+        return ExitCode::from(2);
+    }
+    let (findings, scan_errors) = match scan_tree(&config, Some(&path), path_provided) {
+        Ok(out) => out,
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            return ExitCode::from(2);
+        }
+    };
+    let mut citations = findings
+        .citations
+        .iter()
+        .filter(|citation| citation.id == id)
+        .filter(|citation| {
+            section
+                .as_deref()
+                .map(|expected| citation.section.as_deref() == Some(expected))
+                .unwrap_or(true)
+        })
+        .collect::<Vec<_>>();
+    citations.sort_by(|a, b| {
+        (a.file.as_os_str(), a.line, a.column).cmp(&(b.file.as_os_str(), b.line, b.column))
+    });
+    if format == "json" {
+        for citation in citations {
+            println!(
+                "{{\"path\":\"{}\",\"line\":{},\"column\":{},\"id\":\"{}\",\"section\":{},\"marker\":{},\"text\":\"{}\"}}",
+                json_escape(&display_path(&config, &citation.file)),
+                citation.line,
+                citation.column,
+                json_escape(&render_id(&config, &citation.id)),
+                citation
+                    .section
+                    .as_deref()
+                    .map(|section| format!("\"{}\"", json_escape(section)))
+                    .unwrap_or_else(|| "null".to_string()),
+                citation.has_marker,
+                json_escape(&citation.text)
+            );
+        }
+    } else {
+        for citation in citations {
+            eprintln!(
+                "{}:{}: {}",
+                display_path(&config, &citation.file),
+                citation.line,
+                citation.text
+            );
+        }
+    }
+    if scan_errors.is_empty() {
+        ExitCode::SUCCESS
+    } else {
+        // Partial-scan semantics (FS-refs.4 / FS-check.2): the listed citations
+        // are real but the view of the tree was incomplete.
+        for (file, message) in scan_errors {
+            eprintln!("error: {}: {}", display_path(&config, &file), message);
+        }
+        ExitCode::from(2)
+    }
+}
+
+/// The repeating character class of a slug pattern — the last `[...]` bracket
+/// expression in `slug_pattern` (e.g. `[a-z0-9-]` from `[a-z0-9][a-z0-9-]*`).
+/// Falls back to the canonical default if the pattern has no bracket expression.
+fn slug_char_class(slug_pattern: &str) -> String {
+    if let Some(end) = slug_pattern.rfind(']')
+        && let Some(start) = slug_pattern[..end].rfind('[')
+    {
+        return slug_pattern[start..=end].to_string();
+    }
+    "[a-z0-9-]".to_string()
+}
+
+fn slugify_title(title: &str, slug_pattern: &str) -> String {
+    // FS-name.3: NFKD-normalize, drop combining marks, lower-case to ASCII, then
+    // replace every run of characters outside the configured slug character class
+    // with a single `-`; trim, collapse, truncate to 60 at a `-` boundary.
+    let class = slug_char_class(slug_pattern);
+    let valid = Regex::new(&format!("^(?:{class})$"))
+        .unwrap_or_else(|_| Regex::new("^(?:[a-z0-9-])$").unwrap());
+    let mut buf = [0u8; 4];
+    let mut out = String::new();
+    let mut last_dash = false;
+    for ch in title.nfkd() {
+        let lower = ch.to_ascii_lowercase();
+        if lower.is_ascii() && valid.is_match(lower.encode_utf8(&mut buf)) {
+            out.push(lower);
+            last_dash = false;
+        } else if !last_dash && !out.is_empty() {
+            out.push('-');
+            last_dash = true;
+        }
+    }
+    while out.ends_with('-') {
+        out.pop();
+    }
+    while out.contains("--") {
+        out = out.replace("--", "-");
+    }
+    if out.len() > 60 {
+        let mut truncated = out[..60].to_string();
+        if let Some(cut) = truncated.rfind('-') {
+            truncated.truncate(cut);
+        }
+        out = truncated;
+    }
+    out
+}
+
+fn format_id(id: &Id, config: &Config, width: usize) -> String {
+    let mut rendered = config.id_format.clone();
+    rendered = rendered.replace("{kind}", &id.kind);
+    if let Some(number) = id.num {
+        rendered = rendered.replace("{number}", &format!("{number:0width$}"));
+    }
+    if let Some(slug) = &id.slug {
+        rendered = rendered.replace("{slug}", slug);
+    }
+    rendered
+}
+
+fn render_id(config: &Config, id: &Id) -> String {
+    format_id(id, config, 3)
 }
 
 const AGENTS_TEMPLATE: &str = include_str!("../templates/agents.md");
@@ -1676,6 +2959,14 @@ fn docs_scaffold() -> Vec<(&'static str, String)> {
         ("docs/raison-detre.md", RAISON_DETRE_TEMPLATE.to_string()),
         ("docs/goals/goals.md", GOALS_TEMPLATE.to_string()),
         (
+            "docs/roadmap.md",
+            "# Roadmap\n\n<!-- placeholder - replace with real content -->\n".to_string(),
+        ),
+        (
+            "docs/changelog.md",
+            "# Changelog\n\n<!-- placeholder - replace with real content -->\n".to_string(),
+        ),
+        (
             "docs/functional-spec/README.md",
             FS_README_TEMPLATE.to_string(),
         ),
@@ -1697,34 +2988,58 @@ fn docs_scaffold() -> Vec<(&'static str, String)> {
 }
 
 fn print_help() {
+    println!("gnd — ground your agents in the spec.");
+    println!("Checks ID-based citations (§<ID>.<section>) across Markdown docs and source-code");
+    println!("doc-comments, so every reader — human or AI — points at the same facts.");
+    println!();
     println!("Usage:");
-    println!("  gnd [check] [path] [--format text|json]");
-    println!("  gnd show <ID> [path] [--section <section>] [--head] [--format text|md|json]");
-    println!("  gnd fmt [path] [--check] [--marker] [--write]");
-    println!("  gnd init [path] [--name <name>] [--docs] [--force] [--append]");
-    println!("  gnd config validate [path]");
-    println!("  gnd config show [path]");
+    println!("  gnd [check] [PATH] [OPTIONS]      check is the default — `gnd PATH` means `gnd check PATH`");
+    println!("  gnd <COMMAND> [ARGS] [OPTIONS]    run `gnd <COMMAND> --help` for that command's options");
+    println!();
+    println!("Commands:");
+    println!("  check    Validate every reference in a repo (the default).        e.g. gnd .");
+    println!("  show     Print one declaration's body by ID — so an agent pulls   e.g. gnd show FS-login.3");
+    println!("           one fact into context without loading the whole doc.");
+    println!("  refs     List every citation of an ID, as path:line.              e.g. gnd refs FS-login");
+    println!("  fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. gnd fmt --check");
+    println!("  name     Next conflict-free ID; KIND: G, FS, AS, DF, DA, E2E.     e.g. gnd name FS \"user login\"");
+    println!("  init     Scaffold agents.md + .agents/gnd.toml; idempotent.       e.g. gnd init --docs");
+    println!("  config   validate or show the effective .agents/gnd.toml.         e.g. gnd config show");
+    println!();
+    println!("Options:  --format text|json   output shape; text is the default (where it applies).");
+    println!("          --version, -V        print version.       --help, -h   show this screen.");
+    println!();
+    println!("Help and version go to stdout and exit 0.   Docs: docs/functional-spec/");
 }
 
 pub fn main_entry() -> ExitCode {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
+    if args.iter().any(|arg| arg == "--version" || arg == "-V") {
+        println!("gnd {}", env!("CARGO_PKG_VERSION"));
+        return ExitCode::SUCCESS;
+    }
+    if args.iter().any(|arg| arg == "--help" || arg == "-h") {
+        print_help();
+        return ExitCode::SUCCESS;
+    }
     match args.first().map(|arg| arg.as_str()) {
         None => command_check(&[]),
-        Some("--help") | Some("-h") => {
+        Some("help") => {
             print_help();
             ExitCode::SUCCESS
         }
         Some("check") => command_check(&args[1..]),
         Some("show") => command_show(&args[1..]),
+        Some("refs") => command_refs(&args[1..]),
         Some("fmt") => command_fmt(&args[1..]),
+        Some("name") => command_name(&args[1..]),
         Some("init") => command_init(&args[1..]),
         Some("config") => command_config(&args[1..]),
         Some(other) if other.starts_with('-') => command_check(&args),
-        Some(other) if Path::new(other).exists() => command_check(&args),
-        Some(other) => {
-            eprintln!("error: unknown subcommand `{other}`");
-            ExitCode::from(2)
-        }
+        // Any first argument that is not a known subcommand is a path argument:
+        // `gnd <path>` ≡ `gnd check <path>` (FS-cli.1). A nonexistent path is
+        // reported by `check`, not as a bogus "unknown subcommand".
+        Some(_) => command_check(&args),
     }
 }
 
@@ -1732,8 +3047,130 @@ pub fn main_entry() -> ExitCode {
 mod tests {
     use super::*;
 
+    fn test_root(name: &str) -> PathBuf {
+        let unique = format!(
+            "{}-{}-{:?}",
+            name,
+            std::process::id(),
+            std::thread::current().id()
+        );
+        let dir = std::env::temp_dir().join("gnd-lib-tests").join(unique);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create test root");
+        dir
+    }
+
+    fn write(path: &Path, text: &str) {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).expect("create parent");
+        }
+        std::fs::write(path, text).expect("write fixture");
+    }
+
     fn current_block() -> String {
         render_agents_append_block("demo")
+    }
+
+    #[test]
+    fn explicit_file_scope_ignores_unrelated_findings() {
+        let root = test_root("explicit_file_scope_ignores_unrelated_findings");
+        write(
+            &root.join("docs/functional-spec/FS-001-alpha.md"),
+            "# FS-001-alpha: Alpha\n",
+        );
+        write(
+            &root.join("docs/functional-spec/FS-002-beta.md"),
+            "# FS-002-beta: Beta\n\nMentions FS-999-missing.\n",
+        );
+
+        let config = Config::default_for(root.clone());
+        let (findings, _) = scan_tree(
+            &config,
+            Some(&root.join("docs/functional-spec/FS-001-alpha.md")),
+            true,
+        )
+        .expect("scan scoped file");
+        let report = check(&findings, &config);
+
+        assert!(
+            report.errors.is_empty(),
+            "unrelated dangling citation should not be reported"
+        );
+    }
+
+    #[test]
+    fn scanner_ignores_bare_source_citations_inside_strings() {
+        let root = test_root("scanner_ignores_bare_source_citations_inside_strings");
+        write(
+            &root.join("src/app.rs"),
+            "fn main() {\n    let value = \"FS-999-missing\";\n}\n",
+        );
+
+        let config = Config::default_for(root.clone());
+        let (findings, _) =
+            scan_tree(&config, Some(&root.join("src/app.rs")), true).expect("scan source file");
+        let report = check(&findings, &config);
+
+        assert!(
+            report.errors.is_empty(),
+            "string literal must not be a citation"
+        );
+    }
+
+    #[test]
+    fn scanner_uses_configured_comment_prefixes() {
+        let root = test_root("scanner_uses_configured_comment_prefixes");
+        let mut config = Config::default_for(root.clone());
+        config.comment_prefixes = vec!["//".to_string()];
+        config.rebuild_grammar().expect("rebuild grammar");
+        write(
+            &root.join("src/router.rs"),
+            "// # AS-001-router: Router\n//\n// ## 1. Shape\n",
+        );
+
+        let (findings, _) =
+            scan_tree(&config, Some(&root.join("src/router.rs")), true).expect("scan source file");
+
+        assert!(
+            findings.declarations.contains_key(&Id {
+                kind: "AS".to_string(),
+                num: Some(1),
+                slug: Some("router".to_string())
+            }),
+            "configured // prefix should allow inline declarations"
+        );
+    }
+
+    #[test]
+    fn diagnostics_render_custom_id_format() {
+        let root = test_root("diagnostics_render_custom_id_format");
+        write(
+            &root.join(".agents/gnd.toml"),
+            r#"gnd_config_version = 1
+
+[id]
+format = "{kind}_{number}_{slug}"
+section_separator = "."
+number_pattern = "\\d+"
+slug_pattern = "[a-z0-9][a-z0-9-]*"
+"#,
+        );
+        write(
+            &root.join("docs/functional-spec/FS_001_alpha.md"),
+            "# FS_001_alpha: Alpha\n\nMentions §FS_999_missing.\n",
+        );
+        let config = load_config(&root).expect("load config");
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|error| error.message == "unknown reference FS_999_missing"),
+            "diagnostic should use configured ID rendering: {:?}",
+            report.errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
     }
 
     #[test]

@@ -2,7 +2,7 @@
 
 What `gnd` measures itself against. If a change does not advance one of these, it is not worth doing. Goals are declared inline below so a human can read the whole picture top-to-bottom; each declaration is a stable ID and may be cited from anywhere in the repo.
 
-Current goals: §G-no-dangling-refs, §G-fast-feedback, §G-zero-config, §G-multi-language, §G-friendliness-first, §G-configurable, §G-no-silent-breakage, and §G-small-and-large.
+Current goals: §G-no-dangling-refs, §G-polyglot-citation, §G-fast-feedback, §G-zero-config, §G-multi-language, §G-friendliness-first, §G-configurable, §G-no-silent-breakage, and §G-small-and-large.
 
 ## G-no-dangling-refs: every cited ID resolves to a declaration
 
@@ -19,6 +19,31 @@ A citation `FS-user-login.3.1` resolves when:
 ### 2. Measurable
 
 The e2e suite includes deliberately broken inputs (missing declarations, missing sections, broken stubs); `gnd` must catch each one and report it on the right line. Any uncaught case is a regression.
+
+## G-polyglot-citation: IDs cite cleanly from anywhere they are useful
+
+A `gnd` citation is valid in a Markdown file, a Java doc-comment, a Rust `///` line, a Python docstring, a Go doc block, a TypeScript JSDoc, or any other source-comment form enumerated in §AS-scanner.4 — and `gnd` verifies it the same way in every one. This is the property that off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) cannot offer, and it is the load-bearing reason `gnd` exists alongside them rather than competing with them.
+
+### 1. What "cleanly" means
+
+- One citation grammar across all hosts. A citation like `FS-user-login.3.1` reads, parses, and resolves identically whether the file is `.md`, `.rs`, `.java`, `.py`, `.go`, `.ts`, or any other extension on the configured scan list.
+- One marker. The same `§` (or whatever §DF-reference-marker resolves to in the project's config) is recognized in every file type; no per-language escape rules.
+- One section grammar. The trailing `.3.1` resolves to a heading inside the declaration body the same way regardless of which file type the *declaration* lives in (`.md` page, inline Rustdoc, Javadoc, Python docstring).
+- One resolver. Citations cross the docs/code boundary in both directions: a Markdown spec under `docs/` may cite an architectural ID whose home is a Java class doc-comment, and the Java class doc-comment may cite a functional ID back. Both are validated by the same `gnd check` walk.
+
+### 2. Why this is a goal, not a side effect
+
+Markdown links degrade the moment a citation crosses the docs/code boundary: source files are not rendered, anchor slugs are not produced, and a path-relative link from `src/bus.rs` into `docs/` is fragile under refactor. The polyglot property is what makes IDs strictly stronger than links for the cases that matter to spec-driven projects — and it is what justifies the existence of a separate tool. Treating it as a load-bearing goal forces every other design choice (scanner, resolver, config, error format) to keep the property intact.
+
+### 3. Composition with other goals
+
+- §G-no-dangling-refs is the *correctness* contract; §G-polyglot-citation is the *coverage* contract. Together they say: every cited ID resolves, no matter where the citation lives.
+- §G-multi-language is about the *engine* shipping on three registries (cargo / npm / PyPI). §G-polyglot-citation is about the *citations themselves* spanning languages. The two are independent — one is about distribution, the other about the reference grammar.
+- §G-friendliness-first.1 ("errors point at the line") applies in every host: a dangling cite in a Javadoc reports `<path>:<line>` exactly the way a dangling cite in a Markdown file does.
+
+### 4. Measurable
+
+The e2e suite includes positive and negative fixtures for every supported doc-comment form in §AS-scanner.4 — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, Rustdoc (`///`, `//!`, `/** … */`), Go `//` blocks, Python `""" … """` docstrings, C# XML doc, Ruby `#` lines. Each fixture exercises a citation crossing the docs/code boundary in both directions. A regression in any host is a release blocker.
 
 ## G-fast-feedback: gnd must be as fast as possible
 

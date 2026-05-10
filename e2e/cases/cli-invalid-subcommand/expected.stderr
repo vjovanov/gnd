@@ -1,1 +1,1 @@
-error: unknown subcommand `bogus`
+error: path does not exist: bogus

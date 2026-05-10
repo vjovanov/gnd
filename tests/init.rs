@@ -87,6 +87,8 @@ fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
         ".agents/gnd.toml",
         "docs/raison-detre.md",
         "docs/goals/goals.md",
+        "docs/roadmap.md",
+        "docs/changelog.md",
         "docs/functional-spec/README.md",
         "docs/architectural-spec/README.md",
         "docs/decisions/architectural/.gitkeep",

@@ -1,0 +1,74 @@
+name: parallel-spec-review
+version: 1.0.0
+description: Review a specification with configurable parallel agents, synthesize weighted findings, gate conflicts to a human, and apply fixes for a bounded number of iterations.
+
+inputs:
+  - name: plan_title
+    description: Title of the instantiated Rhei workspace
+    type: string
+    default: Parallel Spec Review
+
+  - name: spec
+    description: Path to the specification file to review and update
+    type: path
+    required: true
+
+  - name: review_focus
+    description: Additional review focus or acceptance criteria to apply
+    type: string
+    default: ""
+
+  - name: iterations
+    description: Maximum review-summary-fix iterations to run
+    type: number
+    default: 2
+    validate: "^[1-9][0-9]*$"
+
+  - name: review_agents
+    description: Agent targets that independently review the specification in parallel
+    type: array
+    items:
+      type: object
+      properties:
+        id:
+          type: string
+          validate: "[a-z][a-z0-9-]*"
+        label:
+          type: string
+        selector:
+          type: string
+    default:
+      - id: claude
+        label: Claude review
+        selector: claude-code[yolo]:anthropic:claude-opus-4-7
+      - id: codex
+        label: Codex review
+        selector: codex[yolo]:openai:gpt-5-codex
+      - id: gemini
+        label: Gemini review
+        selector: gemini[yolo]:google:gemini-3.1-pro-preview
+
+  - name: summary_agent
+    description: Single agent target that synthesizes reviewer notes into weighted findings
+    type: string
+    default: claude-code[yolo]:anthropic:claude-opus-4-7
+
+  - name: fix_agent
+    description: Single agent target that applies fixes from the weighted summary
+    type: string
+    default: codex[yolo]:openai:gpt-5-codex
+
+  - name: review_output_dir
+    description: Directory for per-agent review notes
+    type: string
+    default: runtime/reviews
+
+  - name: summary_output_dir
+    description: Directory for synthesized summaries
+    type: string
+    default: runtime/summaries
+
+  - name: fix_output_dir
+    description: Directory for fix notes
+    type: string
+    default: runtime/fixes

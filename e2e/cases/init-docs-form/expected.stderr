@@ -2,6 +2,8 @@ wrote agents.md
 wrote .agents/gnd.toml
 wrote docs/raison-detre.md
 wrote docs/goals/goals.md
+wrote docs/roadmap.md
+wrote docs/changelog.md
 wrote docs/functional-spec/README.md
 wrote docs/architectural-spec/README.md
 wrote docs/decisions/architectural/.gitkeep

@@ -18,6 +18,17 @@ CLI flags > `gnd.toml` > built-in defaults. Layering is shallow: a value present
 
 The config file is TOML. Every key is optional; omitted keys take the default value. Unknown keys are an **error**, not a warning, per G-friendliness-first — typos in config files are bugs and gnd surfaces them loudly.
 
+The recognized surface is the line-oriented subset that the schema below uses: one `key = value` per line, basic (double-quoted) strings, booleans, integers, and single-line `["…", "…"]` arrays of basic strings; `#` comments; `[table]` and `[[array.of.tables]]` headers. Multi-line arrays, inline `{ … }` tables, and other TOML constructs are not parsed — keep each value on one line. A line that does not fit this shape is reported as an error pointing at the offending line, per §4.3.
+
+Top-level keys:
+
+```toml
+gnd_config_version = 1
+project_name = "Example" # optional metadata written by `gnd init`
+```
+
+`project_name` is metadata only. `gnd` accepts and preserves it in generated config, but no checker, scanner, formatter, or query behavior depends on it.
+
 ### 3.1 `[reference]` — citation form
 
 ```toml
@@ -78,16 +89,43 @@ This split keeps the section grammar regular at any depth.
 
 ### 3.4 `[[kinds]]` — recognized prefixes
 
+One `[[kinds]]` table per allowed prefix. `folder` is the conventional home for declarations of this kind — used by `gnd name` (FS-name.2.2 emits it as the `folder` field) and by editor "create new declaration" / "go to home folder" actions; it is **not** enforced by the checker — declarations are recognized wherever they appear. `title` is human-readable metadata: it surfaces in `gnd show --format=json`, `gnd refs --format=json`, and IDE hover previews, and is **not** injected into `gnd show --format=md` text (which is the declaration verbatim — FS-show.3).
+
+The defaults declare the canonical six, in this order:
+
 ```toml
+[[kinds]]
+prefix = "G"
+folder = "docs/goals"
+title  = "Goal"
+
 [[kinds]]
 prefix = "FS"
 folder = "docs/functional-spec"
 title  = "Functional spec"
+
+[[kinds]]
+prefix = "AS"
+folder = "docs/architectural-spec"
+title  = "Architectural spec"
+
+[[kinds]]
+prefix = "DF"
+folder = "docs/decisions/functional"
+title  = "Functional decision"
+
+[[kinds]]
+prefix = "DA"
+folder = "docs/decisions/architectural"
+title  = "Architectural decision"
+
+[[kinds]]
+prefix = "E2E"
+folder = "e2e/cases"
+title  = "End-to-end test"
 ```
 
-One `[[kinds]]` table per allowed prefix. `folder` is the conventional home for declarations of this kind, used by `gnd new` (future) and by editor "go to home folder" actions; it is not enforced by the checker — declarations are recognized wherever they appear. `title` is human-readable text shown by `gnd show --format=md` and IDE hover previews.
-
-Defaults declare the canonical six: `G`, `FS`, `AS`, `DA`, `DF`, `E2E`. A project that overrides this list replaces the defaults entirely — there is no merge. To extend rather than replace, copy the defaults and add to them.
+`G` declarations are H2 headings inside the single file `docs/goals/goals.md` (one file, all goals inline); `FS`, `AS`, `DF`, and `DA` declarations are the H1 of a file in their `folder` (an `AS` declaration may instead live inline in a source doc-comment with an optional stub in `folder` — §AS-scanner.4); `E2E` declarations are case directories under `folder` rather than heading lines — §AS-scanner.6. A project that overrides this list replaces the defaults entirely — there is no merge. To extend rather than replace, copy the defaults and add to them.
 
 Prefix sets must be unambiguous: no kind's `prefix` may itself be a prefix of another kind's `prefix`. For example, `prefix = "DA"` and `prefix = "DAT"` together are invalid because a token starting with `DAT-` would parse as either kind. gnd validates this on load and refuses ambiguous configs with a single error pointing at the offending pair (per §4.3).
 
@@ -103,7 +141,9 @@ docstring_python   = true
 respect_gitignore  = true
 ```
 
-`include` is the set of paths walked from the config root. `exclude` is the set of directory names skipped at any depth. `extensions` filters which files are read. `comment_prefixes` are the markers recognized when looking for inline declarations in source files (see AS-scanner.4 for full doc-comment handling). `docstring_python` enables Python triple-quoted-string scanning in addition to `#` comments.
+`include` is the set of paths walked from the config root. `exclude` is the set of directory names skipped at any depth. `extensions` filters which files are read. `comment_prefixes` are the markers recognized when looking for inline declarations and citations in source files. `docstring_python` enables Python triple-quoted-string scanning in addition to `#` comments.
+
+The default `comment_prefixes` set is broader than the languages tabulated in §AS-scanner.4: it also covers `;` (Lisp / Scheme / Clojure), `--` (SQL / Haskell / Lua / Ada), and `*` / `/*` (block-comment continuation and opener). Any line whose first non-whitespace run is a configured prefix is eligible to host a declaration heading or a citation; the §AS-scanner.4 table documents the doc-comment *conventions* for the major languages, not the full set of recognized prefixes.
 
 `respect_gitignore` (default `true`) makes the scanner honor every form of ignore file the `ignore` crate recognizes — `.gitignore` at any depth, `.git/info/exclude`, the global `core.excludesFile`, and `.ignore` files. Set to `false` only when you genuinely need to scan ignored paths. The directory-level `exclude` list above is applied **in addition** to ignore-file rules, never instead of them. See AS-scanner.1.1.
 
@@ -115,6 +155,18 @@ format         = "text"   # text | json
 color          = "auto"   # auto | always | never
 relative_paths = true     # show paths relative to config root in reports
 ```
+
+`relative_paths = true` (default) renders every `<path>` in a report relative to the config root (§1). `relative_paths = false` renders them relative to the path argument passed on the command line — or to the current working directory when no path is given — i.e. the same base `gnd` uses when no `.agents/gnd.toml` is discovered. Either way `gnd` **never** emits an absolute path or a path that escapes above the chosen base; this is what keeps the report deterministic per §FS-errors.4. `color` controls ANSI styling once the colored-output feature lands (§FS-errors.3); until then output is plain bytes regardless of this value, and a change to that default goes through the §G-no-silent-breakage path.
+
+### 3.7 `[fmt.md_links]` — Markdown link emission
+
+```toml
+[fmt.md_links]
+enabled       = false      # default; --md-links overrides per-invocation
+anchor_format = "github"   # default; one of github | gitlab | mkdocs | pandoc | none
+```
+
+The full contract for this block — what `enabled` does, the named `anchor_format` profiles, and when the link pass runs — lives in §FS-fmt.6.7 and §DF-md-link-anchor-strategy. It is part of the schema here because the generated `.agents/gnd.toml` (§FS-init.2.4) writes every key in this section explicitly.
 
 ## 4. Validation and inspection
 

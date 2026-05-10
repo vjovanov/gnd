@@ -23,9 +23,13 @@ Per FS-non-goals.10, `name` is non-interactive: no prompt, no confirmation. The 
 A single line on stdout: the proposed ID, with no marker prefix, followed by a newline.
 
 ```
-$ gnd name FS "User can log in with email"
+$ gnd name FS "User can log in with email"        # default [id] format = {kind}-{number}-{slug}
+FS-008-user-can-log-in-with-email
+$ gnd name FS "User can log in with email"        # a repo whose [id] format = {kind}-{slug}, like gnd itself
 FS-user-can-log-in-with-email
 ```
+
+The shape of the emitted ID always follows the repo's configured `[id] format` (FS-config.3.2) — see §4.1 for the number-less formats.
 
 This is shaped for shell composition. A typical workflow:
 
@@ -39,10 +43,10 @@ Stderr is empty on success. The `path:line:` prefix from G-friendliness-first.1 
 ### 2.2 `--format json`
 
 ```json
-{"id":"FS-user-can-log-in-with-email","kind":"FS","number":8,"slug":"user-can-log-in-with-email","folder":"docs/functional-spec"}
+{"id":"FS-008-user-can-log-in-with-email","kind":"FS","number":8,"slug":"user-can-log-in-with-email","folder":"docs/functional-spec"}
 ```
 
-`folder` is the configured `[[kinds]] folder` for the kind (FS-config.3.4) — the conventional home for declarations of this kind, included so editor "create new declaration" actions can place the file without a second lookup.
+`folder` is the configured `[[kinds]] folder` for the kind (FS-config.3.4) — the conventional home for declarations of this kind, included so editor "create new declaration" actions can place the file without a second lookup. Under a number-less `[id] format` the `number` field is `null` (§4.1).
 
 ## 3. Slug derivation
 
@@ -70,6 +74,10 @@ The scan from FS-check runs across the tree (or the configured `[scan] include` 
 Holes in the numbering (e.g., `FS-001`, `FS-002`, `FS-004` exists but `FS-003` does not) are **not** filled. Numbers are issued strictly above the maximum, never reused, never recycled. Reasoning: an ID that once existed and was removed may still be cited from external systems (PRs, chat, mirrored repos); reusing the number would silently change what those references point at. This is the same principle as FS-non-goals.4 (no rename) applied to allocation.
 
 If the scan fails (I/O, malformed file), `name` exits 2 with the underlying error — it does **not** fall back to a guess. Allocating a number against an incomplete view of the tree could produce a collision.
+
+### 4.1 Number-less ID formats
+
+When the repo's `[id] format` has no `{number}` placeholder — `{kind}-{slug}` (the form `gnd` itself uses) — there is nothing to derive: the proposed ID is `format` with `{kind}` and `{slug}` substituted, e.g. `FS-user-can-log-in-with-email`. The `--width` flag is accepted but has no effect (it pads a number that does not exist), and the `--format json` `number` field is `null`. The collision check (§5) still runs, and it carries more weight here: with no number to disambiguate, two declarations sharing a kind and slug collide on the same ID, so a clash is far more likely than under a numbered format. Conversely, when `format` has no `{slug}` placeholder (`{kind}-{number}`), the title is still required — it is used only to render a helpful collision message and is otherwise discarded; the proposed ID is `{kind}-{number}` with the next number, and the `slug` field in JSON output is the derived slug even though it does not appear in the ID.
 
 ## 5. Collision check
 
@@ -104,4 +112,4 @@ Three callers, one source of truth:
 
 1. **Authors.** Picking the next free number means listing a directory and squinting; one typo creates a duplicate that `gnd check` will catch hours later. `name` removes the typo class.
 2. **Agents.** An LLM proposing a new declaration cannot reliably read a directory listing and increment the right number — and even if it can, the answer drifts with the next file added. Calling `gnd name` is cheap, deterministic, and committed to the same regex grammar as the checker.
-3. **IDE plugins.** The "new declaration" action in FS-ide-plugins needs the same number `gnd name` would compute; sharing the engine means there is exactly one allocator, not three subtly different ones.
+3. **The optional LSP server.** A "new declaration" code action in §FS-lsp would need the same number `gnd name` would compute; sharing the engine through `gnd-core` means there is exactly one allocator, not three subtly different ones.

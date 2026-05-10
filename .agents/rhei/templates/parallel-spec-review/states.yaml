@@ -1,0 +1,308 @@
+# Parallel Spec Review — state machine
+# ────────────────────────────────────
+#
+# Legend: [initial] [final] [gating — agent stops, waits for human]
+#         (all_targets: review_agents) = one parallel pass per configured target
+#
+#   review [initial]
+#     (all_targets: review_agents, visits: {{iterations}})
+#       │
+#       ▼
+#   summarize
+#     (target: summary_agent, visits: {{iterations}})
+#       │
+#       ▼
+#   conflict-check
+#     (program: scripts/check-conflicts.sh, visits: {{iterations}})
+#       │ exit 0: no conflict
+#       ├────────────────────────────────────────────┐
+#       │                                            ▼
+#       │                                      fix
+#       │                                  (target: fix_agent,
+#       │                                   visits: {{iterations}})
+#       │                                            │
+#       │                      visitCount < visits    │ visitCount >= visits
+#       │                     ┌───────────────────────┴───────────────┐
+#       │                     ▼                                       ▼
+#       │                  review                              completed [final]
+#       │
+#       │ exit 1 or 2: missing/invalid marker or conflict
+#       ▼
+#   human-conflict [gating]
+#       │ human resolves summary
+#       ▼
+#   fix
+#
+#   any non-final state ──► cancelled [final]
+#
+# Per-task path:
+#   review-spec:
+#     review → summarize → conflict-check → fix
+#       ↳ if conflicts: conflict-check → human-conflict → fix
+#     fix → review while more iterations remain
+#     fix → completed when iteration budget is exhausted
+
+name: parallel-spec-review
+version: 1.0.0
+
+states:
+  review:
+    description: Parallel independent review of the target specification.
+    visits: {{iterations}}
+    all_targets:
+{% for review_agent in review_agents %}
+      - {{ review_agent.selector }}
+{% endfor %}
+    personality: |
+      You are {target}, an independent specification reviewer. Do not imitate
+      other reviewers or assume consensus. Your job is to find precise,
+      actionable specification issues and assign your own weight from 1 to 10.
+    instructions: |
+      Review pass {visit_count} of {visits} for Task {task_id}: {task_title}.
+
+      Review `{{spec}}` against the task body. Stay scoped to that
+      specification and files it explicitly references unless the task focus
+      says otherwise.
+
+      Write your review note to `{output.review-note.path}` in this exact
+      shape:
+
+        # Review Note — {target} — pass {visit_count}
+
+        ## Findings
+
+        - R-<short-id>: <one-line issue>
+          - Weight: <1-10>
+          - Location: <section, heading, or file path>
+          - Evidence: <why this is a real issue>
+          - Suggested fix: <concrete change>
+          - Conflicts or uncertainty: <none, or the alternate interpretation>
+
+        ## No-Issue Checks
+
+        - <important area checked with no finding>
+
+      Use `Weight: 10` only for issues that block implementation or would
+      likely cause incorrect behavior. Use lower weights for ambiguity,
+      clarity, or polish. If there are no findings, write `- none` under
+      `## Findings`.
+
+      Transition to `summarize` after the review note is written.
+    outputs:
+      - name: review-note
+        path: {{review_output_dir}}/task-{task_id}/pass-{visit_count}/{target.slug}.md
+        description: Independent review note for this target and pass
+
+  summarize:
+    description: Single-agent synthesis of the parallel review notes into weighted findings.
+    visits: {{iterations}}
+    target: {{summary_agent}}
+    personality: |
+      You are Claude acting as the synthesis agent. Reconcile independent
+      reviewer notes without flattening attribution. Keep reviewer names,
+      weights, conflicts, and uncertainty visible.
+    instructions: |
+      Summarize pass {visit_count} of {visits} for Task {task_id}: {task_title}.
+
+      Read the review notes:
+{% for review_agent in review_agents %}
+      - {{ review_agent.label }}: `{input.{{ review_agent.id }}-review.path}`
+{% endfor %}
+
+      Write two files with the same content:
+      - `{output.pass-summary.path}` for the immutable pass record
+      - `{output.latest-summary.path}` for the conflict gate and fix agent
+
+      The summary must use this exact top-level shape:
+
+        # Parallel Spec Review Summary — pass {visit_count}
+
+        Conflict: yes|no
+
+        ## Weighted Findings
+
+        - S-<nnn>: <one-line issue>
+          - Summary weight: <1-10>
+          - Mentioned by:
+            - <reviewer target or label>: weight <1-10>; <short note>
+          - Evidence: <combined evidence>
+          - Conflict: <none, or the exact disagreement>
+          - Fix directive: <specific edit the fix agent should apply>
+
+        ## Human Attention
+
+        - <only items that need human judgment before fixing, or `none`>
+
+      Set `Conflict: yes` when reviewers disagree on the desired behavior,
+      scope, compatibility, or fix direction in a way that materially affects
+      what should be changed. Set `Conflict: no` only when the fix directives
+      can be applied without a human choosing between incompatible readings.
+
+      Preserve attribution: every summarized issue must say who mentioned it
+      and the weight each reviewer gave it. Choose a summary weight from 1 to
+      10 based on severity, evidence, and reviewer agreement.
+    inputs:
+{% for review_agent in review_agents %}
+      - name: {{ review_agent.id }}-review
+        path: {{review_output_dir}}/task-{task_id}/pass-{visit_count}/{{ review_agent.selector|slug }}.md
+        description: {{ review_agent.label }} note for this pass
+{% endfor %}
+    outputs:
+      - name: pass-summary
+        path: {{summary_output_dir}}/task-{task_id}-pass-{visit_count}.md
+        description: Immutable synthesized summary for this pass
+      - name: latest-summary
+        path: {{summary_output_dir}}/task-{task_id}-latest.md
+        description: Latest synthesized summary used by conflict and fix states
+
+  conflict-check:
+    description: Deterministic conflict marker check for the synthesized summary.
+    visits: {{iterations}}
+    program: "bash scripts/check-conflicts.sh {input.latest-summary.path}"
+    program_timeout: 30s
+    inputs:
+      - name: latest-summary
+        path: {{summary_output_dir}}/task-{task_id}-latest.md
+        description: Latest synthesized summary containing the Conflict marker
+
+  human-conflict:
+    description: Human resolves summary conflicts before automated fixing continues.
+    gating: true
+    visits: {{iterations}}
+    instructions: |
+      Stop autonomous work on Task {task_id}: {task_title}.
+
+      The synthesis in `{input.latest-summary.path}` either contains
+      `Conflict: yes` or is missing a valid conflict marker. A human must
+      inspect and edit that file before fixes continue.
+
+      Human action:
+      - choose the intended behavior or fix direction for every conflicting
+        item under `## Human Attention`
+      - update each affected `Fix directive:` line
+      - change the marker to `Conflict: no` after resolving the conflict
+      - transition this task to `fix`
+
+      Do not transition out of this state autonomously.
+    inputs:
+      - name: latest-summary
+        path: {{summary_output_dir}}/task-{task_id}-latest.md
+        description: Latest synthesized summary requiring human conflict resolution
+
+  fix:
+    description: Single-agent fix pass using the weighted summary.
+    visits: {{iterations}}
+    target: {{fix_agent}}
+    personality: |
+      You are the fix agent. Apply only the changes directed by the weighted
+      summary. Keep the specification coherent and avoid unrelated rewrites.
+    instructions: |
+      Fix pass {visit_count} of {visits} for Task {task_id}: {task_title}.
+
+      Read `{input.latest-summary.path}` and update `{{spec}}` according to
+      the `Fix directive:` lines under `## Weighted Findings`. If the summary
+      still says `Conflict: yes`, stop and transition to `human-conflict`
+      instead of guessing.
+
+      Apply the smallest coherent specification change that resolves each
+      directive. Keep changes scoped to `{{spec}}` unless the summary
+      explicitly names another referenced file.
+
+      Write `{output.fix-note.path}` with:
+      - files changed
+      - summary issue ids fixed
+      - directives intentionally skipped, with reasons
+      - verification or consistency checks performed
+
+      When the note is written, transition back to `review` if another
+      iteration remains. Transition to `completed` when this is pass
+      {visits} of {visits}.
+    inputs:
+      - name: latest-summary
+        path: {{summary_output_dir}}/task-{task_id}-latest.md
+        description: Latest synthesized summary and fix directives
+    outputs:
+      - name: fix-note
+        path: {{fix_output_dir}}/task-{task_id}-pass-{visit_count}.md
+        description: Fix note for this pass
+
+  completed:
+    description: The configured review/fix iterations are complete.
+    instructions: |
+      No further action is required for Task {task_id}.
+    final: true
+
+  cancelled:
+    description: The workflow was cancelled.
+    instructions: |
+      Stop work and leave existing artifacts unchanged.
+    final: true
+
+transitions:
+  - from: review
+    to: summarize
+    description: Every configured reviewer wrote a weighted review note.
+
+  - from: summarize
+    to: conflict-check
+    description: The synthesis was written and can be checked for conflicts.
+
+  - from: conflict-check
+    to: fix
+    exit_code: 0
+    description: Summary explicitly declares no unresolved conflicts.
+
+  - from: conflict-check
+    to: human-conflict
+    exit_code: 1
+    description: Summary is missing a valid conflict marker; human must inspect it.
+
+  - from: conflict-check
+    to: human-conflict
+    exit_code: 2
+    description: Summary declares unresolved conflicts; human must resolve them.
+
+  - from: human-conflict
+    to: fix
+    description: Human resolved the conflict in the latest summary.
+
+  - from: human-conflict
+    to: completed
+    description: Human decided no automated fix should be applied.
+
+  - from: fix
+    to: review
+    condition: visitCount < visits
+    description: Fix pass complete; run another review iteration.
+
+  - from: fix
+    to: completed
+    condition: visitCount >= visits
+    description: Iteration budget exhausted after this fix pass.
+
+  - from: "*"
+    to: cancelled
+    description: Cancel the workflow from any non-final state.
+
+profiles:
+  workspace:
+    initial: completed
+    allowed:
+      - completed
+
+  spec-review-task:
+    initial: review
+    allowed:
+      - review
+      - summarize
+      - conflict-check
+      - human-conflict
+      - fix
+      - completed
+      - cancelled
+
+node_policy:
+  root: workspace
+  default: spec-review-task
+  by_type:
+    task: spec-review-task

@@ -1,16 +1,21 @@
-# FS-distribution: gnd ships on cargo, npm, and PyPI with a native API on each
+# FS-distribution: gnd distribution targets
 
-`gnd` is written in Rust but is distributed on **all three** major language ecosystems, with idiomatic API bindings on each. The check engine is a single shared library; the surfaces differ. Serves G-multi-language and G-friendliness-first.
+Status: planned beyond the Cargo CLI. `gnd` is written in Rust; the target distribution is **all three** major language ecosystems, with idiomatic API bindings on each. The check engine remains a single shared library; the surfaces differ. Serves G-multi-language and G-friendliness-first.
 
 ## 1. Targets
 
 | Registry | Package name        | Contents                                                                  |
 |----------|---------------------|---------------------------------------------------------------------------|
 | cargo    | `gnd`               | Library crate (`gnd-core`) + binary (`gnd`).                              |
-| npm      | `gnd-cli`           | Prebuilt binary + thin Node API surface (via `napi-rs`).                  |
-| PyPI     | `gnd`               | Prebuilt wheel + Python API surface (via `PyO3` / `maturin`).             |
+| cargo    | `gnd-lsp`           | Optional LSP server binary (§FS-lsp). Depends on `gnd-core`.              |
+| npm      | `gnd-cli`           | Prebuilt CLI binary + thin Node API surface (via `napi-rs`).              |
+| npm      | `gnd-lsp`           | Optional LSP server binary, prebuilt per platform.                        |
+| PyPI     | `gnd`               | Prebuilt CLI wheel + Python API surface (via `PyO3` / `maturin`).         |
+| PyPI     | `gnd-lsp`           | Optional LSP server, distributed via wheel (`pipx install gnd-lsp`).      |
 
-The PyPI package name `gnd` is free; using it avoids a `pip install gnd-cli` mismatch with the Python convention. The npm package uses `gnd-cli` because the unscoped `gnd` is held by an unrelated dormant package (see DA-reference-checker-name).
+The PyPI package name `gnd` is free; using it avoids a `pip install gnd-cli` mismatch with the Python convention. The npm package uses `gnd-cli` because the unscoped `gnd` is held by an unrelated dormant package (see §DA-reference-checker-name). The `gnd-lsp` slot is checked free on each registry as part of §RM-009-distribution-naming.
+
+The CLI install on each registry does **not** transitively pull in `gnd-lsp` — they are independent published packages, per §DA-lsp-optional. A user who only runs `gnd check` in CI installs the CLI alone; a user who wants editor integration installs `gnd-lsp` separately and configures their editor to launch it (§FS-lsp.2).
 
 ## 2. CLI parity
 
@@ -32,9 +37,9 @@ Report {
 
 Finding {
   severity: "error" | "warning"
-  code:     "dangling" | "missing-section" | "duplicate" | "broken-stub" | "unused" | "io"
-  path:     string         // relative to config root (FS-config.3.6)
-  line:     u32            // 1-indexed
+  code:     "dangling" | "missing-section" | "duplicate" | "broken-stub" | "unused" | "agents-init" | "io"
+  path:     string?        // relative to config root (FS-config.3.6); null for a CLI-level error
+  line:     u32?           // 1-indexed; null for a file-level finding with no line (e.g. an unreadable file, FS-check.2)
   message:  string         // the human-readable text
   sites:    [{ path, line }]?  // present for multi-site findings (e.g. duplicates)
 }
@@ -47,7 +52,7 @@ ShowOpts {
 }
 ```
 
-These fields are normative. The byte-for-byte JSON form emitted by `gnd --format=json` and consumed by IDE/agent integrations follows the same shape and is the cross-binding equivalence test (G-004.1).
+These fields are normative. The byte-for-byte JSON form emitted by `gnd --format=json` and consumed by IDE/agent integrations follows the same shape and is the cross-binding equivalence test (§G-multi-language.3).
 
 ### 3.1 Rust (`gnd-core` crate)
 
@@ -84,11 +89,11 @@ The Python binding is built with `PyO3` and packaged with `maturin`. Wheels are 
 
 A single release tag triggers parallel jobs that:
 
-1. Publish the crate to crates.io.
-2. Build per-platform Node binaries and publish `gnd-cli` to npm.
-3. Build per-platform Python wheels and publish `gnd` to PyPI.
+1. Publish the `gnd-core`, `gnd`, and `gnd-lsp` crates to crates.io (in dependency order: `gnd-core` first).
+2. Build per-platform Node binaries and publish `gnd-cli` and `gnd-lsp` to npm.
+3. Build per-platform Python wheels and publish `gnd` and `gnd-lsp` to PyPI.
 
-All three artifacts must succeed for a release to be considered complete. Versions are kept in lockstep across registries.
+All artifacts must succeed for a release to be considered complete. Versions across the CLI and the LSP move together within a release; `gnd-lsp` pins its `gnd-core` dependency to the same version the CLI ships, so a CLI/LSP version mismatch in editors is structurally impossible.
 
 ## 5. What we do not promise
 

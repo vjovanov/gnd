@@ -4,9 +4,11 @@ The `check` command walks a repo and reports every violation of the gnd referenc
 
 ## 1. Inputs
 
-- Optional path argument; defaults to the current directory.
+- Optional path argument; defaults to the current directory. May be a directory or a single file (`gnd check src/scanner.rs` scopes the scan to one file but still discovers `.agents/gnd.toml` by walking up — FS-config.1).
 - The walked tree may contain markdown (`.md`) and source files (Rust, Go, Java, TS, Python, etc.).
-- Optional `gnd.toml` at the root configuring marker, trigger, kinds, and skip lists per G-configurable.
+- Optional `.agents/gnd.toml` configuring marker, trigger, kinds, and skip lists per G-configurable (FS-config).
+- `--watch` — stay resident and re-check on every change under the scanned tree (§6).
+- `--format text|json` — output shape, per FS-errors.5. The global flags `--version` and `--help` are handled before any scan (FS-cli).
 
 ## 1.1 Recognized citations
 
@@ -14,7 +16,7 @@ Per DF-reference-marker, a citation is the marker followed by an ID, e.g. `§FS-
 
 In default mode, bare ID tokens are also recognized as citations for backward compatibility. In `[reference] strict = true` mode, only marker-prefixed citations are recognized — bare tokens are treated as plain text and do not trigger dangling-ref errors. New repos should adopt strict mode after running `gnd fmt --marker` (FS-fmt) to convert existing bare citations.
 
-Citations may appear in markdown prose, in source-file line/block comments, and in language doc-comments (Javadoc, JSDoc, Rustdoc, Python docstrings, etc.) — see AS-scanner.2.3 and AS-scanner.4 for the exact contexts.
+Citations may appear in markdown prose, in source-file line/block comments, and in language doc-comments (Javadoc, JSDoc, Rustdoc, Python docstrings, etc.) — see AS-scanner.2.3 and AS-scanner.4 for the exact contexts. In source files, a **bare** ID-shaped token whose start column falls inside a string literal is not treated as a citation (the same deterministic quote-tracking rule `gnd fmt` uses — FS-fmt.2.3.1, AS-scanner.2.3), so an ID-shaped substring inside a runtime string does not raise a false dangling-ref. A marker-prefixed citation is recognized everywhere, string or not — the marker is the signal of intent. Markdown files have no string literals and the carve-out does not apply there. `E2E` citations (`§E2E-<name>`) resolve against case directories under `e2e/cases/` per AS-scanner.6.
 
 ## 2. Outputs
 
@@ -22,7 +24,9 @@ A report on stderr, plus an exit code:
 
 - `0` — no errors. Warnings allowed (they do not affect the exit code).
 - `1` — at least one error.
-- `2` — scan failure (I/O, malformed file, invalid `gnd.toml`).
+- `2` — scan failure (I/O, malformed file, invalid `.agents/gnd.toml`).
+
+An invalid `.agents/gnd.toml` aborts before any file is read (FS-config.4.3): exit `2`, a single `error:` line, no findings. A per-file failure encountered *during* the walk (a file that cannot be read or decoded) is different: the offending file is reported as `error: <path>: <reason>` (the CLI-level shape, FS-errors.2.2 — the file has no line to point at), the walk continues over the remaining files, every finding collected from the readable files is still printed in the normal `<path>:<line>:` form, and the run exits `2` because the view of the tree was incomplete. A `2` therefore always means "do not trust this report as complete"; the printed findings are still real.
 
 ### 2.1 Report format
 
@@ -83,3 +87,14 @@ An ID that is declared but never cited. Reported as a warning, not an error — 
 ## 5. What gnd does not check
 
 See FS-non-goals — in particular FS-non-goals.1 (markdown links / URLs), FS-non-goals.2 (spelling/grammar), and the convention that ID numbers are stable handles, not ordinal positions.
+
+## 6. Watch mode (`--watch`)
+
+Status: planned — implementation tracked under §RM-012-watch.
+
+`gnd check --watch [<path>]` runs the check once, then stays resident and re-runs it whenever a file under the scanned tree (or `.agents/gnd.toml`) changes. It is the editor-less counterpart to the optional LSP server (FS-lsp): the LSP integrates `gnd` into an editor's diagnostics; `--watch` is the plain-terminal "every save" loop that G-fast-feedback exists for, available in every install with no editor configuration.
+
+- **Change detection.** Filesystem notifications where the OS provides them; a debounce window coalesces a burst of writes into one re-check. No polling loop is required, and there is no configurable interval — the watcher reacts, it does not sample.
+- **Each run is a plain `gnd check`.** Output and exit-status semantics of an individual run are exactly §2/§2.1 on the tree's state at that moment — byte-identical to what a non-`--watch` invocation would print (FS-errors.4). Before each run the previous run's output is cleared so the terminal always shows the current report; with `--format=json` each run emits one self-contained report object (never a running NDJSON stream).
+- **Lifecycle.** The process runs until interrupted (Ctrl-C / SIGINT). On interrupt it exits with the exit code of the most recently completed run (`0`/`1`/`2`), so `gnd check --watch &` followed by a later signal is still a meaningful CI-ish probe. There is no TUI, no key bindings, no prompt — it is non-interactive per FS-non-goals.10, just a re-printing checker. No network I/O (FS-non-goals.11); the only files touched are the ones the walk already reads.
+- **Scope.** `--watch` is a `check` flag (and `gnd --watch [<path>]` is shorthand for `gnd check --watch [<path>]`, FS-cli). Other subcommands do not take it; a one-shot `gnd fmt` or `gnd show` has nothing to keep watching.

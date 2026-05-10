@@ -8,15 +8,16 @@ The subcommands a user runs on the command line.
 
 - [§FS-check](FS-check.md) — validates every reference in a repo
 - [§FS-show](FS-show.md) — reads a single declaration body by ID
+- [§FS-refs](FS-refs.md) — lists every citation of an ID
 - [§FS-fmt](FS-fmt.md) — normalizes references in bulk
 - [§FS-init](FS-init.md) — bootstraps a new `gnd`-conformant repo
 - [§FS-name](FS-name.md) — proposes IDs for new declarations
 
-## IDE plugins
+## Editor integration
 
-The editor surface — a parallel front-end to the CLI.
+The editor surface — an optional LSP server that any LSP-aware editor can talk to. No first-party per-editor plugins ship; configuration is the user's one-time work.
 
-- [§FS-ide-plugins](FS-ide-plugins.md) — first-party editor integrations
+- [§FS-lsp](FS-lsp.md) — optional LSP server (`gnd-lsp`)
 
 ## Packaging
 
@@ -28,6 +29,7 @@ How `gnd` is shipped.
 
 Behavior every subcommand inherits.
 
+- [§FS-cli](FS-cli.md) — the command-line surface: default subcommand, `--version`/`--help`, exit-code mapping
 - [§FS-errors](FS-errors.md) — the shape and style of every message `gnd` prints
 
 ## Configuration and scope

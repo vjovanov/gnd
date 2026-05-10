@@ -45,7 +45,7 @@ Sites are listed in lexicographic `path:line` order so the message is stable acr
 
 When the ID's home is in code (per FS-check.3.4 stub semantics), `show` extracts the comment block surrounding the inline declaration, strips comment markers, and prints the resulting prose. The same section logic applies.
 
-The scanner recognizes the same doc-comment forms enumerated in AS-scanner.4 — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, PHPDoc, Rustdoc (`///`, `//!`, `/** … */`), C# XML doc comments, Go's `// …` doc blocks, Ruby `#` comments, and Python `""" … """` docstrings. This means an architectural spec can live directly in the class-level Javadoc, and `gnd show AS-event-bus` returns the rendered Javadoc body — same content the IDE plugin shows on hover (FS-ide-plugins.1.2). The stub at `docs/architectural-spec/AS-event-bus.md` is a single-line H1 — `# AS-event-bus: [<path>](<path>)` — pointing at the file.
+The scanner recognizes the same doc-comment forms enumerated in §AS-scanner.4 — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, PHPDoc, Rustdoc (`///`, `//!`, `/** … */`), C# XML doc comments, Go's `// …` doc blocks, Ruby `#` comments, and Python `""" … """` docstrings. This means an architectural spec can live directly in the class-level Javadoc, and `gnd show AS-event-bus` returns the rendered Javadoc body — same content the optional LSP server shows on hover (§FS-lsp.1.2). The stub at `docs/architectural-spec/AS-event-bus.md` is a single-line H1 — `# AS-event-bus: [<path>](<path>)` — pointing at the file.
 
 #### 2.3.1 What counts as the "comment block"
 
@@ -79,15 +79,36 @@ The result is the markdown that the declaration's author wrote, identical to wha
 
 #### 2.3.3 Section selection inside a doc-comment
 
-Section selection (`AS-event-bus.2`) works the same way inside a doc-comment as inside a markdown file: the scanner records the numbered subsection headings declared within the doc-comment block and `show` slices to the requested section. Headings inside doc-comments use the same `## N. …`, `### N.M. …`, `#### N.M.O. …` convention as markdown — the comment-stripping pass leaves them intact.
+Section selection (`AS-event-bus.2`) works the same way inside a doc-comment as inside a markdown file: the scanner records the numbered subsection headings declared within the doc-comment block and `show` slices to the requested section. Section depth is measured relative to the declaration's heading level exactly as in markdown (§AS-scanner.2.2) — a `# AS-event-bus` heading inside a `///` block is "level 1", so `## 1.` is a depth-1 section. The comment-stripping pass leaves these headings intact.
+
+#### 2.3.4 Broken stub
+
+If the ID's only home is a stub (`# <ID>: [<text>](<path>)`) whose link is broken — the `<path>` does not exist, or the file at `<path>` contains no inline declaration of `<ID>` (the FS-check.3.4 error) — `show` has no body to extract. It exits `1` with a bare query-result line (FS-errors.2.3), not a `path:line:` finding:
+
+```
+broken stub: <ID> (stub at <path>:<line> points at <target>, which does not exist)
+broken stub: <ID> (stub at <path>:<line> points at <target>, which contains no inline declaration of <ID>)
+```
+
+This is the same "found something other than exactly one body" family as `ID not found` and `ambiguous ID` (§3). Run `gnd check` to see the error in located form; fix the stub or the target before `show` will return a body.
+
+### 2.4 E2E cases
+
+`gnd show E2E-<name>` returns the case's manifest (§AS-scanner.6): the invocation on the first line (`gnd <args…>`, or `gnd check` when the case has no `command.args`), then `expected exit: <code>`, then the deterministic sorted list of the case's fixture file paths relative to the case directory. This is the "the test *is* the body" view — enough for an agent to understand what the case proves without opening every fixture. `--head` prints only the first line (the invocation). Section paths are not defined for E2E cases (the manifest is not a numbered-heading tree); `gnd show E2E-<name>.1` is a section-not-found error. `--format=json` emits `{"id":"E2E-<name>","kind":"E2E","path":"e2e/cases/<name>","args":[…],"expected_exit":<code>,"fixtures":[…]}`.
 
 ## 3. Outputs
 
 - `0` — printed successfully.
-- `1` — ID not found, ambiguous ID (multiple homes — FS-show.2.2.1), or section not found in declaration.
+- `1` — ID not found, ambiguous ID (multiple homes — FS-show.2.2.1), broken stub (FS-show.2.3.4), or section not found in declaration.
 - `2` — I/O error.
 
-Stdout for the body. Stderr for errors. Empty stdout on error.
+Stdout carries the body (or, with `--format=json`, the result object — one JSON object, never NDJSON, per FS-errors.5). Stderr carries errors. Stdout is empty on error.
+
+### 3.1 Format variants
+
+- `text` (default) — the body only: for a markdown declaration, the lines after the heading line through the end of the body; for an inline-source declaration, the comment-stripped prose (§2.3.2); for an E2E case, the manifest (§2.4). The opening heading line is **omitted**.
+- `md` — same as `text` but the opening heading line is **included** verbatim, so the output is a self-contained markdown fragment. The kind's `[[kinds]] title` (FS-config.3.4) is *not* injected — it is metadata exposed only in `json`. For an inline-source declaration the included heading is the one written in the doc-comment (`# AS-event-bus: In-process event broadcaster`), comment-markers stripped.
+- `json` — a single object on stdout: `{"id":<ID>,"section":<section-path or null>,"body":<string>,"path":<declaring file or case dir>,"line":<1-indexed>}`. `section` is `null` when the whole declaration was requested. For E2E cases the object is the §2.4 shape instead. The wire form is stable per G-no-silent-breakage.1.
 
 ## 4. Why this matters
 

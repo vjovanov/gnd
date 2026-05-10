@@ -1,8 +1,14 @@
 # gnd: Ground Your Agents in the Spec
 
-**Agent grounding tool.** A small, fast Rust CLI that keeps every agent — human or AI — pointing at the same facts.
+**The polyglot reference checker.** A small, fast Rust CLI that validates ID-based citations everywhere they live — in your docs, *and* in your code's doc-comments — so every agent (human or AI) is pointing at the same facts.
 
-`gnd` validates an ID-based reference scheme across your docs, tests, and source. Things like `§FS-user-login.3.1` aren't markdown links and aren't URLs, so `lychee` can't check them. `gnd` does.
+A citation like `§FS-user-login.3.1` works the same way in a Markdown spec, a Rust `///` line, a Java doc-comment, a Python docstring, or a Go doc block. `gnd` walks all of them with one resolver. `lychee` and `markdown-link-check` can't — they only read `.md` and only validate `[text](url)`. That gap is what `gnd` is for.
+
+The three things `gnd` does that plain Markdown links can't:
+
+1. **Verify** citations across the docs/code boundary. A `§FS-events.4` cited from `src/bus.rs` is checked the same as one cited from `docs/`.
+2. **Survive refactors.** IDs are location-independent — rename a file, reword a heading, move a module, citations keep resolving. Markdown anchors break on the first heading edit.
+3. **Extract** a single declaration body. `gnd show §FS-user-login.3.1` returns just that subsection — under 200 lines — so an LLM agent can pull a fact into context without loading the file.
 
 > Status: early. The spec under `docs/` is the source of truth; the binary is being implemented against it. `gnd` is its own first user — running `gnd .` at the repo root checks the project's own specs.
 
@@ -36,6 +42,18 @@ It does **not** check markdown links, URLs, spelling, or grammar. Use [`lychee`]
 Section coordinates (`.3.1`) resolve to a heading **inside** the declaration body — `### 3.1 …` for a markdown declaration, or the same heading shape inside a doc-comment for an inline one. `gnd show <ID>.<section>` returns just that subtree.
 
 Citations are written prefixed by the marker `§`, e.g. `§FS-user-login.3.1`. Type `$$` in a `gnd`-aware editor and it's rewritten to `§` automatically. Both marker and trigger are configurable in `.agents/gnd.toml`.
+
+### Supported ID schemes
+
+`format` in `[id]` (see [`FS-config`](docs/functional-spec/FS-config.md#32-id--id-grammar)) selects which ID shape the repo uses. Pick one per repo and keep it stable — citations look identical across schemes but resolve under different rules.
+
+| `format`                       | Example                  | Best when…                                                                  | Trade-off                                                                       | Runnable example                                                  |
+|--------------------------------|--------------------------|-----------------------------------------------------------------------------|---------------------------------------------------------------------------------|-------------------------------------------------------------------|
+| `{kind}-{number}-{slug}`       | `FS-014-event-bus`       | You want stable refs *and* a topic hint readable in prose.                  | Two facts to maintain — a title edit leaves the slug stale until re-slugged.    | [`examples/scheme-numbered-slug/`](examples/scheme-numbered-slug/) |
+| `{kind}-{number}`              | `RFC-014`, `FS-002`      | You want the shortest possible ID and don't mind opacity (RFC-/JEP-style).  | Citations are unreadable without `gnd show` — punishes drive-by review.         | [`examples/scheme-numbered/`](examples/scheme-numbered/)           |
+| `{kind}-{slug}`                | `FS-event-bus`           | You want self-describing IDs with no number bookkeeping. (`gnd` itself uses this.) | Slugs must be unique within a kind; renaming a spec breaks existing cites.      | [`examples/scheme-slug/`](examples/scheme-slug/)                   |
+
+Each subfolder is a tiny self-contained repo plus golden `expected.*` files — `gnd examples/scheme-slug/repo` prints nothing and exits 0. See [`examples/README.md`](examples/README.md) for the full list.
 
 ## Try it
 
@@ -84,10 +102,14 @@ exec gnd check
 
 | Command                    | What it does                                                                       |
 | -------------------------- | ---------------------------------------------------------------------------------- |
-| `gnd check [path]`         | Validate references. The default — `gnd <path>` is shorthand.                      |
+| `gnd check [path] [--watch]` | Validate references. The default — `gnd <path>` is shorthand. `--watch` stays resident and re-checks on every change. |
 | `gnd init [path] [--docs] [--force]` | Scaffold `agents.md` and `.agents/gnd.toml`; idempotent by default — appends/updates the managed block in an existing `agents.md`, reports `exists` for other files. `--docs` also seeds `docs/` and `e2e/`; `--force` overwrites. |
 | `gnd show <ID> [--head]`   | Print just the body of a declaration, for pulling spec content into agent prompts. |
+| `gnd refs <ID> [path]`     | List every citation of an ID — `path:line: <citation>` — so you know what leans on a declaration before you change it. |
 | `gnd fmt [path]`           | Rewrite `$$` triggers to `§`; with `--marker`, also upgrade bare citations.        |
+| `gnd name <KIND> "<title>"` | Emit the next conflict-free ID for a new declaration (e.g. `FS-008-user-login`). Pure function from `(kind, title, tree)` to `id`; no files are written.        |
+| `gnd config (validate\|show)` | `validate` checks `.agents/gnd.toml` against the schema; `show` prints the effective config (defaults + file + flags) as TOML. |
+| `gnd --version` / `gnd --help` | Print the version, or one-screen usage; handled before any scan. |
 
 Full surface in [`docs/functional-spec/`](docs/functional-spec/).
 
@@ -276,6 +298,18 @@ src/bus.rs:42
 ```
 
 If a stub at `docs/architectural-spec/AS-event-bus.md` reads `# AS-event-bus: [src/bus.rs](src/bus.rs)`, `show` follows the link; the path printed is the inline declaration's home, not the stub. An agent verifying that a spec's prose still matches its implementation always lands on the file it actually needs to read.
+
+### Find every file that cites a declaration
+
+The other reverse direction — *who depends on this ID?*, the question to ask before changing or removing a declaration — is `gnd refs`. It shares the scanner with `gnd check`, so it sees exactly the citations the checker validates (respects `strict` mode, skips ID-shaped substrings inside string literals, reaches into block doc-comments) — things a bare `grep` cannot:
+
+```bash
+$ gnd refs FS-check.1
+docs/functional-spec/FS-show.md:11: §FS-check.1
+src/scanner.rs:142: FS-check.1
+```
+
+Empty output, exit 0 means nothing cites it yet (`gnd check` will also warn about that). See [`FS-refs`](docs/functional-spec/FS-refs.md).
 
 ## Project layout
 

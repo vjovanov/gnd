@@ -1,1 +1,1 @@
-e2e/cases/config-unknown-kinds-key/repo/.agents/gnd.toml:3: unknown config key `prefxi`
+error: .agents/gnd.toml:3: unknown config key `prefxi`

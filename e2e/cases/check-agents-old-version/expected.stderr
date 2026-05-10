@@ -1,1 +1,1 @@
-e2e/cases/check-agents-old-version/repo/agents.md:3: outdated gnd init block v0 (run `gnd init` to update to v1)
+agents.md:3: outdated gnd init block v0 (run `gnd init` to update to v1)

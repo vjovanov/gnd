@@ -1,1 +1,1 @@
-e2e/cases/config-unknown-id-key/repo/.agents/gnd.toml:2: unknown config key `forrmat`
+error: .agents/gnd.toml:2: unknown config key `forrmat`

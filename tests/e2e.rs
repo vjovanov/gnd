@@ -1,8 +1,9 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-const CANONICAL_KINDS: &[&str] = &["G", "FS", "AS", "DA", "DF", "E2E"];
+const CANONICAL_KINDS: &[&str] = &["G", "FS", "AS", "DF", "DA", "E2E"];
 
 #[test]
 fn e2e_cases_match_expected_reports() {
@@ -113,6 +114,7 @@ fn run_case(manifest_dir: &Path, case: &Path) {
     assert_expected_errors_are_concise(case, name, &expected_stderr);
     assert_eq!(actual_stdout, expected_stdout, "{name}: stdout mismatch");
     assert_eq!(actual_stderr, expected_stderr, "{name}: stderr mismatch");
+    assert_expected_repo(case, manifest_dir, name);
 }
 
 fn assert_expected_errors_are_concise(case: &Path, name: &str, stderr: &str) {
@@ -197,6 +199,56 @@ fn copy_dir(from: &Path, to: &Path) {
             fs::copy(&source, &target).unwrap_or_else(|err| {
                 panic!("copy {} to {}: {err}", source.display(), target.display())
             });
+        }
+    }
+}
+
+fn assert_expected_repo(case: &Path, manifest_dir: &Path, name: &str) {
+    let expected = case.join("expected.repo");
+    if !expected.exists() {
+        return;
+    }
+    let actual = manifest_dir.join("target/e2e-work").join(name).join("repo");
+    assert!(
+        actual.exists(),
+        "{name}: expected.repo requires command.args to run against {{repo_copy}}"
+    );
+    let expected_files = relative_files(&expected);
+    let actual_files = relative_files(&actual);
+    assert_eq!(
+        actual_files, expected_files,
+        "{name}: final repo file list differs from expected.repo"
+    );
+    for rel in expected_files {
+        let expected_path = expected.join(&rel);
+        let actual_path = actual.join(&rel);
+        let expected_bytes = fs::read(&expected_path)
+            .unwrap_or_else(|err| panic!("{name}: read {}: {err}", expected_path.display()));
+        let actual_bytes = fs::read(&actual_path)
+            .unwrap_or_else(|err| panic!("{name}: read {}: {err}", actual_path.display()));
+        assert_eq!(
+            actual_bytes,
+            expected_bytes,
+            "{name}: final bytes differ for {}",
+            rel.display()
+        );
+    }
+}
+
+fn relative_files(root: &Path) -> BTreeSet<PathBuf> {
+    let mut files = BTreeSet::new();
+    collect_relative_files(root, root, &mut files);
+    files
+}
+
+fn collect_relative_files(root: &Path, dir: &Path, files: &mut BTreeSet<PathBuf>) {
+    for entry in fs::read_dir(dir).unwrap_or_else(|err| panic!("read {}: {err}", dir.display())) {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        if path.is_dir() {
+            collect_relative_files(root, &path, files);
+        } else {
+            files.insert(path.strip_prefix(root).unwrap().to_path_buf());
         }
     }
 }

@@ -1,2 +1,1 @@
-e2e/cases/basic-markdown-duplicate/repo/docs/functional-spec/FS-001-login-a.md:1: duplicate declaration of FS-001-login
-e2e/cases/basic-markdown-duplicate/repo/docs/functional-spec/FS-001-login-b.md:1: duplicate declaration of FS-001-login
+docs/functional-spec/FS-001-login-a.md:1: duplicate declaration of FS-001-login (also declared at docs/functional-spec/FS-001-login-b.md:1)

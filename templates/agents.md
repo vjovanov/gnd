@@ -40,7 +40,8 @@ Declarations are heading lines: `# FS-042-user-login: A player can log in …` i
 
 ## Rules for agents
 
-- **One direction of truth.** Specs cite goals. Architecture cites specs. Decisions cite whichever they shaped. E2E tests cite the FS they verify.
+- **Citations climb toward the goals.** Specs cite goals. Architecture cites specs. E2E tests cite the FS they verify.
+- **No dangling decisions.** Every decision record is cited from the spec or architecture doc it shaped, at the point where the choice applies — so a reader lands on the *why* without searching. A decision may also cite back into a spec; what it may not be is uncited — `gnd check` flags that as unused.
 - **Decisions are append-only.** Never rewrite history under `docs/decisions/`. If a decision is reversed, add a new entry that supersedes the old one and link both ways.
 - **Cross-link everything via IDs.** Use the ID. No markdown links between docs.
 - **E2E tests are the source of truth for behavior.** When the spec and the e2e tests disagree, one of them is wrong — fix both, in the same change.

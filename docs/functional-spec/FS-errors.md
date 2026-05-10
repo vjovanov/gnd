@@ -1,6 +1,6 @@
 # FS-errors: gnd emits messages in one of three fixed shapes
 
-This spec defines the style every `gnd` subcommand uses when it speaks to a user or to a downstream tool. It is cross-cutting: FS-check, FS-show, FS-fmt, FS-init, and FS-name all conform to it. Serves G-friendliness-first.1 ("errors point at the line", "no surprises") and G-no-silent-breakage.1 (the message shapes are user-visible output).
+This spec defines the style every `gnd` subcommand uses when it speaks to a user or to a downstream tool. It is cross-cutting: FS-check, FS-show, FS-refs, FS-fmt, FS-init, and FS-name all conform to it, and the global-flag behaviour in FS-cli routes its errors through §2.2 here. Serves G-friendliness-first.1 ("errors point at the line", "no surprises") and G-no-silent-breakage.1 (the message shapes are user-visible output).
 
 The shapes are **frozen** by the same logic as FS-non-goals.9: two correctly-configured installs must agree on what they print. A subcommand that needs to say something new picks one of the shapes below; it does not invent a fourth.
 
@@ -25,7 +25,7 @@ A diagnostic that points at a specific source site:
 - `<message>` is a single line — no embedded newlines, no terminal period.
 - The `<path>:<line>:` prefix is mandatory: editors and agents jump on this exact shape.
 
-Used by every per-source diagnostic in `gnd check` (FS-check.2.1) and surfaced unchanged by the IDE plugins (FS-ide-plugins.1.1).
+Used by every per-source diagnostic in `gnd check` (§FS-check.2.1), by every citation line `gnd refs` prints (§FS-refs.3.1), and surfaced unchanged by the optional LSP server (§FS-lsp.1.1).
 
 ### 2.2 CLI-level error
 
@@ -38,7 +38,7 @@ error: <message>
 - The literal `error: ` prefix is what distinguishes a CLI-level failure from a located finding. CI scripts grep for it.
 - No `<path>:<line>:` is attached, even if a config file is the cause — the message text names the file when relevant (e.g. `error: invalid gnd.toml: ...`).
 
-Used by FS-check.2.1.1, FS-name.3 (empty slug), FS-name.5 (collision), FS-config.6 (config validation), and any subcommand reporting a launch-time failure.
+Used by FS-check.2.1.1, FS-cli.4 (unknown subcommand / bad flag), FS-name.3 (empty slug), FS-name.5 (collision), FS-config.6 (config validation), and any subcommand reporting a launch-time failure.
 
 ### 2.3 Bare query result
 
@@ -77,7 +77,12 @@ A message that would otherwise be non-deterministic (e.g. the order of duplicate
 
 ## 5. JSON format
 
-Every subcommand that emits messages accepts `--format=json` (G-friendliness-first.1.2). The schema is the binding-level shape from FS-distribution.2 (`{ severity, path, line, code, message }`); the wire form is one JSON object per line (NDJSON) on stderr. Located findings, CLI-level errors, and bare query results all serialize into the same shape — `path` and `line` are `null` for the latter two.
+Every subcommand that emits messages accepts `--format=json` (G-friendliness-first.1.2). Two streams are distinguished, matching §1:
+
+- **Diagnostic JSON (stderr).** Located findings, CLI-level errors, and bare query results all serialize into the binding-level shape from FS-distribution.2 (`{ severity, path, line, code, message }`); the wire form is one JSON object per line (NDJSON). `path` and `line` are `null` for the latter two shapes.
+- **Result JSON (stdout).** Query subcommands that produce a *result* (e.g. `gnd show --format=json`) emit a single JSON object on stdout, with the per-subcommand schema defined in that subcommand's spec (e.g. FS-show). Stdout is never NDJSON for results — one command, one object.
+
+The two streams keep `gnd show <ID> --format=json | jq …` and `gnd check … --format=json 2>&1 >/dev/null | jq …` both working without a stream-classifier in front of `jq`.
 
 The text-form messages defined above remain the default. JSON is opt-in.
 
