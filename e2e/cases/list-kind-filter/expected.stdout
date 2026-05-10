@@ -1,0 +1,2 @@
+FS-001-login    docs/functional-spec/FS-001-login.md:1  User can log in
+FS-002-session  docs/functional-spec/FS-002-session.md:1  A session is created on login

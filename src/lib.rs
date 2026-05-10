@@ -11,7 +11,17 @@ use unicode_normalization::UnicodeNormalization;
 const SEC_GROUP: &str = r"(?P<sec>\d+(?:\.\d+)*)";
 const DEFAULT_INCLUDE: &[&str] = &["docs", "e2e", "src"];
 const DEFAULT_COMMENT_PREFIXES: &[&str] = &["//", "#", ";", "--", "*", "/*"];
-const SUBCOMMANDS: &[&str] = &["check", "show", "refs", "fmt", "name", "init", "config"];
+const SUBCOMMANDS: &[&str] = &[
+    "check",
+    "show",
+    "list",
+    "refs",
+    "fmt",
+    "name",
+    "init",
+    "config",
+    "completions",
+];
 
 static STUB_LINK_HEADING: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^\s*:\s*\[[^\]]*\]\(\s*(?P<path>[^)\s]+)\s*\)\s*$").unwrap());
@@ -216,6 +226,11 @@ struct Declaration {
     sections: BTreeMap<String, String>,
     is_stub: bool,
     defined_in: Option<PathBuf>,
+    /// Heading text after `# <ID>:` — the one-line title an author wrote
+    /// (AS-scanner.2.1). `None` when the heading carries no `: <text>` tail, or
+    /// when the heading is a stub link (`# <ID>: [<text>](<path>)`), whose tail
+    /// is a path, not a title.
+    title: Option<String>,
 }
 
 #[derive(Debug)]
@@ -820,15 +835,23 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
                     .or_default()
                     .push(prev);
             }
+            let tail = &scan_line[caps.get(0).unwrap().end()..];
             let mut is_stub = false;
             let mut defined_in = None;
-            if is_md && in_docs {
-                let tail = &scan_line[caps.get(0).unwrap().end()..];
-                if let Some(link_caps) = STUB_LINK_HEADING.captures(tail) {
-                    is_stub = true;
-                    defined_in = Some(PathBuf::from(link_caps.name("path").unwrap().as_str()));
-                }
+            if is_md
+                && in_docs
+                && let Some(link_caps) = STUB_LINK_HEADING.captures(tail)
+            {
+                is_stub = true;
+                defined_in = Some(PathBuf::from(link_caps.name("path").unwrap().as_str()));
             }
+            let title = if is_stub {
+                None
+            } else {
+                let trimmed = tail.trim_start();
+                let trimmed = trimmed.strip_prefix(':').unwrap_or(trimmed).trim();
+                (!trimmed.is_empty()).then(|| trimmed.to_string())
+            };
             current = Some(Declaration {
                 id,
                 file: path.to_path_buf(),
@@ -837,6 +860,7 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
                 sections: BTreeMap::new(),
                 is_stub,
                 defined_in,
+                title,
             });
             continue;
         }
@@ -1566,7 +1590,7 @@ fn command_show(args: &[String]) -> ExitCode {
         Err(err) => {
             eprintln!("{err:#}");
             eprintln!(
-                "hint: this repo's [id] format is `{}` (run `gnd config show`); `gnd check` lists the IDs that exist",
+                "hint: this repo's [id] format is `{}` (run `gnd config show`); `gnd list` shows the IDs that exist",
                 config.id_format
             );
             return ExitCode::FAILURE;
@@ -1619,7 +1643,7 @@ fn command_show(args: &[String]) -> ExitCode {
             eprintln!("{message}");
             if message.starts_with("ID not found:") {
                 eprintln!(
-                    "hint: run `gnd check` to see what's declared, or `gnd name <KIND> \"<title>\"` to propose a new ID"
+                    "hint: run `gnd list` to see every declared ID, or `gnd name <KIND> \"<title>\"` to propose a new one"
                 );
             } else if message.starts_with("section not found:") {
                 eprintln!(
@@ -2697,6 +2721,398 @@ fn command_refs(args: &[String]) -> ExitCode {
     }
 }
 
+fn command_list(args: &[String]) -> ExitCode {
+    let mut path = PathBuf::from(".");
+    let mut path_provided = false;
+    let mut kind_filter: Option<String> = None;
+    let mut unused_only = false;
+    let mut format_override: Option<String> = None;
+    let mut idx = 0;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--unused" => unused_only = true,
+            "--kind" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --kind requires a value");
+                    return ExitCode::from(2);
+                }
+                kind_filter = Some(args[idx].clone());
+            }
+            other if other.starts_with("--kind=") => {
+                kind_filter = Some(other.trim_start_matches("--kind=").to_string());
+            }
+            "--format=json" => format_override = Some("json".to_string()),
+            "--format=text" => format_override = Some("text".to_string()),
+            "--format" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --format requires a value");
+                    return ExitCode::from(2);
+                }
+                format_override = Some(args[idx].clone());
+            }
+            other if other.starts_with('-') => {
+                eprintln!("error: unknown flag `{other}`");
+                return ExitCode::from(2);
+            }
+            other => {
+                path = PathBuf::from(other);
+                path_provided = true;
+            }
+        }
+        idx += 1;
+    }
+    let config = match load_config(&path) {
+        Ok(config) => config,
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            return ExitCode::from(2);
+        }
+    };
+    let format = format_override.unwrap_or_else(|| config.output_format.clone());
+    if !matches!(format.as_str(), "text" | "json") {
+        eprintln!("error: unsupported list format `{format}`");
+        return ExitCode::from(2);
+    }
+    if let Some(kind) = &kind_filter
+        && !config
+            .kinds
+            .iter()
+            .any(|candidate| &candidate.prefix == kind)
+    {
+        eprintln!("error: unknown kind \"{kind}\"");
+        eprintln!("known kinds: {}", kind_prefixes(&config.kinds).join(", "));
+        return ExitCode::from(2);
+    }
+    let (findings, scan_errors) = match scan_tree(&config, Some(&path), path_provided) {
+        Ok(out) => out,
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            return ExitCode::from(2);
+        }
+    };
+
+    let mut ref_counts: BTreeMap<&Id, usize> = BTreeMap::new();
+    for citation in &findings.citations {
+        *ref_counts.entry(&citation.id).or_insert(0) += 1;
+    }
+
+    struct Entry<'a> {
+        id: &'a Id,
+        home: &'a Declaration,
+        duplicate: bool,
+        refs: usize,
+    }
+    // `findings.declarations` is a BTreeMap keyed by `Id`, so the catalog comes
+    // out in the same stable order `gnd check` reports diagnostics in.
+    let mut entries: Vec<Entry> = Vec::new();
+    for (id, decls) in &findings.declarations {
+        if let Some(kind) = &kind_filter
+            && &id.kind != kind
+        {
+            continue;
+        }
+        let refs = ref_counts.get(id).copied().unwrap_or(0);
+        if unused_only && refs > 0 {
+            continue;
+        }
+        // A stub paired with the inline declaration it points at is *one* home,
+        // not two — collapse it the way `show` does (FS-show.2.2.1). What's left
+        // is one home in a healthy repo, more only when FS-check.3.3 (duplicate
+        // declaration) applies.
+        let mut homes: Vec<&Declaration> = decls
+            .iter()
+            .filter(|decl| !is_stub_for_inline_decl(&config.root, decl, decls))
+            .collect();
+        homes.sort_by(|a, b| (a.file.as_os_str(), a.line).cmp(&(b.file.as_os_str(), b.line)));
+        let duplicate = homes.len() > 1;
+        for home in homes {
+            entries.push(Entry {
+                id,
+                home,
+                duplicate,
+                refs,
+            });
+        }
+    }
+
+    if format == "json" {
+        for entry in &entries {
+            println!(
+                "{{\"id\":\"{}\",\"kind\":\"{}\",\"path\":\"{}\",\"line\":{},\"title\":{},\"stub\":{},\"defines\":{},\"refs\":{},\"duplicate\":{}}}",
+                json_escape(&render_id(&config, entry.id)),
+                json_escape(&entry.id.kind),
+                json_escape(&display_path(&config, &entry.home.file)),
+                entry.home.line,
+                entry
+                    .home
+                    .title
+                    .as_deref()
+                    .map(|title| format!("\"{}\"", json_escape(title)))
+                    .unwrap_or_else(|| "null".to_string()),
+                entry.home.is_stub,
+                entry
+                    .home
+                    .defined_in
+                    .as_ref()
+                    .map(|target| format!("\"{}\"", json_escape(&target.display().to_string())))
+                    .unwrap_or_else(|| "null".to_string()),
+                entry.refs,
+                entry.duplicate,
+            );
+        }
+    } else {
+        let id_width = entries
+            .iter()
+            .map(|entry| render_id(&config, entry.id).chars().count())
+            .max()
+            .unwrap_or(0)
+            .min(40);
+        for entry in &entries {
+            let id_text = render_id(&config, entry.id);
+            let location = format!(
+                "{}:{}",
+                display_path(&config, &entry.home.file),
+                entry.home.line
+            );
+            let mut note = if entry.home.is_stub {
+                entry
+                    .home
+                    .defined_in
+                    .as_ref()
+                    .map(|target| format!("→ {}", target.display()))
+                    .unwrap_or_default()
+            } else {
+                entry.home.title.clone().unwrap_or_default()
+            };
+            if entry.duplicate {
+                if note.is_empty() {
+                    note = "(duplicate declaration — gnd check)".to_string();
+                } else {
+                    note.push_str("  (duplicate declaration — gnd check)");
+                }
+            }
+            if note.is_empty() {
+                println!("{id_text:<id_width$}  {location}");
+            } else {
+                println!("{id_text:<id_width$}  {location}  {note}");
+            }
+        }
+    }
+
+    if scan_errors.is_empty() {
+        ExitCode::SUCCESS
+    } else {
+        // Partial-scan semantics (FS-check.2): the listed declarations are real
+        // but the view of the tree was incomplete, so the catalog may be short.
+        for (file, message) in scan_errors {
+            eprintln!("error: {}: {}", display_path(&config, &file), message);
+        }
+        ExitCode::from(2)
+    }
+}
+
+fn command_complete(args: &[String]) -> ExitCode {
+    match args.first().map(|arg| arg.as_str()) {
+        Some("ids") => command_complete_ids(&args[1..]),
+        _ => {
+            eprintln!("error: expected `complete ids`");
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn command_complete_ids(args: &[String]) -> ExitCode {
+    let mut path = PathBuf::from(".");
+    let mut path_provided = false;
+    let mut prefix = String::new();
+    let mut force_sections = false;
+    let mut idx = 0;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--prefix" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --prefix requires a value");
+                    return ExitCode::from(2);
+                }
+                prefix = args[idx].clone();
+            }
+            other if other.starts_with("--prefix=") => {
+                prefix = other.trim_start_matches("--prefix=").to_string();
+            }
+            "--sections" => force_sections = true,
+            "--path" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --path requires a value");
+                    return ExitCode::from(2);
+                }
+                path = PathBuf::from(&args[idx]);
+                path_provided = true;
+            }
+            other if other.starts_with('-') => {
+                eprintln!("error: unknown flag `{other}`");
+                return ExitCode::from(2);
+            }
+            other => {
+                path = PathBuf::from(other);
+                path_provided = true;
+            }
+        }
+        idx += 1;
+    }
+
+    // Completion is called on every tab press. Config or scan failures must not
+    // smear diagnostics across the prompt; explicit flag misuse above is still a
+    // normal CLI error because it is a bug in the installed completion script.
+    let config = match load_config(&path) {
+        Ok(config) => config,
+        Err(_) => return ExitCode::SUCCESS,
+    };
+    let (findings, _) = match scan_tree(&config, Some(&path), path_provided) {
+        Ok(out) => out,
+        Err(_) => return ExitCode::SUCCESS,
+    };
+
+    let complete_sections = force_sections || prefix.contains(&config.section_separator);
+    let mut candidates = BTreeSet::new();
+    for (id, decls) in &findings.declarations {
+        let rendered = render_id(&config, id);
+        if complete_sections {
+            for decl in decls {
+                for section in decl.sections.keys() {
+                    candidates.insert(format!(
+                        "{}{}{}",
+                        rendered, config.section_separator, section
+                    ));
+                }
+            }
+        } else {
+            candidates.insert(rendered);
+        }
+    }
+
+    for candidate in candidates {
+        if candidate.starts_with(&prefix) {
+            println!("{candidate}");
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+fn command_completions(args: &[String]) -> ExitCode {
+    match args.first().map(|arg| arg.as_str()) {
+        Some("bash") => {
+            print_bash_completion();
+            ExitCode::SUCCESS
+        }
+        Some("zsh") => {
+            print_zsh_completion();
+            ExitCode::SUCCESS
+        }
+        Some("fish") => {
+            print_fish_completion();
+            ExitCode::SUCCESS
+        }
+        Some(other) => {
+            eprintln!("error: unsupported shell `{other}`");
+            eprintln!("known shells: bash, zsh, fish");
+            ExitCode::from(2)
+        }
+        None => {
+            eprintln!("error: completions requires <bash|zsh|fish>");
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn print_bash_completion() {
+    println!(
+        r#"# bash completion for gnd
+_gnd_complete_ids() {{
+    local cur="${{COMP_WORDS[COMP_CWORD]}}"
+    mapfile -t COMPREPLY < <(gnd complete ids --prefix "$cur" 2>/dev/null)
+}}
+
+_gnd() {{
+    local cur="${{COMP_WORDS[COMP_CWORD]}}"
+    local sub="${{COMP_WORDS[1]}}"
+    COMPREPLY=()
+
+    if [[ $COMP_CWORD -eq 1 ]]; then
+        COMPREPLY=( $(compgen -W "check show list refs fmt name init config completions" -- "$cur") )
+        return 0
+    fi
+
+    case "$sub" in
+        show|refs)
+            _gnd_complete_ids
+            return 0
+            ;;
+    esac
+}}
+
+complete -F _gnd gnd
+"#
+    );
+}
+
+fn print_zsh_completion() {
+    println!(
+        r#"#compdef gnd
+
+_gnd_ids() {{
+  local -a ids
+  ids=("${{(@f)$(gnd complete ids --prefix "$words[CURRENT]" 2>/dev/null)}}")
+  _describe 'gnd ids' ids
+}}
+
+_gnd() {{
+  local -a commands
+  commands=(
+    'check:validate every reference in a repo'
+    'show:print one declaration body by ID'
+    'list:list declared IDs'
+    'refs:list citations of an ID'
+    'fmt:normalize citation syntax'
+    'name:emit the next conflict-free ID'
+    'init:scaffold agents.md and config'
+    'config:inspect the effective config'
+    'completions:print shell completion script'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe 'gnd command' commands
+    return
+  fi
+
+  case "$words[2]" in
+    show|refs) _gnd_ids ;;
+    *) _files ;;
+  esac
+}}
+
+_gnd "$@"
+"#
+    );
+}
+
+fn print_fish_completion() {
+    println!(
+        r#"# fish completion for gnd
+function __gnd_complete_ids
+    set -l token (commandline -ct)
+    gnd complete ids --prefix "$token" 2>/dev/null
+end
+
+complete -c gnd -f -n "__fish_use_subcommand" -a "check show list refs fmt name init config completions"
+complete -c gnd -f -n "__fish_seen_subcommand_from show refs" -a "(__gnd_complete_ids)"
+"#
+    );
+}
+
 /// The repeating character class of a slug pattern — the last `[...]` bracket
 /// expression in `slug_pattern` (e.g. `[a-z0-9-]` from `[a-z0-9][a-z0-9-]*`).
 /// Falls back to the canonical default if the pattern has no bracket expression.
@@ -3064,6 +3480,9 @@ fn print_help() {
     );
     println!("           one fact into context without loading the whole doc.");
     println!(
+        "  list     The ID catalog: every declared ID, path:line, title.     e.g. gnd list --kind FS"
+    );
+    println!(
         "  refs     List every citation of an ID, as path:line.              e.g. gnd refs FS-login"
     );
     println!(
@@ -3077,6 +3496,9 @@ fn print_help() {
     );
     println!(
         "  config   validate or show the effective .agents/gnd.toml.         e.g. gnd config show"
+    );
+    println!(
+        "  completions  Print shell completion scripts.                      e.g. gnd completions bash"
     );
     println!();
     println!(
@@ -3150,8 +3572,42 @@ fn print_subcommand_help(cmd: &str) {
             println!("  gnd show FS-login.3.1          # just that nested section");
             println!();
             println!(
-                "ID not found? `gnd check` lists what's declared; `gnd name <KIND> \"…\"` proposes a new ID."
+                "ID not found? `gnd list` shows every declared ID; `gnd name <KIND> \"…\"` proposes a new one."
             );
+        }
+        "list" => {
+            println!("gnd list — the ID catalog: every declared ID in the repo, with where it's");
+            println!("declared and its one-line title. The complement of `gnd refs` (which lists");
+            println!("the citations of one ID) — `list` is the index of what you can `gnd show`.");
+            println!();
+            println!("Usage:  gnd list [PATH] [--kind KIND] [--unused] [--format text|json]");
+            println!();
+            println!(
+                "Output is one line per declared ID, `<ID>  <path>:<line>  <title>`, sorted by ID."
+            );
+            println!(
+                "Stub-and-inline pairs collapse to one line; a duplicate-declared ID gets a line per home."
+            );
+            println!();
+            println!("Options:");
+            println!(
+                "  --kind KIND          only IDs of that kind                e.g. gnd list --kind FS"
+            );
+            println!(
+                "  --unused             only declarations nothing cites yet  e.g. gnd list --unused"
+            );
+            println!(
+                "  --format text|json   text (default) is the table on stdout; json emits NDJSON (adds `refs` count)."
+            );
+            println!();
+            println!(
+                "Exit:  0 scan succeeded (an empty catalog prints nothing) · 2 unreadable tree, or an unknown --kind."
+            );
+            println!();
+            println!("Examples:");
+            println!("  gnd list                      # the whole catalog");
+            println!("  gnd list --kind AS docs/      # architectural-spec IDs under docs/");
+            println!("  gnd list --unused             # declarations no citation points at");
         }
         "refs" => {
             println!("gnd refs — list every citation of an ID, as `path:line`, so you can see who");
@@ -3304,6 +3760,22 @@ fn print_subcommand_help(cmd: &str) {
                 "Exit:  0 well-formed / printed · 1 `validate` found an error · 2 no subcommand, or `show` couldn't read the config."
             );
         }
+        "completions" => {
+            println!("gnd completions — print a shell completion script for gnd.");
+            println!();
+            println!("Usage:  gnd completions <bash|zsh|fish>");
+            println!();
+            println!("The generated scripts complete subcommands and complete declared IDs for");
+            println!("`gnd show <ID>` and `gnd refs <ID>` by calling the hidden helper:");
+            println!("`gnd complete ids --prefix <word>`.");
+            println!();
+            println!("Install examples:");
+            println!("  source <(gnd completions bash)");
+            println!("  gnd completions zsh > ~/.zfunc/_gnd");
+            println!("  gnd completions fish > ~/.config/fish/completions/gnd.fish");
+            println!();
+            println!("Exit:  0 script printed · 2 unsupported shell.");
+        }
         _ => print_help(),
     }
 }
@@ -3347,11 +3819,14 @@ pub fn main_entry() -> ExitCode {
         None => command_check(&[]),
         Some("check") => command_check(&args[1..]),
         Some("show") => command_show(&args[1..]),
+        Some("list") => command_list(&args[1..]),
         Some("refs") => command_refs(&args[1..]),
         Some("fmt") => command_fmt(&args[1..]),
         Some("name") => command_name(&args[1..]),
         Some("init") => command_init(&args[1..]),
         Some("config") => command_config(&args[1..]),
+        Some("completions") => command_completions(&args[1..]),
+        Some("complete") => command_complete(&args[1..]),
         Some(other) if other.starts_with('-') => command_check(&args),
         // Any first argument that is not a known subcommand is a path argument:
         // `gnd <path>` ≡ `gnd check <path>` (FS-cli.1). When that path doesn't

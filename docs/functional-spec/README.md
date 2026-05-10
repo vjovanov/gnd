@@ -8,10 +8,12 @@ The subcommands a user runs on the command line.
 
 - [§FS-check](FS-check.md) — validates every reference in a repo
 - [§FS-show](FS-show.md) — reads a single declaration body by ID
+- [§FS-list](FS-list.md) — lists every declared ID (the ID catalog)
 - [§FS-refs](FS-refs.md) — lists every citation of an ID
 - [§FS-fmt](FS-fmt.md) — normalizes references in bulk
 - [§FS-init](FS-init.md) — bootstraps a new `gnd`-conformant repo
 - [§FS-name](FS-name.md) — proposes IDs for new declarations
+- [§FS-completions](FS-completions.md) — shell completion for declared IDs
 
 ## Editor integration
 

@@ -1,0 +1,26 @@
+# bash completion for gnd
+_gnd_complete_ids() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    mapfile -t COMPREPLY < <(gnd complete ids --prefix "$cur" 2>/dev/null)
+}
+
+_gnd() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    local sub="${COMP_WORDS[1]}"
+    COMPREPLY=()
+
+    if [[ $COMP_CWORD -eq 1 ]]; then
+        COMPREPLY=( $(compgen -W "check show list refs fmt name init config completions" -- "$cur") )
+        return 0
+    fi
+
+    case "$sub" in
+        show|refs)
+            _gnd_complete_ids
+            return 0
+            ;;
+    esac
+}
+
+complete -F _gnd gnd
+

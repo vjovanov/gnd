@@ -1,2 +1,2 @@
 error: unknown command: bogus
-known commands: check, show, refs, fmt, name, init, config
+known commands: check, show, list, refs, fmt, name, init, config, completions

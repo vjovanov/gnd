@@ -1,0 +1,3 @@
+{"id":"AS-001-auth","kind":"AS","path":"docs/architectural-spec/AS-001-auth.md","line":1,"title":"The auth module","stub":false,"defines":null,"refs":0,"duplicate":false}
+{"id":"FS-001-login","kind":"FS","path":"docs/functional-spec/FS-001-login.md","line":1,"title":"User can log in","stub":false,"defines":null,"refs":2,"duplicate":false}
+{"id":"FS-002-session","kind":"FS","path":"docs/functional-spec/FS-002-session.md","line":1,"title":"A session is created on login","stub":false,"defines":null,"refs":0,"duplicate":false}

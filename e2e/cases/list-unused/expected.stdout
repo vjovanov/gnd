@@ -1,0 +1,2 @@
+AS-001-auth     docs/architectural-spec/AS-001-auth.md:1  The auth module
+FS-002-session  docs/functional-spec/FS-002-session.md:1  A session is created on login

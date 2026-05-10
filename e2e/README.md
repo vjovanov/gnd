@@ -39,8 +39,9 @@ Error output is part of the contract. Non-zero cases should keep `expected.stder
 - explicit `check` subcommand
 - unknown-command / mistyped-path failure (dual-reading message)
 - top-level help output
-- per-subcommand help (`gnd help check`, `gnd help show`)
+- per-subcommand help (`gnd help check`, `gnd help show`, `gnd help list`)
 - `gnd help <unknown>` failure
+- `list` ID catalog (text), `--kind` filter, `--unused` filter, `--format json`
 - JSON report output
 - `fmt --check` trigger-to-marker report
 - `fmt` custom trigger and marker from config

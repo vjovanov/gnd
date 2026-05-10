@@ -105,10 +105,12 @@ exec gnd check
 | `gnd check [path] [--watch]` | Validate references. The default — `gnd <path>` is shorthand. `--watch` stays resident and re-checks on every change. |
 | `gnd init [path] [--docs] [--force]` | Scaffold `agents.md` and `.agents/gnd.toml`; idempotent by default — appends/updates the managed block in an existing `agents.md`, reports `exists` for other files. `--docs` also seeds `docs/` and `e2e/`; `--force` overwrites. |
 | `gnd show <ID> [--head]`   | Print just the body of a declaration, for pulling spec content into agent prompts. |
+| `gnd list [path] [--kind K] [--unused]` | The ID catalog — every declared ID, `<ID>  path:line  title`, sorted by ID. `--kind` filters by prefix; `--unused` shows declarations nothing cites yet. The thing `gnd show` reads from. |
 | `gnd refs <ID> [path]`     | List every citation of an ID — `path:line: <citation>` — so you know what leans on a declaration before you change it. |
 | `gnd fmt [path]`           | Rewrite `$$` triggers to `§`; with `--marker`, also upgrade bare citations.        |
 | `gnd name <KIND> "<title>" [--explain]` | Emit the next conflict-free ID for a new declaration (e.g. `FS-008-user-login`). Pure function from `(kind, title, tree)` to `id`; no files are written. `--explain` adds a one-line "where to put the file" hint on stderr (stdout stays the bare ID). |
 | `gnd config (validate\|show)` | `validate` checks `.agents/gnd.toml` against the schema; `show` prints the effective config (defaults + file + flags) as TOML. |
+| `gnd completions <bash\|zsh\|fish>` | Print a shell completion script; generated scripts complete declared IDs for `gnd show <ID>` and `gnd refs <ID>`. |
 | `gnd --version` / `gnd --help` / `gnd help <command>` | Print the version, the one-screen top-level usage, or one command's page (its flags, examples, exit codes); all handled before any scan. |
 
 Full surface in [`docs/functional-spec/`](docs/functional-spec/).
