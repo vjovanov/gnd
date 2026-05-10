@@ -1496,9 +1496,11 @@ fn check(findings: &Findings, config: &Config) -> Report {
                 .citations
                 .iter()
                 .any(|cite| &cite.file == file && findings.declarations.contains_key(&cite.id))
-                || findings.declarations.values().flatten().any(|decl| {
-                    &decl.file == file && !decl.is_stub && decl.e2e_case.is_none()
-                });
+                || findings
+                    .declarations
+                    .values()
+                    .flatten()
+                    .any(|decl| &decl.file == file && !decl.is_stub && decl.e2e_case.is_none());
             if !grounded {
                 report.errors.push(Diagnostic {
                     code: "ungrounded",
@@ -4705,7 +4707,10 @@ mod tests {
             &root.join("docs/functional-spec/FS-001-login.md"),
             "# FS-001-login: Login\n",
         );
-        write(&root.join("src/auth.rs"), "// §FS-001-login\npub fn login() {}\n");
+        write(
+            &root.join("src/auth.rs"),
+            "// §FS-001-login\npub fn login() {}\n",
+        );
         write(&root.join("src/util.rs"), "pub fn helper() {}\n");
 
         let mut config = Config::default_for(root.clone());
@@ -4748,7 +4753,10 @@ mod tests {
     #[test]
     fn require_grounding_ignores_markdown() {
         let root = test_root("require_grounding_ignores_markdown");
-        write(&root.join("docs/notes.md"), "# Notes\n\nNothing cited here.\n");
+        write(
+            &root.join("docs/notes.md"),
+            "# Notes\n\nNothing cited here.\n",
+        );
 
         let mut config = Config::default_for(root.clone());
         config.require_grounding = true;
@@ -4764,7 +4772,10 @@ mod tests {
     #[test]
     fn require_grounding_treats_dangling_only_file_as_ungrounded() {
         let root = test_root("require_grounding_treats_dangling_only_file_as_ungrounded");
-        write(&root.join("src/app.rs"), "// §FS-001-missing\npub fn run() {}\n");
+        write(
+            &root.join("src/app.rs"),
+            "// §FS-001-missing\npub fn run() {}\n",
+        );
 
         let mut config = Config::default_for(root.clone());
         config.require_grounding = true;
