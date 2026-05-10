@@ -1549,7 +1549,11 @@ fn diagnostic_cmp(a: &Diagnostic, b: &Diagnostic) -> std::cmp::Ordering {
 /// fatal. `agents.md` is canonical; known companion entrypoints are checked only
 /// when present and not symlinked to `agents.md`.
 fn check_agents_block_version(root: &Path, report: &mut Report) {
-    let mut paths = vec![root.join("agents.md")];
+    let canonical = root.join("agents.md");
+    if !canonical.exists() {
+        return;
+    }
+    let mut paths = vec![canonical];
     match companion_agent_entrypoints(root) {
         Ok(companions) => paths.extend(companions),
         Err((path, message)) => {
@@ -5283,6 +5287,29 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
                 "GEMINI.md",
                 ".github/copilot-instructions.md"
             ]
+        );
+    }
+
+    #[test]
+    fn check_ignores_companion_agent_entrypoints_without_canonical_agents_md() {
+        let root =
+            test_root("check_ignores_companion_agent_entrypoints_without_canonical_agents_md");
+        write(&root.join("AGENTS.md"), "# Project agent notes\n");
+        write(
+            &root.join("docs/functional-spec/FS-001-alpha.md"),
+            "# FS-001-alpha: Alpha\n",
+        );
+
+        let config = Config::default_for(root.clone());
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+
+        assert!(
+            report
+                .errors
+                .iter()
+                .all(|error| error.code != "agents-init"),
+            "project-owned AGENTS.md should not require a managed block without canonical agents.md"
         );
     }
 

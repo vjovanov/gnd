@@ -5,17 +5,17 @@ description: Use when bootstrapping or adopting gnd in a repository, especially 
 
 # gnd init
 
-Guide the user through `gnd` initialization. `gnd init` itself is non-interactive, so this skill acts as the interactive wrapper: inspect the repository, recommend suitable settings, ask the user to confirm or override every option, write `.agents/gnd.toml`, run `gnd init`, then validate.
+Guide the user through `gnd` adoption. `gnd init` itself is non-interactive, so this skill acts as the interactive wrapper: inspect the repository, recommend suitable settings, ask the user to confirm or override every option, write `.agents/gnd.toml`, run `gnd init`, then validate.
 
 ## Workflow
 
-1. Inspect the target repo before asking questions.
+1. Inspect the target repo before asking questions. Find existing specs, artifact types, roadmaps, changelogs, decisions, plans, tests, and agent instruction files before recommending anything.
 2. Present a short "detected repo shape" summary and recommended setup.
 3. Ask each setup/config question below. For every question, include the recommended value, repo evidence, pros, cons, and when to choose something else.
-4. Write `.agents/gnd.toml` before running `gnd init` when custom choices affect generated `agents.md`.
-5. Run `gnd init [path] [--docs] [--name NAME] [--append|--force]`.
+4. Write `.agents/gnd.toml` from the analysis before running `gnd init`, so generated guidance reflects the repository's actual grammar, marker, strict mode, kinds, artifact folders, and scan scope.
+5. Run `gnd init [path] [--name NAME] [--append|--force]`, adding `--docs` only when the repo is fresh or explicitly needs the canonical docs/e2e scaffold.
 6. Run `gnd config validate [path]` and `gnd check [path]`.
-7. Summarize generated files, validation results, and any follow-up cleanup.
+7. Summarize generated files, validation results, existing specs/artifacts found, and any follow-up cleanup.
 
 ## Repo Analysis First
 
@@ -25,6 +25,7 @@ Analyze:
 
 - Existing `agents.md`, `.agents/gnd.toml`, root `gnd.toml`, and gnd-style citations.
 - Documentation layout: `docs/`, `e2e/`, `spec/`, `rfcs/`, `adr/`, `decisions/`, `roadmap`, `changelog`.
+- Existing artifact types and their homes: specifications, requirements, RFCs, ADRs/decisions, roadmaps, changelogs, plans, end-to-end fixtures, examples, package READMEs, generated reports, and runtime logs. Use these to choose `[[kinds]]`, `[scan].include`, and `[scan].exclude`; do not add generic folders when the repo already has project-specific artifact homes.
 - Source layout: `src/`, `lib/`, `crates/`, `packages/`, `apps/`, `services/`, `cmd/`, `internal/`, `pkg/`, `test/`, `tests/`.
 - Languages from file extensions and manifests such as `Cargo.toml`, `package.json`, `pyproject.toml`, `go.mod`, `pom.xml`, `build.gradle`, `.csproj`, `Package.swift`, `Gemfile`, `composer.json`, `build.sbt`, `CMakeLists.txt`, `dbt_project.yml`.
 - Ignore/build/vendor directories from `.gitignore` and common generated paths.
@@ -491,4 +492,4 @@ gnd init .
 gnd check .
 ```
 
-If custom config affects `agents.md`, ensure `.agents/gnd.toml` exists before `gnd init` so the generated managed block reflects the selected ID grammar, marker, strict mode, and kinds.
+If custom config affects `agents.md`, ensure `.agents/gnd.toml` exists before `gnd init` so the generated managed block reflects the selected ID grammar, marker, strict mode, kinds, and existing artifact layout.
