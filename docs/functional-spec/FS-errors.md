@@ -1,6 +1,6 @@
 # FS-errors: gnd emits messages in one of three fixed shapes
 
-This spec defines the style every `gnd` subcommand uses when it speaks to a user or to a downstream tool. It is cross-cutting: §FS-check, §FS-show, §FS-refs, §FS-fmt, §FS-init, and §FS-name all conform to it, and the global-flag behaviour in §FS-cli routes its errors through §2.2 here. Serves §G-friendliness-first.1 ("errors point at the line", "no surprises") and §G-no-silent-breakage.1 (the message shapes are user-visible output).
+This spec defines the style every `gnd` subcommand uses when it speaks to a user or to a downstream tool. It is cross-cutting: §FS-check, §FS-show, §FS-refs, §FS-cover, §FS-fmt, §FS-init, and §FS-name all conform to it, and the global-flag behaviour in §FS-cli routes its errors through §2.2 here. Serves §G-friendliness-first.1 ("errors point at the line", "no surprises") and §G-no-silent-breakage.1 (the message shapes are user-visible output).
 
 The shapes are **frozen** by the same logic as §FS-non-goals.9: two correctly-configured installs must agree on what they print. A subcommand that needs to say something new picks one of the shapes below; it does not invent a fourth.
 

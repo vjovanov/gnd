@@ -16,6 +16,7 @@ const SUBCOMMANDS: &[&str] = &[
     "show",
     "list",
     "refs",
+    "cover",
     "fmt",
     "name",
     "init",
@@ -3275,20 +3276,7 @@ fn command_refs(args: &[String]) -> ExitCode {
     });
     if format == "json" {
         for citation in citations {
-            println!(
-                "{{\"path\":\"{}\",\"line\":{},\"column\":{},\"id\":\"{}\",\"section\":{},\"marker\":{},\"text\":\"{}\"}}",
-                json_escape(&display_path(&config, &citation.file)),
-                citation.line,
-                citation.column,
-                json_escape(&render_id(&config, &citation.id)),
-                citation
-                    .section
-                    .as_deref()
-                    .map(|section| format!("\"{}\"", json_escape(section)))
-                    .unwrap_or_else(|| "null".to_string()),
-                citation.has_marker,
-                json_escape(&citation.text)
-            );
+            println!("{}", render_citation_json(&config, citation));
         }
     } else {
         for citation in citations {
@@ -3305,6 +3293,126 @@ fn command_refs(args: &[String]) -> ExitCode {
     } else {
         // Partial-scan semantics (§FS-refs.4 / §FS-check.2): the listed citations
         // are real but the view of the tree was incomplete.
+        for (file, message) in scan_errors {
+            eprintln!("error: {}: {}", display_path(&config, &file), message);
+        }
+        ExitCode::from(2)
+    }
+}
+
+fn render_citation_json(config: &Config, citation: &Citation) -> String {
+    format!(
+        "{{\"path\":\"{}\",\"line\":{},\"column\":{},\"id\":\"{}\",\"section\":{},\"marker\":{},\"text\":\"{}\"}}",
+        json_escape(&display_path(config, &citation.file)),
+        citation.line,
+        citation.column,
+        json_escape(&render_id(config, &citation.id)),
+        citation
+            .section
+            .as_deref()
+            .map(|section| format!("\"{}\"", json_escape(section)))
+            .unwrap_or_else(|| "null".to_string()),
+        citation.has_marker,
+        json_escape(&citation.text)
+    )
+}
+
+/// `gnd cover [path] [--format text|json]` — expose the citation graph grouped by
+/// scanned file (§FS-cover): no new scan logic, no git diff, just the same
+/// `Findings` data `check` and `refs` already consume.
+fn command_cover(args: &[String]) -> ExitCode {
+    let mut path = PathBuf::from(".");
+    let mut path_provided = false;
+    let mut format_override: Option<String> = None;
+    let mut idx = 0;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--format=json" => format_override = Some("json".to_string()),
+            "--format=text" => format_override = Some("text".to_string()),
+            "--format" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --format requires a value");
+                    return ExitCode::from(2);
+                }
+                format_override = Some(args[idx].clone());
+            }
+            other if other.starts_with('-') => {
+                eprintln!("error: unknown flag `{other}`");
+                return ExitCode::from(2);
+            }
+            other => {
+                path = PathBuf::from(other);
+                path_provided = true;
+            }
+        }
+        idx += 1;
+    }
+    let config = match load_config(&path) {
+        Ok(config) => config,
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            return ExitCode::from(2);
+        }
+    };
+    let format = format_override.unwrap_or_else(|| config.output_format.clone());
+    if !matches!(format.as_str(), "text" | "json") {
+        eprintln!("error: unsupported cover format `{format}`");
+        return ExitCode::from(2);
+    }
+    let (findings, scan_errors) = match scan_tree(&config, Some(&path), path_provided) {
+        Ok(out) => out,
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            return ExitCode::from(2);
+        }
+    };
+
+    let mut by_file: BTreeMap<PathBuf, Vec<&Citation>> = BTreeMap::new();
+    for file in &findings.scanned_files {
+        by_file.entry(file.clone()).or_default();
+    }
+    for citation in &findings.citations {
+        by_file
+            .entry(citation.file.clone())
+            .or_default()
+            .push(citation);
+    }
+    for citations in by_file.values_mut() {
+        citations.sort_by(|a, b| (a.line, a.column).cmp(&(b.line, b.column)));
+    }
+
+    if format == "json" {
+        for (file, citations) in &by_file {
+            let citation_json = citations
+                .iter()
+                .map(|citation| render_citation_json(&config, citation))
+                .collect::<Vec<_>>()
+                .join(",");
+            println!(
+                "{{\"path\":\"{}\",\"citations\":[{}]}}",
+                json_escape(&display_path(&config, file)),
+                citation_json
+            );
+        }
+    } else {
+        for (file, citations) in &by_file {
+            println!("{}:", display_path(&config, file));
+            if citations.is_empty() {
+                println!("  (no citations)");
+            } else {
+                for citation in citations {
+                    println!("  {}:{} {}", citation.line, citation.column, citation.text);
+                }
+            }
+        }
+    }
+
+    if scan_errors.is_empty() {
+        ExitCode::SUCCESS
+    } else {
+        // Partial-scan semantics (§FS-cover.4 / §FS-check.2): the emitted records
+        // are real but incomplete, so callers must treat the result as untrusted.
         for (file, message) in scan_errors {
             eprintln!("error: {}: {}", display_path(&config, &file), message);
         }
@@ -3642,7 +3750,7 @@ fn command_completions(args: &[String]) -> ExitCode {
 /// `gnd refs` ID arguments wired to `gnd complete ids` (§FS-completions.1,
 /// §FS-completions.2).
 fn print_bash_completion() {
-    println!(
+    print!(
         r#"# bash completion for gnd
 _gnd_complete_ids() {{
     local cur="${{COMP_WORDS[COMP_CWORD]}}"
@@ -3655,7 +3763,7 @@ _gnd() {{
     COMPREPLY=()
 
     if [[ $COMP_CWORD -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "check show list refs fmt name init config completions" -- "$cur") )
+        COMPREPLY=( $(compgen -W "check show list refs cover fmt name init config completions" -- "$cur") )
         return 0
     fi
 
@@ -3691,6 +3799,7 @@ _gnd() {{
     'show:print one declaration body by ID'
     'list:list declared IDs'
     'refs:list citations of an ID'
+    'cover:group citations by file'
     'fmt:normalize citation syntax'
     'name:emit the next conflict-free ID'
     'init:scaffold agents.md and config'
@@ -3724,7 +3833,7 @@ function __gnd_complete_ids
     gnd complete ids --prefix "$token" 2>/dev/null
 end
 
-complete -c gnd -f -n "__fish_use_subcommand" -a "check show list refs fmt name init config completions"
+complete -c gnd -f -n "__fish_use_subcommand" -a "check show list refs cover fmt name init config completions"
 complete -c gnd -f -n "__fish_seen_subcommand_from show refs" -a "(__gnd_complete_ids)"
 "#
     );
@@ -4209,14 +4318,16 @@ fn print_help() {
     println!("Commands:");
     println!("  check    Validate every reference in a repo (the default).        e.g. gnd .");
     println!(
-        "  show     Print one declaration's body by ID — so an agent pulls   e.g. gnd show FS-login.3"
+        "  show     Print one declaration body for agent context.            e.g. gnd show FS-login.3"
     );
-    println!("           one fact into context without loading the whole doc.");
     println!(
         "  list     The ID catalog: every declared ID, path:line, title.     e.g. gnd list --kind FS"
     );
     println!(
         "  refs     List every citation of an ID, as path:line.              e.g. gnd refs FS-login"
+    );
+    println!(
+        "  cover    Group every scanned file's citations by file.            e.g. gnd cover --format json"
     );
     println!(
         "  fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. gnd fmt --check"
@@ -4373,6 +4484,25 @@ fn print_subcommand_help(cmd: &str) {
             println!("Examples:");
             println!("  gnd refs FS-login             # every citation of FS-login");
             println!("  gnd refs FS-login.3           # only citations of section 3");
+        }
+        "cover" => {
+            println!("gnd cover — group the citation graph by scanned file.");
+            println!();
+            println!("Usage:  gnd cover [PATH] [--format text|json]");
+            println!();
+            println!("PATH defaults to `.`. The command runs the same scan as `check` and `refs`,");
+            println!("then prints one file record with the citations found in that file.");
+            println!();
+            println!("Options:");
+            println!(
+                "  --format text|json   text (default) groups citations by file; json emits one record per file."
+            );
+            println!();
+            println!("Exit:  0 scan succeeded · 2 unreadable tree, incomplete scan, or CLI error.");
+            println!();
+            println!("Examples:");
+            println!("  gnd cover src/                # source files and their spec citations");
+            println!("  gnd cover --format json       # machine-readable coverage index");
         }
         "fmt" => {
             println!(
@@ -4586,6 +4716,7 @@ pub fn main_entry() -> ExitCode {
         Some("show") => command_show(&args[1..]),
         Some("list") => command_list(&args[1..]),
         Some("refs") => command_refs(&args[1..]),
+        Some("cover") => command_cover(&args[1..]),
         Some("fmt") => command_fmt(&args[1..]),
         Some("name") => command_name(&args[1..]),
         Some("init") => command_init(&args[1..]),

@@ -26,8 +26,9 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 
 ### Added
 
-- §FS-check.3.6: `[reference] require_grounding` (off by default) and `gnd check --require-grounding` — when on, `check` reports an `ungrounded source file` error for every scanned non-Markdown file that carries no resolving citation and declares no ID inline. Shipped under §RM-require-grounding; the grounding floor of §DF-require-grounding; the diff-aware tiers are tracked under §RM-cover and §RM-cochange-gate. `gnd config show` now prints `require_grounding`; `templates/gnd.toml` carries `require_grounding = false`. Content change within `gnd_config_version = 1` — a v1 config without the key is unaffected.
+- §FS-check.3.6: `[reference] require_grounding` (off by default) and `gnd check --require-grounding` — when on, `check` reports an `ungrounded source file` error for every scanned non-Markdown file that carries no resolving citation and declares no ID inline. Shipped under §RM-require-grounding; the grounding floor of §DF-require-grounding; the diff-aware co-change recipe remains under §RM-cochange-gate. `gnd config show` now prints `require_grounding`; `templates/gnd.toml` carries `require_grounding = false`. Content change within `gnd_config_version = 1` — a v1 config without the key is unaffected.
 - §FS-config.3.1: document the `require_grounding` key.
+- §FS-cover: add `gnd cover [path] [--format text|json]`, the file-grouped citation graph for co-change recipes. It uses the same scanner data as `check` / `refs`, emits one JSON record per scanned file, includes files with zero citations, and keeps git diff policy outside the engine. Shipped under §RM-cover; §FS-cli, §FS-completions, README, and the e2e corpus now include the command.
 
 ### Changed
 

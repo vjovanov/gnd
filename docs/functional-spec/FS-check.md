@@ -89,7 +89,7 @@ src/foo.rs:1: ungrounded source file: no § citation to a declared ID
 
 The marker in the message is the configured one (§FS-config.3.1). A file whose only citation is dangling (§3.1) is *not* grounded — it gets both findings; fixing the citation clears both. Markdown files are never subject to this rule (they are documents, not implementation); use the unused-declaration warning (§4.1) and dangling/section errors for those.
 
-This is a pure function of `(tree, config)` like every other `check` rule (§FS-non-goals.13): it reads no git history (§FS-non-goals.6) and parses no code (§FS-non-goals.3) — "source file" is decided by extension, "grounded" by the citations the scanner already collected. It is the floor of the grounding discipline; the diff-aware tiers (a `gnd cover` plumbing surface, a co-change gate) are tracked under §RM-cover and §RM-cochange-gate. Decided in §DF-require-grounding.
+This is a pure function of `(tree, config)` like every other `check` rule (§FS-non-goals.13): it reads no git history (§FS-non-goals.6) and parses no code (§FS-non-goals.3) — "source file" is decided by extension, "grounded" by the citations the scanner already collected. It is the floor of the grounding discipline; `gnd cover` exposes the citation graph (§FS-cover), and the diff-aware co-change gate is tracked under §RM-cochange-gate. Decided in §DF-require-grounding.
 
 ## 4. Warnings
 

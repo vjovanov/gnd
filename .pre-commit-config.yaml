@@ -1,19 +1,27 @@
-# Run `gnd check` before every commit. With `[reference] require_grounding = true`
-# in `.agents/gnd.toml`, that also enforces the grounding floor (§FS-check.3.6):
-# every source file under `[scan] include` must cite a declared ID. A dangling,
-# duplicate, broken-stub, ungrounded, or stale-init-block finding aborts the commit
-# with the offending `<path>:<line>: <message>` on stderr.
+# Run `gnd check` and `lychee` before every commit. With `[reference]
+# require_grounding = true` in `.agents/gnd.toml`, `gnd check` also enforces the
+# grounding floor (§FS-check.3.6): every source file under `[scan] include` must
+# cite a declared ID. Lychee covers the complementary Markdown-link surface.
 #
 # Uses `cargo run` so a fresh clone needs no installed `gnd`; if you have the
 # binary on PATH, swap `entry` for `gnd check` (the form shown in the README).
 #
-# One-time setup:  pip install pre-commit  &&  pre-commit install
+# One-time setup:
+#   pip install pre-commit
+#   cargo install lychee
+#   pre-commit install
 repos:
   - repo: local
     hooks:
       - id: gnd-check
         name: gnd check
         entry: cargo run --quiet -- check
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: lychee
+        name: lychee
+        entry: lychee --no-progress README.md docs
         language: system
         pass_filenames: false
         always_run: true

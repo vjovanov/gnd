@@ -10,7 +10,7 @@ _gnd() {
     COMPREPLY=()
 
     if [[ $COMP_CWORD -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "check show list refs fmt name init config completions" -- "$cur") )
+        COMPREPLY=( $(compgen -W "check show list refs cover fmt name init config completions" -- "$cur") )
         return 0
     fi
 
@@ -23,4 +23,3 @@ _gnd() {
 }
 
 complete -F _gnd gnd
-

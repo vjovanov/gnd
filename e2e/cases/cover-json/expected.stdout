@@ -1,0 +1,3 @@
+{"path":"docs/functional-spec/FS-001-alpha.md","citations":[{"path":"docs/functional-spec/FS-001-alpha.md","line":3,"column":10,"id":"FS-002-beta","section":null,"marker":false,"text":"FS-002-beta"}]}
+{"path":"docs/functional-spec/FS-002-beta.md","citations":[]}
+{"path":"src/lib.rs","citations":[{"path":"src/lib.rs","line":1,"column":16,"id":"FS-001-alpha","section":"1","marker":true,"text":"§FS-001-alpha.1"},{"path":"src/lib.rs","line":3,"column":20,"id":"FS-002-beta","section":null,"marker":false,"text":"FS-002-beta"}]}

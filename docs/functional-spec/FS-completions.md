@@ -10,7 +10,7 @@ gnd completions <bash|zsh|fish>
 
 Prints a completion script for the requested shell on stdout, empty stderr, exit `0`. Unsupported shells are CLI-level errors: `error: unsupported shell \`<shell>\`` plus `known shells: bash, zsh, fish` on stderr, empty stdout, exit `2`.
 
-The generated scripts complete top-level subcommands and complete declared IDs in the first ID position of:
+The generated scripts complete top-level subcommands (`check`, `show`, `list`, `refs`, `cover`, `fmt`, `name`, `init`, `config`, `completions`) and complete declared IDs in the first ID position of:
 
 - `gnd show <ID>`
 - `gnd refs <ID>`

@@ -80,26 +80,24 @@ gnd init --force               # rewrite agents.md and .agents/gnd.toml from the
 
 ### Pre-commit hook
 
-Run `gnd check` before each commit so dangling references never land on `main`. With [pre-commit](https://pre-commit.com/), add to `.pre-commit-config.yaml`:
+Run `gnd check` before each commit so dangling references never land on `main`, and run `lychee` beside it so normal Markdown links stay valid. This repo carries a ready-to-install [.pre-commit-config.yaml](.pre-commit-config.yaml):
 
-```yaml
-- repo: local
-  hooks:
-    - id: gnd-check
-      name: gnd check
-      entry: gnd check
-      language: system
-      pass_filenames: false
+```bash
+pip install pre-commit
+cargo install lychee
+pre-commit install
 ```
 
 Or as a plain `.git/hooks/pre-commit`:
 
 ```bash
 #!/bin/sh
-exec gnd check
+set -e
+gnd check
+lychee --no-progress README.md docs
 ```
 
-`gnd check` exits 0 on a clean repo and non-zero on the first dangling, duplicate, or broken stub — the commit is aborted with the offending `<path>:<line>: <message>` on stderr.
+`gnd check` exits 0 on a clean repo and non-zero on the first dangling, duplicate, broken stub, ungrounded source file, or stale init block. `lychee` exits non-zero on broken Markdown links or URLs.
 
 ## Subcommands
 
@@ -112,6 +110,7 @@ Commands with machine-readable result modes document `--format text|json` in the
 | `gnd show <ID>[.<section>] [path] [--section S] [--head\|--full] [--format text\|md\|json]` | Print just the body of a declaration (or one of its sections), for pulling spec content into agent prompts. `--head` is the lead paragraph only; `--full` (default) is the whole body; `md` keeps the heading line. |
 | `gnd list [path] [--kind K] [--unused] [--format text\|json]` | The ID catalog — every declared ID, `<ID>  path:line  title`, sorted by ID. `--kind` filters by prefix; `--unused` shows declarations nothing cites yet; `json` adds a `refs` count. The thing `gnd show` reads from. |
 | `gnd refs <ID>[.<section>] [path] [--section S] [--format text\|json]` | List every citation of an ID — `path:line: <citation>` — so you know what leans on a declaration before you change it. `--section` narrows to citations of one section. |
+| `gnd cover [path] [--format text\|json]` | Group the citation graph by scanned file. JSON emits one record per file, including files with no citations, so git-diff recipes can join changed files to the specs they cite. |
 | `gnd fmt [path] [--check\|--write] [--marker] [--md-links]` | Normalize citation syntax: rewrite the `$$` trigger to `§`. `--marker` also upgrades bare `<ID>` tokens to `§<ID>`; `--md-links` also wraps citations in `.md` files as clickable links to the declaration. Default is a dry run (`--check`); `--write` applies the changes. |
 | `gnd name <KIND> "<title>" [path] [--width N] [--explain] [--format text\|json]` | Emit the next conflict-free ID for a new declaration (e.g. `FS-008-user-login`, or `FS-user-login` under a number-less `[id] format`). Pure function from `(kind, title, tree)` to `id`; no files are written. `--explain` adds a one-line "where to put the file" hint on stderr (stdout stays the bare ID). |
 | `gnd config (validate\|show) [path]` | `validate` checks the discovered `.agents/gnd.toml` against the schema; `show` prints the effective config (defaults + file) as TOML. |

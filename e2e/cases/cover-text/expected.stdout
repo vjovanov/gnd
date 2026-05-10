@@ -1,0 +1,9 @@
+docs/functional-spec/FS-001-alpha.md:
+  (no citations)
+docs/functional-spec/FS-002-beta.md:
+  (no citations)
+src/lib.rs:
+  1:16 §FS-001-alpha.1
+  3:20 FS-002-beta
+src/unused.rs:
+  (no citations)

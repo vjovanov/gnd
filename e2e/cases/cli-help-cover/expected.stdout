@@ -1,0 +1,15 @@
+gnd cover — group the citation graph by scanned file.
+
+Usage:  gnd cover [PATH] [--format text|json]
+
+PATH defaults to `.`. The command runs the same scan as `check` and `refs`,
+then prints one file record with the citations found in that file.
+
+Options:
+  --format text|json   text (default) groups citations by file; json emits one record per file.
+
+Exit:  0 scan succeeded · 2 unreadable tree, incomplete scan, or CLI error.
+
+Examples:
+  gnd cover src/                # source files and their spec citations
+  gnd cover --format json       # machine-readable coverage index
