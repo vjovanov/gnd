@@ -4,7 +4,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::ExitCode;
 use unicode_normalization::UnicodeNormalization;
 
@@ -21,6 +21,7 @@ const SUBCOMMANDS: &[&str] = &[
     "name",
     "init",
     "config",
+    "agent-setup-instructions",
     "completions",
 ];
 
@@ -1542,20 +1543,44 @@ fn diagnostic_cmp(a: &Diagnostic, b: &Diagnostic) -> std::cmp::Ordering {
         ))
 }
 
-/// Validate the managed `agents.md` block (§FS-check.3.5): the begin/end marker
-/// pair must be present and intact, and the `vN` version must match this binary —
-/// an older `vN` is "run `gnd init`" (§FS-init.2.3), a newer one is fatal.
+/// Validate the managed agent-entrypoint blocks (§FS-check.3.5): the begin/end
+/// marker pair must be present and intact, and the `vN` version must match this
+/// binary — an older `vN` is "run `gnd init`" (§FS-init.2.3), a newer one is
+/// fatal. `agents.md` is canonical; known companion entrypoints are checked only
+/// when present and not symlinked to `agents.md`.
 fn check_agents_block_version(root: &Path, report: &mut Report) {
-    let path = root.join("agents.md");
+    let mut paths = vec![root.join("agents.md")];
+    match companion_agent_entrypoints(root) {
+        Ok(companions) => paths.extend(companions),
+        Err((path, message)) => {
+            report.errors.push(Diagnostic {
+                code: "io",
+                path: Some(path),
+                line: Some(1),
+                message,
+                sites: Vec::new(),
+            });
+        }
+    }
+    for path in paths {
+        check_agent_block_path(&path, report);
+    }
+}
+
+fn check_agent_block_path(path: &Path, report: &mut Report) {
     if !path.exists() {
         return;
     }
-    let Ok(text) = fs::read_to_string(&path) else {
+    let Ok(text) = fs::read_to_string(path) else {
+        let file_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("agent entrypoint");
         report.errors.push(Diagnostic {
             code: "io",
-            path: Some(path),
+            path: Some(path.to_path_buf()),
             line: Some(1),
-            message: "cannot read agents.md".to_string(),
+            message: format!("cannot read {file_name}"),
             sites: Vec::new(),
         });
         return;
@@ -1565,7 +1590,7 @@ fn check_agents_block_version(root: &Path, report: &mut Report) {
         if block.version < AGENTS_BLOCK_VERSION {
             report.errors.push(Diagnostic {
                 code: "agents-init",
-                path: Some(path.clone()),
+                path: Some(path.to_path_buf()),
                 line: Some(line),
                 message: format!(
                     "outdated gnd init block v{} (run `gnd init` to update to v{})",
@@ -1576,7 +1601,7 @@ fn check_agents_block_version(root: &Path, report: &mut Report) {
         } else if block.version > AGENTS_BLOCK_VERSION {
             report.errors.push(Diagnostic {
                 code: "agents-init",
-                path: Some(path.clone()),
+                path: Some(path.to_path_buf()),
                 line: Some(line),
                 message: format!(
                     "unsupported gnd init block v{} (this gnd supports v{})",
@@ -1594,7 +1619,7 @@ fn check_agents_block_version(root: &Path, report: &mut Report) {
             .unwrap_or(1);
         report.errors.push(Diagnostic {
             code: "agents-init",
-            path: Some(path.clone()),
+            path: Some(path.to_path_buf()),
             line: Some(line),
             message: "malformed gnd init block".to_string(),
             sites: Vec::new(),
@@ -1602,7 +1627,7 @@ fn check_agents_block_version(root: &Path, report: &mut Report) {
     } else {
         report.errors.push(Diagnostic {
             code: "agents-init",
-            path: Some(path.clone()),
+            path: Some(path.to_path_buf()),
             line: Some(1),
             message: format!("missing gnd init block v{}", AGENTS_BLOCK_VERSION),
             sites: Vec::new(),
@@ -3763,7 +3788,7 @@ _gnd() {{
     COMPREPLY=()
 
     if [[ $COMP_CWORD -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "check show list refs cover fmt name init config completions" -- "$cur") )
+        COMPREPLY=( $(compgen -W "check show list refs cover fmt name init config agent-setup-instructions completions" -- "$cur") )
         return 0
     fi
 
@@ -3804,6 +3829,7 @@ _gnd() {{
     'name:emit the next conflict-free ID'
     'init:scaffold agents.md and config'
     'config:inspect the effective config'
+    'agent-setup-instructions:print the guided setup instructions for AI agents'
     'completions:print shell completion script'
   )
 
@@ -3833,7 +3859,7 @@ function __gnd_complete_ids
     gnd complete ids --prefix "$token" 2>/dev/null
 end
 
-complete -c gnd -f -n "__fish_use_subcommand" -a "check show list refs cover fmt name init config completions"
+complete -c gnd -f -n "__fish_use_subcommand" -a "check show list refs cover fmt name init config agent-setup-instructions completions"
 complete -c gnd -f -n "__fish_seen_subcommand_from show refs" -a "(__gnd_complete_ids)"
 "#
     );
@@ -3921,9 +3947,17 @@ const E2E_README_TEMPLATE: &str = include_str!("../templates/e2e-README.md");
 const FS_README_TEMPLATE: &str = include_str!("../templates/functional-spec-README.md");
 const AS_README_TEMPLATE: &str = include_str!("../templates/architectural-spec-README.md");
 const GITKEEP_TEMPLATE: &str = include_str!("../templates/gitkeep.md");
+const AGENT_SETUP_INSTRUCTIONS: &str = include_str!("../skills/gnd-init/SKILL.md");
 const AGENTS_BLOCK_VERSION: u32 = 1;
 const AGENTS_APPEND_BEGIN: &str = "<!-- gnd:init:agents:v1 begin -->";
 const AGENTS_APPEND_END: &str = "<!-- gnd:init:agents:v1 end -->";
+const CANONICAL_AGENT_ENTRYPOINT: &str = "agents.md";
+const COMPANION_AGENT_ENTRYPOINTS: &[&str] = &[
+    "AGENTS.md",
+    "CLAUDE.md",
+    "GEMINI.md",
+    ".github/copilot-instructions.md",
+];
 
 /// The substitutions that turn `templates/agents.md` into a concrete `agents.md`
 /// for a repo (§FS-init.2.3): the project name, plus the ID/marker shape taken
@@ -3992,6 +4026,57 @@ fn render_agents_append_block(name: &str, config: &Config) -> String {
         .map(|index| index + AGENTS_APPEND_END.len())
         .expect("agents template must contain append block end marker");
     format!("{}\n", rendered[start..end].trim_end())
+}
+
+/// Existing companion agent entrypoints that should carry the same managed gnd
+/// block as `agents.md` (§FS-init.2.1). A symlink to `agents.md` is already
+/// covered by the canonical file and is intentionally skipped.
+fn companion_agent_entrypoints(root: &Path) -> Result<Vec<PathBuf>, (PathBuf, String)> {
+    let mut paths = Vec::new();
+    let canonical = root.join(CANONICAL_AGENT_ENTRYPOINT);
+    for rel in COMPANION_AGENT_ENTRYPOINTS {
+        let path = root.join(rel);
+        if !fs::symlink_metadata(&path)
+            .map(|m| m.file_type())
+            .is_ok_and(|t| t.is_file() || t.is_symlink())
+        {
+            continue;
+        }
+        match is_symlink_to(&path, &canonical) {
+            Ok(true) => continue,
+            Ok(false) => paths.push(path),
+            Err(err) => return Err((path, format!("{err:#}"))),
+        }
+    }
+    Ok(paths)
+}
+
+fn is_symlink_to(path: &Path, target: &Path) -> Result<bool> {
+    let metadata = fs::symlink_metadata(path)?;
+    if !metadata.file_type().is_symlink() {
+        return Ok(false);
+    }
+    let link = fs::read_link(path)?;
+    let resolved = if link.is_absolute() {
+        link
+    } else {
+        path.parent().unwrap_or_else(|| Path::new(".")).join(link)
+    };
+    Ok(normalize_path_lexically(&resolved) == normalize_path_lexically(target))
+}
+
+fn normalize_path_lexically(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            other => normalized.push(other.as_os_str()),
+        }
+    }
+    normalized
 }
 
 /// The config that `gnd init` will leave governing `target`, which the generated
@@ -4096,10 +4181,45 @@ fn command_init(args: &[String]) -> ExitCode {
     // so the ID-shape / kind / marker prose in it matches `.agents/gnd.toml`.
     let init_config = init_effective_config(&target);
 
-    let mut files: Vec<(&'static str, String)> = vec![
-        ("agents.md", render_agents_md(&resolved_name, &init_config)),
-        (".agents/gnd.toml", render_gnd_toml(&resolved_name)),
-    ];
+    let agents_contents = render_agents_md(&resolved_name, &init_config);
+    let agents_block = render_agents_append_block(&resolved_name, &init_config);
+
+    if !write_or_update_canonical_agent_entrypoint(
+        &target,
+        CANONICAL_AGENT_ENTRYPOINT,
+        &agents_contents,
+        &agents_block,
+        force,
+    ) {
+        return ExitCode::from(2);
+    }
+
+    let companion_entrypoints = match companion_agent_entrypoints(&target) {
+        Ok(paths) => paths,
+        Err((path, message)) => {
+            eprintln!("error: inspect {}: {message}", path.display());
+            return ExitCode::from(2);
+        }
+    };
+    for path in companion_entrypoints {
+        let rel = path
+            .strip_prefix(&target)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .into_owned();
+        match update_agents_block(&path, &agents_block, &rel) {
+            Ok(AgentsUpdateResult::Appended) => eprintln!("appended {rel}"),
+            Ok(AgentsUpdateResult::Updated) => eprintln!("updated {rel}"),
+            Ok(AgentsUpdateResult::AlreadyCurrent) => eprintln!("exists {rel}"),
+            Err(err) => {
+                eprintln!("error: update {}: {err}", path.display());
+                return ExitCode::from(2);
+            }
+        }
+    }
+
+    let mut files: Vec<(&'static str, String)> =
+        vec![(".agents/gnd.toml", render_gnd_toml(&resolved_name))];
     if docs {
         files.extend(docs_scaffold());
     }
@@ -4107,22 +4227,7 @@ fn command_init(args: &[String]) -> ExitCode {
     for (rel, contents) in &files {
         let dest = target.join(rel);
         if !force && dest.exists() {
-            if *rel == "agents.md" {
-                match update_agents_block(
-                    &dest,
-                    &render_agents_append_block(&resolved_name, &init_config),
-                ) {
-                    Ok(AgentsUpdateResult::Appended) => eprintln!("appended {rel}"),
-                    Ok(AgentsUpdateResult::Updated) => eprintln!("updated {rel}"),
-                    Ok(AgentsUpdateResult::AlreadyCurrent) => eprintln!("exists {rel}"),
-                    Err(err) => {
-                        eprintln!("error: update {}: {err}", dest.display());
-                        return ExitCode::from(2);
-                    }
-                }
-            } else {
-                eprintln!("exists {rel}");
-            }
+            eprintln!("exists {rel}");
             continue;
         }
         if let Some(parent) = dest.parent()
@@ -4172,11 +4277,45 @@ enum AgentsUpdateResult {
     AlreadyCurrent,
 }
 
-/// Append or update the managed block in an existing `agents.md` on disk
+fn write_or_update_canonical_agent_entrypoint(
+    target: &Path,
+    rel: &str,
+    contents: &str,
+    block: &str,
+    force: bool,
+) -> bool {
+    let dest = target.join(rel);
+    if !force && dest.exists() {
+        match update_agents_block(&dest, block, rel) {
+            Ok(AgentsUpdateResult::Appended) => eprintln!("appended {rel}"),
+            Ok(AgentsUpdateResult::Updated) => eprintln!("updated {rel}"),
+            Ok(AgentsUpdateResult::AlreadyCurrent) => eprintln!("exists {rel}"),
+            Err(err) => {
+                eprintln!("error: update {}: {err}", dest.display());
+                return false;
+            }
+        }
+        return true;
+    }
+    if let Some(parent) = dest.parent()
+        && let Err(err) = fs::create_dir_all(parent)
+    {
+        eprintln!("error: create {}: {err}", parent.display());
+        return false;
+    }
+    if let Err(err) = fs::write(&dest, contents) {
+        eprintln!("error: write {}: {err}", dest.display());
+        return false;
+    }
+    eprintln!("wrote {rel}");
+    true
+}
+
+/// Append or update the managed block in an existing agent entrypoint on disk
 /// (§FS-init.2.3) — leaves the file untouched when the block is already current.
-fn update_agents_block(dest: &Path, block: &str) -> Result<AgentsUpdateResult> {
+fn update_agents_block(dest: &Path, block: &str, label: &str) -> Result<AgentsUpdateResult> {
     let existing = fs::read_to_string(dest)?;
-    let (updated, result) = update_agents_text(&existing, block)?;
+    let (updated, result) = update_agents_text(&existing, block, label)?;
     if result == AgentsUpdateResult::AlreadyCurrent {
         return Ok(result);
     }
@@ -4188,14 +4327,18 @@ fn update_agents_block(dest: &Path, block: &str) -> Result<AgentsUpdateResult> {
 /// managed block into `existing`, preserving everything outside the begin/end
 /// markers byte-for-byte — including the block's position and any CRLF endings
 /// (§FS-init.2.3.1, §FS-init.2.3.2). A newer-than-supported block is an error.
-fn update_agents_text(existing: &str, block: &str) -> Result<(String, AgentsUpdateResult)> {
+fn update_agents_text(
+    existing: &str,
+    block: &str,
+    label: &str,
+) -> Result<(String, AgentsUpdateResult)> {
     if let Some(existing_block) = find_agents_block(existing) {
         if existing_block.version == AGENTS_BLOCK_VERSION {
             return Ok((existing.to_string(), AgentsUpdateResult::AlreadyCurrent));
         }
         if existing_block.version > AGENTS_BLOCK_VERSION {
             return Err(anyhow!(
-                "agents.md contains newer gnd init block v{}; this binary supports v{}",
+                "{label} contains newer gnd init block v{}; this binary supports v{}",
                 existing_block.version,
                 AGENTS_BLOCK_VERSION
             ));
@@ -4209,7 +4352,7 @@ fn update_agents_text(existing: &str, block: &str) -> Result<(String, AgentsUpda
 
     if AGENTS_BLOCK_BEGIN.is_match(existing) {
         return Err(anyhow!(
-            "agents.md contains a gnd init block start without a matching end"
+            "{label} contains a gnd init block start without a matching end"
         ));
     }
 
@@ -4342,6 +4485,9 @@ fn print_help() {
         "  config   validate or show the effective .agents/gnd.toml.         e.g. gnd config show"
     );
     println!(
+        "  agent-setup-instructions  Print AI setup guide.                   e.g. gnd agent-setup-instructions"
+    );
+    println!(
         "  completions  Print shell completion scripts.                      e.g. gnd completions bash"
     );
     println!();
@@ -4349,7 +4495,6 @@ fn print_help() {
         "Options:  --format text|json   output shape; text is the default (where it applies)."
     );
     println!("          --version, -V        print version.       --help, -h   show this screen.");
-    println!();
     println!("Help and version go to stdout and exit 0.   Docs: docs/functional-spec/");
 }
 
@@ -4647,8 +4792,32 @@ fn print_subcommand_help(cmd: &str) {
             println!();
             println!("Exit:  0 script printed · 2 unsupported shell.");
         }
+        "agent-setup-instructions" => {
+            println!(
+                "gnd agent-setup-instructions — print the guided setup instructions for AI agents."
+            );
+            println!();
+            println!("Usage:  gnd agent-setup-instructions");
+            println!();
+            println!(
+                "The output is the same Markdown source shipped as `skills/gnd-init/SKILL.md`,"
+            );
+            println!("embedded in the binary so installed agents can discover the setup workflow");
+            println!("without access to the source tree.");
+            println!();
+            println!("Exit:  0 instructions printed · 2 unexpected arguments.");
+        }
         _ => print_help(),
     }
+}
+
+fn command_agent_setup_instructions(args: &[String]) -> ExitCode {
+    if !args.is_empty() {
+        eprintln!("error: agent-setup-instructions takes no arguments");
+        return ExitCode::from(2);
+    }
+    print!("{AGENT_SETUP_INSTRUCTIONS}");
+    ExitCode::SUCCESS
 }
 
 /// Restore the default `SIGPIPE` disposition (Unix only).
@@ -4725,6 +4894,7 @@ pub fn main_entry() -> ExitCode {
         Some("name") => command_name(&args[1..]),
         Some("init") => command_init(&args[1..]),
         Some("config") => command_config(&args[1..]),
+        Some("agent-setup-instructions") => command_agent_setup_instructions(&args[1..]),
         Some("completions") => command_completions(&args[1..]),
         Some("complete") => command_complete(&args[1..]),
         Some(other) if other.starts_with('-') => command_check(&args),
@@ -4990,7 +5160,8 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     #[test]
     fn agents_update_appends_managed_block_when_missing() {
         let (updated, result) =
-            update_agents_text("# Existing agents\n", &current_block()).expect("append block");
+            update_agents_text("# Existing agents\n", &current_block(), "agents.md")
+                .expect("append block");
 
         assert_eq!(result, AgentsUpdateResult::Appended);
         assert!(updated.starts_with("# Existing agents\n\n"));
@@ -5001,7 +5172,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     fn agents_update_does_not_append_current_block_twice() {
         let existing = current_block();
         let (updated, result) =
-            update_agents_text(&existing, &current_block()).expect("current block");
+            update_agents_text(&existing, &current_block(), "agents.md").expect("current block");
 
         assert_eq!(result, AgentsUpdateResult::AlreadyCurrent);
         assert_eq!(updated, existing);
@@ -5015,7 +5186,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
             .replace("gnd:init:agents:v1 end", "gnd:init:agents:v0 end");
         let existing = format!("# Existing agents\n\n{old_block}\n\n# Local notes\n");
         let (updated, result) =
-            update_agents_text(&existing, &current_block()).expect("update old block");
+            update_agents_text(&existing, &current_block(), "agents.md").expect("update old block");
 
         assert_eq!(result, AgentsUpdateResult::Updated);
         assert!(updated.starts_with("# Existing agents\n\n"));
@@ -5033,8 +5204,8 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
             "# Existing agents\n\n{}\n\n# Local notes\n",
             current_block()
         );
-        let (updated, result) =
-            update_agents_text(&existing, &current_block()).expect("non-EOF current block");
+        let (updated, result) = update_agents_text(&existing, &current_block(), "agents.md")
+            .expect("non-EOF current block");
 
         assert_eq!(result, AgentsUpdateResult::AlreadyCurrent);
         assert_eq!(
@@ -5056,8 +5227,8 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
             .replace("gnd:init:agents:v1 end", "gnd:init:agents:v0 end");
         let v0_crlf = v0_lf.replace('\n', "\r\n");
         let existing = format!("# Existing agents\r\n\r\n{v0_crlf}\r\n\r\n# Local notes\r\n");
-        let (updated, result) =
-            update_agents_text(&existing, &current_block()).expect("update CRLF v0 block");
+        let (updated, result) = update_agents_text(&existing, &current_block(), "agents.md")
+            .expect("update CRLF v0 block");
 
         assert_eq!(result, AgentsUpdateResult::Updated);
         assert!(
@@ -5070,5 +5241,21 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         );
         assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
         assert!(!updated.contains("gnd:init:agents:v0"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn claude_symlink_to_agents_is_not_a_companion_entrypoint() {
+        let root = test_root("claude_symlink_to_agents_is_not_a_companion_entrypoint");
+        write(&root.join("agents.md"), &current_block());
+        std::os::unix::fs::symlink("agents.md", root.join("CLAUDE.md"))
+            .expect("create CLAUDE.md symlink");
+
+        let companions = companion_agent_entrypoints(&root).expect("discover companions");
+
+        assert!(
+            companions.is_empty(),
+            "CLAUDE.md symlinked to agents.md should be covered by agents.md"
+        );
     }
 }

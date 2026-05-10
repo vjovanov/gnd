@@ -75,9 +75,9 @@ The same `<KIND>-<NNN>-<slug>` declared as a heading in more than one file. Repo
 
 A `docs/` file whose H1 has the stub shape `# <ID>: [<text>](<path>)` where either the path does not exist, or the file at that path contains no inline declaration of the same ID.
 
-### 3.5 Invalid `agents.md` init block
+### 3.5 Invalid agent entrypoint init block
 
-If `<path>/agents.md` exists, `check` verifies the versioned `gnd init` block defined by §FS-init.2.3. A missing block, malformed begin/end marker pair, older block version, or newer unsupported block version is an error. This lets CI catch repos whose agent entry point was never initialized or needs to be refreshed with `gnd init`.
+If `<path>/agents.md` exists, `check` verifies the versioned `gnd init` block defined by §FS-init.2.3. It also verifies known companion agent entrypoints whenever they exist and are not symlinks to `agents.md`; for example, existing standalone `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md` files must carry the same managed block, while `CLAUDE.md -> agents.md` is already covered by the canonical file. A missing block, malformed begin/end marker pair, older block version, or newer unsupported block version is an error. This lets CI catch repos whose agent entry points were never initialized or need to be refreshed with `gnd init`.
 
 ### 3.6 Ungrounded source file *(opt-in)*
 

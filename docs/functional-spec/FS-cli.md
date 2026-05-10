@@ -8,7 +8,7 @@ The behaviour that is not owned by any one subcommand — how `gnd` is invoked w
 
 - `gnd` with no arguments is `gnd check .`.
 - `gnd <path>` (where `<path>` is not a known subcommand) is `gnd check <path>`.
-- `gnd <subcommand> …` dispatches to that subcommand: `check`, `show`, `list`, `refs`, `cover`, `fmt`, `name`, `init`, `config`, `completions`. The hidden `complete` subcommand is reserved for generated shell scripts (§FS-completions.2).
+- `gnd <subcommand> …` dispatches to that subcommand: `check`, `show`, `list`, `refs`, `cover`, `fmt`, `name`, `init`, `config`, `agent-setup-instructions`, `completions`. The hidden `complete` subcommand is reserved for generated shell scripts (§FS-completions.2).
 
 A bare `gnd <path>` and an explicit `gnd check <path>` are byte-for-byte equivalent (§FS-check). With no path, bare `gnd` and explicit `gnd check` are both byte-for-byte equivalent to `gnd check .`. The shorthand exists because `check` is the overwhelmingly common invocation; the other subcommands are always spelled out.
 
@@ -16,7 +16,7 @@ Because the first non-flag word is read as a subcommand *or* a path, a mistyped 
 
 ```
 error: unknown command or missing path: bogus
-known commands: check, show, list, refs, cover, fmt, name, init, config, completions
+known commands: check, show, list, refs, cover, fmt, name, init, config, agent-setup-instructions, completions
 (a bare path is shorthand for `gnd check <path>`; run `gnd --help` for commands)
 ```
 

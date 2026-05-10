@@ -2,7 +2,7 @@
 
 What `gnd` plans to ship next, in priority order. Each item has a stable ID — `RM-<slug>` under this repo's `[id] format` (§FS-config.3.2); `RM` is a configured `[[kinds]]` prefix (§FS-config.3.4), so `gnd check` validates `§RM-…` citations like any other. Items may be cited from anywhere — commits, PRs, the changelog, other specs. Shipped items move their detail to `docs/changelog.md` and keep a one-line pointer in §"Shipped milestones" below so the citation does not dangle; cancelled items stay in place with a `~~strikethrough~~` title and a one-line reason.
 
-The check engine, the retrieval surface (`gnd show`, `gnd refs`, including E2E case manifests), the coverage index (`gnd cover`), bulk normalization (`gnd fmt`, including `--marker` and `--md-links`), config loading (`.agents/gnd.toml` plus `gnd config show` / `gnd config validate`), `gnd init`, `gnd name`, the opt-in grounding floor (§FS-check.3.6), and the e2e corpus are all shipped — see `docs/changelog.md`. Two arcs remain. The **distribution arc**: split the single binary into a `gnd-core` library plus thin frontends, verify the package names, publish on npm and PyPI alongside cargo, ship the optional LSP server, and add `gnd check --watch`. And the **grounding arc**: build on §FS-check.3.6 and §FS-cover toward a diff-aware co-change gate — implementation cannot change without the spec it grounds in and without a test of it — via a pre-commit / CI recipe that consumes `gnd cover` (§RM-cochange-gate). The IDed milestones below project both arcs onto reviewable units of work.
+The check engine, the retrieval surface (`gnd show`, `gnd refs`, including E2E case manifests), the coverage index (`gnd cover`), bulk normalization (`gnd fmt`, including `--marker` and `--md-links`), config loading (`.agents/gnd.toml` plus `gnd config show` / `gnd config validate`), `gnd init`, `gnd name`, the opt-in grounding floor (§FS-check.3.6), and the e2e corpus are all shipped — see `docs/changelog.md`. Two arcs remain. The **distribution arc**: split the single binary into a `gnd-core` library plus thin frontends, verify the package names, publish on npm and PyPI alongside cargo, ship the optional LSP server, and add `gnd check --watch`. And the **grounding arc**: build on §FS-check.3.6 and §FS-cover toward a diff-aware co-change gate — implementation cannot change without the spec it grounds in and without a test of it — via a pre-commit / CI recipe that consumes `gnd cover` (§RM-cochange-gate). One standalone item (§RM-benchmarks) captures a performance baseline against today's single-binary build before the distribution arc starts moving the engine around. The IDed milestones below project both arcs onto reviewable units of work.
 
 ## RM-self-host: guard the self-host loop in CI
 
@@ -19,6 +19,22 @@ Self-host is the load-bearing demonstration of §G-no-dangling-refs and §G-fast
 ### 3. Measurable
 
 A new e2e fixture proves nested fixture directories are not scanned under the default config.
+
+## RM-benchmarks: a benchmark harness for the §G-fast-feedback budgets
+
+Per §G-fast-feedback.1 and §G-fast-feedback.3. The budgets are written down — under 100 ms on this repo, under 1 s on a 10k-file repo — but nothing measures them yet, so "CI fails on regression" is currently a promise without a meter. Capture a baseline against the current 0.1.0 single-binary build before §RM-core-cli-split moves the engine into a library and §RM-distribution adds two more frontends.
+
+### 1. What
+
+A `cargo bench` harness (criterion) over `gnd check` on two inputs: this repo, and a generated large synthetic fixture — the "large conformant repo" fixture §G-small-and-large.5 calls for, sized to fit the CI budget. The harness reports wall-clock per run; CI records both numbers per commit and fails when either crosses the §G-fast-feedback.1 budget, which is what §G-fast-feedback.3 ("CI tracks the number across commits and fails on regression") asks for. The 0.1.0 figures land in `docs/changelog.md` (or `docs/benchmarks.md`) as the recorded baseline. Allocation-count assertions (§G-fast-feedback.1's "single allocation per file at most") are in scope if cheap to wire; otherwise they are a follow-up.
+
+### 2. Why now
+
+§G-fast-feedback is one of the two ordering principles, and §G-fast-feedback.1 says CI must fail on regression — but there is no harness, so the budget is unenforced. Establishing the baseline against today's code, before §RM-core-cli-split splits the engine out and §RM-distribution wraps it in napi-rs and PyO3 bindings, means any slowdown those refactors introduce shows up as a diff against a known-good number rather than going unnoticed. It also shares the synthetic-large-repo fixture with §RM-self-host's remaining nested-fixture-tree case and with §G-small-and-large, so the generator is written once.
+
+### 3. Measurable
+
+`cargo bench` produces a stable per-run figure for `gnd check` on this repo and on the 10k-file synthetic fixture; CI records both, fails when either crosses the §G-fast-feedback.1 budget, and the 0.1.0 baseline is committed alongside the harness.
 
 ## RM-core-cli-split: split gnd-core from gnd-cli
 

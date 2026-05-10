@@ -20,7 +20,7 @@ When you run `gnd <path>`:
 2. Every section coordinate (`.3.1`) resolves to a heading inside the declaration. *(missing sections)*
 3. No ID is declared in two places. *(duplicates)*
 4. Every stub heading (`# <ID>: [<text>](<path>)`) points at a file that actually contains the inline declaration. *(broken stubs)*
-5. If `agents.md` is present, it carries an up-to-date `gnd init` block. *(uninitialized / stale agent entry point — run `gnd init`)*
+5. If `agents.md` or a known standalone companion entrypoint such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, or `.github/copilot-instructions.md` is present, it carries an up-to-date `gnd init` block. *(uninitialized / stale agent entry point — run `gnd init`)*
 6. Declared-but-uncited IDs are flagged. *(unused — warning, not error; `E2E-` cases are exempt — a test is used by being run, not cited)*
 7. *(opt-in)* With `[reference] require_grounding = true` (or `gnd check --require-grounding`): every source file carries at least one citation to a declared ID — or declares one inline. *(ungrounded source file — so a reviewer changing a spec sees every file that leans on it, because they all must cite it)*
 
@@ -114,6 +114,7 @@ Commands with machine-readable result modes document `--format text|json` in the
 | `gnd fmt [path] [--check\|--write] [--marker] [--md-links]` | Normalize citation syntax: rewrite the `$$` trigger to `§`. `--marker` also upgrades bare `<ID>` tokens to `§<ID>`; `--md-links` also wraps citations in `.md` files as clickable links to the declaration. Default is a dry run (`--check`); `--write` applies the changes. |
 | `gnd name <KIND> "<title>" [path] [--width N] [--explain] [--format text\|json]` | Emit the next conflict-free ID for a new declaration (e.g. `FS-008-user-login`, or `FS-user-login` under a number-less `[id] format`). Pure function from `(kind, title, tree)` to `id`; no files are written. `--explain` adds a one-line "where to put the file" hint on stderr (stdout stays the bare ID). |
 | `gnd config (validate\|show) [path]` | `validate` checks the discovered `.agents/gnd.toml` against the schema; `show` prints the effective config (defaults + file) as TOML. |
+| `gnd agent-setup-instructions` | Print the AI-agent setup guide embedded from `skills/gnd-init/SKILL.md`, so agents with only the installed binary can still perform guided `gnd init` adoption. |
 | `gnd completions <bash\|zsh\|fish>` | Print a shell completion script; generated scripts complete declared IDs for `gnd show <ID>` and `gnd refs <ID>`. |
 | `gnd --version` / `gnd --help` / `gnd help <command>` | Print the version, the one-screen top-level usage, or one command's page (its flags, examples, exit codes); all handled before any scan. |
 
