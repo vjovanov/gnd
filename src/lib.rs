@@ -3954,7 +3954,9 @@ const AGENTS_APPEND_END: &str = "<!-- gnd:init:agents:v1 end -->";
 const CANONICAL_AGENT_ENTRYPOINT: &str = "agents.md";
 const COMPANION_AGENT_ENTRYPOINTS: &[&str] = &[
     "AGENTS.md",
+    "AGENTS.override.md",
     "CLAUDE.md",
+    ".claude/CLAUDE.md",
     "GEMINI.md",
     ".github/copilot-instructions.md",
 ];
@@ -5241,6 +5243,43 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         );
         assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
         assert!(!updated.contains("gnd:init:agents:v0"));
+    }
+
+    #[test]
+    fn discovers_known_companion_agent_entrypoints() {
+        let root = test_root("discovers_known_companion_agent_entrypoints");
+        write(&root.join("AGENTS.md"), "# Codex notes\n");
+        write(&root.join("AGENTS.override.md"), "# Codex override notes\n");
+        write(&root.join("CLAUDE.md"), "# Claude notes\n");
+        write(&root.join(".claude/CLAUDE.md"), "# Claude project notes\n");
+        write(&root.join("GEMINI.md"), "# Gemini notes\n");
+        write(
+            &root.join(".github/copilot-instructions.md"),
+            "# Copilot notes\n",
+        );
+
+        let companions = companion_agent_entrypoints(&root).expect("discover companions");
+        let rels = companions
+            .iter()
+            .map(|path| {
+                path.strip_prefix(&root)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            rels,
+            vec![
+                "AGENTS.md",
+                "AGENTS.override.md",
+                "CLAUDE.md",
+                ".claude/CLAUDE.md",
+                "GEMINI.md",
+                ".github/copilot-instructions.md"
+            ]
+        );
     }
 
     #[cfg(unix)]

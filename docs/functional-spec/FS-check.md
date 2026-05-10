@@ -77,7 +77,7 @@ A `docs/` file whose H1 has the stub shape `# <ID>: [<text>](<path>)` where eith
 
 ### 3.5 Invalid agent entrypoint init block
 
-If `<path>/agents.md` exists, `check` verifies the versioned `gnd init` block defined by §FS-init.2.3. It also verifies known companion agent entrypoints whenever they exist and are not symlinks to `agents.md`; for example, existing standalone `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md` files must carry the same managed block, while `CLAUDE.md -> agents.md` is already covered by the canonical file. A missing block, malformed begin/end marker pair, older block version, or newer unsupported block version is an error. This lets CI catch repos whose agent entry points were never initialized or need to be refreshed with `gnd init`.
+If `<path>/agents.md` exists, `check` verifies the versioned `gnd init` block defined by §FS-init.2.3. It also verifies known companion agent entrypoints whenever they exist and are not symlinks to `agents.md`; for example, existing standalone `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `.claude/CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md` files must carry the same managed block, while `CLAUDE.md -> agents.md` is already covered by the canonical file. A missing block, malformed begin/end marker pair, older block version, or newer unsupported block version is an error. This lets CI catch repos whose agent entry points were never initialized or need to be refreshed with `gnd init`.
 
 ### 3.6 Ungrounded source file *(opt-in)*
 

@@ -1,6 +1,8 @@
 appended agents.md
 appended AGENTS.md
+appended AGENTS.override.md
 appended CLAUDE.md
+appended .claude/CLAUDE.md
 appended GEMINI.md
 appended .github/copilot-instructions.md
 wrote .agents/gnd.toml

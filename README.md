@@ -20,7 +20,7 @@ When you run `gnd <path>`:
 2. Every section coordinate (`.3.1`) resolves to a heading inside the declaration. *(missing sections)*
 3. No ID is declared in two places. *(duplicates)*
 4. Every stub heading (`# <ID>: [<text>](<path>)`) points at a file that actually contains the inline declaration. *(broken stubs)*
-5. If `agents.md` or a known standalone companion entrypoint such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, or `.github/copilot-instructions.md` is present, it carries an up-to-date `gnd init` block. *(uninitialized / stale agent entry point — run `gnd init`)*
+5. If `agents.md` or a known standalone companion entrypoint such as `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `.claude/CLAUDE.md`, `GEMINI.md`, or `.github/copilot-instructions.md` is present, it carries an up-to-date `gnd init` block. *(uninitialized / stale agent entry point — run `gnd init`)*
 6. Declared-but-uncited IDs are flagged. *(unused — warning, not error; `E2E-` cases are exempt — a test is used by being run, not cited)*
 7. *(opt-in)* With `[reference] require_grounding = true` (or `gnd check --require-grounding`): every source file carries at least one citation to a declared ID — or declares one inline. *(ungrounded source file — so a reviewer changing a spec sees every file that leans on it, because they all must cite it)*
 
