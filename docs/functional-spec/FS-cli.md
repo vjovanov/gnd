@@ -10,7 +10,7 @@ The behaviour that is not owned by any one subcommand — how `gnd` is invoked w
 - `gnd <path>` (where `<path>` is not a known subcommand) is `gnd check <path>`.
 - `gnd <subcommand> …` dispatches to that subcommand: `check`, `show`, `fmt`, `init`, `name`, `refs`, `config`.
 
-A bare `gnd <path>` and an explicit `gnd check <path>` are byte-for-byte equivalent (FS-check). The shorthand exists because `check` is the overwhelmingly common invocation; the other subcommands are always spelled out.
+A bare `gnd <path>` and an explicit `gnd check <path>` are byte-for-byte equivalent (FS-check). With no path, bare `gnd` and explicit `gnd check` are both byte-for-byte equivalent to `gnd check .`. The shorthand exists because `check` is the overwhelmingly common invocation; the other subcommands are always spelled out.
 
 ## 2. Global flags
 
