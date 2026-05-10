@@ -1,0 +1,9 @@
+gnd_config_version = 1
+
+[id]
+format = "{kind}-{slug}"
+
+[[kinds]]
+prefix = "E2E"
+folder = "e2e/cases"
+title = "End-to-end test"

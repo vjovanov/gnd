@@ -10,7 +10,7 @@ gnd list [<path>] [--kind <KIND>] [--unused] [--format text|json]
 
 - `<path>` — directory or file whose tree is scanned. Defaults to `.`. Discovery is the same as every other subcommand (walk up to `.agents/gnd.toml`, else defaults — §FS-config.1).
 - `--kind <KIND>` — list only declarations whose ID has that kind prefix (one of the configured `[[kinds]]` prefixes — §FS-config.3.4). An unknown kind is a CLI-level error (§4): a typo'd `--kind` must not silently produce an empty catalog.
-- `--unused` — list only declarations that no recognised citation points at — the same "no inbound reference" set `check` already warns about (§FS-check.4.1). This is the "what is safe to delete / what still needs wiring in" view.
+- `--unused` — list only declarations that no recognised citation points at. This is a catalog query over `refs = 0`, not the same as `check`'s unused-declaration warning set: `check` suppresses uncited `E2E` warnings because a test is used by being run (§FS-check.4.1), but `list --unused --kind E2E` still lists uncited case declarations for inventory.
 - `--format text|json` — output shape (§3). Default `text`.
 
 `list` is a query, like `show` and `refs` — non-interactive, no prompts (§FS-non-goals.10).
@@ -38,7 +38,7 @@ FS-login        docs/functional-spec/FS-login.md:1    A player can log in with e
 G-no-dangling-refs  docs/goals/goals.md:7     every cited ID resolves to a declaration
 ```
 
-The columns are: the ID (rendered in the repo's `[id] format`, left-padded so the column aligns — capped so one very long ID does not blow out the table), then `<path>:<line>` of the home declaration (for a collapsed stub-and-inline pair, the source file the body is in), then the title — the heading text the author wrote after `# <ID>:`. A declaration whose heading carries no `: <text>` tail has an empty title column. A broken stub shows `→ <target>` in place of a title. A duplicated ID's lines carry a `(duplicate declaration — gnd check)` note. With `--kind`, only that kind's lines appear; with `--unused`, only lines for declarations with zero inbound citations. An empty catalog (or an empty filter result) prints nothing — that is not an error.
+The columns are: the ID (rendered in the repo's `[id] format`, left-padded so the column aligns — capped so one very long ID does not blow out the table), then `<path>:<line>` of the home declaration (for a collapsed stub-and-inline pair, the source file the body is in), then the title — the heading text the author wrote after `# <ID>:`. A declaration whose heading carries no `: <text>` tail has an empty title column. A broken stub shows `→ <target>` in place of a title. A duplicated ID's lines carry a `(duplicate declaration — gnd check)` note. With `--kind`, only that kind's lines appear; with `--unused`, only lines for declarations with zero inbound citations, including uncited `E2E` declarations even though `check` does not warn for them. An empty catalog (or an empty filter result) prints nothing — that is not an error.
 
 Stderr is empty on success.
 
