@@ -33,12 +33,15 @@ project_name = "Example" # optional metadata written by `gnd init`
 
 ```toml
 [reference]
-marker  = "§"      # default; rare character that prefixes a citation in prose
-trigger = "$$"     # default; typed sequence rewritten to marker by IDE plugin and `gnd fmt`
-strict  = false    # default; if true, bare citations are NOT recognized
+marker            = "§"      # default; rare character that prefixes a citation in prose
+trigger           = "$$"     # default; typed sequence rewritten to marker by IDE plugin and `gnd fmt`
+strict            = false    # default; if true, bare citations are NOT recognized
+require_grounding = false    # default; if true, `check` flags source files that cite no declared ID
 ```
 
 Per §DF-reference-marker. `strict = true` requires a non-empty `marker`.
+
+`require_grounding = true` adds the ungrounded-source-file error (§FS-check.3.6): every scanned non-Markdown file must carry at least one resolving citation, or declare an ID inline. `gnd check --require-grounding` forces it on for one run. Per §DF-require-grounding; off by default so adopting the discipline is a deliberate step, like `strict`.
 
 ### 3.2 `[id]` — ID grammar
 

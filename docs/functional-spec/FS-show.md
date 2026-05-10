@@ -118,7 +118,7 @@ The first line is the invocation (`gnd check` when the case has no `command.args
 
 Stdout carries the body (or, with `--format=json`, the result object — one JSON object, never NDJSON, per §FS-errors.5). Stderr carries errors. Stdout is empty on error.
 
-A failed query (`1`) prints the bare result line and, where the next step is obvious, one extra `hint:` line on stderr below it — never on stdout, never in `--format=json`:
+A failed query (`1`) prints the bare result line and, where the next step is obvious, one extra `hint:` line on stderr below it — never on stdout. With `--format=json`, stderr instead carries one diagnostic JSON object per §FS-errors.5, with `path` and `line` set to `null` because the failure has no single source location:
 
 - `ID not found: <ID>` → `hint: run \`gnd list\` to see every declared ID, or \`gnd name <KIND> "<title>"\` to propose a new one`
 - `section not found: <ID>.<s>` → `hint: run \`gnd show <ID>\` to print the whole declaration with its section numbers`

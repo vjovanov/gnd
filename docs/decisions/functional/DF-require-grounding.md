@@ -1,0 +1,56 @@
+# DF-require-grounding: an opt-in check that every source file cites a spec
+
+**Status:** Accepted
+**Date:** 2026-05-10
+
+## 1. Context
+
+The reference scheme already proves that every *citation* resolves (§FS-check.3.1) and that every section coordinate exists (§FS-check.3.2). It does **not** prove the converse: that every piece of implementation actually *points* at the spec it realizes. A new module can land carrying no citation at all; a reviewer changing a spec runs `gnd refs` on it and only sees the files that already chose to cite it.
+
+The stronger discipline we want — "implementation cannot change without the spec it grounds in, and without the tests" — is naturally diff-aware: it compares a change against a base revision. That is a different contract from `gnd check`, which is a pure function of `(tree, config)` (§FS-non-goals.13), and it leans on a git diff, which the engine deliberately does not read (§FS-non-goals.6). So the full idea has to be tiered:
+
+1. **Grounded implementation** — every source file carries at least one citation to a declared ID. Static; no git; no AST.
+2. **A `gnd cover` plumbing surface** — the scan exposed as data: for each file, the IDs it cites and their line ranges; for each test / `§E2E-` case, the IDs it cites. Still static.
+3. **A co-change gate** — diff-aware: a changed source file must be grounded, and the diff must also touch the cited spec *or* a test of it, with an explicit, greppable escape hatch for refactors.
+
+Tier 1 is most of the value and the only part that fits inside `gnd-core` without bending a bright line. This record covers Tier 1; Tiers 2–3 are tracked under §RM-cover and §RM-cochange-gate.
+
+## 2. Decision
+
+### 2.1 A new opt-in error class
+
+Add `[reference] require_grounding` (§FS-config.3.1), default `false`, plus `gnd check --require-grounding` to force it on for one run. When set, `check` reports an `ungrounded source file` error (§FS-check.3.6) for every scanned file whose extension is not `.md` and that is not *grounded*.
+
+### 2.2 "Grounded" is defined syntactically
+
+A source file is grounded if **either**:
+
+- it contains at least one recognized citation (§FS-check.1.1 — so a bare token counts only when `strict = false`) whose ID resolves to a declaration in the tree; **or**
+- it itself declares an ID inline (§AS-scanner.4) as a non-stub home — a class that carries its own `§AS-…` spec is grounded in that spec.
+
+A file whose only citation is dangling is not grounded; it earns both the `dangling` and the `ungrounded` finding, and fixing the citation clears both. "Source file" is decided purely by extension (not by parsing the file), so the rule adds no language awareness (§FS-non-goals.3) and reads no history (§FS-non-goals.6) — it stays a pure function of `(tree, config)` (§FS-non-goals.13).
+
+### 2.3 File granularity, not hunk granularity
+
+The check is per file: one resolving citation anywhere in the file satisfies it. A finer "every doc-comment block must cite something" rule is conceivable from the same scan data, but file granularity is the cheap, sound floor and is what the diff-aware gate (§RM-cochange-gate) refines against — there is no need to bake the finer rule into `gnd-core` first.
+
+### 2.4 Off by default
+
+Like `strict`, grounding is a discipline a repo opts into once it is ready (and once its source tree — including any fixture trees under the `E2E` folder — is either grounded or carved out of `[scan]`). A repo that has never adopted the marker should not start failing `check` on upgrade.
+
+## 3. Consequences
+
+- `Config` gains a `require_grounding: bool`; `check` gains the §FS-check.3.6 loop over the scanner's file list (a new `Findings.scanned_files`); `gnd config show` prints the key; `gnd check --help` lists the flag; `templates/gnd.toml` carries `require_grounding = false` so the generated config still documents every key (§FS-init.2.4).
+- No `gnd_config_version` bump: a v1 config without the key keeps working, and a v1 config that sets it is only understood by a `gnd` new enough to have this record — an additive change, like `[fmt.md_links]`.
+- The reverse-lookup story tightens: in a `require_grounding` repo, `gnd refs <ID>` over the source tree is complete by construction, because an ungrounded file cannot land.
+- Tiers 2 and 3 (§RM-cover, §RM-cochange-gate) build on this; the co-change gate in particular lives in the pre-commit / CI recipe layer, not in `gnd-core` — a third first-party surface is out of scope (§FS-non-goals.12).
+
+## 4. Alternatives considered
+
+| Option | Why rejected |
+|---|---|
+| Make it part of `gnd check` unconditionally | Would start failing every existing repo on upgrade, and conflates "well-formed references" with "fully adopted discipline" — the same reason `strict` is opt-in (§DF-reference-marker.2.4). |
+| Fold it into `[reference] strict` | `strict` is about whether bare tokens are citations; grounding is about whether files cite at all. Two independent axes; a repo may want one without the other. |
+| Diff-aware from the start (Tier 3 only) | Needs a base revision and a git diff — a different contract than `gnd check` and a dependency the engine avoids (§FS-non-goals.6). The static floor is useful on its own and is the substrate the gate refines. |
+| Hunk-level grounding ("every doc-comment block cites something") | More precise but more machinery; the diff-aware gate is the right place to get hunk precision, against an actual change set. File level is the sound, cheap floor. |
+| Require a *test* co-change too (in `gnd-core`) | Cannot be done soundly without diffing and without distinguishing behavioral from cosmetic changes (no AST) — belongs in the §RM-cochange-gate recipe with its escape hatch, not in the engine. |

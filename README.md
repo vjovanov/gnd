@@ -22,6 +22,7 @@ When you run `gnd <path>`:
 4. Every stub heading (`# <ID>: [<text>](<path>)`) points at a file that actually contains the inline declaration. *(broken stubs)*
 5. If `agents.md` is present, it carries an up-to-date `gnd init` block. *(uninitialized / stale agent entry point — run `gnd init`)*
 6. Declared-but-uncited IDs are flagged. *(unused — warning, not error; `E2E-` cases are exempt — a test is used by being run, not cited)*
+7. *(opt-in)* With `[reference] require_grounding = true` (or `gnd check --require-grounding`): every source file carries at least one citation to a declared ID — or declares one inline. *(ungrounded source file — so a reviewer changing a spec sees every file that leans on it, because they all must cite it)*
 
 It does **not** check markdown links, URLs, spelling, or grammar. Use [`lychee`](https://github.com/lycheeverse/lychee), `vale`, etc. for those.
 
@@ -106,7 +107,7 @@ Commands with machine-readable result modes document `--format text|json` in the
 
 | Command                    | What it does                                                                       |
 | -------------------------- | ---------------------------------------------------------------------------------- |
-| `gnd check [path]` | Validate references. The default — `gnd <path>` is shorthand. (`--watch`, a resident re-check on every change, is specified in [`FS-check`](docs/functional-spec/FS-check.md) §6 but not yet implemented.) |
+| `gnd check [path] [--require-grounding]` | Validate references. The default — `gnd <path>` is shorthand. `--require-grounding` adds the opt-in check that every source file cites a declared ID (§3.6 of [`FS-check`](docs/functional-spec/FS-check.md); also settable as `[reference] require_grounding`). (`--watch`, a resident re-check on every change, is specified in `FS-check` §6 but not yet implemented.) |
 | `gnd init [path] [--docs] [--name N] [--force\|--append]` | Scaffold `agents.md` and `.agents/gnd.toml`; idempotent by default — appends/updates the managed block in an existing `agents.md`, reports `exists` for other files. `--docs` also seeds `docs/` and `e2e/`; `--name` sets the project name; `--force` overwrites. |
 | `gnd show <ID>[.<section>] [path] [--section S] [--head\|--full] [--format text\|md\|json]` | Print just the body of a declaration (or one of its sections), for pulling spec content into agent prompts. `--head` is the lead paragraph only; `--full` (default) is the whole body; `md` keeps the heading line. |
 | `gnd list [path] [--kind K] [--unused] [--format text\|json]` | The ID catalog — every declared ID, `<ID>  path:line  title`, sorted by ID. `--kind` filters by prefix; `--unused` shows declarations nothing cites yet; `json` adds a `refs` count. The thing `gnd show` reads from. |

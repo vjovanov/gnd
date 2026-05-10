@@ -5,6 +5,7 @@ project_name = "{NAME}"
 marker = "§"
 trigger = "$$"
 strict = false
+require_grounding = false
 
 [id]
 format = "{kind}-{number}-{slug}"

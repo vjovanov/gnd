@@ -22,6 +22,13 @@ One bullet per change, present tense, leading with the affected ID. Example: `§
 
 Only **Unreleased** and the **most recent release** are inline. When a new release ships, the previous "latest" section is moved verbatim to `docs/changelog/<version>.md` and a one-line link is added under [§4 Older releases](#4-older-releases). The most recent release stays inline so the common reader and agent path — "what changed lately?" — is one file deep.
 
+## Unreleased
+
+### Added
+
+- §FS-check.3.6: `[reference] require_grounding` (off by default) and `gnd check --require-grounding` — when on, `check` reports an `ungrounded source file` error for every scanned non-Markdown file that carries no resolving citation and declares no ID inline. Shipped under §RM-require-grounding; the grounding floor of §DF-require-grounding; the diff-aware tiers are tracked under §RM-cover and §RM-cochange-gate. `gnd config show` now prints `require_grounding`; `templates/gnd.toml` carries `require_grounding = false`. Content change within `gnd_config_version = 1` — a v1 config without the key is unaffected.
+- §FS-config.3.1: document the `require_grounding` key.
+
 ## 2. [0.1.0] — 2026-05-10
 
 First published binary. The CLI covers the full subcommand surface the specs describe (§2.7); the distribution arc — the `gnd-core`/`gnd-cli` workspace split, the npm/PyPI bindings, the optional `gnd-lsp` server, and `gnd check --watch` — is tracked in `docs/roadmap.md`.

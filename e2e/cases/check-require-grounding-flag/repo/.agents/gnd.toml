@@ -1,0 +1,5 @@
+gnd_config_version = 1
+
+[reference]
+marker = "§"
+strict = true

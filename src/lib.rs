@@ -285,6 +285,11 @@ struct Citation {
 struct Findings {
     declarations: BTreeMap<Id, Vec<Declaration>>,
     citations: Vec<Citation>,
+    /// Every file the walk read successfully (§AS-scanner.1) — the universe the
+    /// `[reference] require_grounding` check iterates over (§FS-check.3.6,
+    /// §DF-require-grounding). Files that failed to read are not here; they are in
+    /// the walk's `ScanError` list instead.
+    scanned_files: Vec<PathBuf>,
 }
 
 /// One `[[kinds]]` entry: prefix plus the folder its declarations live in and the
@@ -309,6 +314,11 @@ struct Config {
     marker: String,
     trigger: String,
     strict: bool,
+    /// `[reference] require_grounding` (§FS-config.3.1, §FS-check.3.6,
+    /// §DF-require-grounding) — when true, `check` also reports every scanned
+    /// source file that carries no resolving citation (and declares no ID inline).
+    /// `--require-grounding` on `gnd check` forces it on for one run.
+    require_grounding: bool,
     include: Option<Vec<String>>,
     exclude: Vec<String>,
     extensions: Vec<String>,
@@ -365,6 +375,7 @@ impl Config {
             marker: "§".to_string(),
             trigger: "$$".to_string(),
             strict: false,
+            require_grounding: false,
             include: Some(
                 DEFAULT_INCLUDE
                     .iter()
@@ -629,6 +640,9 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
             ("reference", "marker") => config.marker = parse_string(path, line_no, value)?,
             ("reference", "trigger") => config.trigger = parse_string(path, line_no, value)?,
             ("reference", "strict") => config.strict = parse_bool(path, line_no, value)?,
+            ("reference", "require_grounding") => {
+                config.require_grounding = parse_bool(path, line_no, value)?
+            }
             ("id", "format") => {
                 config.id_format = parse_string(path, line_no, value)?;
                 grammar_dirty = true;
@@ -1291,8 +1305,9 @@ fn scan_tree(
     let mut findings = Findings::default();
     let mut errors = Vec::new();
     for file in walk_scannable_files(config, scope, explicit_scope)? {
-        if let Err(err) = scan_file(&file, config, &mut findings) {
-            errors.push((file, format!("{err:#}")));
+        match scan_file(&file, config, &mut findings) {
+            Ok(()) => findings.scanned_files.push(file),
+            Err(err) => errors.push((file, format!("{err:#}"))),
         }
     }
     if let Err(err) = scan_e2e_cases(config, scope, explicit_scope, &mut findings) {
@@ -1319,10 +1334,12 @@ fn scan_tree_strict(
 /// The checker (§AS-checker): turn the scanner's `Findings` into a `Report` of
 /// errors and warnings — duplicate declarations (§FS-check.3.3), dangling
 /// citations (§FS-check.3.1), missing sections (§FS-check.3.2), broken inline-spec
-/// stubs (§FS-check.3.4), an invalid `agents.md` init block (§FS-check.3.5), and
-/// the unused-declaration warning (§FS-check.4.1) — then sort everything into the
-/// fixed report order (§FS-errors.4, §FS-non-goals.9). It re-reads files only for
-/// stub verification (§AS-checker.4); everything else comes from `findings`.
+/// stubs (§FS-check.3.4), an invalid `agents.md` init block (§FS-check.3.5),
+/// ungrounded source files when `[reference] require_grounding` is set
+/// (§FS-check.3.6, §DF-require-grounding), and the unused-declaration warning
+/// (§FS-check.4.1) — then sort everything into the fixed report order
+/// (§FS-errors.4, §FS-non-goals.9). It re-reads files only for stub verification
+/// (§AS-checker.4); everything else comes from `findings`.
 fn check(findings: &Findings, config: &Config) -> Report {
     let mut report = Report::default();
     // §FS-check.3.5: an `agents.md` whose managed block is out of date (or newer
@@ -1463,6 +1480,37 @@ fn check(findings: &Findings, config: &Config) -> Report {
                 message: format!("declared but never cited: {}", render_id(config, id)),
                 sites: Vec::new(),
             });
+        }
+    }
+
+    // §FS-check.3.6 / §DF-require-grounding: under `[reference] require_grounding`,
+    // every scanned source (non-Markdown) file must carry at least one citation to
+    // a declared ID — or itself declare one inline (a spec home is grounded in the
+    // spec it *is*). Pure function of (tree, config): no git, no AST.
+    if config.require_grounding {
+        for file in &findings.scanned_files {
+            if file.extension().and_then(|ext| ext.to_str()) == Some("md") {
+                continue;
+            }
+            let grounded = findings
+                .citations
+                .iter()
+                .any(|cite| &cite.file == file && findings.declarations.contains_key(&cite.id))
+                || findings.declarations.values().flatten().any(|decl| {
+                    &decl.file == file && !decl.is_stub && decl.e2e_case.is_none()
+                });
+            if !grounded {
+                report.errors.push(Diagnostic {
+                    code: "ungrounded",
+                    path: Some(file.clone()),
+                    line: Some(1),
+                    message: format!(
+                        "ungrounded source file: no {} citation to a declared ID",
+                        config.marker
+                    ),
+                    sites: Vec::new(),
+                });
+            }
         }
     }
 
@@ -1701,6 +1749,33 @@ fn render_diagnostic_json(config: &Config, severity: &str, diagnostic: &Diagnost
     )
 }
 
+fn print_bare_query_json(config: &Config, code: &'static str, message: &str) {
+    let diagnostic = Diagnostic {
+        code,
+        path: None,
+        line: None,
+        message: message.to_string(),
+        sites: Vec::new(),
+    };
+    eprintln!("{}", render_diagnostic_json(config, "error", &diagnostic));
+}
+
+fn show_query_error_code(message: &str) -> &'static str {
+    if message.starts_with("ID not found:") {
+        "not-found"
+    } else if message.starts_with("section not found:") {
+        "missing-section"
+    } else if message.starts_with("invalid ID") {
+        "invalid-id"
+    } else if message.starts_with("ambiguous ID:") {
+        "ambiguous"
+    } else if message.starts_with("broken stub:") {
+        "broken-stub"
+    } else {
+        "query-failed"
+    }
+}
+
 fn json_escape(raw: &str) -> String {
     let mut escaped = String::with_capacity(raw.len());
     for ch in raw.chars() {
@@ -1739,6 +1814,7 @@ fn command_check(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
     let mut format_override = None;
+    let mut require_grounding = false;
     let mut idx = 0;
     while idx < args.len() {
         match args[idx].as_str() {
@@ -1752,6 +1828,7 @@ fn command_check(args: &[String]) -> ExitCode {
                 }
                 format_override = Some(args[idx].clone());
             }
+            "--require-grounding" => require_grounding = true,
             other if other.starts_with('-') => {
                 eprintln!("error: unknown flag `{other}`");
                 return ExitCode::from(2);
@@ -1769,13 +1846,18 @@ fn command_check(args: &[String]) -> ExitCode {
         eprintln!("error: unsupported check format `{format}`");
         return ExitCode::from(2);
     }
-    let config = match load_config(&path) {
+    let mut config = match load_config(&path) {
         Ok(config) => config,
         Err(err) => {
             eprintln!("error: {err:#}");
             return ExitCode::from(2);
         }
     };
+    // `--require-grounding` only ever turns the check on for this run; it never
+    // turns off a `[reference] require_grounding = true` set in the config.
+    if require_grounding {
+        config.require_grounding = true;
+    }
     let (findings, scan_errors) = match scan_tree(&config, Some(&path), path_provided) {
         Ok(out) => out,
         Err(e) => {
@@ -1904,11 +1986,16 @@ fn command_show(args: &[String]) -> ExitCode {
     let (id, inline_section) = match parse_id_arg(&id_arg, &config.grammar) {
         Ok(parsed) => parsed,
         Err(err) => {
-            eprintln!("{err:#}");
-            eprintln!(
-                "hint: this repo's [id] format is `{}` (run `gnd config show`); `gnd list` shows the IDs that exist",
-                config.id_format
-            );
+            let message = format!("{err:#}");
+            if format == "json" {
+                print_bare_query_json(&config, show_query_error_code(&message), &message);
+            } else {
+                eprintln!("{message}");
+                eprintln!(
+                    "hint: this repo's [id] format is `{}` (run `gnd config show`); `gnd list` shows the IDs that exist",
+                    config.id_format
+                );
+            }
             return ExitCode::FAILURE;
         }
     };
@@ -1960,16 +2047,20 @@ fn command_show(args: &[String]) -> ExitCode {
         }
         Err(err) => {
             let message = format!("{err:#}");
-            eprintln!("{message}");
-            if message.starts_with("ID not found:") {
-                eprintln!(
-                    "hint: run `gnd list` to see every declared ID, or `gnd name <KIND> \"<title>\"` to propose a new one"
-                );
-            } else if message.starts_with("section not found:") {
-                eprintln!(
-                    "hint: run `gnd show {}` to print the whole declaration with its section numbers",
-                    render_id(&config, &id)
-                );
+            if format == "json" {
+                print_bare_query_json(&config, show_query_error_code(&message), &message);
+            } else {
+                eprintln!("{message}");
+                if message.starts_with("ID not found:") {
+                    eprintln!(
+                        "hint: run `gnd list` to see every declared ID, or `gnd name <KIND> \"<title>\"` to propose a new one"
+                    );
+                } else if message.starts_with("section not found:") {
+                    eprintln!(
+                        "hint: run `gnd show {}` to print the whole declaration with its section numbers",
+                        render_id(&config, &id)
+                    );
+                }
             }
             ExitCode::FAILURE
         }
@@ -2850,6 +2941,7 @@ fn command_config(args: &[String]) -> ExitCode {
                 println!("marker = \"{}\"", config.marker);
                 println!("trigger = \"{}\"", config.trigger);
                 println!("strict = {}", config.strict);
+                println!("require_grounding = {}", config.require_grounding);
                 println!();
                 println!("[id]");
                 println!("format = \"{}\"", config.id_format);
@@ -4158,7 +4250,7 @@ fn print_subcommand_help(cmd: &str) {
                 "gnd check — validate every ID citation across the repo (the default subcommand)."
             );
             println!();
-            println!("Usage:  gnd [check] [PATH] [--format text|json]");
+            println!("Usage:  gnd [check] [PATH] [--require-grounding] [--format text|json]");
             println!();
             println!(
                 "PATH defaults to `.`; config is discovered by walking up from it (FS-config.1)."
@@ -4169,9 +4261,12 @@ fn print_subcommand_help(cmd: &str) {
             println!(
                 "  --format text|json   text (default) prints `path:line: message`; json emits NDJSON."
             );
+            println!(
+                "  --require-grounding  also require every source file to cite a declared ID ([reference] require_grounding)."
+            );
             println!();
             println!(
-                "Exit:  0 clean · 1 dangling / duplicate / unknown-section findings · 2 unreadable tree or CLI error."
+                "Exit:  0 clean · 1 dangling / duplicate / unknown-section / ungrounded findings · 2 unreadable tree or CLI error."
             );
             println!();
             println!("Examples:");
@@ -4186,7 +4281,7 @@ fn print_subcommand_help(cmd: &str) {
             println!("into context without loading the whole document.");
             println!();
             println!(
-                "Usage:  gnd show <ID>[.<section>] [--section S] [--head|--full] [--format text|md|json] [--path PATH]"
+                "Usage:  gnd show <ID>[.<section>] [PATH] [--section S] [--head|--full] [--format text|md|json] [--path PATH]"
             );
             println!();
             println!("Options:");
@@ -4585,6 +4680,108 @@ mod tests {
         assert!(
             report.errors.is_empty(),
             "string literal must not be a citation"
+        );
+    }
+
+    #[test]
+    fn require_grounding_off_by_default() {
+        let root = test_root("require_grounding_off_by_default");
+        write(&root.join("src/util.rs"), "pub fn helper() {}\n");
+
+        let config = Config::default_for(root.clone());
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+
+        assert!(
+            !report.errors.iter().any(|e| e.code == "ungrounded"),
+            "grounding is opt-in: an uncited source file is not an error by default"
+        );
+    }
+
+    #[test]
+    fn require_grounding_flags_uncited_source_file() {
+        let root = test_root("require_grounding_flags_uncited_source_file");
+        write(
+            &root.join("docs/functional-spec/FS-001-login.md"),
+            "# FS-001-login: Login\n",
+        );
+        write(&root.join("src/auth.rs"), "// §FS-001-login\npub fn login() {}\n");
+        write(&root.join("src/util.rs"), "pub fn helper() {}\n");
+
+        let mut config = Config::default_for(root.clone());
+        config.require_grounding = true;
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+
+        let ungrounded: Vec<_> = report
+            .errors
+            .iter()
+            .filter(|e| e.code == "ungrounded")
+            .map(|e| e.path.as_deref().unwrap().to_path_buf())
+            .collect();
+        assert_eq!(
+            ungrounded,
+            vec![root.join("src/util.rs")],
+            "only the uncited source file is flagged; the one citing §FS-001-login is grounded"
+        );
+    }
+
+    #[test]
+    fn require_grounding_accepts_inline_declaration() {
+        let root = test_root("require_grounding_accepts_inline_declaration");
+        write(
+            &root.join("src/router.rs"),
+            "// # AS-001-router: Router\n//\n// ## 1. Shape\npub struct Router;\n",
+        );
+
+        let mut config = Config::default_for(root.clone());
+        config.require_grounding = true;
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+
+        assert!(
+            !report.errors.iter().any(|e| e.code == "ungrounded"),
+            "a file that declares a spec inline is grounded in the spec it is"
+        );
+    }
+
+    #[test]
+    fn require_grounding_ignores_markdown() {
+        let root = test_root("require_grounding_ignores_markdown");
+        write(&root.join("docs/notes.md"), "# Notes\n\nNothing cited here.\n");
+
+        let mut config = Config::default_for(root.clone());
+        config.require_grounding = true;
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+
+        assert!(
+            !report.errors.iter().any(|e| e.code == "ungrounded"),
+            "the grounding rule applies to source files, not Markdown"
+        );
+    }
+
+    #[test]
+    fn require_grounding_treats_dangling_only_file_as_ungrounded() {
+        let root = test_root("require_grounding_treats_dangling_only_file_as_ungrounded");
+        write(&root.join("src/app.rs"), "// §FS-001-missing\npub fn run() {}\n");
+
+        let mut config = Config::default_for(root.clone());
+        config.require_grounding = true;
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+
+        assert!(
+            report.errors.iter().any(|e| e.code == "dangling"),
+            "the dangling citation is still its own error"
+        );
+        let app = root.join("src/app.rs");
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|e| e.code == "ungrounded" && e.path.as_deref() == Some(app.as_path())),
+            "a file whose only citation resolves to nothing is not grounded"
         );
     }
 

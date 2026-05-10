@@ -2,7 +2,7 @@
 
 What `gnd` plans to ship next, in priority order. Each item has a stable ID — `RM-<slug>` under this repo's `[id] format` (§FS-config.3.2); `RM` is a configured `[[kinds]]` prefix (§FS-config.3.4), so `gnd check` validates `§RM-…` citations like any other. Items may be cited from anywhere — commits, PRs, the changelog, other specs. Shipped items move their detail to `docs/changelog.md` and keep a one-line pointer in §"Shipped milestones" below so the citation does not dangle; cancelled items stay in place with a `~~strikethrough~~` title and a one-line reason.
 
-The check engine, the retrieval surface (`gnd show`, `gnd refs`, including E2E case manifests), bulk normalization (`gnd fmt`, including `--marker` and `--md-links`), config loading (`.agents/gnd.toml` plus `gnd config show` / `gnd config validate`), `gnd init`, `gnd name`, and the e2e corpus are all shipped — see `docs/changelog.md`. What remains is the **distribution arc**: split the single binary into a `gnd-core` library plus thin frontends, verify the package names, publish on npm and PyPI alongside cargo, ship the optional LSP server, and add `gnd check --watch`. The IDed milestones below project that arc onto reviewable units of work.
+The check engine, the retrieval surface (`gnd show`, `gnd refs`, including E2E case manifests), bulk normalization (`gnd fmt`, including `--marker` and `--md-links`), config loading (`.agents/gnd.toml` plus `gnd config show` / `gnd config validate`), `gnd init`, `gnd name`, the opt-in grounding floor (§FS-check.3.6), and the e2e corpus are all shipped — see `docs/changelog.md`. Two arcs remain. The **distribution arc**: split the single binary into a `gnd-core` library plus thin frontends, verify the package names, publish on npm and PyPI alongside cargo, ship the optional LSP server, and add `gnd check --watch`. And the **grounding arc**: build on §FS-check.3.6 toward a diff-aware co-change gate — implementation cannot change without the spec it grounds in and without a test of it — via a `gnd cover` plumbing surface (§RM-cover) and a pre-commit / CI recipe that consumes it (§RM-cochange-gate). The IDed milestones below project both arcs onto reviewable units of work.
 
 ## RM-self-host: guard the self-host loop in CI
 
@@ -106,9 +106,49 @@ Per §FS-check.6. The editor-less "every save" loop §G-fast-feedback exists for
 
 An e2e fixture starts `gnd check --watch` on a clean fixture (asserts silent first run), writes a file that introduces a dangling ref (asserts the next run prints it), removes the bad citation (asserts the run goes silent again), then sends SIGINT (asserts exit code matches the last run). A second fixture asserts `--format=json` emits one self-contained report per run.
 
+## RM-cover: gnd cover — the scan exposed as a coverage index
+
+The grounding floor (§FS-check.3.6) answers "does this file cite *anything*?" The next question — "which spec does this hunk realize, and is there a test of it?" — needs the citation graph as data, not just a pass/fail. `gnd cover` exposes exactly what the scanner already collects.
+
+### 1. What
+
+`gnd cover [path] [--format text|json]`: for every scanned file, the IDs it cites with their line ranges; for every `§E2E-` case and every file under the test paths, the IDs it cites. NDJSON on stdout for `--format=json` — one record per file. No new scanning logic; it is a rendering surface over `Findings`, the way `gnd refs` and `gnd list` already are. Like every other read command it is a pure function of `(tree, config)` — no git, no AST (§FS-non-goals.3, §FS-non-goals.6, §FS-non-goals.13).
+
+### 2. Why now
+
+It is the substrate the co-change gate (§RM-cochange-gate) stands on: a pre-commit hook diffs against a base ref, then asks `gnd cover` which IDs each changed file leans on. Shipping it as its own command keeps the diff and the policy out of `gnd-core` while still giving the recipe a stable, machine-readable view of the graph. It is also independently useful — "what does `src/foo.rs` cite?" without a full `gnd refs` sweep per ID.
+
+### 3. Measurable
+
+`gnd cover --format=json` over the e2e corpus emits, for each file, exactly the citations `gnd refs` reports for the matching IDs (cross-checked in a parity test), byte-identical between runs (§FS-non-goals.13).
+
+## RM-cochange-gate: a pre-commit / CI recipe — no impl change without spec and test
+
+The strong form of the discipline: a changed source file must be grounded (§FS-check.3.6), and the change must also touch the spec it cites *or* a test of it, with an explicit escape hatch for refactors. This is diff-aware — a function of `(tree, base ref, config)`, not `(tree, config)` — and it leans on a git diff, so it lives in the recipe layer, **not** in `gnd-core` (a third first-party surface is out of scope, §FS-non-goals.12; the engine reads no history, §FS-non-goals.6). Tiering rationale in §DF-require-grounding.
+
+### 1. What
+
+A documented pre-commit hook / CI step (a recipe alongside the `gnd check` hook in the README, and a worked example under `examples/`), not a shipped binary. Given a base ref it: (a) lists changed source files; (b) for each, gets its cited IDs from `gnd cover` and fails `ungrounded change` if a changed hunk falls under no citation; (c) requires the diff to also touch the declaring file of one of those IDs *or* a test / `§E2E-` case that cites one of them; (d) honours an escape hatch — a commit trailer (e.g. `Gnd-Cochange: refactor`) or a `gnd:no-cochange` pragma on a hunk — for legitimate refactors, kept greppable so a reviewer sees every waiver. Which paths count as "source" vs. "test", whether (c) needs spec *and* test or *either*, and how the base ref is chosen are knobs the repo sets in the recipe, not in `gnd-core` — so the "two installs agree" contract (§FS-non-goals.13) and the no-config-on-severity rule (§FS-non-goals.9) are untouched.
+
+### 2. Why now
+
+§FS-check.3.6 makes "every file is grounded" true at rest; this makes "every change stays grounded, and ships with a test" true at the diff. It is unsound by construction — without an AST it cannot tell a behavioral hunk from a cosmetic one — so the escape hatch is mandatory and the gate is advisory-strict, not a proof. That trade is the reason it is a recipe a repo opts into, not engine behavior.
+
+### 3. Depends on
+
+- §RM-cover must land first; the gate consumes its JSON.
+
+### 4. Measurable
+
+The recipe, run in this repo's CI on a synthetic branch, fails a commit that edits a `src/` file without touching its spec or a test, passes the same commit once a `Gnd-Cochange:` trailer is added, and passes a commit that edits the spec and a test together. The `examples/` worked example carries golden output the e2e harness can diff.
+
 ## Shipped milestones
 
 Done milestones leave their full record in `docs/changelog.md` (the `Implemented` block of the latest release). They keep a one-line declaration here so existing `§RM-…` citations still resolve — the changelog has the detail.
+
+## RM-require-grounding: the opt-in grounding floor
+
+Shipped. `[reference] require_grounding` (and `gnd check --require-grounding`), the `ungrounded source file` error class, the inline-declaration exemption, Markdown skipped — see `docs/changelog.md`, §FS-check.3.6, §FS-config.3.1, and §DF-require-grounding. The diff-aware tiers are §RM-cover and §RM-cochange-gate.
 
 ## RM-e2e-corpus: the e2e/cases/* corpus and CI harness
 

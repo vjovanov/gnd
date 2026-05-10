@@ -1,7 +1,7 @@
 gnd show — print one declaration's body by ID, so an agent pulls a single fact
 into context without loading the whole document.
 
-Usage:  gnd show <ID>[.<section>] [--section S] [--head|--full] [--format text|md|json] [--path PATH]
+Usage:  gnd show <ID>[.<section>] [PATH] [--section S] [--head|--full] [--format text|md|json] [--path PATH]
 
 Options:
   --section S            show only that section path, e.g. --section 3.1

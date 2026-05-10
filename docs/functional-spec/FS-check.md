@@ -8,6 +8,7 @@ The `check` command walks a repo and reports every violation of the gnd referenc
 - The walked tree may contain markdown (`.md`) and source files (Rust, Go, Java, TS, Python, etc.).
 - Optional `.agents/gnd.toml` configuring marker, trigger, kinds, and skip lists per §G-configurable (§FS-config).
 - `--watch` is reserved for the planned resident checker (§6) and is not accepted by the current CLI.
+- `--require-grounding` — turn the grounding check (§3.6) on for this run regardless of `[reference] require_grounding` in `.agents/gnd.toml` (§FS-config.3.1). It only ever *adds* the check; it cannot switch off a config that already sets it.
 - `--format text|json` — output shape, per §FS-errors.5. The global flags `--version` and `--help` are handled before any scan (§FS-cli).
 
 ## 1.1 Recognized citations
@@ -77,6 +78,18 @@ A `docs/` file whose H1 has the stub shape `# <ID>: [<text>](<path>)` where eith
 ### 3.5 Invalid `agents.md` init block
 
 If `<path>/agents.md` exists, `check` verifies the versioned `gnd init` block defined by §FS-init.2.3. A missing block, malformed begin/end marker pair, older block version, or newer unsupported block version is an error. This lets CI catch repos whose agent entry point was never initialized or needs to be refreshed with `gnd init`.
+
+### 3.6 Ungrounded source file *(opt-in)*
+
+Off by default. When `[reference] require_grounding = true` is set in `.agents/gnd.toml` (§FS-config.3.1) — or `gnd check --require-grounding` is passed (§1) — every scanned **source file** (a file the walk reads whose extension is not `.md`, §AS-scanner.1) must be *grounded*: it must contain at least one recognized citation (§1.1) whose ID resolves to a declaration, **or** it must itself declare an ID inline (a spec home is grounded in the spec it *is*, §AS-scanner.4). A source file that is neither is an error, anchored at line 1:
+
+```
+src/foo.rs:1: ungrounded source file: no § citation to a declared ID
+```
+
+The marker in the message is the configured one (§FS-config.3.1). A file whose only citation is dangling (§3.1) is *not* grounded — it gets both findings; fixing the citation clears both. Markdown files are never subject to this rule (they are documents, not implementation); use the unused-declaration warning (§4.1) and dangling/section errors for those.
+
+This is a pure function of `(tree, config)` like every other `check` rule (§FS-non-goals.13): it reads no git history (§FS-non-goals.6) and parses no code (§FS-non-goals.3) — "source file" is decided by extension, "grounded" by the citations the scanner already collected. It is the floor of the grounding discipline; the diff-aware tiers (a `gnd cover` plumbing surface, a co-change gate) are tracked under §RM-cover and §RM-cochange-gate. Decided in §DF-require-grounding.
 
 ## 4. Warnings
 

@@ -1,14 +1,15 @@
 gnd check — validate every ID citation across the repo (the default subcommand).
 
-Usage:  gnd [check] [PATH] [--format text|json]
+Usage:  gnd [check] [PATH] [--require-grounding] [--format text|json]
 
 PATH defaults to `.`; config is discovered by walking up from it (FS-config.1).
 `gnd PATH` is shorthand for `gnd check PATH` — byte-for-byte equivalent.
 
 Options:
   --format text|json   text (default) prints `path:line: message`; json emits NDJSON.
+  --require-grounding  also require every source file to cite a declared ID ([reference] require_grounding).
 
-Exit:  0 clean · 1 dangling / duplicate / unknown-section findings · 2 unreadable tree or CLI error.
+Exit:  0 clean · 1 dangling / duplicate / unknown-section / ungrounded findings · 2 unreadable tree or CLI error.
 
 Examples:
   gnd                    # check the whole repo
