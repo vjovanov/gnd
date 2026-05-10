@@ -58,7 +58,19 @@ Citations are written prefixed by the marker `§`, e.g. `§FS-user-login.3.1`. T
 
 Each subfolder is a tiny self-contained repo plus golden `expected.*` files — `gnd examples/scheme-slug/repo` prints nothing and exits 0. See [`examples/README.md`](examples/README.md) for the full list.
 
+## Install
+
+```bash
+cargo install gnd                                  # from crates.io
+cargo install --path .                             # from a clone
+cargo install --git https://github.com/vjovanov/gnd  # pin to a git ref
+```
+
+This puts the `gnd` binary on your `PATH`. The npm and PyPI packages are planned — see [Distribution](#distribution) below.
+
 ## Try it
+
+From a clone, without installing:
 
 ```bash
 cargo build --release
@@ -120,13 +132,13 @@ Commands with machine-readable result modes document `--format text|json` in the
 
 Full surface in [`docs/functional-spec/`](docs/functional-spec/).
 
-## Distribution (planned)
+## Distribution
 
-One engine, three registries, idiomatic API on each:
+Today, `gnd` ships as a single cargo crate. The plan is one engine across three registries with an idiomatic API on each (tracked in [`docs/roadmap.md`](docs/roadmap.md)):
 
-- **cargo** — `gnd` (library + binary)
-- **npm** — `gnd-cli` (prebuilt binary + Node API via `napi-rs`)
-- **PyPI** — `gnd` (Python API via PyO3, wheels via `maturin`)
+- **cargo** — `gnd` (library + binary) — *shipping now* (`cargo install gnd`)
+- **npm** — `gnd-cli` (prebuilt binary + Node API via `napi-rs`) — *planned*
+- **PyPI** — `gnd` (Python API via PyO3, wheels via `maturin`) — *planned; package name re-verified before first publish per `RM-distribution-naming`*
 
 See [`FS-distribution`](docs/functional-spec/FS-distribution.md).
 
@@ -250,7 +262,7 @@ That rule plus a clean `gnd check` is the entire contract: every reference resol
 
 ## Verifying what a file refers to
 
-Before changing a file, an agent typically wants to know two things: *which specs does this file claim to be grounded in*, and *do those claims still hold*. Both are mechanical. The walkthrough below uses the same hypothetical `src/bus.rs` from the [spec-in-code example](#example-spec-in-code) — a file whose Rustdoc declares `AS-event-bus` and cites `§FS-events` back into the docs. (`gnd`'s own source does not yet carry inline `§` citations; that lands when [`RM-core-cli-split`](docs/roadmap.md) breaks the engine into its own module with its own `§AS-scanner` doc-comment.)
+Before changing a file, an agent typically wants to know two things: *which specs does this file claim to be grounded in*, and *do those claims still hold*. Both are mechanical. The walkthrough below uses the same hypothetical `src/bus.rs` from the [spec-in-code example](#example-spec-in-code) — a file whose Rustdoc declares `AS-event-bus` and cites `§FS-events` back into the docs — because it is small enough to read in one screen. For a real, much larger instance, `gnd`'s own `src/lib.rs` carries hundreds of `§…` doc-comment citations into `docs/`, and this repo runs with `[reference] require_grounding = true` (§FS-check.3.6) so *every* source file under `[scan] include` is required to carry at least one — `gnd cover src/`, `gnd refs <ID>`, and `gnd show <ID>` all work against this repo as-is. (The remaining step is the engine split into per-component modules each owning its own `# AS-…:` inline declaration — tracked as `RM-core-cli-split` in `docs/roadmap.md`.)
 
 ### List the citations in a file
 
@@ -332,5 +344,5 @@ Empty output, exit 0 means nothing cites it yet (`gnd check` will also warn abou
 - [`docs/functional-spec/`](docs/functional-spec/) — external behavior
 - [`docs/architectural-spec/`](docs/architectural-spec/) — internals
 - [`docs/decisions/`](docs/decisions/) — how we got here
-- [`docs/discussions/`](docs/discussions/) — ideas still open, as `DISC-*` proposals
+- [`docs/discussions/`](docs/discussions/) — ideas still open, as `DISC-*` proposals (`DISC` is a project-local `[[kinds]]` entry in this repo's `.agents/gnd.toml`, not one of the canonical defaults)
 - [`e2e/`](e2e/) — executable proof that the spec holds

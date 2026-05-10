@@ -18,3 +18,4 @@ Examples:
   gnd list                      # the whole catalog
   gnd list --kind AS docs/      # architectural-spec IDs under docs/
   gnd list --unused             # declarations no citation points at
+  gnd list --unused --kind FS   # uncited specs only (--unused alone also lists uncited E2E cases)

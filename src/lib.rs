@@ -4602,6 +4602,9 @@ fn print_subcommand_help(cmd: &str) {
             println!("  gnd list                      # the whole catalog");
             println!("  gnd list --kind AS docs/      # architectural-spec IDs under docs/");
             println!("  gnd list --unused             # declarations no citation points at");
+            println!(
+                "  gnd list --unused --kind FS   # uncited specs only (--unused alone also lists uncited E2E cases)"
+            );
         }
         "refs" => {
             println!("gnd refs — list every citation of an ID, as `path:line`, so you can see who");
@@ -4625,8 +4628,9 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!(
-                "Text citation lines go to stderr (the `check` diagnostic stream); json NDJSON goes to stdout."
+                "Text citation lines go to stderr (the `check` diagnostic stream — redirect `2>&1`"
             );
+            println!("to pipe them); `--format json` emits NDJSON on stdout instead.");
             println!();
             println!(
                 "Exit:  0 scan succeeded (with or without hits) · 2 unreadable tree or CLI error."
