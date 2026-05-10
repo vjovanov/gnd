@@ -11,6 +11,7 @@ use unicode_normalization::UnicodeNormalization;
 const SEC_GROUP: &str = r"(?P<sec>\d+(?:\.\d+)*)";
 const DEFAULT_INCLUDE: &[&str] = &["docs", "e2e", "src"];
 const DEFAULT_COMMENT_PREFIXES: &[&str] = &["//", "#", ";", "--", "*", "/*"];
+const SUBCOMMANDS: &[&str] = &["check", "show", "refs", "fmt", "name", "init", "config"];
 
 static STUB_LINK_HEADING: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^\s*:\s*\[[^\]]*\]\(\s*(?P<path>[^)\s]+)\s*\)\s*$").unwrap());
@@ -1564,6 +1565,10 @@ fn command_show(args: &[String]) -> ExitCode {
         Ok(parsed) => parsed,
         Err(err) => {
             eprintln!("{err:#}");
+            eprintln!(
+                "hint: this repo's [id] format is `{}` (run `gnd config show`); `gnd check` lists the IDs that exist",
+                config.id_format
+            );
             return ExitCode::FAILURE;
         }
     };
@@ -1610,7 +1615,18 @@ fn command_show(args: &[String]) -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(err) => {
-            eprintln!("{err:#}");
+            let message = format!("{err:#}");
+            eprintln!("{message}");
+            if message.starts_with("ID not found:") {
+                eprintln!(
+                    "hint: run `gnd check` to see what's declared, or `gnd name <KIND> \"<title>\"` to propose a new ID"
+                );
+            } else if message.starts_with("section not found:") {
+                eprintln!(
+                    "hint: run `gnd show {}` to print the whole declaration with its section numbers",
+                    render_id(&config, &id)
+                );
+            }
             ExitCode::FAILURE
         }
     }
@@ -1876,11 +1892,19 @@ fn command_fmt(args: &[String]) -> ExitCode {
         }
     };
     if write {
+        let mut files: Vec<PathBuf> = changes.iter().map(|(path, _, _)| path.clone()).collect();
+        files.sort();
+        files.dedup();
         eprintln!(
-            "rewrote {} reference{}",
+            "rewrote {} reference{}{}",
             changes.len(),
-            if changes.len() == 1 { "" } else { "s" }
+            if changes.len() == 1 { "" } else { "s" },
+            if files.is_empty() { "" } else { ":" }
         );
+        for path in &files {
+            let count = changes.iter().filter(|(p, _, _)| p == path).count();
+            eprintln!("  {} ({})", display_path(&config, path), count);
+        }
     } else {
         for (path, line, label) in &changes {
             eprintln!("{}:{}: {}", display_path(&config, path), line, label);
@@ -2395,9 +2419,11 @@ fn command_name(args: &[String]) -> ExitCode {
     let mut positional = Vec::new();
     let mut width = 3usize;
     let mut format = "text".to_string();
+    let mut explain = false;
     let mut idx = 0;
     while idx < args.len() {
         match args[idx].as_str() {
+            "--explain" => explain = true,
             "--width" => {
                 idx += 1;
                 if idx >= args.len() {
@@ -2526,6 +2552,16 @@ fn command_name(args: &[String]) -> ExitCode {
         );
     } else {
         println!("{rendered}");
+        if explain {
+            match kind_config.folder.as_deref() {
+                Some(folder) => eprintln!(
+                    "next: write the declaration at {folder}/{rendered}.md  (H1: `# {rendered}: <one-line statement>`), then cite it as §{rendered}"
+                ),
+                None => eprintln!(
+                    "next: write the declaration with H1 `# {rendered}: <one-line statement>`, then cite it as §{rendered}"
+                ),
+            }
+        }
     }
     ExitCode::SUCCESS
 }
@@ -2867,6 +2903,27 @@ fn command_init(args: &[String]) -> ExitCode {
         eprintln!("wrote {rel}");
     }
 
+    eprintln!();
+    eprintln!("next:");
+    eprintln!("  1. run `gnd check` — a freshly scaffolded tree is clean");
+    if docs {
+        eprintln!(
+            "  2. allocate an ID:  ID=$(gnd name FS \"…\")  then write  docs/functional-spec/$ID.md"
+        );
+        eprintln!("     (H1: `# <ID>: <one-line statement of the behavior>`)");
+        eprintln!(
+            "  3. cite it as §<ID> from the docs and e2e tests that depend on it, then `gnd check` again"
+        );
+    } else {
+        eprintln!(
+            "  2. re-run with --docs to scaffold docs/ and e2e/, or create those folders yourself"
+        );
+        eprintln!(
+            "  3. allocate an ID:  ID=$(gnd name FS \"…\")  then write  docs/functional-spec/$ID.md"
+        );
+    }
+    eprintln!("see agents.md for the full workflow.");
+
     ExitCode::SUCCESS
 }
 
@@ -2993,23 +3050,262 @@ fn print_help() {
     println!("doc-comments, so every reader — human or AI — points at the same facts.");
     println!();
     println!("Usage:");
-    println!("  gnd [check] [PATH] [OPTIONS]      check is the default — `gnd PATH` means `gnd check PATH`");
-    println!("  gnd <COMMAND> [ARGS] [OPTIONS]    run `gnd <COMMAND> --help` for that command's options");
+    println!(
+        "  gnd [check] [PATH] [OPTIONS]      check is the default — `gnd PATH` means `gnd check PATH`"
+    );
+    println!(
+        "  gnd <COMMAND> [ARGS] [OPTIONS]    run `gnd <COMMAND> --help` for that command's options"
+    );
     println!();
     println!("Commands:");
     println!("  check    Validate every reference in a repo (the default).        e.g. gnd .");
-    println!("  show     Print one declaration's body by ID — so an agent pulls   e.g. gnd show FS-login.3");
+    println!(
+        "  show     Print one declaration's body by ID — so an agent pulls   e.g. gnd show FS-login.3"
+    );
     println!("           one fact into context without loading the whole doc.");
-    println!("  refs     List every citation of an ID, as path:line.              e.g. gnd refs FS-login");
-    println!("  fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. gnd fmt --check");
-    println!("  name     Next conflict-free ID; KIND: G, FS, AS, DF, DA, E2E.     e.g. gnd name FS \"user login\"");
-    println!("  init     Scaffold agents.md + .agents/gnd.toml; idempotent.       e.g. gnd init --docs");
-    println!("  config   validate or show the effective .agents/gnd.toml.         e.g. gnd config show");
+    println!(
+        "  refs     List every citation of an ID, as path:line.              e.g. gnd refs FS-login"
+    );
+    println!(
+        "  fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. gnd fmt --check"
+    );
+    println!(
+        "  name     Next conflict-free ID; KIND: G, FS, AS, DF, DA, E2E.     e.g. gnd name FS \"user login\""
+    );
+    println!(
+        "  init     Scaffold agents.md + .agents/gnd.toml; idempotent.       e.g. gnd init --docs"
+    );
+    println!(
+        "  config   validate or show the effective .agents/gnd.toml.         e.g. gnd config show"
+    );
     println!();
-    println!("Options:  --format text|json   output shape; text is the default (where it applies).");
+    println!(
+        "Options:  --format text|json   output shape; text is the default (where it applies)."
+    );
     println!("          --version, -V        print version.       --help, -h   show this screen.");
     println!();
     println!("Help and version go to stdout and exit 0.   Docs: docs/functional-spec/");
+}
+
+/// Per-subcommand `--help` / `help <subcommand>` page (FS-cli.2): what it takes,
+/// every flag with a one-line example, the exit codes, and the common recovery
+/// path. Goes to stdout, exit 0 — help is never an error.
+fn print_subcommand_help(cmd: &str) {
+    match cmd {
+        "check" => {
+            println!(
+                "gnd check — validate every ID citation across the repo (the default subcommand)."
+            );
+            println!();
+            println!("Usage:  gnd [check] [PATH] [--format text|json]");
+            println!();
+            println!(
+                "PATH defaults to `.`; config is discovered by walking up from it (FS-config.1)."
+            );
+            println!("`gnd PATH` is shorthand for `gnd check PATH` — byte-for-byte equivalent.");
+            println!();
+            println!("Options:");
+            println!(
+                "  --format text|json   text (default) prints `path:line: message`; json emits NDJSON."
+            );
+            println!();
+            println!(
+                "Exit:  0 clean · 1 dangling / duplicate / unknown-section findings · 2 unreadable tree or CLI error."
+            );
+            println!();
+            println!("Examples:");
+            println!("  gnd                    # check the whole repo");
+            println!("  gnd docs/              # check one subtree");
+            println!("  gnd --format json      # machine-readable diagnostics for CI");
+        }
+        "show" => {
+            println!(
+                "gnd show — print one declaration's body by ID, so an agent pulls a single fact"
+            );
+            println!("into context without loading the whole document.");
+            println!();
+            println!(
+                "Usage:  gnd show <ID>[.<section>] [--section S] [--head|--full] [--format text|md|json] [--path PATH]"
+            );
+            println!();
+            println!("Options:");
+            println!("  --section S            show only that section path, e.g. --section 3.1");
+            println!(
+                "  --head                 first paragraph only       e.g. gnd show --head FS-login"
+            );
+            println!(
+                "  --full                 the whole declaration       e.g. gnd show --full FS-login"
+            );
+            println!(
+                "  --format text|md|json  text (default) is the body; md keeps the heading; json wraps it"
+            );
+            println!("  --path PATH            repo or subtree to resolve the ID in (default `.`)");
+            println!();
+            println!(
+                "Exit:  0 printed · 1 ID not found / ambiguous / broken stub / unknown section · 2 CLI error."
+            );
+            println!();
+            println!("Examples:");
+            println!("  gnd show FS-login              # the whole declaration body");
+            println!("  gnd show FS-login.3.1          # just that nested section");
+            println!();
+            println!(
+                "ID not found? `gnd check` lists what's declared; `gnd name <KIND> \"…\"` proposes a new ID."
+            );
+        }
+        "refs" => {
+            println!("gnd refs — list every citation of an ID, as `path:line`, so you can see who");
+            println!("depends on a declaration before you change it.");
+            println!();
+            println!("Usage:  gnd refs <ID>[.<section>] [PATH] [--section S] [--format text|json]");
+            println!();
+            println!(
+                "PATH defaults to `.`. With a `.<section>` (or --section), only citations of that"
+            );
+            println!(
+                "exact section are listed. An ID with no citations prints nothing and exits 0."
+            );
+            println!();
+            println!("Options:");
+            println!(
+                "  --section S          list only citations of that section path   e.g. gnd refs FS-login --section 3"
+            );
+            println!(
+                "  --format text|json   text (default) prints `path:line: <citation>`; json emits NDJSON."
+            );
+            println!();
+            println!(
+                "Exit:  0 scan succeeded (with or without hits) · 2 unreadable tree or CLI error."
+            );
+            println!();
+            println!("Examples:");
+            println!("  gnd refs FS-login             # every citation of FS-login");
+            println!("  gnd refs FS-login.3           # only citations of section 3");
+        }
+        "fmt" => {
+            println!(
+                "gnd fmt — normalize citation syntax: rewrite the `$$` trigger to the `§` marker,"
+            );
+            println!("and optionally upgrade bare ID tokens to marker-prefixed ones.");
+            println!();
+            println!("Usage:  gnd fmt [PATH] [--check | --write] [--marker] [--md-links]");
+            println!();
+            println!("Options:");
+            println!(
+                "  --check        report what would change, exit 1 if anything would   e.g. gnd fmt --check"
+            );
+            println!(
+                "  --write        apply the changes in place                           e.g. gnd fmt --write"
+            );
+            println!(
+                "  --marker       also prefix bare `<ID>` tokens with the marker        e.g. gnd fmt --write --marker"
+            );
+            println!(
+                "  --md-links     also wrap citations as Markdown links to their target e.g. gnd fmt --write --md-links"
+            );
+            println!();
+            println!(
+                "With neither --check nor --write, fmt prints the would-be changes and exits 1 if any (a dry run)."
+            );
+            println!(
+                "--write prints `rewrote N references:` then one `  <path> (count)` line per file touched."
+            );
+            println!();
+            println!(
+                "Exit:  0 nothing to do, or --write succeeded · 1 changes pending (dry run / --check) · 2 unreadable tree or CLI error."
+            );
+        }
+        "name" => {
+            println!("gnd name — emit the next conflict-free ID for a new declaration of a kind.");
+            println!();
+            println!(
+                "Usage:  gnd name <KIND> \"<title>\" [PATH] [--width N] [--explain] [--format text|json]"
+            );
+            println!();
+            println!(
+                "KIND is one of the configured prefixes (default G, FS, AS, DF, DA, E2E). The title is"
+            );
+            println!(
+                "slugified deterministically; the number is `max(existing) + 1` (holes are never filled)."
+            );
+            println!();
+            println!("Options:");
+            println!(
+                "  --width N      minimum digit width for the number (default 3)   e.g. gnd name FS \"x\" --width 4"
+            );
+            println!(
+                "  --explain      also print where to put the declaration file     e.g. gnd name FS \"x\" --explain"
+            );
+            println!(
+                "  --format text|json   text (default) is the bare ID on stdout; json adds kind/number/slug/folder."
+            );
+            println!();
+            println!(
+                "Exit:  0 ID emitted · 1 unknown kind / empty slug / collision · 2 scan or CLI error."
+            );
+            println!();
+            println!("Examples:");
+            println!(
+                "  gnd name FS \"User can log in\"          # -> FS-007-user-can-log-in (or FS-user-can-log-in)"
+            );
+            println!(
+                "  ID=$(gnd name FS \"User can log in\"); $EDITOR \"docs/functional-spec/$ID.md\""
+            );
+        }
+        "init" => {
+            println!(
+                "gnd init — scaffold `agents.md` + `.agents/gnd.toml` (and, with --docs, the docs/ and e2e/ layout)."
+            );
+            println!(
+                "Idempotent: re-running updates the managed `agents.md` block in place and leaves your edits alone."
+            );
+            println!();
+            println!("Usage:  gnd init [PATH] [--docs] [--name NAME] [--force | --append]");
+            println!();
+            println!("Options:");
+            println!(
+                "  --docs         also write docs/ (raison-detre, goals, roadmap, changelog, spec READMEs) and e2e/"
+            );
+            println!(
+                "  --name NAME    project name to interpolate (default: derived from the directory)"
+            );
+            println!("  --force        overwrite existing files with the canonical version");
+            println!(
+                "  --append       append the managed agents.md block instead of replacing an older one"
+            );
+            println!();
+            println!(
+                "Exit:  0 written / updated / already current · 2 missing target, --force+--append, or unsupported newer block."
+            );
+            println!();
+            println!("Examples:");
+            println!("  gnd init --docs                  # full first-time scaffold");
+            println!("  gnd init --name \"My Service\"      # just agents.md + .agents/gnd.toml");
+        }
+        "config" => {
+            println!(
+                "gnd config — inspect the effective `.agents/gnd.toml` (the one discovered by walking up from `.`)."
+            );
+            println!();
+            println!("Usage:  gnd config <show | validate>");
+            println!();
+            println!(
+                "  show       print the effective config as TOML (defaults filled in for keys you didn't set)."
+            );
+            println!(
+                "  validate   parse the discovered config and report the first error; exit 0 if it's well-formed."
+            );
+            println!();
+            println!(
+                "There is no `--config <path>` override — config is discovered, not pointed at (FS-cli.6)."
+            );
+            println!();
+            println!(
+                "Exit:  0 well-formed / printed · 1 `validate` found an error · 2 no subcommand, or `show` couldn't read the config."
+            );
+        }
+        _ => print_help(),
+    }
 }
 
 pub fn main_entry() -> ExitCode {
@@ -3018,16 +3314,37 @@ pub fn main_entry() -> ExitCode {
         println!("gnd {}", env!("CARGO_PKG_VERSION"));
         return ExitCode::SUCCESS;
     }
+    let first = args.first().map(|arg| arg.as_str());
+    // `gnd help [<subcommand>]` — the top-level page with no argument, that
+    // subcommand's page with one, an error for an unknown name (FS-cli.2).
+    if first == Some("help") {
+        return match args.get(1).map(String::as_str) {
+            None => {
+                print_help();
+                ExitCode::SUCCESS
+            }
+            Some(cmd) if SUBCOMMANDS.contains(&cmd) => {
+                print_subcommand_help(cmd);
+                ExitCode::SUCCESS
+            }
+            Some(other) => {
+                eprintln!("error: unknown command: {other}");
+                eprintln!("known commands: {}", SUBCOMMANDS.join(", "));
+                ExitCode::from(2)
+            }
+        };
+    }
+    // `--help` / `-h` short-circuits before any work; with a known subcommand
+    // first it prints that subcommand's page, otherwise the top-level one.
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
-        print_help();
+        match first {
+            Some(cmd) if SUBCOMMANDS.contains(&cmd) => print_subcommand_help(cmd),
+            _ => print_help(),
+        }
         return ExitCode::SUCCESS;
     }
-    match args.first().map(|arg| arg.as_str()) {
+    match first {
         None => command_check(&[]),
-        Some("help") => {
-            print_help();
-            ExitCode::SUCCESS
-        }
         Some("check") => command_check(&args[1..]),
         Some("show") => command_show(&args[1..]),
         Some("refs") => command_refs(&args[1..]),
@@ -3037,9 +3354,20 @@ pub fn main_entry() -> ExitCode {
         Some("config") => command_config(&args[1..]),
         Some(other) if other.starts_with('-') => command_check(&args),
         // Any first argument that is not a known subcommand is a path argument:
-        // `gnd <path>` ≡ `gnd check <path>` (FS-cli.1). A nonexistent path is
-        // reported by `check`, not as a bogus "unknown subcommand".
-        Some(_) => command_check(&args),
+        // `gnd <path>` ≡ `gnd check <path>` (FS-cli.1). When that path doesn't
+        // exist the message names both readings, so a mistyped subcommand isn't
+        // misreported as a missing file (FS-cli.1, FS-cli.4).
+        Some(other) => {
+            if !Path::new(other).exists() {
+                eprintln!("error: unknown command or missing path: {other}");
+                eprintln!("known commands: {}", SUBCOMMANDS.join(", "));
+                eprintln!(
+                    "(a bare path is shorthand for `gnd check <path>`; run `gnd --help` for commands)"
+                );
+                return ExitCode::from(2);
+            }
+            command_check(&args)
+        }
     }
 }
 

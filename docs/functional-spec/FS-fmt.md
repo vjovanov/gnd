@@ -50,7 +50,7 @@ This gives two correctly-configured installs identical output on identical input
 - `1` — `--check` found at least one citation that would be rewritten. Never returned by `--write`.
 - `2` — I/O error.
 
-With `--check`, the report lists one `path:line: <kind>` line per changed line, where `<kind>` names the rewrite: `trigger → marker` (a typed trigger sequence rewritten to the marker, §2.1), `bare → marker` (a bare citation marked, §2.2, with `--marker`), or `markdown link` (a citation wrapped or re-derived, §6, with `--md-links`). With `--write`, the report is a summary count; the file system carries the change.
+With `--check` (or no flag, the implicit dry run), the report lists one `path:line: <kind>` line per changed line, where `<kind>` names the rewrite: `trigger → marker` (a typed trigger sequence rewritten to the marker, §2.1), `bare → marker` (a bare citation marked, §2.2, with `--marker`), or `markdown link` (a citation wrapped or re-derived, §6, with `--md-links`). With `--write`, the report names what changed on disk: a `rewrote N reference(s):` summary line, then one `  <path> (<count>)` line per file touched, in lexicographic path order (an empty change set prints `rewrote 0 references` with no list). The file system carries the actual change; the summary is so a reviewer can see which files to re-inspect without diffing the whole tree.
 
 ## 4. Why this exists
 

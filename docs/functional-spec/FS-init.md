@@ -74,11 +74,15 @@ wrote .agents/gnd.toml
 
 The prefix is `wrote ` for a newly written or overwritten file, `appended ` when the versioned `gnd` block was added to an existing `agents.md`, `updated ` when an older managed block was replaced with the current version, and `exists ` when an existing file was left unchanged.
 
+After the file list, stderr prints a short `next:` block — a blank line, then numbered first steps, then `see agents.md for the full workflow.` — so the user is not left at a bare list of paths wondering what to do. The steps are: run `gnd check` (a fresh tree is clean); allocate an ID with `ID=$(gnd name FS "…")` and write `docs/functional-spec/$ID.md` with the `# <ID>: …` H1; cite it as `§<ID>` from the docs and e2e tests that depend on it. When `--docs` was *not* passed, step 2 instead points at re-running with `--docs` (or creating `docs/` and `e2e/` by hand). This block is guidance, not a finding; it is part of the success output and does not change the exit code.
+
 Paths are relative to `<path>`. Stdout is always empty (consistent with G-friendliness-first.1.6 — output that other tools might pipe stays clean).
 
 ### 2.3 Generated `agents.md`
 
 The emitted `agents.md` content is a canonical managed block: it explains the ID grammar, points at the `docs/` layout (including `roadmap.md` and `changelog.md`), and lists the rules for agents (mirrors the rules in this repo's own `agents.md`). The canonical text for a given block version `vN` is embedded in the `gnd` binary; the reference copy lives at `templates/agents.md` in the `gnd` source tree, and the `vN` marker (§2.3) is what versions it under G-no-silent-breakage. The `<name>` from `--name` is interpolated into the H1 and the opening sentence; everything else is fixed for that `vN`. The contract this spec makes is the *determinism and versioning*, not a literal transcript: two `gnd init` runs at the same `gnd` version with the same `--name` produce byte-identical managed blocks (FS-non-goals.13), and `gnd check`'s `agents.md` validation (FS-check.3.5) checks the begin/end marker pair and the version, not a byte-diff against the canonical text.
+
+One content rule the canonical text *does* commit to, because getting it wrong sets a trap: references to `gnd`'s own specification — the `check`/`show` contract, the enumerated doc-comment forms, the marker decision — are written as prose and links to the `gnd` repository, never as `§<ID>` citations. In the user's repo only IDs declared *in that repo* resolve with `gnd show`; an `agents.md` that tells the reader "run `gnd show <ID>`" and then cites `§FS-…` IDs that belong to `gnd` itself would have the reader chase a dangling reference. The `§<KIND>-<…>` tokens that do appear in the block are explicitly flagged as shape illustrations, not real IDs.
 
 The managed block is wrapped in version markers:
 

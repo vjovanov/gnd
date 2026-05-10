@@ -1,22 +1,16 @@
-gnd — ground your agents in the spec.
-Checks ID-based citations (§<ID>.<section>) across Markdown docs and source-code
-doc-comments, so every reader — human or AI — points at the same facts.
+gnd check — validate every ID citation across the repo (the default subcommand).
 
-Usage:
-  gnd [check] [PATH] [OPTIONS]      check is the default — `gnd PATH` means `gnd check PATH`
-  gnd <COMMAND> [ARGS] [OPTIONS]    run `gnd <COMMAND> --help` for that command's options
+Usage:  gnd [check] [PATH] [--format text|json]
 
-Commands:
-  check    Validate every reference in a repo (the default).        e.g. gnd .
-  show     Print one declaration's body by ID — so an agent pulls   e.g. gnd show FS-login.3
-           one fact into context without loading the whole doc.
-  refs     List every citation of an ID, as path:line.              e.g. gnd refs FS-login
-  fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. gnd fmt --check
-  name     Next conflict-free ID; KIND: G, FS, AS, DF, DA, E2E.     e.g. gnd name FS "user login"
-  init     Scaffold agents.md + .agents/gnd.toml; idempotent.       e.g. gnd init --docs
-  config   validate or show the effective .agents/gnd.toml.         e.g. gnd config show
+PATH defaults to `.`; config is discovered by walking up from it (FS-config.1).
+`gnd PATH` is shorthand for `gnd check PATH` — byte-for-byte equivalent.
 
-Options:  --format text|json   output shape; text is the default (where it applies).
-          --version, -V        print version.       --help, -h   show this screen.
+Options:
+  --format text|json   text (default) prints `path:line: message`; json emits NDJSON.
 
-Help and version go to stdout and exit 0.   Docs: docs/functional-spec/
+Exit:  0 clean · 1 dangling / duplicate / unknown-section findings · 2 unreadable tree or CLI error.
+
+Examples:
+  gnd                    # check the whole repo
+  gnd docs/              # check one subtree
+  gnd --format json      # machine-readable diagnostics for CI

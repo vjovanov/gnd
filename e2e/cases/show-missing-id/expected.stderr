@@ -1,1 +1,2 @@
 ID not found: FS-999-missing
+hint: run `gnd check` to see what's declared, or `gnd name <KIND> "<title>"` to propose a new ID

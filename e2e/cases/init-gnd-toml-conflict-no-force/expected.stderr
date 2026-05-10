@@ -1,2 +1,8 @@
 wrote agents.md
 exists .agents/gnd.toml
+
+next:
+  1. run `gnd check` — a freshly scaffolded tree is clean
+  2. re-run with --docs to scaffold docs/ and e2e/, or create those folders yourself
+  3. allocate an ID:  ID=$(gnd name FS "…")  then write  docs/functional-spec/$ID.md
+see agents.md for the full workflow.

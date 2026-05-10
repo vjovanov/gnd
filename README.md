@@ -107,9 +107,9 @@ exec gnd check
 | `gnd show <ID> [--head]`   | Print just the body of a declaration, for pulling spec content into agent prompts. |
 | `gnd refs <ID> [path]`     | List every citation of an ID — `path:line: <citation>` — so you know what leans on a declaration before you change it. |
 | `gnd fmt [path]`           | Rewrite `$$` triggers to `§`; with `--marker`, also upgrade bare citations.        |
-| `gnd name <KIND> "<title>"` | Emit the next conflict-free ID for a new declaration (e.g. `FS-008-user-login`). Pure function from `(kind, title, tree)` to `id`; no files are written.        |
+| `gnd name <KIND> "<title>" [--explain]` | Emit the next conflict-free ID for a new declaration (e.g. `FS-008-user-login`). Pure function from `(kind, title, tree)` to `id`; no files are written. `--explain` adds a one-line "where to put the file" hint on stderr (stdout stays the bare ID). |
 | `gnd config (validate\|show)` | `validate` checks `.agents/gnd.toml` against the schema; `show` prints the effective config (defaults + file + flags) as TOML. |
-| `gnd --version` / `gnd --help` | Print the version, or one-screen usage; handled before any scan. |
+| `gnd --version` / `gnd --help` / `gnd help <command>` | Print the version, the one-screen top-level usage, or one command's page (its flags, examples, exit codes); all handled before any scan. |
 
 Full surface in [`docs/functional-spec/`](docs/functional-spec/).
 

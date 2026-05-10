@@ -5,16 +5,17 @@ The `name` subcommand emits a single, conflict-free `<KIND>-<NNN>-<slug>` ID for
 ## 1. Inputs
 
 ```
-gnd name <KIND> "<title>" [<path>] [--width <N>] [--format text|json]
+gnd name <KIND> "<title>" [<path>] [--width <N>] [--explain] [--format text|json]
 ```
 
 - `<KIND>` — required. One of the configured `[[kinds]]` prefixes (FS-config.3.4). Unknown kinds are an error (§4).
 - `<title>` — required. Free-form human title for the new declaration; converted to a slug per §3.
 - `<path>` — directory whose tree is scanned to determine "next free number." Defaults to the current directory. Discovery is the same as every other `gnd` command (walks up to find `gnd.toml`; falls back to defaults).
 - `--width <N>` — minimum digit width for the number. Default `3`, matching the canonical form's `-NNN-`. The number is left-padded with zeros to at least this width; numbers that already exceed the width are emitted as-is.
+- `--explain` — in `--format text`, also print a one-line `next:` hint to stderr telling the caller where to put the declaration (§2.3). No effect in `--format json`, which already carries the `folder`.
 - `--format text|json` — output shape (§2). Default `text`.
 
-Per FS-non-goals.10, `name` is non-interactive: no prompt, no confirmation. The proposed ID is the only output.
+Per FS-non-goals.10, `name` is non-interactive: no prompt, no confirmation. `stdout` is always exactly the proposed ID (so `$(gnd name …)` is safe); `--explain` adds a hint on `stderr` only.
 
 ## 2. Outputs
 
@@ -38,7 +39,19 @@ ID=$(gnd name FS "User can log in with email")
 $EDITOR "docs/functional-spec/${ID}.md"
 ```
 
-Stderr is empty on success. The `path:line:` prefix from G-friendliness-first.1 does not apply — `name` synthesizes; it does not point at a source location.
+Stderr is empty on success unless `--explain` was passed (§2.3). The `path:line:` prefix from G-friendliness-first.1 does not apply — `name` synthesizes; it does not point at a source location.
+
+### 2.3 `--explain` (text only)
+
+With `--explain`, stdout is unchanged — still the bare ID — and stderr carries one extra line: where to put the declaration and how to start it. For a kind with a configured `folder`:
+
+```
+$ gnd name FS "User can log in with email" --explain
+FS-008-user-can-log-in-with-email
+next: write the declaration at docs/functional-spec/FS-008-user-can-log-in-with-email.md  (H1: `# FS-008-user-can-log-in-with-email: <one-line statement>`), then cite it as §FS-008-user-can-log-in-with-email
+```
+
+If the kind has no `folder`, the hint names the H1 and the citation but not a path. This is the human-facing complement to the script-facing default: the bare ID still composes in `$(…)`, while a person who ran `gnd name` interactively gets the obvious next step instead of having to recall the layout. It does not create the file (§7).
 
 ### 2.2 `--format json`
 

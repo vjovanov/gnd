@@ -104,6 +104,14 @@ This is the same "found something other than exactly one body" family as `ID not
 
 Stdout carries the body (or, with `--format=json`, the result object — one JSON object, never NDJSON, per FS-errors.5). Stderr carries errors. Stdout is empty on error.
 
+A failed query (`1`) prints the bare result line and, where the next step is obvious, one extra `hint:` line on stderr below it — never on stdout, never in `--format=json`:
+
+- `ID not found: <ID>` → `hint: run \`gnd check\` to see what's declared, or \`gnd name <KIND> "<title>"\` to propose a new ID`
+- `section not found: <ID>.<s>` → `hint: run \`gnd show <ID>\` to print the whole declaration with its section numbers`
+- a `<ID>` argument that does not match the configured `[id] format` (FS-config.3.2) is rejected before the scan with `invalid ID \`<arg>\``, followed by `hint: this repo's [id] format is \`<format>\` (run \`gnd config show\`); \`gnd check\` lists the IDs that exist` — this is the common surprise in a repo whose format differs from the `{kind}-{slug}` `gnd` itself uses.
+
+`ambiguous ID` and `broken stub` get no hint: the fix (run `gnd check`, then edit the duplicate or the stub) is already stated in §2.2.1 / §2.3.4 and the message names the sites.
+
 ### 3.1 Format variants
 
 - `text` (default) — the body only: for a markdown declaration, the lines after the heading line through the end of the body; for an inline-source declaration, the comment-stripped prose (§2.3.2); for an E2E case, the manifest (§2.4). The opening heading line is **omitted**.

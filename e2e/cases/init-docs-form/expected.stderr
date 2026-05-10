@@ -10,3 +10,10 @@ wrote docs/decisions/architectural/.gitkeep
 wrote docs/decisions/functional/.gitkeep
 wrote e2e/README.md
 wrote e2e/cases/.gitkeep
+
+next:
+  1. run `gnd check` — a freshly scaffolded tree is clean
+  2. allocate an ID:  ID=$(gnd name FS "…")  then write  docs/functional-spec/$ID.md
+     (H1: `# <ID>: <one-line statement of the behavior>`)
+  3. cite it as §<ID> from the docs and e2e tests that depend on it, then `gnd check` again
+see agents.md for the full workflow.

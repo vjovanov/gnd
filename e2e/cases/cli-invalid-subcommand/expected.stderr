@@ -1,1 +1,3 @@
-error: path does not exist: bogus
+error: unknown command or missing path: bogus
+known commands: check, show, refs, fmt, name, init, config
+(a bare path is shorthand for `gnd check <path>`; run `gnd --help` for commands)

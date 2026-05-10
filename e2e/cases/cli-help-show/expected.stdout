@@ -1,0 +1,19 @@
+gnd show — print one declaration's body by ID, so an agent pulls a single fact
+into context without loading the whole document.
+
+Usage:  gnd show <ID>[.<section>] [--section S] [--head|--full] [--format text|md|json] [--path PATH]
+
+Options:
+  --section S            show only that section path, e.g. --section 3.1
+  --head                 first paragraph only       e.g. gnd show --head FS-login
+  --full                 the whole declaration       e.g. gnd show --full FS-login
+  --format text|md|json  text (default) is the body; md keeps the heading; json wraps it
+  --path PATH            repo or subtree to resolve the ID in (default `.`)
+
+Exit:  0 printed · 1 ID not found / ambiguous / broken stub / unknown section · 2 CLI error.
+
+Examples:
+  gnd show FS-login              # the whole declaration body
+  gnd show FS-login.3.1          # just that nested section
+
+ID not found? `gnd check` lists what's declared; `gnd name <KIND> "…"` proposes a new ID.
