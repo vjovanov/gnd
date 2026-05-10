@@ -1,0 +1,14 @@
+gnd completions — print a shell completion script for gnd.
+
+Usage:  gnd completions <bash|zsh|fish>
+
+The generated scripts complete subcommands and complete declared IDs for
+`gnd show <ID>` and `gnd refs <ID>` by calling the hidden helper:
+`gnd complete ids --prefix <word>`.
+
+Install examples:
+  source <(gnd completions bash)
+  gnd completions zsh > ~/.zfunc/_gnd
+  gnd completions fish > ~/.config/fish/completions/gnd.fish
+
+Exit:  0 script printed · 2 unsupported shell.

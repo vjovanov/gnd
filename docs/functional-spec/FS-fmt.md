@@ -30,6 +30,7 @@ When `--marker` is given, every recognized bare citation is also rewritten to it
 
 - Declaration headings (the line that names the ID). The marker is for *citations*, not declarations.
 - Citations inside string literals on a source line (where rewriting would change runtime behavior).
+- Citations inside Markdown inline code spans (where rewriting would change a literal command, path, or example).
 - Files outside the configured scan set.
 
 #### 2.3.1 String-literal exclusion rule
@@ -42,7 +43,7 @@ The string-literal exclusion is deterministic, not heuristic. For every candidat
 
 Markdown files (`.md`) are not subject to this rule — they have no string literals. The rule applies only to files matched by the `extensions` list excluding `md`.
 
-This gives two correctly-configured installs identical output on identical input (FS-non-goals.13).
+This gives two correctly-configured installs identical output on identical input (§FS-non-goals.13).
 
 ## 3. Outputs
 
@@ -62,7 +63,7 @@ Three reasons:
 
 ## 5. Configurability
 
-Marker, trigger, and the recognized `KIND` set are read from `gnd.toml` per G-configurable. The defaults are `§` and `$$` as decided in DF-reference-marker.
+Marker, trigger, and the recognized `KIND` set are read from `gnd.toml` per §G-configurable. The defaults are `§` and `$$` as decided in §DF-reference-marker.
 
 ## 6. Markdown link emission (with `--md-links`)
 
@@ -74,13 +75,13 @@ A free convenience layer on top of the ID system: in rendered Markdown (GitHub, 
 
 ### 6.2 Form
 
-Wrap the citation. A bare or marker-prefixed citation (illustrated as `FS-foo.3.1`) becomes:
+Wrap the citation. A bare or marker-prefixed citation (illustrated as `§FS-<foo>.3.1`) becomes:
 
 ```
-[§FS-foo.3.1](<relative-path>#<anchor>)
+[§FS-<foo>.3.1](<relative-path>#<anchor>)
 ```
 
-- `<relative-path>` — path from the file containing the citation to the file containing the declaration, in POSIX form (`../functional-spec/FS-foo.md`). When the declaration's home is in source code (a stub points at `src/foo.rs`), the link targets the source file directly with no anchor — the host renderer will not jump inside a doc-comment, but the link still leads to the right file.
+- `<relative-path>` — path from the file containing the citation to the file containing the declaration, in POSIX form (`../functional-spec/FS-<foo>.md`). When the declaration's home is in source code (a stub points at `src/foo.rs`), the link targets the source file directly with no anchor — the host renderer will not jump inside a doc-comment, but the link still leads to the right file.
 - `#<anchor>` — section anchor when the citation has a `.<section>` part. The anchor is the heading text slugified per the configured renderer profile (§6.7) — for the default `github` profile, `### 6.2 Form` produces `#62-form`. The full strategy and profile list is decided in §DF-md-link-anchor-strategy. When the citation has no section, the `#…` part is omitted. When the active profile is `none`, the anchor is omitted regardless.
 
 The citation text inside the brackets is preserved verbatim, including the marker. A reader scanning the rendered Markdown sees the citation exactly as before; only now it is clickable.

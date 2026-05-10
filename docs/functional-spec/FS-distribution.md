@@ -1,6 +1,6 @@
 # FS-distribution: gnd distribution targets
 
-Status: planned beyond the Cargo CLI. `gnd` is written in Rust; the target distribution is **all three** major language ecosystems, with idiomatic API bindings on each. The check engine remains a single shared library; the surfaces differ. Serves G-multi-language and G-friendliness-first.
+Status: planned beyond the Cargo CLI. `gnd` is written in Rust; the target distribution is **all three** major language ecosystems, with idiomatic API bindings on each. The check engine remains a single shared library; the surfaces differ. Serves §G-multi-language and §G-friendliness-first.
 
 ## 1. Targets
 
@@ -13,7 +13,7 @@ Status: planned beyond the Cargo CLI. `gnd` is written in Rust; the target distr
 | PyPI     | `gnd`               | Prebuilt CLI wheel + Python API surface (via `PyO3` / `maturin`).         |
 | PyPI     | `gnd-lsp`           | Optional LSP server, distributed via wheel (`pipx install gnd-lsp`).      |
 
-The PyPI name `gnd` is held by an unrelated dormant package (§DA-reference-checker-name records it as a squat ignorable for our purposes); using `gnd` rather than `gnd-cli` on PyPI avoids a `pip install gnd-cli` mismatch with the Python convention. The npm package uses `gnd-cli` because the unscoped `gnd` is likewise held by an unrelated dormant package (see §DA-reference-checker-name). Both squats — and the `gnd-lsp` slot on each registry — are re-verified by §RM-distribution-naming before the first publish; if a name that the docs assumed dormant turns out to be live, RM-distribution-naming picks and records an explicit alternate (e.g. `gnd-cli` on PyPI).
+The PyPI name `gnd` is held by an unrelated dormant package (§DA-reference-checker-name records it as a squat ignorable for our purposes); using `gnd` rather than `gnd-cli` on PyPI avoids a `pip install gnd-cli` mismatch with the Python convention. The npm package uses `gnd-cli` because the unscoped `gnd` is likewise held by an unrelated dormant package (see §DA-reference-checker-name). Both squats — and the `gnd-lsp` slot on each registry — are re-verified by §RM-distribution-naming before the first publish; if a name that the docs assumed dormant turns out to be live, §RM-distribution-naming picks and records an explicit alternate (e.g. `gnd-cli` on PyPI).
 
 The CLI install on each registry does **not** transitively pull in `gnd-lsp` — they are independent published packages, per §DA-lsp-optional. A user who only runs `gnd check` in CI installs the CLI alone; a user who wants editor integration installs `gnd-lsp` separately and configures their editor to launch it (§FS-lsp.2).
 

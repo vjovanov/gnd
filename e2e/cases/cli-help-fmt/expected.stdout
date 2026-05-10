@@ -1,0 +1,15 @@
+gnd fmt — normalize citation syntax: rewrite the `$$` trigger to the `§` marker,
+and optionally upgrade bare ID tokens to marker-prefixed ones.
+
+Usage:  gnd fmt [PATH] [--check | --write] [--marker] [--md-links]
+
+Options:
+  --check        report what would change, exit 1 if anything would   e.g. gnd fmt --check
+  --write        apply the changes in place                           e.g. gnd fmt --write
+  --marker       also prefix bare `<ID>` tokens with the marker        e.g. gnd fmt --write --marker
+  --md-links     also wrap citations as Markdown links to their target e.g. gnd fmt --write --md-links
+
+With neither --check nor --write, fmt prints the would-be changes and exits 1 if any (a dry run).
+--write prints `rewrote N references:` then one `  <path> (count)` line per file touched.
+
+Exit:  0 nothing to do, or --write succeeded · 1 changes pending (dry run / --check) · 2 unreadable tree or CLI error.

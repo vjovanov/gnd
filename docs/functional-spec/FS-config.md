@@ -1,6 +1,6 @@
 # FS-config: gnd reads a TOML config file under .agents/
 
-`gnd` is zero-config out of the box (G-zero-config) and fully configurable when a project's conventions diverge (G-configurable). This spec defines the contract: where the config lives, what it contains, what it overrides, and how malformed configs are reported.
+`gnd` is zero-config out of the box (§G-zero-config) and fully configurable when a project's conventions diverge (§G-configurable). This spec defines the contract: where the config lives, what it contains, what it overrides, and how malformed configs are reported.
 
 ## 1. File location and discovery
 
@@ -16,7 +16,7 @@ CLI flags > `gnd.toml` > built-in defaults. Layering is shallow: a value present
 
 ## 3. Schema
 
-The config file is TOML. Every key is optional; omitted keys take the default value. Unknown keys are an **error**, not a warning, per G-friendliness-first — typos in config files are bugs and gnd surfaces them loudly.
+The config file is TOML. Every key is optional; omitted keys take the default value. Unknown keys are an **error**, not a warning, per §G-friendliness-first — typos in config files are bugs and gnd surfaces them loudly.
 
 The recognized surface is the line-oriented subset that the schema below uses: one `key = value` per line, basic (double-quoted) strings, booleans, integers, and single-line `["…", "…"]` arrays of basic strings; `#` comments; `[table]` and `[[array.of.tables]]` headers. Multi-line arrays, inline `{ … }` tables, and other TOML constructs are not parsed — keep each value on one line. A line that does not fit this shape is reported as an error pointing at the offending line, per §4.3.
 
@@ -38,7 +38,7 @@ trigger = "$$"     # default; typed sequence rewritten to marker by IDE plugin a
 strict  = false    # default; if true, bare citations are NOT recognized
 ```
 
-Per DF-reference-marker. `strict = true` requires a non-empty `marker`.
+Per §DF-reference-marker. `strict = true` requires a non-empty `marker`.
 
 ### 3.2 `[id]` — ID grammar
 
@@ -60,7 +60,7 @@ The three canonical shapes:
 | `"{kind}-{number}"`            | `FS-NNN`              | number                       |
 | `"{kind}-{slug}"`              | `FS-<slug>`           | slug must be unique per kind |
 
-When `{number}` is omitted, slugs must be unique within each kind — two declarations sharing a kind and slug collide on the same ID and are reported as duplicate declarations (per FS-check.3). When `{number}` is present, slugs are descriptive only and may repeat across declarations with different numbers.
+When `{number}` is omitted, slugs must be unique within each kind — two declarations sharing a kind and slug collide on the same ID and are reported as duplicate declarations (per §FS-check.3). When `{number}` is present, slugs are descriptive only and may repeat across declarations with different numbers.
 
 `section_separator` must not collide lexically with any literal in `format` or with `slug_pattern`. gnd validates this on load and refuses ambiguous configs.
 
@@ -79,7 +79,7 @@ Section coordinates are **dotted paths of arbitrary depth**. There is no maximum
 
 Section depth in the citation must match a heading at that depth in the declaration. The scanner records every numbered heading inside a declaration body and validates citations against the recorded set, so a project that wants four-deep nesting (`## 1.`, `### 1.1`, `#### 1.1.1`, `##### 1.1.1.1`) is supported with no config changes — the dotted path simply grows.
 
-The default `section_separator` is `.`. Projects that prefer `:` (`FS-check:3.1.2`) or `#` (`RFC-42#3.1.2`) override it; the dotted **components** stay separated by `.` regardless of the outer separator. Example with `section_separator = "#"`:
+The default `section_separator` is `.`. Projects that prefer `:` (`§FS-check:3.1.2`) or `#` (`RFC-42#3.1.2`) override it; the dotted **components** stay separated by `.` regardless of the outer separator. Example with `section_separator = "#"`:
 
 ```
 §FS-check#3.1.2     ← outer separator is `#`, intra-section separator is `.`
@@ -89,7 +89,7 @@ This split keeps the section grammar regular at any depth.
 
 ### 3.4 `[[kinds]]` — recognized prefixes
 
-One `[[kinds]]` table per allowed prefix. `folder` is the conventional home for declarations of this kind — used by `gnd name` (FS-name.2.2 emits it as the `folder` field) and by editor "create new declaration" / "go to home folder" actions; it is **not** enforced by the checker — declarations are recognized wherever they appear. `title` is human-readable metadata: it surfaces in `gnd show --format=json`, `gnd refs --format=json`, and IDE hover previews, and is **not** injected into `gnd show --format=md` text (which is the declaration verbatim — FS-show.3).
+One `[[kinds]]` table per allowed prefix. `folder` is the conventional home for declarations of this kind — used by `gnd name` (§FS-name.2.2 emits it as the `folder` field) and by editor "create new declaration" / "go to home folder" actions; it is **not** enforced by the checker — declarations are recognized wherever they appear. `title` is human-readable metadata: it surfaces in `gnd show --format=json`, `gnd refs --format=json`, and IDE hover previews, and is **not** injected into `gnd show --format=md` text (which is the declaration verbatim — §FS-show.3).
 
 The defaults declare the canonical seven, in this order:
 
@@ -150,7 +150,7 @@ respect_gitignore  = true
 
 The default `comment_prefixes` set is broader than the languages tabulated in §AS-scanner.4: it also covers `;` (Lisp / Scheme / Clojure), `--` (SQL / Haskell / Lua / Ada), and `*` / `/*` (block-comment continuation and opener). Any line whose first non-whitespace run is a configured prefix is eligible to host a declaration heading or a citation; the §AS-scanner.4 table documents the doc-comment *conventions* for the major languages, not the full set of recognized prefixes.
 
-`respect_gitignore` (default `true`) makes the scanner honor every form of ignore file the `ignore` crate recognizes — `.gitignore` at any depth, `.git/info/exclude`, the global `core.excludesFile`, and `.ignore` files. Set to `false` only when you genuinely need to scan ignored paths. The directory-level `exclude` list above is applied **in addition** to ignore-file rules, never instead of them. See AS-scanner.1.1.
+`respect_gitignore` (default `true`) makes the scanner honor every form of ignore file the `ignore` crate recognizes — `.gitignore` at any depth, `.git/info/exclude`, the global `core.excludesFile`, and `.ignore` files. Set to `false` only when you genuinely need to scan ignored paths. The directory-level `exclude` list above is applied **in addition** to ignore-file rules, never instead of them. See §AS-scanner.1.1.
 
 ### 3.6 `[output]` — report format
 
@@ -193,9 +193,9 @@ The TOML file may include a top-level `gnd_config_version = N`. The current vers
 
 ## 6. What is NOT configured here
 
-Per G-friendliness-first, the following are deliberately **not** configurable, to avoid the trap of every gnd repo behaving differently in surprising ways:
+Per §G-friendliness-first, the following are deliberately **not** configurable, to avoid the trap of every gnd repo behaving differently in surprising ways:
 
 - The set of severity levels (only `error` and `warning` exist).
-- The exit code mapping (`0`/`1`/`2` per FS-check.2).
+- The exit code mapping (`0`/`1`/`2` per §FS-check.2).
 - The ordering of the report (always deterministic).
 - Anything that would let two correctly-configured gnd installs disagree on whether a given repo is well-formed.

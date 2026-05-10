@@ -8,9 +8,9 @@ The three things `gnd` does that plain Markdown links can't:
 
 1. **Verify** citations across the docs/code boundary. A `§FS-events.4` cited from `src/bus.rs` is checked the same as one cited from `docs/`.
 2. **Survive refactors.** IDs are location-independent — rename a file, reword a heading, move a module, citations keep resolving. Markdown anchors break on the first heading edit.
-3. **Extract** a single declaration body. `gnd show §FS-user-login.3.1` returns just that subsection — under 200 lines — so an LLM agent can pull a fact into context without loading the file.
+3. **Extract** a single declaration body. `gnd show FS-user-login.3.1` returns just that subsection — under 200 lines — so an LLM agent can pull a fact into context without loading the file.
 
-> Status: early. The spec under `docs/` is the source of truth; the binary is being implemented against it. `gnd` is its own first user — running `gnd .` at the repo root checks the project's own specs.
+> Status: 0.1.0 Cargo CLI. The core command-line surface is implemented and self-hosted; npm/PyPI bindings, the optional LSP server, and watch mode are tracked in `docs/roadmap.md`.
 
 ## What it Checks
 
@@ -20,7 +20,8 @@ When you run `gnd <path>`:
 2. Every section coordinate (`.3.1`) resolves to a heading inside the declaration. *(missing sections)*
 3. No ID is declared in two places. *(duplicates)*
 4. Every stub heading (`# <ID>: [<text>](<path>)`) points at a file that actually contains the inline declaration. *(broken stubs)*
-5. Declared-but-uncited IDs are flagged. *(unused — warning, not error)*
+5. If `agents.md` is present, it carries an up-to-date `gnd init` block. *(uninitialized / stale agent entry point — run `gnd init`)*
+6. Declared-but-uncited IDs are flagged. *(unused — warning, not error; `E2E-` cases are exempt — a test is used by being run, not cited)*
 
 It does **not** check markdown links, URLs, spelling, or grammar. Use [`lychee`](https://github.com/lycheeverse/lychee), `vale`, etc. for those.
 
@@ -38,6 +39,7 @@ It does **not** check markdown links, URLs, spelling, or grammar. Use [`lychee`]
 - `DF` — **functional decision.** Append-only record of a choice that shaped the *what*. Declared as the H1 of a file in `docs/decisions/functional/`. Resolves to a dated entry: options considered, chosen path, rationale.
 - `DA` — **architectural decision.** Append-only record of a choice that shaped the *how*. Declared as the H1 of a file in `docs/decisions/architectural/`. Resolves to the same shape as `DF`.
 - `E2E` — **end-to-end test.** Executable proof that a functional spec holds. Declared per case directory under `e2e/cases/<id>/`. Resolves to the case's fixtures (`repo/`, `expected.stdout`, `expected.stderr`, `expected.exit`) — the test *is* the body.
+- `RM` — **roadmap milestone.** A reviewable unit of upcoming work. Declared as an H2 heading inside `docs/roadmap.md` (one file, all milestones inline), parallel to how `G` lives in `docs/goals/goals.md`. Resolves to that milestone's *what / why now / measurable* block. Shipped milestones keep a one-line declaration so `§RM-…` citations from commits and the changelog don't dangle.
 
 Section coordinates (`.3.1`) resolve to a heading **inside** the declaration body — `### 3.1 …` for a markdown declaration, or the same heading shape inside a doc-comment for an inline one. `gnd show <ID>.<section>` returns just that subtree.
 
@@ -100,16 +102,18 @@ exec gnd check
 
 ## Subcommands
 
+Commands with machine-readable result modes document `--format text|json` in their synopsis. `gnd <command> --help` prints that command's page — flags, examples, exit codes.
+
 | Command                    | What it does                                                                       |
 | -------------------------- | ---------------------------------------------------------------------------------- |
 | `gnd check [path]` | Validate references. The default — `gnd <path>` is shorthand. (`--watch`, a resident re-check on every change, is specified in [`FS-check`](docs/functional-spec/FS-check.md) §6 but not yet implemented.) |
-| `gnd init [path] [--docs] [--force]` | Scaffold `agents.md` and `.agents/gnd.toml`; idempotent by default — appends/updates the managed block in an existing `agents.md`, reports `exists` for other files. `--docs` also seeds `docs/` and `e2e/`; `--force` overwrites. |
-| `gnd show <ID> [--head]`   | Print just the body of a declaration, for pulling spec content into agent prompts. |
-| `gnd list [path] [--kind K] [--unused]` | The ID catalog — every declared ID, `<ID>  path:line  title`, sorted by ID. `--kind` filters by prefix; `--unused` shows declarations nothing cites yet. The thing `gnd show` reads from. |
-| `gnd refs <ID> [path]`     | List every citation of an ID — `path:line: <citation>` — so you know what leans on a declaration before you change it. |
-| `gnd fmt [path]`           | Rewrite `$$` triggers to `§`; with `--marker`, also upgrade bare citations.        |
-| `gnd name <KIND> "<title>" [--explain]` | Emit the next conflict-free ID for a new declaration (e.g. `FS-008-user-login`). Pure function from `(kind, title, tree)` to `id`; no files are written. `--explain` adds a one-line "where to put the file" hint on stderr (stdout stays the bare ID). |
-| `gnd config (validate\|show)` | `validate` checks `.agents/gnd.toml` against the schema; `show` prints the effective config (defaults + file + flags) as TOML. |
+| `gnd init [path] [--docs] [--name N] [--force\|--append]` | Scaffold `agents.md` and `.agents/gnd.toml`; idempotent by default — appends/updates the managed block in an existing `agents.md`, reports `exists` for other files. `--docs` also seeds `docs/` and `e2e/`; `--name` sets the project name; `--force` overwrites. |
+| `gnd show <ID>[.<section>] [path] [--section S] [--head\|--full] [--format text\|md\|json]` | Print just the body of a declaration (or one of its sections), for pulling spec content into agent prompts. `--head` is the lead paragraph only; `--full` (default) is the whole body; `md` keeps the heading line. |
+| `gnd list [path] [--kind K] [--unused] [--format text\|json]` | The ID catalog — every declared ID, `<ID>  path:line  title`, sorted by ID. `--kind` filters by prefix; `--unused` shows declarations nothing cites yet; `json` adds a `refs` count. The thing `gnd show` reads from. |
+| `gnd refs <ID>[.<section>] [path] [--section S] [--format text\|json]` | List every citation of an ID — `path:line: <citation>` — so you know what leans on a declaration before you change it. `--section` narrows to citations of one section. |
+| `gnd fmt [path] [--check\|--write] [--marker] [--md-links]` | Normalize citation syntax: rewrite the `$$` trigger to `§`. `--marker` also upgrades bare `<ID>` tokens to `§<ID>`; `--md-links` also wraps citations in `.md` files as clickable links to the declaration. Default is a dry run (`--check`); `--write` applies the changes. |
+| `gnd name <KIND> "<title>" [path] [--width N] [--explain] [--format text\|json]` | Emit the next conflict-free ID for a new declaration (e.g. `FS-008-user-login`, or `FS-user-login` under a number-less `[id] format`). Pure function from `(kind, title, tree)` to `id`; no files are written. `--explain` adds a one-line "where to put the file" hint on stderr (stdout stays the bare ID). |
+| `gnd config (validate\|show) [path]` | `validate` checks the discovered `.agents/gnd.toml` against the schema; `show` prints the effective config (defaults + file) as TOML. |
 | `gnd completions <bash\|zsh\|fish>` | Print a shell completion script; generated scripts complete declared IDs for `gnd show <ID>` and `gnd refs <ID>`. |
 | `gnd --version` / `gnd --help` / `gnd help <command>` | Print the version, the one-screen top-level usage, or one command's page (its flags, examples, exit codes); all handled before any scan. |
 
@@ -245,50 +249,53 @@ That rule plus a clean `gnd check` is the entire contract: every reference resol
 
 ## Verifying what a file refers to
 
-Before changing a file, an agent typically wants to know two things: *which specs does this file claim to be grounded in*, and *do those claims still hold*. Both are mechanical.
+Before changing a file, an agent typically wants to know two things: *which specs does this file claim to be grounded in*, and *do those claims still hold*. Both are mechanical. The walkthrough below uses the same hypothetical `src/bus.rs` from the [spec-in-code example](#example-spec-in-code) — a file whose Rustdoc declares `AS-event-bus` and cites `§FS-events` back into the docs. (`gnd`'s own source does not yet carry inline `§` citations; that lands when [`RM-core-cli-split`](docs/roadmap.md) breaks the engine into its own module with its own `§AS-scanner` doc-comment.)
 
 ### List the citations in a file
 
+The `§…-…` grammar is the same across schemes, so one `grep` finds every cite regardless of whether the repo numbers its IDs:
+
 ```bash
-$ grep -oE '§[A-Z]+-[0-9]+-[a-z0-9-]+(\.[0-9.]+)?' src/scanner.rs | sort -u
-§AS-scanner.2.1
-§AS-scanner.4
-§FS-check.1.1
+$ grep -oE '§[A-Z][A-Z0-9]*-[a-z0-9-]+(\.[0-9.]+)?' src/bus.rs | sort -u
+§FS-events
+§FS-events.4
 §G-fast-feedback
 ```
 
-Four cites. The agent now knows exactly which declarations the file leans on.
+Three cites. The agent now knows exactly which declarations the file leans on.
 
-### Validate just those references
+### Validate those references
 
-`gnd check` accepts a path. Scoping it to the file under review is faster than a whole-repo scan and proves no cite in *this* file is dangling:
+`gnd check .` walks the whole tree, so it resolves a cite in `src/bus.rs` against a declaration anywhere under `docs/` and reports the ones that don't:
 
 ```bash
-$ gnd check src/scanner.rs
+$ gnd check .
 $ echo $?
 0
 ```
 
-Silent + exit 0 means every cite resolves. A regression looks like:
+Silent + exit 0 means every cite in the repo — including the ones in `src/bus.rs` — resolves. A regression in that file looks like:
 
 ```bash
-$ gnd check src/scanner.rs
-src/scanner.rs:142: unknown reference FS-check.9.9
-src/scanner.rs:201: section 4.7 not found in AS-scanner
+$ gnd check .
+src/bus.rs:14: unknown reference FS-events.9.9
+src/bus.rs:18: section 4.7 not found in FS-events
 ```
+
+(`gnd check` also accepts a narrower path — `gnd check src/bus.rs` or `gnd check docs/` — which scans just that subtree. That is faster, but it only resolves cites whose declarations also live under the scanned path; for a file that cites specs elsewhere in the repo, the whole-tree `gnd check .` is the one that proves the cites hold.)
 
 ### Fetch each cited body and compare against the code
 
 This is the verification step — the agent pulls the spec text and checks the code matches:
 
 ```bash
-$ for id in $(grep -oE '§[A-Z]+-[0-9]+-[a-z0-9-]+(\.[0-9.]+)?' src/scanner.rs | tr -d '§' | sort -u); do
+$ for id in $(grep -oE '§[A-Z][A-Z0-9]*-[a-z0-9-]+(\.[0-9.]+)?' src/bus.rs | tr -d '§' | sort -u); do
     echo "=== $id ==="
     gnd show "$id"
   done
 ```
 
-Now the agent can answer concrete questions: does `src/scanner.rs` actually implement the doc-comment forms enumerated in `AS-scanner.4`? If the spec lists Javadoc, JSDoc, Rustdoc, Python docstrings, and Go `//` blocks, but the code only handles three of them, the file's claim to ground itself in `§AS-scanner.4` is a lie — and the verification surfaces it.
+Now the agent can answer concrete questions: does `src/bus.rs` actually drop slow receivers the way `FS-events.4` requires? If the spec says receivers that fall behind are disconnected but the code blocks the sender instead, the file's claim to ground itself in `§FS-events.4` is a lie — and the verification surfaces it.
 
 ### Find which file owns a declaration
 
@@ -306,9 +313,9 @@ If a stub at `docs/architectural-spec/AS-event-bus.md` reads `# AS-event-bus: [s
 The other reverse direction — *who depends on this ID?*, the question to ask before changing or removing a declaration — is `gnd refs`. It shares the scanner with `gnd check`, so it sees exactly the citations the checker validates (respects `strict` mode, skips ID-shaped substrings inside string literals, reaches into block doc-comments) — things a bare `grep` cannot:
 
 ```bash
-$ gnd refs FS-check.1
-docs/functional-spec/FS-show.md:11: §FS-check.1
-src/scanner.rs:142: FS-check.1
+$ gnd refs FS-events.4
+docs/architectural-spec/AS-event-bus.md:6: §FS-events.4
+src/bus.rs:14: §FS-events.4
 ```
 
 Empty output, exit 0 means nothing cites it yet (`gnd check` will also warn about that). See [`FS-refs`](docs/functional-spec/FS-refs.md).

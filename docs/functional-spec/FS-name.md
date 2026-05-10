@@ -1,6 +1,6 @@
 # FS-name: gnd proposes IDs for new declarations
 
-The `name` subcommand emits a single, conflict-free `<KIND>-<NNN>-<slug>` ID for a new declaration. Authors writing a new spec, agents drafting a new doc, and IDE plugins offering a "new declaration" action all call the same primitive — so the next number for a kind, and the canonical slug for a title, are computed in exactly one place. Serves G-friendliness-first (no human picks the next number by reading a directory listing) and G-no-dangling-refs (proposed IDs cannot collide with existing declarations).
+The `name` subcommand emits a single, conflict-free `<KIND>-<NNN>-<slug>` ID for a new declaration. Authors writing a new spec, agents drafting a new doc, and IDE plugins offering a "new declaration" action all call the same primitive — so the next number for a kind, and the canonical slug for a title, are computed in exactly one place. Serves §G-friendliness-first (no human picks the next number by reading a directory listing) and §G-no-dangling-refs (proposed IDs cannot collide with existing declarations).
 
 ## 1. Inputs
 
@@ -8,14 +8,14 @@ The `name` subcommand emits a single, conflict-free `<KIND>-<NNN>-<slug>` ID for
 gnd name <KIND> "<title>" [<path>] [--width <N>] [--explain] [--format text|json]
 ```
 
-- `<KIND>` — required. One of the configured `[[kinds]]` prefixes (FS-config.3.4). Unknown kinds are an error (§4).
+- `<KIND>` — required. One of the configured `[[kinds]]` prefixes (§FS-config.3.4). An unknown kind is a CLI-level error: an `error:`-prefixed line naming the kind, then a `known kinds: …` line listing the configured prefixes, on stderr, exit `2` (§6) — the same shape `gnd list --kind <unknown>` produces, so a typo is never mistaken for a clean run.
 - `<title>` — required. Free-form human title for the new declaration; converted to a slug per §3.
 - `<path>` — directory whose tree is scanned to determine "next free number." Defaults to the current directory. Discovery is the same as every other `gnd` command (walks up to find `gnd.toml`; falls back to defaults).
 - `--width <N>` — minimum digit width for the number. Default `3`, matching the canonical form's `-NNN-`. The number is left-padded with zeros to at least this width; numbers that already exceed the width are emitted as-is.
 - `--explain` — in `--format text`, also print a one-line `next:` hint to stderr telling the caller where to put the declaration (§2.3). No effect in `--format json`, which already carries the `folder`.
 - `--format text|json` — output shape (§2). Default `text`.
 
-Per FS-non-goals.10, `name` is non-interactive: no prompt, no confirmation. `stdout` is always exactly the proposed ID (so `$(gnd name …)` is safe); `--explain` adds a hint on `stderr` only.
+Per §FS-non-goals.10, `name` is non-interactive: no prompt, no confirmation. `stdout` is always exactly the proposed ID (so `$(gnd name …)` is safe); `--explain` adds a hint on `stderr` only.
 
 ## 2. Outputs
 
@@ -30,7 +30,7 @@ $ gnd name FS "User can log in with email"        # a repo whose [id] format = {
 FS-user-can-log-in-with-email
 ```
 
-The shape of the emitted ID always follows the repo's configured `[id] format` (FS-config.3.2) — see §4.1 for the number-less formats.
+The shape of the emitted ID always follows the repo's configured `[id] format` (§FS-config.3.2) — see §4.1 for the number-less formats.
 
 This is shaped for shell composition. A typical workflow:
 
@@ -39,7 +39,7 @@ ID=$(gnd name FS "User can log in with email")
 $EDITOR "docs/functional-spec/${ID}.md"
 ```
 
-Stderr is empty on success unless `--explain` was passed (§2.3). The `path:line:` prefix from G-friendliness-first.1 does not apply — `name` synthesizes; it does not point at a source location.
+Stderr is empty on success unless `--explain` was passed (§2.3). The `path:line:` prefix from §G-friendliness-first.1 does not apply — `name` synthesizes; it does not point at a source location.
 
 ### 2.3 `--explain` (text only)
 
@@ -59,38 +59,38 @@ If the kind has no `folder`, the hint names the H1 and the citation but not a pa
 {"id":"FS-008-user-can-log-in-with-email","kind":"FS","number":8,"slug":"user-can-log-in-with-email","folder":"docs/functional-spec"}
 ```
 
-`folder` is the configured `[[kinds]] folder` for the kind (FS-config.3.4) — the conventional home for declarations of this kind, included so editor "create new declaration" actions can place the file without a second lookup. Under a number-less `[id] format` the `number` field is `null` (§4.1).
+`folder` is the configured `[[kinds]] folder` for the kind (§FS-config.3.4) — the conventional home for declarations of this kind, included so editor "create new declaration" actions can place the file without a second lookup. Under a number-less `[id] format` the `number` field is `null` (§4.1).
 
 ## 3. Slug derivation
 
-The title is converted to a slug deterministically. Two `gnd name` calls with the same title and the same configured `slug_pattern` produce the same slug, on every platform, in every locale (FS-non-goals.13).
+The title is converted to a slug deterministically. Two `gnd name` calls with the same title and the same configured `slug_pattern` produce the same slug, on every platform, in every locale (§FS-non-goals.13).
 
 1. Unicode-normalize the title to NFKD, strip combining marks. (`Café log-in` → `Cafe log-in`.)
 2. Lower-case. ASCII-only; non-ASCII letters that survive step 1 are passed through to step 3 unchanged and will be filtered there.
-3. Replace every run of characters that does **not** match the configured `slug_pattern` character class (FS-config.3.2) with a single `-`. The default pattern is `[a-z0-9][a-z0-9-]*`, so spaces, punctuation, and quotes all collapse to `-`.
+3. Replace every run of characters that does **not** match the configured `slug_pattern` character class (§FS-config.3.2) with a single `-`. The default pattern is `[a-z0-9][a-z0-9-]*`, so spaces, punctuation, and quotes all collapse to `-`.
 4. Trim leading and trailing `-`.
 5. Collapse runs of two or more `-` into a single `-`.
 6. Truncate to 60 characters at the nearest preceding `-` boundary (so a slug never ends mid-word).
 
-If the resulting slug is empty (every character in the title was non-slug), `name` exits with code 1 and:
+If the resulting slug is empty (every character in the title was non-slug), `name` exits with code 1 and a bare query-failure line on stderr (no `error:` prefix — that prefix is reserved for the exit-`2` CLI-level failures of §6):
 
 ```
-error: title produces empty slug after normalization: "<original title>"
+title produces empty slug after normalization: "<original title>"
 ```
 
 The author is expected to provide a title that contains at least one slug-character. `name` does not invent a fallback — a meaningless slug is worse than an error.
 
 ## 4. Next-number derivation
 
-The scan from FS-check runs across the tree (or the configured `[scan] include` paths from FS-config.3.5) and collects every declaration of the requested `<KIND>`. The proposed number is `max(existing numbers) + 1`, or `1` if the kind has no existing declarations.
+The scan from §FS-check runs across the tree (or the configured `[scan] include` paths from §FS-config.3.5) and collects every declaration of the requested `<KIND>`. The proposed number is `max(existing numbers) + 1`, or `1` if the kind has no existing declarations.
 
-Holes in the numbering (e.g., `FS-001`, `FS-002`, `FS-004` exists but `FS-003` does not) are **not** filled. Numbers are issued strictly above the maximum, never reused, never recycled. Reasoning: an ID that once existed and was removed may still be cited from external systems (PRs, chat, mirrored repos); reusing the number would silently change what those references point at. This is the same principle as FS-non-goals.4 (no rename) applied to allocation.
+Holes in the numbering (e.g., `FS-001`, `FS-002`, `FS-004` exists but `FS-003` does not) are **not** filled. Numbers are issued strictly above the maximum, never reused, never recycled. Reasoning: an ID that once existed and was removed may still be cited from external systems (PRs, chat, mirrored repos); reusing the number would silently change what those references point at. This is the same principle as §FS-non-goals.4 (no rename) applied to allocation.
 
 If the scan fails (I/O, malformed file), `name` exits 2 with the underlying error — it does **not** fall back to a guess. Allocating a number against an incomplete view of the tree could produce a collision.
 
 ### 4.1 Number-less ID formats
 
-When the repo's `[id] format` has no `{number}` placeholder — `{kind}-{slug}` (the form `gnd` itself uses) — there is nothing to derive: the proposed ID is `format` with `{kind}` and `{slug}` substituted, e.g. `FS-user-can-log-in-with-email`. The `--width` flag is accepted but has no effect (it pads a number that does not exist), and the `--format json` `number` field is `null`. The collision check (§5) still runs, and it carries more weight here: with no number to disambiguate, two declarations sharing a kind and slug collide on the same ID, so a clash is far more likely than under a numbered format. Conversely, when `format` has no `{slug}` placeholder (`{kind}-{number}`), the title is still required — it is used only to render a helpful collision message and is otherwise discarded; the proposed ID is `{kind}-{number}` with the next number, and the `slug` field in JSON output is the derived slug even though it does not appear in the ID.
+When the repo's `[id] format` has no `{number}` placeholder — `{kind}-{slug}` (the form `gnd` itself uses) — there is nothing to derive: the proposed ID is `format` with `{kind}` and `{slug}` substituted, e.g. `FS-<user-can-log-in-with-email>`. The `--width` flag is accepted but has no effect (it pads a number that does not exist), and the `--format json` `number` field is `null`. The collision check (§5) still runs, and it carries more weight here: with no number to disambiguate, two declarations sharing a kind and slug collide on the same ID, so a clash is far more likely than under a numbered format. Conversely, when `format` has no `{slug}` placeholder (`{kind}-{number}`), the title is still required — it is used only to render a helpful collision message and is otherwise discarded; the proposed ID is `{kind}-{number}` with the next number, and the `slug` field in JSON output is the derived slug even though it does not appear in the ID.
 
 ## 5. Collision check
 
@@ -99,10 +99,10 @@ After deriving slug and number, `name` verifies the full proposed ID does not al
 - A configured `slug_pattern` that admits ambiguity (e.g., a project that loosened the pattern after declarations were authored under the strict default).
 - A `--width` change that re-zero-pads existing IDs into the candidate.
 
-If a collision is detected, `name` exits 1 with:
+If a collision is detected, `name` exits 1 with a bare query-failure line on stderr (same family as the empty-slug line above — no `error:` prefix):
 
 ```
-error: proposed ID FS-user-login already declared at docs/functional-spec/FS-user-login.md:1
+proposed ID `FS-user-login` already declared at docs/functional-spec/FS-user-login.md:1
 ```
 
 Authors disambiguate by editing the title.
@@ -110,14 +110,14 @@ Authors disambiguate by editing the title.
 ## 6. Exit codes
 
 - `0` — proposed ID emitted.
-- `1` — kind unknown, slug empty, or collision detected.
-- `2` — scan / I/O error.
+- `1` — slug empty (§3) or collision detected (§5). These are query failures — `name` had a well-formed request but cannot return an ID — so they print a bare line on stderr, no `error:` prefix, the same convention `gnd show` uses for `ID not found` (§FS-errors.2.3).
+- `2` — scan / I/O error, an unknown kind, an unknown `--format`, or any other CLI-level error (§FS-cli.4). These print `error: <message>` on stderr — the prefix CI scripts grep for to tell a launch-time failure from a clean run.
 
 ## 7. What `name` does **not** do
 
 - It does not create the file. Mechanically writing a stub is the caller's job — for an author, an `$EDITOR` invocation; for an IDE plugin, the `New file` action; for an agent, a follow-up `Write`. `name` stays a pure function from `(kind, title, tree)` to `id`. (Reasoning: the same primitive serves three callers with three different file-creation behaviors; baking any one of them in shrinks the surface.)
 - It does not modify `gnd.toml`, the scanned tree, or any existing declaration.
-- It does not allocate a number reservation. Two parallel `gnd name FS …` calls against the same tree may both propose `FS-008-…`; the loser sees the collision when their declaration is committed and `gnd check` runs. Reasoning: reservation is state, and `gnd` is stateless (FS-non-goals.6).
+- It does not allocate a number reservation. Two parallel `gnd name FS …` calls against the same tree may both propose `FS-008-…`; the loser sees the collision when their declaration is committed and `gnd check` runs. Reasoning: reservation is state, and `gnd` is stateless (§FS-non-goals.6).
 
 ## 8. Why this exists
 

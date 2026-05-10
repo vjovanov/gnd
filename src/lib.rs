@@ -32,6 +32,8 @@ static AGENTS_BLOCK_END: Lazy<Regex> =
 
 /// ID grammar compiled from [id].format + [[kinds]] — the single place that knows the
 /// shape of a declaration heading or a citation. Built once per config load.
+/// Realizes §FS-config.3.1, §FS-config.3.2, §FS-config.3.3 and the regex-not-a-parser
+/// stance of §AS-scanner.5.
 #[derive(Clone)]
 struct Grammar {
     decl_re: Regex,
@@ -41,6 +43,12 @@ struct Grammar {
 }
 
 impl Grammar {
+    /// Compile the four regexes from the effective config. The validation rejections
+    /// here (`{kind}` required, at least one of `{number}`/`{slug}`, separator must be
+    /// lexically distinct) are §FS-config.3.2; the optional `§`-marker prefix on a
+    /// citation is §FS-config.3.1 / §DF-reference-marker; the comment-prefix wrapper
+    /// on declaration/section regexes is §AS-scanner.4 (declarations live in code
+    /// doc-comments too).
     fn build(
         format: &str,
         kinds: &[String],
@@ -132,7 +140,7 @@ impl Grammar {
             ));
         }
 
-        // FS-config.3.2: the section separator must be lexically distinguishable
+        // §FS-config.3.2: the section separator must be lexically distinguishable
         // from the ID grammar — otherwise a citation like `FS-foo<sep>bar` could
         // not be split into ID and section unambiguously.
         if section_separator.is_empty() {
@@ -185,6 +193,10 @@ impl Grammar {
     }
 }
 
+/// Build the alternation a declaration/section heading may be prefixed by — one
+/// entry per `[scan] comment_prefixes` value (§FS-config.3.5), with `//` widened to
+/// also catch Rust/JS doc-comment forms `///` and `//!` so inline declarations in
+/// code are seen (§AS-scanner.4). Longest-first so `//` does not shadow `///`.
 fn comment_prefix_regex(comment_prefixes: &[String]) -> String {
     let mut prefixes = comment_prefixes
         .iter()
@@ -205,6 +217,8 @@ fn comment_prefix_regex(comment_prefixes: &[String]) -> String {
     }
 }
 
+/// A parsed ID: its kind plus whichever of `{number}` / `{slug}` the configured
+/// `[id] format` carries (§FS-config.3.2).
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 struct Id {
     kind: String,
@@ -213,10 +227,14 @@ struct Id {
 }
 
 // `Id` is rendered for output via `render_id` / `format_id`, which honour the
-// repo's `[id] format` and `--width`. There is deliberately no `Display` impl —
-// a bare `{}` would have to guess the format and would be wrong on any repo that
-// configured a non-default one.
+// repo's `[id] format` and `--width` (§FS-config.3.2). There is deliberately no
+// `Display` impl — a bare `{}` would have to guess the format and would be wrong
+// on any repo that configured a non-default one.
 
+/// One declaration site discovered by the scanner: a `# <ID>: …` heading in a
+/// Markdown file or a code doc-comment (§AS-scanner.2.1, §AS-scanner.4), with its
+/// section body map (§AS-scanner.2.2) and, for stub headings, the inline-home path
+/// it points at (§FS-show.2.3, §FS-check.3.4).
 #[derive(Debug)]
 struct Declaration {
     id: Id,
@@ -228,12 +246,15 @@ struct Declaration {
     defined_in: Option<PathBuf>,
     e2e_case: Option<E2eCase>,
     /// Heading text after `# <ID>:` — the one-line title an author wrote
-    /// (AS-scanner.2.1). `None` when the heading carries no `: <text>` tail, or
+    /// (§AS-scanner.2.1). `None` when the heading carries no `: <text>` tail, or
     /// when the heading is a stub link (`# <ID>: [<text>](<path>)`), whose tail
     /// is a path, not a title.
     title: Option<String>,
 }
 
+/// An `e2e/cases/<name>/` directory treated as an `E2E-<name>` declaration
+/// (§AS-scanner.6) — its `command.args`, `expected.exit`, and fixture file list
+/// are what `gnd show E2E-<name>` renders (§FS-show.2.4).
 #[derive(Debug)]
 struct E2eCase {
     dir: PathBuf,
@@ -242,6 +263,9 @@ struct E2eCase {
     fixtures: Vec<PathBuf>,
 }
 
+/// One citation site: an `<ID>[.<section>]` token, optionally `§`-prefixed
+/// (§AS-scanner.2.3, §FS-check.1.1). `has_marker` drives strict-mode filtering
+/// (§FS-config.3.1) and is what `gnd fmt` upgrades a bare token from (§FS-fmt.2.2).
 #[derive(Debug)]
 struct Citation {
     id: Id,
@@ -253,12 +277,18 @@ struct Citation {
     text: String,
 }
 
+/// Everything the scanner found in one tree walk — declarations grouped by ID
+/// (so duplicates surface, §FS-check.3.3) and citations in encounter order. This
+/// is the scanner's whole output; the checker (§AS-checker) consumes it without
+/// re-reading files.
 #[derive(Default)]
 struct Findings {
     declarations: BTreeMap<Id, Vec<Declaration>>,
     citations: Vec<Citation>,
 }
 
+/// One `[[kinds]]` entry: prefix plus the folder its declarations live in and the
+/// human title `gnd name` prints (§FS-config.3.4).
 #[derive(Clone)]
 struct KindConfig {
     prefix: String,
@@ -266,12 +296,15 @@ struct KindConfig {
     title: Option<String>,
 }
 
+/// The effective configuration: every `.agents/gnd.toml` key (§FS-config.3) merged
+/// over the built-in defaults (§FS-config.2), plus the compiled `Grammar` and the
+/// `root` / `cli_base` paths the walk and the report use.
 #[derive(Clone)]
 struct Config {
     root: PathBuf,
     /// The resolved path argument (or cwd) — the base for reports when
     /// `[output] relative_paths = false`, i.e. the base `gnd` would use if no
-    /// `.agents/gnd.toml` were discovered (FS-config.3.6).
+    /// `.agents/gnd.toml` were discovered (§FS-config.3.6).
     cli_base: PathBuf,
     marker: String,
     trigger: String,
@@ -301,6 +334,9 @@ const DEFAULT_NUMBER_PATTERN: &str = r"\d+";
 const DEFAULT_SLUG_PATTERN: &str = r"[a-z0-9][a-z0-9-]*";
 
 impl Config {
+    /// The built-in defaults — the canonical grammar a conformant tree gets with
+    /// no `.agents/gnd.toml` at all (§FS-config.2, §G-zero-config). `gnd init`
+    /// writes these same values out verbatim as a teaching surface (§FS-init.2.4).
     fn default_for(root: PathBuf) -> Self {
         let kinds: Vec<KindConfig> = DEFAULT_KINDS
             .iter()
@@ -380,6 +416,9 @@ impl Config {
         }
     }
 
+    /// Recompile the `Grammar` after `[id]` / `[[kinds]]` / `[scan].comment_prefixes`
+    /// keys are read from a config file (§FS-config.3) — keeps the regexes and the
+    /// scalar config in lockstep.
     fn rebuild_grammar(&mut self) -> Result<()> {
         let prefixes = kind_prefixes(&self.kinds);
         self.grammar = Grammar::build(
@@ -398,6 +437,8 @@ fn kind_prefixes(kinds: &[KindConfig]) -> Vec<String> {
     kinds.iter().map(|kind| kind.prefix.clone()).collect()
 }
 
+/// Default home folder for each built-in kind — the directory `gnd name` proposes
+/// a path under and `gnd check` expects the declaration to live in (§FS-config.3.4).
 fn default_kind_folder(prefix: &str) -> Option<&'static str> {
     match prefix {
         "G" => Some("docs/goals"),
@@ -411,6 +452,8 @@ fn default_kind_folder(prefix: &str) -> Option<&'static str> {
     }
 }
 
+/// Default human title for each built-in kind, printed by `gnd name` (§FS-config.3.4,
+/// §FS-name.2).
 fn default_kind_title(prefix: &str) -> Option<&'static str> {
     match prefix {
         "G" => Some("Goal"),
@@ -424,12 +467,16 @@ fn default_kind_title(prefix: &str) -> Option<&'static str> {
     }
 }
 
+/// A secondary location attached to a diagnostic — e.g. the other declaration in a
+/// duplicate pair, or the citation that pointed at a missing section (§FS-errors.2.1).
 #[derive(Clone)]
 struct Site {
     path: PathBuf,
     line: usize,
 }
 
+/// One finding in the located-finding shape of §FS-errors.2.1: a fixed `code`, the
+/// `path:line` it occurred at, the message text, and any cross-reference `sites`.
 struct Diagnostic {
     code: &'static str,
     path: Option<PathBuf>,
@@ -438,12 +485,18 @@ struct Diagnostic {
     sites: Vec<Site>,
 }
 
+/// The outcome of `check`: errors and warnings, kept apart so the exit code keys
+/// off errors only (§FS-check.2, §FS-check.4) and the printed order is fixed
+/// (§FS-errors.4, §FS-non-goals.9).
 #[derive(Default)]
 struct Report {
     errors: Vec<Diagnostic>,
     warnings: Vec<Diagnostic>,
 }
 
+/// What `gnd show` resolved an ID to: the body text to print, the `path:line` it
+/// came from, and the pre-rendered JSON when `--format json` was asked for
+/// (§FS-show.3, §FS-errors.5).
 struct ShowOutput {
     body: String,
     path: PathBuf,
@@ -451,6 +504,8 @@ struct ShowOutput {
     json: Option<String>,
 }
 
+/// Pull an `Id` out of a `Grammar` regex match — the `kind` / `num` / `slug`
+/// capture groups the `[id] format` defined (§FS-config.3.2, §AS-scanner.2.1).
 fn parse_id(caps: &regex::Captures) -> Option<Id> {
     let kind = caps.name("kind")?.as_str().to_string();
     let num = match caps.name("num") {
@@ -461,6 +516,8 @@ fn parse_id(caps: &regex::Captures) -> Option<Id> {
     Some(Id { kind, num, slug })
 }
 
+/// Parse a CLI `<ID>[.<section>]` argument (the form `gnd show` / `gnd refs` take,
+/// §FS-show.1, §FS-refs.1) into an `Id` and an optional section path (§FS-config.3.3).
 fn parse_id_arg(raw: &str, grammar: &Grammar) -> Result<(Id, Option<String>)> {
     let caps = grammar
         .id_input_re
@@ -470,6 +527,10 @@ fn parse_id_arg(raw: &str, grammar: &Grammar) -> Result<(Id, Option<String>)> {
     Ok((id, caps.name("sec").map(|m| m.as_str().to_string())))
 }
 
+/// Discover and load the effective config: walk upward from `start` for the
+/// nearest `.agents/gnd.toml` (§FS-config.1), parse it over the defaults
+/// (§FS-config.2), or fall back to the pure defaults if none is found
+/// (§G-zero-config).
 fn load_config(start: &Path) -> Result<Config> {
     let start_dir = if start.is_file() {
         start.parent().unwrap_or(Path::new(".")).to_path_buf()
@@ -477,7 +538,7 @@ fn load_config(start: &Path) -> Result<Config> {
         start.to_path_buf()
     };
     // Resolve to an absolute path before walking up, mirroring how `cargo` finds
-    // `Cargo.toml` (FS-config.1): a relative `.` or `subdir/` must still discover
+    // `Cargo.toml` (§FS-config.1): a relative `.` or `subdir/` must still discover
     // a `.agents/gnd.toml` in an ancestor directory.
     let walk_start = fs::canonicalize(&start_dir).unwrap_or(start_dir);
     let mut cursor = Some(walk_start.as_path());
@@ -487,7 +548,7 @@ fn load_config(start: &Path) -> Result<Config> {
             let mut config = Config::default_for(dir.to_path_buf());
             config.cli_base = walk_start.clone();
             // Report config errors against a stable relative path, never the
-            // absolute discovered path (FS-errors.4: deterministic, no absolute
+            // absolute discovered path (§FS-errors.4: deterministic, no absolute
             // paths outside the configured root).
             let report_path = candidate
                 .strip_prefix(dir)
@@ -501,6 +562,10 @@ fn load_config(start: &Path) -> Result<Config> {
     Ok(Config::default_for(walk_start))
 }
 
+/// Parse one `.agents/gnd.toml` over `config` — the schema of §FS-config.3 and its
+/// subsections (`[reference]` 3.1, `[id]` 3.2/3.3, `[[kinds]]` 3.4, `[scan]` 3.5,
+/// `[output]` 3.6, `[fmt.md_links]` 3.7). Any unknown section/key or malformed
+/// value is a hard error reported as `path:line:` (§FS-config.4.3, §FS-errors.2.1).
 fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) -> Result<()> {
     let text =
         fs::read_to_string(read_path).with_context(|| format!("read {}", report_path.display()))?;
@@ -668,7 +733,7 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
         ));
     }
     if kinds_block_seen {
-        // [[kinds]] replaces defaults entirely, per FS-config.3.4.
+        // [[kinds]] replaces defaults entirely, per §FS-config.3.4.
         if parsed_kinds.iter().any(|p| p.prefix.is_empty()) {
             return Err(anyhow!(
                 "{}: every [[kinds]] entry must declare a `prefix`",
@@ -682,7 +747,7 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
             ));
         }
         // Reject kinds whose prefix is itself a prefix of another kind's prefix
-        // (FS-config.3.4 — would make tokenization ambiguous).
+        // (§FS-config.3.4 — would make tokenization ambiguous).
         for (i, a) in parsed_kinds.iter().enumerate() {
             for (j, b) in parsed_kinds.iter().enumerate() {
                 if i != j
@@ -708,6 +773,7 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
     Ok(())
 }
 
+/// Drop a trailing `#`-comment from a `.agents/gnd.toml` line (§FS-config.3).
 fn strip_comment(line: &str) -> &str {
     // A `#` inside a quoted string is not a comment marker. Walk the line and stop at the
     // first unquoted `#`; otherwise return the line unchanged.
@@ -735,6 +801,8 @@ fn is_escaped(bytes: &[u8], pos: usize) -> bool {
     count % 2 == 1
 }
 
+/// Fail config parsing with a `path:line: message` error — the located-finding
+/// shape applied to a malformed `.agents/gnd.toml` (§FS-config.4.3, §FS-errors.2.1).
 fn bail_config<T>(path: &Path, line: usize, message: String) -> Result<T> {
     Err(anyhow!("{}:{}: {}", path.display(), line, message))
 }
@@ -794,6 +862,8 @@ fn parse_string_list(path: &Path, line: usize, value: &str) -> Result<Vec<String
         .collect()
 }
 
+/// Whether a file is one the scanner reads: a non-hidden name with an extension in
+/// `[scan] extensions` (§FS-config.3.5, §AS-scanner.1).
 fn is_scannable(path: &Path, config: &Config) -> bool {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
         return false;
@@ -805,6 +875,12 @@ fn is_scannable(path: &Path, config: &Config) -> bool {
     config.extensions.iter().any(|allowed| allowed == ext)
 }
 
+/// The per-file scan (§AS-scanner.2): line by line, find declaration headings
+/// (§AS-scanner.2.1 — in Markdown or in a code/`"""` doc-comment, §AS-scanner.4),
+/// nested section headings (§AS-scanner.2.2), and `<ID>[.<section>]` citations
+/// (§AS-scanner.2.3, §FS-check.1.1) — skipping fenced code blocks and, outside
+/// Markdown, bare ID-shaped tokens inside string literals (§FS-fmt.2.3.1) and any
+/// bare token at all under `[reference] strict` (§FS-config.3.1).
 fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()> {
     let text = fs::read_to_string(path)?;
     let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
@@ -934,6 +1010,9 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
     Ok(())
 }
 
+/// Discover `e2e/cases/<name>/` directories and register each as an `E2E-<name>`
+/// declaration whose body is the case manifest (§AS-scanner.6, §FS-show.2.4) — so
+/// `gnd check` sees `§E2E-…` citations resolve and `gnd refs` finds e2e tests.
 fn scan_e2e_cases(
     config: &Config,
     scope: Option<&Path>,
@@ -1015,6 +1094,8 @@ fn scan_e2e_cases(
     Ok(())
 }
 
+/// Map an `e2e/cases/<name>/` directory name to its `E2E-<name>` `Id` under the
+/// repo's `[id] format` (§AS-scanner.6, §FS-config.3.4).
 fn e2e_id_from_case_dir_name(config: &Config, name: &str) -> Option<Id> {
     let after_kind_literal = literal_after_kind_placeholder(&config.id_format)?;
     let raw = format!("E2E{after_kind_literal}{name}");
@@ -1026,6 +1107,9 @@ fn e2e_id_from_case_dir_name(config: &Config, name: &str) -> Option<Id> {
     }
 }
 
+/// The literal text between `{kind}` and the next placeholder in `[id] format`
+/// (e.g. `-` in `{kind}-{slug}`) — the glue an `E2E-<dirname>` ID is reassembled
+/// with (§AS-scanner.6).
 fn literal_after_kind_placeholder(format: &str) -> Option<&str> {
     let marker = "{kind}";
     let start = format.find(marker)? + marker.len();
@@ -1034,6 +1118,9 @@ fn literal_after_kind_placeholder(format: &str) -> Option<&str> {
     Some(&rest[..end])
 }
 
+/// Inverse of `e2e_id_from_case_dir_name`: strip the `E2E` prefix off a rendered ID
+/// to get the `e2e/cases/<name>/` directory `gnd name` tells the author to create
+/// (§FS-name.2, §AS-scanner.6).
 fn e2e_case_dir_name(config: &Config, rendered: &str) -> String {
     let prefix = format!(
         "E2E{}",
@@ -1045,6 +1132,9 @@ fn e2e_case_dir_name(config: &Config, rendered: &str) -> String {
         .to_string()
 }
 
+/// Read one e2e case directory into an `E2eCase` — `command.args` (defaulting to
+/// `check`), `expected.exit`, and the recursive fixture file list — the data
+/// `gnd show E2E-<name>` renders (§FS-show.2.4).
 fn read_e2e_case(dir: &Path) -> Result<E2eCase> {
     let command_args = dir.join("command.args");
     let args = if command_args.is_file() {
@@ -1083,6 +1173,8 @@ fn collect_relative_fixture_files(root: &Path, dir: &Path, files: &mut Vec<PathB
     Ok(())
 }
 
+/// Depth of a heading line — count of leading `#` — used to decide whether a
+/// section heading nests under the current declaration (§AS-scanner.2.2).
 fn heading_level_for_line(line: &str, markdown_heading: bool, caps: &regex::Captures) -> usize {
     if markdown_heading {
         return line
@@ -1095,6 +1187,10 @@ fn heading_level_for_line(line: &str, markdown_heading: bool, caps: &regex::Capt
     caps.name("hashes").map(|m| m.as_str().len()).unwrap_or(1)
 }
 
+/// The tree walk (§AS-scanner.1): from each scan root, descend skipping hidden and
+/// `[scan] exclude` directories, honouring `.gitignore` and friends unless
+/// `respect_gitignore = false` (§AS-scanner.1.1, §FS-config.3.5), keeping only
+/// scannable files, in a sorted order so findings are deterministic (§FS-errors.4).
 fn walk_scannable_files(
     config: &Config,
     scope: Option<&Path>,
@@ -1152,6 +1248,9 @@ fn walk_scannable_files(
     Ok(files)
 }
 
+/// The directories (or single file) the walk starts from: a `[path]` argument when
+/// given (narrowing the default scope), otherwise `[scan] include` resolved against
+/// the repo root, otherwise the whole root (§FS-config.3.5, §AS-scanner.1).
 fn scan_roots(config: &Config, scope: Option<&Path>, explicit_scope: bool) -> Result<Vec<PathBuf>> {
     if explicit_scope {
         let scope = scope.unwrap_or(Path::new("."));
@@ -1177,10 +1276,13 @@ fn scan_roots(config: &Config, scope: Option<&Path>, explicit_scope: bool) -> Re
 }
 
 /// A file that could not be read or decoded during the walk. The walk continues
-/// past it (FS-check.2); callers that are point queries treat any entry here as
+/// past it (§FS-check.2); callers that are point queries treat any entry here as
 /// fatal, `check` and `refs` report it and exit 2 with a still-printed report.
 type ScanError = (PathBuf, String);
 
+/// One full tree walk: scan every file (§AS-scanner.2) plus the e2e case
+/// directories (§AS-scanner.6), collecting unreadable files rather than aborting
+/// so `check` can report them and keep going (§FS-check.2).
 fn scan_tree(
     config: &Config,
     scope: Option<&Path>,
@@ -1201,7 +1303,7 @@ fn scan_tree(
 
 /// Scan helper for point-query subcommands (`show`, `name`): any unreadable file
 /// is fatal — a partial view of the tree could miss the declaration entirely or
-/// allocate a colliding number (FS-show.3, FS-name.4).
+/// allocate a colliding number (§FS-show.3, §FS-name.4).
 fn scan_tree_strict(
     config: &Config,
     scope: Option<&Path>,
@@ -1214,10 +1316,20 @@ fn scan_tree_strict(
     Ok(findings)
 }
 
+/// The checker (§AS-checker): turn the scanner's `Findings` into a `Report` of
+/// errors and warnings — duplicate declarations (§FS-check.3.3), dangling
+/// citations (§FS-check.3.1), missing sections (§FS-check.3.2), broken inline-spec
+/// stubs (§FS-check.3.4), an invalid `agents.md` init block (§FS-check.3.5), and
+/// the unused-declaration warning (§FS-check.4.1) — then sort everything into the
+/// fixed report order (§FS-errors.4, §FS-non-goals.9). It re-reads files only for
+/// stub verification (§AS-checker.4); everything else comes from `findings`.
 fn check(findings: &Findings, config: &Config) -> Report {
     let mut report = Report::default();
+    // §FS-check.3.5: an `agents.md` whose managed block is out of date (or newer
+    // than this binary) is a check error.
     check_agents_block_version(&config.root, &mut report);
 
+    // §FS-check.3.3: an ID with more than one non-stub home is a duplicate.
     for (id, decls) in &findings.declarations {
         let duplicate_homes: Vec<&Declaration> = decls
             .iter()
@@ -1253,6 +1365,7 @@ fn check(findings: &Findings, config: &Config) -> Report {
     }
 
     for cite in &findings.citations {
+        // §FS-check.3.1: a citation whose ID is declared nowhere is dangling.
         let Some(decls) = findings.declarations.get(&cite.id) else {
             report.errors.push(Diagnostic {
                 code: "dangling",
@@ -1263,6 +1376,8 @@ fn check(findings: &Findings, config: &Config) -> Report {
             });
             continue;
         };
+        // §FS-check.3.2: the ID resolves but no declaration has a heading at the
+        // cited section path.
         if let Some(sec) = &cite.section {
             let any_match = decls.iter().any(|d| d.sections.contains_key(sec));
             if !any_match {
@@ -1282,6 +1397,8 @@ fn check(findings: &Findings, config: &Config) -> Report {
         }
     }
 
+    // §FS-check.3.4: a `# <ID>: [text](path)` stub is broken if `path` does not
+    // exist, or exists but does not itself declare `<ID>` inline (§AS-checker.2.4).
     for (id, decls) in &findings.declarations {
         for decl in decls {
             if !decl.is_stub {
@@ -1326,6 +1443,8 @@ fn check(findings: &Findings, config: &Config) -> Report {
         }
     }
 
+    // §FS-check.4.1: a declaration nothing cites is a warning, not an error —
+    // except E2E cases, which are proof artifacts, not citation targets.
     let cited: BTreeSet<&Id> = findings.citations.iter().map(|c| &c.id).collect();
     for (id, decls) in &findings.declarations {
         if id.kind == "E2E" {
@@ -1352,6 +1471,9 @@ fn check(findings: &Findings, config: &Config) -> Report {
     report
 }
 
+/// Put diagnostics in the one fixed order `gnd` ever prints them in — by path, then
+/// line, then message text — so two runs over the same tree agree byte-for-byte
+/// (§FS-errors.4) and ordering is not a knob (§FS-non-goals.9).
 fn sort_diagnostics(diagnostics: &mut [Diagnostic]) {
     diagnostics.sort_by(diagnostic_cmp);
 }
@@ -1369,6 +1491,9 @@ fn diagnostic_cmp(a: &Diagnostic, b: &Diagnostic) -> std::cmp::Ordering {
         ))
 }
 
+/// Validate the managed `agents.md` block (§FS-check.3.5): the begin/end marker
+/// pair must be present and intact, and the `vN` version must match this binary —
+/// an older `vN` is "run `gnd init`" (§FS-init.2.3), a newer one is fatal.
 fn check_agents_block_version(root: &Path, report: &mut Report) {
     let path = root.join("agents.md");
     if !path.exists() {
@@ -1442,6 +1567,10 @@ fn line_for_byte_index(text: &str, byte_index: usize) -> usize {
         + 1
 }
 
+/// Whether this stub heading is the one-line pointer to an inline declaration in
+/// code (`# <ID>: [text](src/foo.rs)` whose target also declares `<ID>`) — such a
+/// stub does not count as a second home, so it is not a duplicate (§AS-scanner.4,
+/// §FS-show.2.3).
 fn is_stub_for_inline_decl(root: &Path, decl: &Declaration, decls: &[Declaration]) -> bool {
     if !decl.is_stub {
         return false;
@@ -1459,6 +1588,9 @@ fn is_stub_for_inline_decl(root: &Path, decl: &Declaration, decls: &[Declaration
         .any(|other| other.file == resolved && other.file != decl.file)
 }
 
+/// Whether `path` contains a real (non-stub) `# <ID>: …` declaration of `id` —
+/// the check that a stub's link target actually carries the inline home it claims
+/// (§FS-check.3.4, §AS-checker.2.4, §AS-scanner.4).
 fn file_declares_inline_home(path: &Path, id: &Id, grammar: &Grammar) -> Result<bool> {
     let text = fs::read_to_string(path)?;
     for line in text.lines() {
@@ -1476,6 +1608,9 @@ fn file_declares_inline_home(path: &Path, id: &Id, grammar: &Grammar) -> Result<
     Ok(false)
 }
 
+/// Print the report to stderr in the located-finding shape (§FS-errors.1,
+/// §FS-errors.2.1) — `path:line: message`, one per line, in the fixed order
+/// (§FS-errors.4). A clean run prints nothing (§FS-check.2.1).
 fn print_report(config: &Config, report: &Report) {
     if report.errors.is_empty() && report.warnings.is_empty() {
         return;
@@ -1502,7 +1637,7 @@ fn render_diagnostic_text(config: &Config, diagnostic: &Diagnostic) -> String {
             )
         }
         // A file-level finding with no line to point at (e.g. an unreadable file
-        // discovered mid-walk) uses the CLI-error shape — FS-check.2, FS-errors.2.2.
+        // discovered mid-walk) uses the CLI-error shape — §FS-check.2, §FS-errors.2.2.
         (Some(path), None) => format!(
             "error: {}: {}",
             display_path(config, path),
@@ -1512,6 +1647,9 @@ fn render_diagnostic_text(config: &Config, diagnostic: &Diagnostic) -> String {
     }
 }
 
+/// Print the report as newline-delimited JSON objects on stderr — the `--format
+/// json` / `[output] format = "json"` shape (§FS-errors.5): one object per finding
+/// with `severity`, `path`, `line`, `code`, `message`, `sites`.
 fn print_json_report(config: &Config, report: &Report) {
     let mut diagnostics = report
         .warnings
@@ -1579,6 +1717,9 @@ fn json_escape(raw: &str) -> String {
     escaped
 }
 
+/// Render a path the way reports show it: relative to the repo root by default,
+/// or relative to the CLI base directory when `[output] relative_paths = false`
+/// (§FS-config.3.6, §FS-errors.4 — never an absolute path outside the root).
 fn display_path(config: &Config, path: &Path) -> String {
     let base = if config.relative_paths {
         &config.root
@@ -1591,6 +1732,9 @@ fn display_path(config: &Config, path: &Path) -> String {
         .into_owned()
 }
 
+/// `gnd check [path] [--format text|json]` — the default subcommand (§FS-cli.1):
+/// scan the tree, run the checker (§FS-check), print the report, and exit `0` clean
+/// / `1` on a finding / `2` on a CLI or I/O error (§FS-check.2.1, §FS-cli.5).
 fn command_check(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
@@ -1641,7 +1785,7 @@ fn command_check(args: &[String]) -> ExitCode {
     };
     let mut report = check(&findings, &config);
     // A file that could not be read mid-walk is reported as a CLI-shaped
-    // `error: <path>: <reason>` finding (FS-check.2): the walk continued, the
+    // `error: <path>: <reason>` finding (§FS-check.2): the walk continued, the
     // findings below are real, but the view of the tree was incomplete → exit 2.
     let had_scan_errors = !scan_errors.is_empty();
     for (file, message) in scan_errors {
@@ -1673,6 +1817,11 @@ fn command_check(args: &[String]) -> ExitCode {
     }
 }
 
+/// `gnd show <ID>[.<section>] [--head|--full] [--section S] [--format text|md|json]`
+/// — print the body of one declaration (§FS-show.1): the whole thing by default
+/// (§FS-show.2.1), the lead paragraph with `--head` (§FS-show.2.1.1), one
+/// subsection with `.<section>` or `--section` (§FS-show.2.2). Ambiguous IDs and
+/// missing IDs/sections exit `1` with a hint (§FS-show.2.2.1, §FS-show.3).
 fn command_show(args: &[String]) -> ExitCode {
     if args.is_empty() {
         eprintln!("error: show requires an ID");
@@ -1827,6 +1976,11 @@ fn command_show(args: &[String]) -> ExitCode {
     }
 }
 
+/// Resolve an `Id` (and optional section) to its body: reject ambiguous IDs with
+/// more than one non-stub home (§FS-show.2.2.1), follow an inline-spec stub to its source file
+/// — erroring if the stub is broken (§FS-show.2.3.4) — dispatch e2e cases to
+/// `show_e2e_case` (§FS-show.2.4), and otherwise extract the heading body
+/// (§FS-show.2.1, §FS-show.2.3).
 fn show_declaration(
     config: &Config,
     findings: &Findings,
@@ -1893,6 +2047,10 @@ fn show_declaration(
     extract_declaration_body(&file, id, section, head, include_heading, config)
 }
 
+/// Render an e2e case as a `gnd show` body: the invocation, expected exit, and
+/// fixture list (or just the invocation with `--head`), plus the JSON shape — the
+/// case manifest of §FS-show.2.4. E2E declarations have no sections, so any
+/// `.<section>` is "section not found".
 fn show_e2e_case(
     config: &Config,
     id: &Id,
@@ -1952,6 +2110,12 @@ fn show_e2e_case(
     })
 }
 
+/// Pull the body text of a declaration out of its file: the lines under the
+/// `# <ID>: …` heading down to the next same-or-shallower heading (§FS-show.2.1),
+/// optionally just one numbered subsection (§FS-show.2.2) or just the lead
+/// paragraph (§FS-show.2.1.1). For an inline declaration in a code/`"""` doc-comment
+/// this walks the comment block (§FS-show.2.3.1) and strips comment markers
+/// (§FS-show.2.3.2) before returning the text.
 fn extract_declaration_body(
     path: &Path,
     id: &Id,
@@ -1995,7 +2159,7 @@ fn extract_declaration_body(
                 line_style_comment = is_line_style_comment_line(scan_line);
                 output_line = lineno;
                 // `md` format keeps the heading verbatim — including for `--head`,
-                // which then prints heading + lead prose (FS-show.3.1).
+                // which then prints heading + lead prose (§FS-show.3.1).
                 if include_heading && section.is_none() {
                     lines.push(clean_body_line(scan_line, is_md || in_py_docstring));
                 }
@@ -2009,11 +2173,11 @@ fn extract_declaration_body(
             let blank = line.trim().is_empty();
             if in_py_docstring {
                 // Python docstring content is plain Markdown; the surrounding
-                // triple-quote lines are skipped above (FS-show.2.3.2).
+                // triple-quote lines are skipped above (§FS-show.2.3.2).
             } else if blank {
                 // A blank line ends a line-style comment block (`//`, `#`, …);
                 // inside a `/* … */` block or a docstring it is part of the body
-                // (FS-show.2.3.1).
+                // (§FS-show.2.3.1).
                 if line_style_comment {
                     break;
                 }
@@ -2039,9 +2203,9 @@ fn extract_declaration_body(
                         continue;
                     }
                     // Inside the target section: a sibling-or-shallower heading
-                    // ends it (FS-show.2.2); in `--head` mode any further numbered
+                    // ends it (§FS-show.2.2); in `--head` mode any further numbered
                     // heading — including a child — ends the section's lead prose
-                    // (FS-show.2.1.1). Before the target section is found, keep
+                    // (§FS-show.2.1.1). Before the target section is found, keep
                     // scanning past unrelated headings.
                     if found_section && (head || depth <= target_depth) {
                         break;
@@ -2084,6 +2248,9 @@ fn extract_declaration_body(
     })
 }
 
+/// Strip the comment marker (`///`, `//!`, `//`, `#`, `*`, `/*`, `*/`) off a body
+/// line when the declaration lives in a code/`"""` doc-comment — Markdown bodies
+/// pass through unchanged (§FS-show.2.3.2).
 fn clean_body_line(line: &str, is_md: bool) -> String {
     if is_md {
         return line.to_string();
@@ -2098,6 +2265,8 @@ fn clean_body_line(line: &str, is_md: bool) -> String {
     trimmed.trim_end_matches("*/").trim_end().to_string()
 }
 
+/// Whether a line still looks like part of the comment block — used to decide
+/// where an inline declaration's body ends (§FS-show.2.3.1).
 fn is_comment_body_line(line: &str) -> bool {
     let trimmed = line.trim_start();
     ["///", "//!", "//", "#", "*", "/*", "*/"]
@@ -2108,7 +2277,7 @@ fn is_comment_body_line(line: &str) -> bool {
 /// Whether a declaration heading line sits inside a *line-style* comment
 /// (`//`-family, `#`, `;`, `--`) as opposed to a `/* … */` block (which opens
 /// `*` continuation lines). Line-style blocks end at a blank line; block-style
-/// ones end at `*/` (FS-show.2.3.1).
+/// ones end at `*/` (§FS-show.2.3.1).
 fn is_line_style_comment_line(line: &str) -> bool {
     let trimmed = line.trim_start();
     trimmed.starts_with("//")
@@ -2117,6 +2286,12 @@ fn is_line_style_comment_line(line: &str) -> bool {
         || trimmed.starts_with("--")
 }
 
+/// `gnd fmt [path] [--check|--write] [--marker] [--md-links]` — normalize citation
+/// syntax in bulk (§FS-fmt.1): rewrite the `$$` trigger to the `§` marker
+/// (§FS-fmt.2.1), and with `--marker` upgrade bare ID-shaped tokens to `§`-prefixed
+/// (§FS-fmt.2.2); with `--md-links` (or `[fmt.md_links] enabled`) also wrap
+/// citations as Markdown links (§FS-fmt.6, §DF-md-link-emission). `--check` reports
+/// without writing and exits `1` if anything would change (§FS-fmt.3).
 fn command_fmt(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
@@ -2185,6 +2360,11 @@ fn command_fmt(args: &[String]) -> ExitCode {
     }
 }
 
+/// Walk the tree and rewrite each scannable file line by line — never touching a
+/// declaration heading or anything inside a fenced code block (§FS-fmt.2.3) — and
+/// either write the changes back (`--write`) or just collect `(path, line, label)`
+/// for `--check`/dry-run (§FS-fmt.3). `--md-links` needs the full `Findings` first
+/// so a link is only emitted when its target resolves (§FS-fmt.6.3).
 fn fmt_tree(
     config: &Config,
     scope: Option<&Path>,
@@ -2243,6 +2423,10 @@ fn fmt_tree(
     Ok(changes)
 }
 
+/// Apply the `fmt` rewrites to one line, in order: trigger→marker (§FS-fmt.2.1),
+/// then optionally bare→marker (§FS-fmt.2.2), then optionally Markdown-link wrapping
+/// (§FS-fmt.6) — returning the new line plus a label naming the most significant
+/// rewrite that fired.
 fn fmt_line(
     line: &str,
     path: &Path,
@@ -2281,6 +2465,9 @@ fn fmt_line(
     (final_line, label)
 }
 
+/// Rewrite each `$$<ID>` trigger to `§<ID>` — but only where `$$` is immediately
+/// followed by a real ID-shaped token, and never inside a string literal in source
+/// code (§FS-fmt.2.1, §FS-fmt.2.3.1, §DF-reference-marker).
 fn replace_trigger(line: &str, config: &Config, is_md: bool) -> String {
     let mut output = String::new();
     let mut cursor = 0;
@@ -2290,6 +2477,7 @@ fn replace_trigger(line: &str, config: &Config, is_md: bool) -> String {
         if let Some(found) = config.grammar.citation_re.find_at(line, after)
             && found.start() == after
             && (is_md || !is_inside_string_literal(line, start))
+            && (!is_md || !is_inside_inline_code(line, start))
         {
             output.push_str(&line[cursor..start]);
             output.push_str(&config.marker);
@@ -2303,11 +2491,17 @@ fn replace_trigger(line: &str, config: &Config, is_md: bool) -> String {
     output
 }
 
+/// Prefix `§` onto bare ID-shaped tokens that lack it — the `--marker` upgrade
+/// (§FS-fmt.2.2) — skipping tokens already marked, Markdown inline-code examples,
+/// and source-code string literals (§FS-fmt.2.3).
 fn add_markers(line: &str, config: &Config, is_md: bool) -> String {
     let mut output = String::new();
     let mut cursor = 0;
     for found in config.grammar.citation_re.find_iter(line) {
         if line[..found.start()].ends_with(&config.marker) {
+            continue;
+        }
+        if is_md && is_inside_inline_code(line, found.start()) {
             continue;
         }
         if !is_md && is_inside_string_literal(line, found.start()) {
@@ -2322,6 +2516,9 @@ fn add_markers(line: &str, config: &Config, is_md: bool) -> String {
     output
 }
 
+/// Whether byte offset `pos` falls inside a `'…'`, `"…"`, or `` `…` `` literal on
+/// this line — the source-code exclusion that keeps an ID printed in a string from
+/// being treated as a citation by the scanner or rewritten by `fmt` (§FS-fmt.2.3.1).
 fn is_inside_string_literal(line: &str, pos: usize) -> bool {
     let bytes = line.as_bytes();
     let mut single = false;
@@ -2340,6 +2537,9 @@ fn is_inside_string_literal(line: &str, pos: usize) -> bool {
     single || double || backtick
 }
 
+/// Whether byte offset `pos` falls inside a `` `…` `` inline-code span in Markdown
+/// — citations there are illustrative, not real, so `fmt` leaves them alone
+/// (§FS-fmt.2.3, §FS-fmt.6.4).
 fn is_inside_inline_code(line: &str, pos: usize) -> bool {
     let bytes = line.as_bytes();
     let mut in_code = false;
@@ -2353,6 +2553,10 @@ fn is_inside_inline_code(line: &str, pos: usize) -> bool {
     in_code
 }
 
+/// Wrap each `§<ID>[.<section>]` citation on this Markdown line as `[§<ID>…](url)`
+/// — the `--md-links` rewrite (§FS-fmt.6.2): re-derive an existing wrapper's URL,
+/// skip citations in inline code (§FS-fmt.6.4), and emit nothing when the target
+/// does not resolve (§FS-fmt.6.3).
 fn wrap_markdown_links(line: &str, path: &Path, config: &Config, findings: &Findings) -> String {
     let mut output = String::new();
     let mut cursor = 0;
@@ -2399,6 +2603,10 @@ fn wrap_markdown_links(line: &str, path: &Path, config: &Config, findings: &Find
     output
 }
 
+/// Compute the link URL for a citation: a repo-relative path to the declaration's
+/// home file — following an inline-spec stub to its real source file — plus a
+/// heading anchor when a section is cited and the home is Markdown (§FS-fmt.6.2,
+/// §DF-md-link-anchor-strategy). `None` if the ID does not resolve (§FS-fmt.6.3).
 fn markdown_link_target(
     from_file: &Path,
     id: &Id,
@@ -2436,6 +2644,8 @@ fn markdown_link_target(
     Some(format!("{}#{}", rel, anchor))
 }
 
+/// `../`-style relative path from one repo file to another — the link form
+/// `gnd fmt --md-links` writes (§FS-fmt.6.2).
 fn relative_url(from_file: &Path, to_file: &Path, config: &Config) -> String {
     let from_rel = from_file.strip_prefix(&config.root).unwrap_or(from_file);
     let to_rel = to_file.strip_prefix(&config.root).unwrap_or(to_file);
@@ -2470,6 +2680,9 @@ fn path_components(path: &Path) -> Vec<String> {
         .collect()
 }
 
+/// The heading text a section anchor is built from — `<number> <title>` taken
+/// straight off the heading line, since anchors are derived from heading text, not
+/// stored (§DF-md-link-anchor-strategy).
 fn section_anchor_text(line: &str, section: &str) -> String {
     let trimmed = line.trim_start();
     let heading = trimmed
@@ -2484,6 +2697,10 @@ fn section_anchor_text(line: &str, section: &str) -> String {
         .to_string()
 }
 
+/// Re-read a home file to find the heading text of a cited section — the fallback
+/// when the section isn't already in the declaration's section map, so a link
+/// anchor is always re-derived from the current heading (§FS-fmt.6.3,
+/// §DF-md-link-anchor-strategy).
 fn section_heading_text(
     path: &Path,
     id: &Id,
@@ -2515,6 +2732,9 @@ fn section_heading_text(
     Ok(None)
 }
 
+/// Slugify a heading into a fragment anchor, dispatching on the configured
+/// `[fmt.md_links] anchor_format` profile (github / gitlab / mkdocs / pandoc) —
+/// §FS-fmt.6.7, §DF-md-link-anchor-strategy.
 fn anchor_slug(text: &str, profile: &str) -> String {
     match profile {
         "pandoc" => anchor_slug_pandoc(text),
@@ -2586,89 +2806,107 @@ fn anchor_slug_pandoc(text: &str) -> String {
     out
 }
 
+/// `gnd config validate|show [path]` — `validate` loads the discovered config and
+/// exits `1` if it is malformed (§FS-config.4.1, §FS-config.4.3); `show` prints the
+/// *effective* config (file merged over defaults) as TOML (§FS-config.4.2), which
+/// is also what `agents.md` and `gnd name` read for the repo's grammar.
 fn command_config(args: &[String]) -> ExitCode {
-    match args.first().map(|arg| arg.as_str()) {
-        Some("validate") => {
-            let path = args.get(1).map(PathBuf::from).unwrap_or_else(|| ".".into());
-            match load_config(&path) {
-                Ok(_) => ExitCode::SUCCESS,
-                Err(err) => {
-                    eprintln!("error: {err:#}");
-                    ExitCode::FAILURE
-                }
-            }
+    let Some(action) = args.first().map(|arg| arg.as_str()) else {
+        eprintln!("error: expected `config validate` or `config show`");
+        return ExitCode::from(2);
+    };
+    if !matches!(action, "validate" | "show") {
+        eprintln!("error: expected `config validate` or `config show`");
+        return ExitCode::from(2);
+    }
+
+    let mut path: Option<PathBuf> = None;
+    for arg in &args[1..] {
+        if arg.starts_with('-') {
+            eprintln!("error: unknown flag `{arg}`");
+            return ExitCode::from(2);
         }
-        Some("show") => {
-            let path = args.get(1).map(PathBuf::from).unwrap_or_else(|| ".".into());
-            match load_config(&path) {
-                Ok(config) => {
-                    println!("gnd_config_version = 1");
-                    println!();
-                    println!("[reference]");
-                    println!("marker = \"{}\"", config.marker);
-                    println!("trigger = \"{}\"", config.trigger);
-                    println!("strict = {}", config.strict);
-                    println!();
-                    println!("[id]");
-                    println!("format = \"{}\"", config.id_format);
-                    println!("section_separator = \"{}\"", config.section_separator);
-                    println!(
-                        "number_pattern = \"{}\"",
-                        escape_toml_basic(&config.number_pattern)
-                    );
-                    println!(
-                        "slug_pattern = \"{}\"",
-                        escape_toml_basic(&config.slug_pattern)
-                    );
-                    println!();
-                    for kind in &config.kinds {
-                        println!("[[kinds]]");
-                        println!("prefix = \"{}\"", escape_toml_basic(&kind.prefix));
-                        if let Some(folder) = &kind.folder {
-                            println!("folder = \"{}\"", escape_toml_basic(folder));
-                        }
-                        if let Some(title) = &kind.title {
-                            println!("title = \"{}\"", escape_toml_basic(title));
-                        }
-                        println!();
+        if path.is_some() {
+            eprintln!("error: config {action} takes at most one path argument");
+            return ExitCode::from(2);
+        }
+        path = Some(PathBuf::from(arg));
+    }
+    let path = path.unwrap_or_else(|| ".".into());
+
+    match action {
+        "validate" => match load_config(&path) {
+            Ok(_) => ExitCode::SUCCESS,
+            Err(err) => {
+                eprintln!("error: {err:#}");
+                ExitCode::FAILURE
+            }
+        },
+        "show" => match load_config(&path) {
+            Ok(config) => {
+                println!("gnd_config_version = 1");
+                println!();
+                println!("[reference]");
+                println!("marker = \"{}\"", config.marker);
+                println!("trigger = \"{}\"", config.trigger);
+                println!("strict = {}", config.strict);
+                println!();
+                println!("[id]");
+                println!("format = \"{}\"", config.id_format);
+                println!("section_separator = \"{}\"", config.section_separator);
+                println!(
+                    "number_pattern = \"{}\"",
+                    escape_toml_basic(&config.number_pattern)
+                );
+                println!(
+                    "slug_pattern = \"{}\"",
+                    escape_toml_basic(&config.slug_pattern)
+                );
+                println!();
+                for kind in &config.kinds {
+                    println!("[[kinds]]");
+                    println!("prefix = \"{}\"", escape_toml_basic(&kind.prefix));
+                    if let Some(folder) = &kind.folder {
+                        println!("folder = \"{}\"", escape_toml_basic(folder));
                     }
-                    println!("[scan]");
-                    println!(
-                        "include = {}",
-                        format_toml_string_list(config.include.as_deref().unwrap_or(&[]))
-                    );
-                    println!("exclude = {}", format_toml_string_list(&config.exclude));
-                    println!(
-                        "extensions = {}",
-                        format_toml_string_list(&config.extensions)
-                    );
-                    println!(
-                        "comment_prefixes = {}",
-                        format_toml_string_list(&config.comment_prefixes)
-                    );
-                    println!("docstring_python = {}", config.docstring_python);
-                    println!("respect_gitignore = {}", config.respect_gitignore);
+                    if let Some(title) = &kind.title {
+                        println!("title = \"{}\"", escape_toml_basic(title));
+                    }
                     println!();
-                    println!("[output]");
-                    println!("format = \"{}\"", config.output_format);
-                    println!("color = \"auto\"");
-                    println!("relative_paths = {}", config.relative_paths);
-                    println!();
-                    println!("[fmt.md_links]");
-                    println!("enabled = {}", config.fmt_md_links_enabled);
-                    println!("anchor_format = \"{}\"", config.md_link_anchor_format);
-                    ExitCode::SUCCESS
                 }
-                Err(err) => {
-                    eprintln!("error: {err:#}");
-                    ExitCode::from(2)
-                }
+                println!("[scan]");
+                println!(
+                    "include = {}",
+                    format_toml_string_list(config.include.as_deref().unwrap_or(&[]))
+                );
+                println!("exclude = {}", format_toml_string_list(&config.exclude));
+                println!(
+                    "extensions = {}",
+                    format_toml_string_list(&config.extensions)
+                );
+                println!(
+                    "comment_prefixes = {}",
+                    format_toml_string_list(&config.comment_prefixes)
+                );
+                println!("docstring_python = {}", config.docstring_python);
+                println!("respect_gitignore = {}", config.respect_gitignore);
+                println!();
+                println!("[output]");
+                println!("format = \"{}\"", config.output_format);
+                println!("color = \"auto\"");
+                println!("relative_paths = {}", config.relative_paths);
+                println!();
+                println!("[fmt.md_links]");
+                println!("enabled = {}", config.fmt_md_links_enabled);
+                println!("anchor_format = \"{}\"", config.md_link_anchor_format);
+                ExitCode::SUCCESS
             }
-        }
-        _ => {
-            eprintln!("error: expected `config validate` or `config show`");
-            ExitCode::from(2)
-        }
+            Err(err) => {
+                eprintln!("error: {err:#}");
+                ExitCode::from(2)
+            }
+        },
+        _ => unreachable!(),
     }
 }
 
@@ -2683,6 +2921,12 @@ fn format_toml_string_list(values: &[String]) -> String {
     )
 }
 
+/// `gnd name <KIND> "<title>" [--width N] [--explain] [--format text|json]` —
+/// propose an ID for a new declaration (§FS-name.1): derive a slug from the title
+/// (§FS-name.3), the next free number for number-bearing formats (§FS-name.4),
+/// check it doesn't collide with an existing declaration (§FS-name.5), and print
+/// the rendered ID plus where to put it; `--explain` shows the derivation
+/// (§FS-name.2.3).
 fn command_name(args: &[String]) -> ExitCode {
     let mut positional = Vec::new();
     let mut width = 3usize;
@@ -2753,16 +2997,14 @@ fn command_name(args: &[String]) -> ExitCode {
     {
         Some(kind_config) => kind_config,
         None => {
-            eprintln!("error: unknown kind \"{}\"", kind);
-            return ExitCode::FAILURE;
+            eprintln!("error: unknown kind `{kind}`");
+            eprintln!("known kinds: {}", kind_prefixes(&config.kinds).join(", "));
+            return ExitCode::from(2);
         }
     };
     let slug = slugify_title(title, &config.slug_pattern);
     if slug.is_empty() {
-        eprintln!(
-            "error: title produces empty slug after normalization: \"{}\"",
-            title
-        );
+        eprintln!("title produces empty slug after normalization: \"{title}\"");
         return ExitCode::FAILURE;
     }
     let findings = match scan_tree_strict(&config, Some(&path), path_provided) {
@@ -2798,7 +3040,7 @@ fn command_name(args: &[String]) -> ExitCode {
         && let Some(decl) = decls.first()
     {
         eprintln!(
-            "error: proposed ID {} already declared at {}:{}",
+            "proposed ID `{}` already declared at {}:{}",
             format_id(&id, &config, width),
             display_path(&config, &decl.file),
             decl.line
@@ -2840,6 +3082,11 @@ fn command_name(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// `gnd refs <ID>[.<section>] [--format text|json]` — the reverse of `gnd show`:
+/// list every place that cites the ID (§FS-refs.1, §FS-refs.2), scheme-aware where
+/// a grep cannot be. Shares the scanner with `check` so the two never disagree on
+/// what counts as a citation (§FS-refs.5); exits `1` if the ID is undeclared
+/// (§FS-refs.4).
 fn command_refs(args: &[String]) -> ExitCode {
     if args.is_empty() {
         eprintln!("error: refs requires an ID");
@@ -2962,7 +3209,7 @@ fn command_refs(args: &[String]) -> ExitCode {
     if scan_errors.is_empty() {
         ExitCode::SUCCESS
     } else {
-        // Partial-scan semantics (FS-refs.4 / FS-check.2): the listed citations
+        // Partial-scan semantics (§FS-refs.4 / §FS-check.2): the listed citations
         // are real but the view of the tree was incomplete.
         for (file, message) in scan_errors {
             eprintln!("error: {}: {}", display_path(&config, &file), message);
@@ -2971,6 +3218,11 @@ fn command_refs(args: &[String]) -> ExitCode {
     }
 }
 
+/// `gnd list [path] [--kind K] [--unused] [--format text|json]` — print every
+/// declared ID with its home `path:line` and one-line title (§FS-list.1,
+/// §FS-list.3), optionally filtered to one kind or to declarations nothing cites
+/// (the same set as the §FS-check.4.1 warning). The discovery side of the loop:
+/// how an agent finds the right `<ID>` before citing it (§FS-list.5).
 fn command_list(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
@@ -3031,7 +3283,7 @@ fn command_list(args: &[String]) -> ExitCode {
             .iter()
             .any(|candidate| &candidate.prefix == kind)
     {
-        eprintln!("error: unknown kind \"{kind}\"");
+        eprintln!("error: unknown kind `{kind}`");
         eprintln!("known kinds: {}", kind_prefixes(&config.kinds).join(", "));
         return ExitCode::from(2);
     }
@@ -3068,8 +3320,8 @@ fn command_list(args: &[String]) -> ExitCode {
             continue;
         }
         // A stub paired with the inline declaration it points at is *one* home,
-        // not two — collapse it the way `show` does (FS-show.2.2.1). What's left
-        // is one home in a healthy repo, more only when FS-check.3.3 (duplicate
+        // not two — collapse it the way `show` does (§FS-show.2.2.1). What's left
+        // is one home in a healthy repo, more only when §FS-check.3.3 (duplicate
         // declaration) applies.
         let mut homes: Vec<&Declaration> = decls
             .iter()
@@ -3154,7 +3406,7 @@ fn command_list(args: &[String]) -> ExitCode {
     if scan_errors.is_empty() {
         ExitCode::SUCCESS
     } else {
-        // Partial-scan semantics (FS-check.2): the listed declarations are real
+        // Partial-scan semantics (§FS-check.2): the listed declarations are real
         // but the view of the tree was incomplete, so the catalog may be short.
         for (file, message) in scan_errors {
             eprintln!("error: {}: {}", display_path(&config, &file), message);
@@ -3163,6 +3415,8 @@ fn command_list(args: &[String]) -> ExitCode {
     }
 }
 
+/// `gnd complete <subcommand>` — the namespace for internal completion helpers
+/// the generated shell scripts call (§FS-completions.2).
 fn command_complete(args: &[String]) -> ExitCode {
     match args.first().map(|arg| arg.as_str()) {
         Some("ids") => command_complete_ids(&args[1..]),
@@ -3173,6 +3427,11 @@ fn command_complete(args: &[String]) -> ExitCode {
     }
 }
 
+/// `gnd complete ids [--prefix P] [--sections] [path]` — the dynamic helper a
+/// shell completion calls on every tab press (§FS-completions.2): emit declared
+/// IDs (or `ID.section` candidates) matching the prefix, one per line. Scan/config
+/// failures exit `0` silently so a broken repo never smears diagnostics across the
+/// prompt; output is deterministic (§FS-completions.3).
 fn command_complete_ids(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
@@ -3252,32 +3511,42 @@ fn command_complete_ids(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// `gnd completions <bash|zsh|fish>` — print the completion script for one shell
+/// to stdout, ready to `source` (§FS-completions.1, §FS-completions.4). The scripts
+/// call back into `gnd complete ids` for the dynamic ID list.
 fn command_completions(args: &[String]) -> ExitCode {
-    match args.first().map(|arg| arg.as_str()) {
-        Some("bash") => {
+    if args.is_empty() {
+        eprintln!("error: completions requires <bash|zsh|fish>");
+        return ExitCode::from(2);
+    }
+    if args.len() > 1 {
+        eprintln!("error: completions takes exactly one shell argument");
+        return ExitCode::from(2);
+    }
+    match args[0].as_str() {
+        "bash" => {
             print_bash_completion();
             ExitCode::SUCCESS
         }
-        Some("zsh") => {
+        "zsh" => {
             print_zsh_completion();
             ExitCode::SUCCESS
         }
-        Some("fish") => {
+        "fish" => {
             print_fish_completion();
             ExitCode::SUCCESS
         }
-        Some(other) => {
+        other => {
             eprintln!("error: unsupported shell `{other}`");
             eprintln!("known shells: bash, zsh, fish");
-            ExitCode::from(2)
-        }
-        None => {
-            eprintln!("error: completions requires <bash|zsh|fish>");
             ExitCode::from(2)
         }
     }
 }
 
+/// The bash completion script: subcommand + flag completion, with `gnd show` /
+/// `gnd refs` ID arguments wired to `gnd complete ids` (§FS-completions.1,
+/// §FS-completions.2).
 fn print_bash_completion() {
     println!(
         r#"# bash completion for gnd
@@ -3309,6 +3578,8 @@ complete -F _gnd gnd
     );
 }
 
+/// The zsh completion script — the zsh counterpart of `print_bash_completion`
+/// (§FS-completions.1, §FS-completions.2).
 fn print_zsh_completion() {
     println!(
         r#"#compdef gnd
@@ -3349,6 +3620,8 @@ _gnd "$@"
     );
 }
 
+/// The fish completion script — `complete -c gnd …` lines, ID arguments wired to
+/// `gnd complete ids` (§FS-completions.1, §FS-completions.2).
 fn print_fish_completion() {
     println!(
         r#"# fish completion for gnd
@@ -3364,8 +3637,10 @@ complete -c gnd -f -n "__fish_seen_subcommand_from show refs" -a "(__gnd_complet
 }
 
 /// The repeating character class of a slug pattern — the last `[...]` bracket
-/// expression in `slug_pattern` (e.g. `[a-z0-9-]` from `[a-z0-9][a-z0-9-]*`).
-/// Falls back to the canonical default if the pattern has no bracket expression.
+/// expression in `slug_pattern` (e.g. `[a-z0-9-]` from `[a-z0-9][a-z0-9-]*`) —
+/// used when slugifying a `gnd name` title so the result fits the configured
+/// `[id] slug_pattern` (§FS-name.3, §FS-config.3.2). Falls back to the canonical
+/// default if the pattern has no bracket expression.
 fn slug_char_class(slug_pattern: &str) -> String {
     if let Some(end) = slug_pattern.rfind(']')
         && let Some(start) = slug_pattern[..end].rfind('[')
@@ -3375,8 +3650,9 @@ fn slug_char_class(slug_pattern: &str) -> String {
     "[a-z0-9-]".to_string()
 }
 
+/// Derive a slug from a `gnd name` title (§FS-name.3).
 fn slugify_title(title: &str, slug_pattern: &str) -> String {
-    // FS-name.3: NFKD-normalize, drop combining marks, lower-case to ASCII, then
+    // §FS-name.3: NFKD-normalize, drop combining marks, lower-case to ASCII, then
     // replace every run of characters outside the configured slug character class
     // with a single `-`; trim, collapse, truncate to 60 at a `-` boundary.
     let class = slug_char_class(slug_pattern);
@@ -3411,6 +3687,9 @@ fn slugify_title(title: &str, slug_pattern: &str) -> String {
     out
 }
 
+/// Render an `Id` back to text under the repo's `[id] format`, zero-padding the
+/// number to `width` (§FS-config.3.2, §FS-name.2 — the form `gnd name` prints and
+/// every report uses).
 fn format_id(id: &Id, config: &Config, width: usize) -> String {
     let mut rendered = config.id_format.clone();
     rendered = rendered.replace("{kind}", &id.kind);
@@ -3423,10 +3702,14 @@ fn format_id(id: &Id, config: &Config, width: usize) -> String {
     rendered
 }
 
+/// Render an `Id` at the default 3-digit number width — the form used everywhere
+/// `gnd` prints an ID in a report, listing, or message (§FS-config.3.2).
 fn render_id(config: &Config, id: &Id) -> String {
     format_id(id, config, 3)
 }
 
+// The scaffold templates `gnd init` writes are embedded in the binary; the
+// reference copies live under `templates/` in the source tree (§FS-init.2.1).
 const AGENTS_TEMPLATE: &str = include_str!("../templates/agents.md");
 const GND_TOML_TEMPLATE: &str = include_str!("../templates/gnd.toml");
 const RAISON_DETRE_TEMPLATE: &str = include_str!("../templates/raison-detre.md");
@@ -3439,12 +3722,65 @@ const AGENTS_BLOCK_VERSION: u32 = 1;
 const AGENTS_APPEND_BEGIN: &str = "<!-- gnd:init:agents:v1 begin -->";
 const AGENTS_APPEND_END: &str = "<!-- gnd:init:agents:v1 end -->";
 
-fn render_agents_md(name: &str) -> String {
-    AGENTS_TEMPLATE.replace("{NAME}", name)
+/// The substitutions that turn `templates/agents.md` into a concrete `agents.md`
+/// for a repo (§FS-init.2.3): the project name, plus the ID/marker shape taken
+/// from the config `gnd init` leaves in place — so a `{kind}-{slug}` repo gets a
+/// `<KIND>-<slug>` description, a strict repo gets the strict-mode note, custom
+/// kinds show up in the kind set, and so on. Everything *not* substituted here is
+/// fixed for the block version. `{ID_SHAPE_SEC}` is listed before `{ID_SHAPE}`
+/// only for readability; neither placeholder is a substring of the other.
+fn agents_template_substitutions(name: &str, config: &Config) -> Vec<(&'static str, String)> {
+    let sep = config.section_separator.as_str();
+    let marker = config.marker.as_str();
+    let id_shape = config
+        .id_format
+        .replace("{kind}", "<KIND>")
+        .replace("{number}", "<NNN>")
+        .replace("{slug}", "<slug>");
+    let id_example = config
+        .id_format
+        .replace("{kind}", "FS")
+        .replace("{number}", "042")
+        .replace("{slug}", "user-login");
+    let cite_example = format!("{marker}{id_example}{sep}3{sep}1");
+    let kinds_set = format!("{{{}}}", kind_prefixes(&config.kinds).join(", "));
+    let bare_note = if config.strict {
+        format!(
+            "Bare ID-shaped tokens are ignored — `[reference] strict = true` is set in `.agents/gnd.toml`, so only `{marker}`-prefixed citations are checked."
+        )
+    } else {
+        format!(
+            "Bare ID-shaped tokens are also recognized as citations for backward compatibility; set `[reference] strict = true` in `.agents/gnd.toml` to require the `{marker}` marker (run `gnd fmt --marker` first to upgrade existing bare citations)."
+        )
+    };
+    vec![
+        ("{NAME}", name.to_string()),
+        ("{ID_SHAPE_SEC}", format!("{id_shape}[{sep}<section>]")),
+        ("{ID_SHAPE}", id_shape),
+        ("{ID_EXAMPLE}", id_example),
+        ("{CITE_EXAMPLE}", cite_example),
+        ("{KINDS_SET}", kinds_set),
+        ("{BARE_TOKEN_NOTE}", bare_note),
+        ("{MARKER}", marker.to_string()),
+        ("{TRIGGER}", config.trigger.clone()),
+    ]
 }
 
-fn render_agents_append_block(name: &str) -> String {
-    let rendered = render_agents_md(name);
+/// The full generated `agents.md` for a fresh repo — the template with all
+/// substitutions applied (§FS-init.2.3). Deterministic: same `gnd` version, same
+/// `--name`, same effective config ⇒ byte-identical output (§FS-non-goals.13).
+fn render_agents_md(name: &str, config: &Config) -> String {
+    let mut rendered = AGENTS_TEMPLATE.to_string();
+    for (placeholder, value) in agents_template_substitutions(name, config) {
+        rendered = rendered.replace(placeholder, &value);
+    }
+    rendered
+}
+
+/// Just the `<!-- gnd:init:agents:vN begin -->`…`end` managed block — what `init`
+/// appends to, or replaces inside, an existing `agents.md` (§FS-init.2.3).
+fn render_agents_append_block(name: &str, config: &Config) -> String {
+    let rendered = render_agents_md(name, config);
     let start = rendered
         .find(AGENTS_APPEND_BEGIN)
         .expect("agents template must contain append block start marker");
@@ -3455,6 +3791,22 @@ fn render_agents_append_block(name: &str) -> String {
     format!("{}\n", rendered[start..end].trim_end())
 }
 
+/// The config that `gnd init` will leave governing `target`, which the generated
+/// `agents.md` must describe (§FS-init.2.3): an existing `target/.agents/gnd.toml`
+/// if there is one, otherwise the defaults (exactly what `init` is about to write
+/// into `target/.agents/gnd.toml`). We do **not** walk up to an ancestor's config
+/// here — `init` always writes a config *in* `target`.
+fn init_effective_config(target: &Path) -> Config {
+    let local_config = target.join(".agents").join("gnd.toml");
+    if local_config.is_file() {
+        load_config(target).unwrap_or_else(|_| Config::default_for(target.to_path_buf()))
+    } else {
+        Config::default_for(target.to_path_buf())
+    }
+}
+
+/// The generated `.agents/gnd.toml` — every default written out explicitly as a
+/// teaching surface, with only `project_name` substituted (§FS-init.2.4).
 fn render_gnd_toml(name: &str) -> String {
     GND_TOML_TEMPLATE.replace("{NAME}", &escape_toml_basic(name))
 }
@@ -3463,6 +3815,13 @@ fn escape_toml_basic(raw: &str) -> String {
     raw.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+/// `gnd init [path] [--name N] [--docs] [--force|--append]` — scaffold a repo for
+/// `gnd` (§FS-init.1): write `agents.md` and `.agents/gnd.toml` (and, with
+/// `--docs`, the `docs/`+`e2e/` tree, §FS-init.2.1), append/update the managed
+/// `agents.md` block when the file already exists (§FS-init.2.3), refuse to clobber
+/// other existing files without `--force` (§FS-init.3), print a `next:` block, and
+/// exit `2` on a missing target / CLI error / unsupported block version
+/// (§FS-init.4). Non-interactive — every choice is a flag (§FS-non-goals.10).
 fn command_init(args: &[String]) -> ExitCode {
     let mut path: Option<PathBuf> = None;
     let mut name: Option<String> = None;
@@ -3530,8 +3889,12 @@ fn command_init(args: &[String]) -> ExitCode {
         },
     };
 
+    // §FS-init.2.3: render `agents.md` against the config `init` leaves in place,
+    // so the ID-shape / kind / marker prose in it matches `.agents/gnd.toml`.
+    let init_config = init_effective_config(&target);
+
     let mut files: Vec<(&'static str, String)> = vec![
-        ("agents.md", render_agents_md(&resolved_name)),
+        ("agents.md", render_agents_md(&resolved_name, &init_config)),
         (".agents/gnd.toml", render_gnd_toml(&resolved_name)),
     ];
     if docs {
@@ -3542,7 +3905,10 @@ fn command_init(args: &[String]) -> ExitCode {
         let dest = target.join(rel);
         if !force && dest.exists() {
             if *rel == "agents.md" {
-                match update_agents_block(&dest, &render_agents_append_block(&resolved_name)) {
+                match update_agents_block(
+                    &dest,
+                    &render_agents_append_block(&resolved_name, &init_config),
+                ) {
                     Ok(AgentsUpdateResult::Appended) => eprintln!("appended {rel}"),
                     Ok(AgentsUpdateResult::Updated) => eprintln!("updated {rel}"),
                     Ok(AgentsUpdateResult::AlreadyCurrent) => eprintln!("exists {rel}"),
@@ -3593,6 +3959,9 @@ fn command_init(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// What `init` did to an existing `agents.md`'s managed block — `appended ` (no
+/// block before), `updated ` (older block replaced in place), or `exists ` (block
+/// already current) — the three stderr prefixes of §FS-init.2.2 / §FS-init.2.3.
 #[derive(Debug, Eq, PartialEq)]
 enum AgentsUpdateResult {
     Appended,
@@ -3600,6 +3969,8 @@ enum AgentsUpdateResult {
     AlreadyCurrent,
 }
 
+/// Append or update the managed block in an existing `agents.md` on disk
+/// (§FS-init.2.3) — leaves the file untouched when the block is already current.
 fn update_agents_block(dest: &Path, block: &str) -> Result<AgentsUpdateResult> {
     let existing = fs::read_to_string(dest)?;
     let (updated, result) = update_agents_text(&existing, block)?;
@@ -3610,6 +3981,10 @@ fn update_agents_block(dest: &Path, block: &str) -> Result<AgentsUpdateResult> {
     Ok(result)
 }
 
+/// The pure string transform behind `update_agents_block`: splice the current
+/// managed block into `existing`, preserving everything outside the begin/end
+/// markers byte-for-byte — including the block's position and any CRLF endings
+/// (§FS-init.2.3.1, §FS-init.2.3.2). A newer-than-supported block is an error.
 fn update_agents_text(existing: &str, block: &str) -> Result<(String, AgentsUpdateResult)> {
     if let Some(existing_block) = find_agents_block(existing) {
         if existing_block.version == AGENTS_BLOCK_VERSION {
@@ -3649,12 +4024,18 @@ fn update_agents_text(existing: &str, block: &str) -> Result<(String, AgentsUpda
     Ok((updated, AgentsUpdateResult::Appended))
 }
 
+/// The byte span and `vN` version of the managed block inside an `agents.md`
+/// (§FS-init.2.3) — what both `gnd init`'s update and `gnd check`'s validation
+/// (§FS-check.3.5) key off.
 struct AgentsBlock {
     start: usize,
     end: usize,
     version: u32,
 }
 
+/// Locate the `<!-- gnd:init:agents:vN begin -->`…`end` block in `agents.md`,
+/// tolerating any whitespace (including `\r`) between marker tokens so a CRLF file
+/// is still recognized (§FS-init.2.3.2, §FS-check.3.5).
 fn find_agents_block(text: &str) -> Option<AgentsBlock> {
     let begin = AGENTS_BLOCK_BEGIN.captures(text)?;
     let begin_match = begin.get(0)?;
@@ -3667,6 +4048,8 @@ fn find_agents_block(text: &str) -> Option<AgentsBlock> {
     })
 }
 
+/// The default project name when `--name` is omitted: the basename of `<path>`
+/// resolved to an absolute path (§FS-init.1).
 fn derive_default_name(target: &Path) -> Result<String> {
     let absolute =
         fs::canonicalize(target).with_context(|| format!("resolve {}", target.display()))?;
@@ -3677,6 +4060,10 @@ fn derive_default_name(target: &Path) -> Result<String> {
         .ok_or_else(|| anyhow!("cannot derive project name from {}", absolute.display()))
 }
 
+/// The `--docs` scaffold: the canonical `docs/` tree (stub `raison-detre.md`,
+/// `goals/goals.md`, `roadmap.md`, `changelog.md`, the two spec READMEs, the
+/// decision `.gitkeep`s) plus an empty `e2e/` with a README — the file list of
+/// §FS-init.2.1, each a minimal starter that leaves `gnd check` clean.
 fn docs_scaffold() -> Vec<(&'static str, String)> {
     vec![
         ("docs/raison-detre.md", RAISON_DETRE_TEMPLATE.to_string()),
@@ -3710,6 +4097,8 @@ fn docs_scaffold() -> Vec<(&'static str, String)> {
     ]
 }
 
+/// `gnd --help` / `gnd help` — the top-level usage text: the subcommand list and
+/// global flags (§FS-cli.2). `gnd help <cmd>` defers to `print_subcommand_help`.
 fn print_help() {
     println!("gnd — ground your agents in the spec.");
     println!("Checks ID-based citations (§<ID>.<section>) across Markdown docs and source-code");
@@ -3759,9 +4148,9 @@ fn print_help() {
     println!("Help and version go to stdout and exit 0.   Docs: docs/functional-spec/");
 }
 
-/// Per-subcommand `--help` / `help <subcommand>` page (FS-cli.2): what it takes,
-/// every flag with a one-line example, the exit codes, and the common recovery
-/// path. Goes to stdout, exit 0 — help is never an error.
+/// Per-subcommand `--help` / `help <subcommand>` page (§FS-cli.2, §FS-cli.3): what
+/// it takes, every flag with a one-line example, the exit codes, and the common
+/// recovery path. Goes to stdout, exit 0 — help is never an error.
 fn print_subcommand_help(cmd: &str) {
     match cmd {
         "check" => {
@@ -3947,7 +4336,7 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!(
-                "Exit:  0 ID emitted · 1 unknown kind / empty slug / collision · 2 scan or CLI error."
+                "Exit:  0 ID emitted · 1 empty slug / collision · 2 unknown kind, scan, or CLI error."
             );
             println!();
             println!("Examples:");
@@ -4031,7 +4420,35 @@ fn print_subcommand_help(cmd: &str) {
     }
 }
 
+/// Restore the default `SIGPIPE` disposition (Unix only).
+///
+/// Rust ignores `SIGPIPE` at startup, which turns a closed downstream pipe
+/// (`gnd list | head`) into an `EPIPE` on the next write — and `println!`
+/// panics on a write error. A CLI in a pipeline should instead die quietly,
+/// the way `ls | head` does. This is a no-op off Unix.
+#[cfg(unix)]
+fn restore_default_sigpipe() {
+    // SIGPIPE == 13 and SIG_DFL == (void(*)(int))0 on Linux, macOS, and the BSDs.
+    const SIGPIPE: i32 = 13;
+    const SIG_DFL: usize = 0;
+    unsafe extern "C" {
+        fn signal(signum: i32, handler: usize) -> usize;
+    }
+    unsafe {
+        signal(SIGPIPE, SIG_DFL);
+    }
+}
+
+#[cfg(not(unix))]
+fn restore_default_sigpipe() {}
+
+/// The CLI entry point: parse `argv`, dispatch to the matching `command_*`, and
+/// return its `ExitCode` (§FS-cli). `gnd` with no subcommand — or with a leading
+/// flag or a path — is `gnd check` (§FS-cli.1); `--version`/`--help` short-circuit
+/// to stdout, exit 0 (§FS-cli.2); an unknown command exits 2 and lists the known
+/// ones (§FS-cli.4). The exit-code mapping (0/1/2) is fixed (§FS-cli.5).
 pub fn main_entry() -> ExitCode {
+    restore_default_sigpipe();
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     if args.iter().any(|arg| arg == "--version" || arg == "-V") {
         println!("gnd {}", env!("CARGO_PKG_VERSION"));
@@ -4039,7 +4456,7 @@ pub fn main_entry() -> ExitCode {
     }
     let first = args.first().map(|arg| arg.as_str());
     // `gnd help [<subcommand>]` — the top-level page with no argument, that
-    // subcommand's page with one, an error for an unknown name (FS-cli.2).
+    // subcommand's page with one, an error for an unknown name (§FS-cli.2).
     if first == Some("help") {
         return match args.get(1).map(String::as_str) {
             None => {
@@ -4080,9 +4497,9 @@ pub fn main_entry() -> ExitCode {
         Some("complete") => command_complete(&args[1..]),
         Some(other) if other.starts_with('-') => command_check(&args),
         // Any first argument that is not a known subcommand is a path argument:
-        // `gnd <path>` ≡ `gnd check <path>` (FS-cli.1). When that path doesn't
+        // `gnd <path>` ≡ `gnd check <path>` (§FS-cli.1). When that path doesn't
         // exist the message names both readings, so a mistyped subcommand isn't
-        // misreported as a missing file (FS-cli.1, FS-cli.4).
+        // misreported as a missing file (§FS-cli.1, §FS-cli.4).
         Some(other) => {
             if !Path::new(other).exists() {
                 eprintln!("error: unknown command or missing path: {other}");
@@ -4122,7 +4539,7 @@ mod tests {
     }
 
     fn current_block() -> String {
-        render_agents_append_block("demo")
+        render_agents_append_block("demo", &Config::default_for(PathBuf::from(".")))
     }
 
     #[test]
@@ -4266,7 +4683,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
     #[test]
     fn agents_update_keeps_current_block_in_middle_position() {
-        // FS-init.2.3.1: a v1 block that already sits between user-authored
+        // §FS-init.2.3.1: a v1 block that already sits between user-authored
         // sections must be recognized as `AlreadyCurrent` and the file must not be
         // rewritten — the position of the block within the file is preserved.
         let existing = format!(
@@ -4288,7 +4705,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
     #[test]
     fn agents_update_handles_crlf_line_endings() {
-        // FS-init.2.3.2: a CRLF-encoded agents.md with a v0 block sandwiched
+        // §FS-init.2.3.2: a CRLF-encoded agents.md with a v0 block sandwiched
         // between user-authored sections must still be detected and updated, with
         // CRLF preserved outside the managed block.
         let v0_lf = current_block()

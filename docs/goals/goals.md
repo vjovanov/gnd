@@ -10,10 +10,10 @@ A repo that passes `gnd` has zero dangling references and zero broken section co
 
 ### 1. What "resolves" means
 
-A citation `FS-user-login.3.1` resolves when:
+A citation `§FS-<user-login>.3.1` resolves when:
 
-- A declaration of `FS-user-login` exists somewhere in the scanned tree.
-- The declaration body contains a numbered section `3.1` (recursively, at any depth — see FS-config.3.3).
+- A declaration of `FS-<user-login>` exists somewhere in the scanned tree.
+- The declaration body contains a numbered section `3.1` (recursively, at any depth — see §FS-config.3.3).
 - If the declaration is a stub (H1 of the form `# <ID>: [<text>](<path>)`), the pointed-at file contains an inline declaration of the same ID.
 
 ### 2. Measurable
@@ -26,7 +26,7 @@ A `gnd` citation is valid in a Markdown file, a Java doc-comment, a Rust `///` l
 
 ### 1. What "cleanly" means
 
-- One citation grammar across all hosts. A citation like `FS-user-login.3.1` reads, parses, and resolves identically whether the file is `.md`, `.rs`, `.java`, `.py`, `.go`, `.ts`, or any other extension on the configured scan list.
+- One citation grammar across all hosts. A citation like `§FS-<user-login>.3.1` reads, parses, and resolves identically whether the file is `.md`, `.rs`, `.java`, `.py`, `.go`, `.ts`, or any other extension on the configured scan list.
 - One marker. The same `§` (or whatever §DF-reference-marker resolves to in the project's config) is recognized in every file type; no per-language escape rules.
 - One section grammar. The trailing `.3.1` resolves to a heading inside the declaration body the same way regardless of which file type the *declaration* lives in (`.md` page, inline Rustdoc, Javadoc, Python docstring).
 - One resolver. Citations cross the docs/code boundary in both directions: a Markdown spec under `docs/` may cite an architectural ID whose home is a Java class doc-comment, and the Java class doc-comment may cite a functional ID back. Both are validated by the same `gnd check` walk.
@@ -63,7 +63,7 @@ These must hold; CI fails on regression.
 - Streaming line scan, not full-file buffering, on large files.
 - Parallel walk using `rayon` once the single-thread version stops winning.
 - Compiled regexes shared across all files via `once_cell`.
-- Skip directories that obviously cannot contain specs — see FS-config.3.5.
+- Skip directories that obviously cannot contain specs — see §FS-config.3.5.
 
 ### 3. Measurable
 
@@ -81,9 +81,9 @@ A repo whose layout follows the canonical `gnd` conventions: `agents.md` at the 
 
 `gnd <repo>` works on any conformant repo without additional setup. The e2e suite includes a "minimal conformant repo" fixture; `gnd` must report zero errors with no flags and no `gnd.toml`.
 
-### 3. Composition with G-configurable
+### 3. Composition with §G-configurable
 
-Zero-config and configurable are not in tension — they compose. Out-of-the-box, `gnd` matches the canonical defaults; for projects that diverge, every assumption is overridable per FS-config. There is no middle ground where defaults are weird.
+Zero-config and configurable are not in tension — they compose. Out-of-the-box, `gnd` matches the canonical defaults; for projects that diverge, every assumption is overridable per §FS-config. There is no middle ground where defaults are weird.
 
 ## G-multi-language: same engine, three platforms
 
@@ -95,7 +95,7 @@ The same input — a tree plus an optional `gnd.toml` — produces a byte-identi
 
 ### 2. Idiomatic surfaces
 
-Each binding fits its host. Rust returns `Result<T, E>`; Node returns Promises; Python returns values and raises exceptions. Names follow each ecosystem's conventions. Behavior is identical; surface fits each. See FS-distribution and AS-bindings for the implementation.
+Each binding fits its host. Rust returns `Result<T, E>`; Node returns Promises; Python returns values and raises exceptions. Names follow each ecosystem's conventions. Behavior is identical; surface fits each. See §FS-distribution and §AS-bindings for the implementation.
 
 ### 3. Measurable
 
@@ -103,7 +103,7 @@ An integration test runs the same spec corpus through each binding and asserts b
 
 ## G-friendliness-first: as user- and agent-friendly as possible
 
-Friendliness is the second **ordering principle** (alongside speed, G-fast-feedback). When a design choice trades raw capability or terseness for legibility, legibility wins. `gnd` is used by humans in terminals and IDEs *and* by AI agents through stdout pipelines — both audiences must be served.
+Friendliness is the second **ordering principle** (alongside speed, §G-fast-feedback). When a design choice trades raw capability or terseness for legibility, legibility wins. `gnd` is used by humans in terminals and IDEs *and* by AI agents through stdout pipelines — both audiences must be served.
 
 ### 1. Hard requirements
 
@@ -124,15 +124,15 @@ Typical `gnd show` output under 200 lines; `gnd --format=json` validates against
 
 ## G-configurable: every default is overridable
 
-Zero-config by default (G-zero-config); configurable when a project's conventions diverge. Users must be able to write references **the way they like**.
+Zero-config by default (§G-zero-config); configurable when a project's conventions diverge. Users must be able to write references **the way they like**.
 
 ### 1. What is configurable
 
-Per FS-config, a `gnd.toml` at the repo root can override the set of `KIND` prefixes, the ID format itself, the reference marker and typing trigger, strict vs optional marker mode, the set of folders that are scanned and skipped, the supported comment prefixes for inline specs, and the output format defaults.
+Per §FS-config, a `gnd.toml` at the repo root can override the set of `KIND` prefixes, the ID format itself, the reference marker and typing trigger, strict vs optional marker mode, the set of folders that are scanned and skipped, the supported comment prefixes for inline specs, and the output format defaults.
 
 ### 2. What is NOT configurable
 
-Per G-friendliness-first.2, the severity model, exit-code mapping, report ordering, and other invariants that would let two correctly-configured installs disagree on a repo's well-formedness are deliberately **not** configurable.
+Per §G-friendliness-first.2, the severity model, exit-code mapping, report ordering, and other invariants that would let two correctly-configured installs disagree on a repo's well-formedness are deliberately **not** configurable.
 
 ### 3. Measurable
 
@@ -140,15 +140,15 @@ An e2e fixture with a non-default `gnd.toml` (custom kinds, alternate section de
 
 ## G-no-silent-breakage: changes ship through a deprecation path
 
-A repo that worked yesterday must work today. Every user-visible change to `gnd` either stays backwards-compatible or ships through a deprecation path that names the removal horizon. Silent semantic changes — output shape, exit codes, config schema, grammar — are release blockers, not features. This goal extends G-friendliness-first.1's "no surprises" from within-run determinism to cross-version stability.
+A repo that worked yesterday must work today. Every user-visible change to `gnd` either stays backwards-compatible or ships through a deprecation path that names the removal horizon. Silent semantic changes — output shape, exit codes, config schema, grammar — are release blockers, not features. This goal extends §G-friendliness-first.1's "no surprises" from within-run determinism to cross-version stability.
 
 ### 1. What counts as user-visible
 
-- CLI surface: subcommands, flags, and the exit-code mapping (frozen per G-friendliness-first.2 and FS-non-goals.9).
-- Output bytes: stdout and stderr shapes that tools, editors, and agents pipe — including the `--format=json` schema (G-friendliness-first.1).
-- `gnd.toml` schema (FS-config.3) and the `gnd_config_version` (FS-config.5).
-- Reference grammar: KIND set, ID format, marker, trigger (DF-reference-marker).
-- The `agents.md` init block content and its version markers (FS-init.2.3).
+- CLI surface: subcommands, flags, and the exit-code mapping (frozen per §G-friendliness-first.2 and §FS-non-goals.9).
+- Output bytes: stdout and stderr shapes that tools, editors, and agents pipe — including the `--format=json` schema (§G-friendliness-first.1).
+- `gnd.toml` schema (§FS-config.3) and the `gnd_config_version` (§FS-config.5).
+- Reference grammar: KIND set, ID format, marker, trigger (§DF-reference-marker).
+- The `agents.md` init block content and its version markers (§FS-init.2.3).
 
 Internal refactors that leave every item above byte-identical are out of scope — they are not "changes" in the sense this goal covers.
 
@@ -181,14 +181,14 @@ A repo with hundreds of specs across many components organizes them into a compo
 
 ### 3. Layout knobs live in config
 
-Per FS-config, the layout differences between small and large repos are exposed as keys in `gnd.toml`, defaulting to small. Repos opt in to component-required mode (and any other layout commitments needed for scale) when flat stops working for them. Both modes are first-class; neither is a degraded form of the other.
+Per §FS-config, the layout differences between small and large repos are exposed as keys in `gnd.toml`, defaulting to small. Repos opt in to component-required mode (and any other layout commitments needed for scale) when flat stops working for them. Both modes are first-class; neither is a degraded form of the other.
 
-### 4. Composition with G-zero-config and G-configurable
+### 4. Composition with §G-zero-config and §G-configurable
 
-The default — flat, component-optional — keeps zero-config intact for the small case (G-zero-config). Configurability picks up where flat stops scaling (G-configurable). The two ordering principles compose: out-of-the-box behavior is canonical small-repo `gnd`; scale is opted into, not bolted on.
+The default — flat, component-optional — keeps zero-config intact for the small case (§G-zero-config). Configurability picks up where flat stops scaling (§G-configurable). The two ordering principles compose: out-of-the-box behavior is canonical small-repo `gnd`; scale is opted into, not bolted on.
 
 ### 5. Measurable
 
 - An e2e fixture for a "tiny conformant repo" (handful of specs, flat, no `gnd.toml`) passes.
-- An e2e fixture for a "large conformant repo" (synthetic, sized to fit CI budget, with components, sub-components, and tree-form specs) passes with the appropriate `gnd.toml` and meets the G-fast-feedback budget for a 10k-file repo.
+- An e2e fixture for a "large conformant repo" (synthetic, sized to fit CI budget, with components, sub-components, and tree-form specs) passes with the appropriate `gnd.toml` and meets the §G-fast-feedback budget for a 10k-file repo.
 - The large fixture, with its `gnd.toml` removed, fails — proving that scale features are opt-in, not implicit.

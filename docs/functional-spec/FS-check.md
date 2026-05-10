@@ -1,22 +1,22 @@
 # FS-check: gnd validates every reference in a repo
 
-The `check` command walks a repo and reports every violation of the gnd reference scheme. It is the default subcommand: `gnd <path>` and `gnd check <path>` are equivalent. Serves G-no-dangling-refs and G-fast-feedback.
+The `check` command walks a repo and reports every violation of the gnd reference scheme. It is the default subcommand: `gnd <path>` and `gnd check <path>` are equivalent. Serves §G-no-dangling-refs and §G-fast-feedback.
 
 ## 1. Inputs
 
-- Optional path argument; defaults to the current directory. May be a directory or a single file (`gnd check src/scanner.rs` scopes the scan to one file but still discovers `.agents/gnd.toml` by walking up — FS-config.1).
+- Optional path argument; defaults to the current directory. May be a directory or a single file (`gnd check src/scanner.rs` scopes the scan to one file but still discovers `.agents/gnd.toml` by walking up — §FS-config.1).
 - The walked tree may contain markdown (`.md`) and source files (Rust, Go, Java, TS, Python, etc.).
-- Optional `.agents/gnd.toml` configuring marker, trigger, kinds, and skip lists per G-configurable (FS-config).
+- Optional `.agents/gnd.toml` configuring marker, trigger, kinds, and skip lists per §G-configurable (§FS-config).
 - `--watch` is reserved for the planned resident checker (§6) and is not accepted by the current CLI.
-- `--format text|json` — output shape, per FS-errors.5. The global flags `--version` and `--help` are handled before any scan (FS-cli).
+- `--format text|json` — output shape, per §FS-errors.5. The global flags `--version` and `--help` are handled before any scan (§FS-cli).
 
 ## 1.1 Recognized citations
 
-Per DF-reference-marker, a citation is the marker followed by an ID, e.g. `§FS-check.3.1`. The default marker is `§`; configurable via `gnd.toml`.
+Per §DF-reference-marker, a citation is the marker followed by an ID, e.g. `§FS-check.3.1`. The default marker is `§`; configurable via `gnd.toml`.
 
-In default mode, bare ID tokens are also recognized as citations for backward compatibility. In `[reference] strict = true` mode, only marker-prefixed citations are recognized — bare tokens are treated as plain text and do not trigger dangling-ref errors. New repos should adopt strict mode after running `gnd fmt --marker` (FS-fmt) to convert existing bare citations.
+In default mode, bare ID tokens are also recognized as citations for backward compatibility. In `[reference] strict = true` mode, only marker-prefixed citations are recognized — bare tokens are treated as plain text and do not trigger dangling-ref errors. New repos should adopt strict mode after running `gnd fmt --marker` (§FS-fmt) to convert existing bare citations.
 
-Citations may appear in markdown prose, in source-file line/block comments, and in language doc-comments (Javadoc, JSDoc, Rustdoc, Python docstrings, etc.) — see AS-scanner.2.3 and AS-scanner.4 for the exact contexts. In source files, a **bare** ID-shaped token whose start column falls inside a string literal is not treated as a citation (the same deterministic quote-tracking rule `gnd fmt` uses — FS-fmt.2.3.1, AS-scanner.2.3), so an ID-shaped substring inside a runtime string does not raise a false dangling-ref. A marker-prefixed citation is recognized everywhere, string or not — the marker is the signal of intent. Markdown files have no string literals and the carve-out does not apply there. `E2E` citations (`§E2E-<name>`) resolve against case directories under `e2e/cases/` per AS-scanner.6.
+Citations may appear in markdown prose, in source-file line/block comments, and in language doc-comments (Javadoc, JSDoc, Rustdoc, Python docstrings, etc.) — see §AS-scanner.2.3 and §AS-scanner.4 for the exact contexts. In source files, a **bare** ID-shaped token whose start column falls inside a string literal is not treated as a citation (the same deterministic quote-tracking rule `gnd fmt` uses — §FS-fmt.2.3.1, §AS-scanner.2.3), so an ID-shaped substring inside a runtime string does not raise a false dangling-ref. A marker-prefixed citation is recognized everywhere, string or not — the marker is the signal of intent. Markdown files have no string literals and the carve-out does not apply there. `E2E` citations (`§E2E-<name>`) resolve against case directories under `e2e/cases/` per §AS-scanner.6.
 
 ## 2. Outputs
 
@@ -26,7 +26,7 @@ A report on stderr, plus an exit code:
 - `1` — at least one error.
 - `2` — scan failure (I/O, malformed file, invalid `.agents/gnd.toml`).
 
-An invalid `.agents/gnd.toml` aborts before any file is read (FS-config.4.3): exit `2`, a single `error:` line, no findings. A per-file failure encountered *during* the walk (a file that cannot be read or decoded) is different: the offending file is reported as `error: <path>: <reason>` (the CLI-level shape, FS-errors.2.2 — the file has no line to point at), the walk continues over the remaining files, every finding collected from the readable files is still printed in the normal `<path>:<line>:` form, and the run exits `2` because the view of the tree was incomplete. A `2` therefore always means "do not trust this report as complete"; the printed findings are still real.
+An invalid `.agents/gnd.toml` aborts before any file is read (§FS-config.4.3): exit `2`, a single `error:` line, no findings. A per-file failure encountered *during* the walk (a file that cannot be read or decoded) is different: the offending file is reported as `error: <path>: <reason>` (the CLI-level shape, §FS-errors.2.2 — the file has no line to point at), the walk continues over the remaining files, every finding collected from the readable files is still printed in the normal `<path>:<line>:` form, and the run exits `2` because the view of the tree was incomplete. A `2` therefore always means "do not trust this report as complete"; the printed findings are still real.
 
 ### 2.1 Report format
 
@@ -36,13 +36,13 @@ Findings are written to stderr, one per line, in the form:
 <path>:<line>: <message>
 ```
 
-`<path>` is relative to the config root (FS-config.3.6) when a `gnd.toml` was discovered, otherwise relative to the path passed on the command line. `<line>` is 1-indexed. The `<path>:<line>:` prefix is mandatory on every finding so editors and agents can jump unmodified — this is the contract from G-friendliness-first.1.
+`<path>` is relative to the config root (§FS-config.3.6) when a `gnd.toml` was discovered, otherwise relative to the path passed on the command line. `<line>` is 1-indexed. The `<path>:<line>:` prefix is mandatory on every finding so editors and agents can jump unmodified — this is the contract from §G-friendliness-first.1.
 
-Severity is implicit. Per-finding lines carry no `error:`/`warning:` prefix because the severity of a rule is fixed (FS-check.3 vs §4) and the message text is what humans read. Consumers that need machine-distinguishable severity use `--format=json`.
+Severity is implicit. Per-finding lines carry no `error:`/`warning:` prefix because the severity of a rule is fixed (§FS-check.3 vs §4) and the message text is what humans read. Consumers that need machine-distinguishable severity use `--format=json`.
 
-When a finding inherently spans multiple sites (e.g., duplicate declarations, FS-check.3.3), the message is anchored at the lexicographically-first site (sort by `path`, then `line`) and the other sites are listed parenthetically inside the message.
+When a finding inherently spans multiple sites (e.g., duplicate declarations, §FS-check.3.3), the message is anchored at the lexicographically-first site (sort by `path`, then `line`) and the other sites are listed parenthetically inside the message.
 
-Stdout is always empty for `check`. Stderr is empty when there are zero errors and zero warnings, satisfying G-friendliness-first.1.6 ("zero noise on success"). There is no summary footer — the exit code is the machine-readable verdict, the per-finding lines are the human-readable detail.
+Stdout is always empty for `check`. Stderr is empty when there are zero errors and zero warnings, satisfying §G-friendliness-first.1 ("zero noise on success"). There is no summary footer — the exit code is the machine-readable verdict, the per-finding lines are the human-readable detail.
 
 #### 2.1.1 CLI-level errors
 
@@ -64,7 +64,7 @@ A recognized citation (per §1.1) for which no declaration is found.
 
 ### 3.2 Missing section
 
-A citation with a section suffix (`FS-user-login.3.1`) where the declaration exists but the requested section heading does not.
+A citation with a section suffix (`§FS-<user-login>.3.1`) where the declaration exists but the requested section heading does not.
 
 ### 3.3 Duplicate declaration
 
@@ -76,7 +76,7 @@ A `docs/` file whose H1 has the stub shape `# <ID>: [<text>](<path>)` where eith
 
 ### 3.5 Invalid `agents.md` init block
 
-If `<path>/agents.md` exists, `check` verifies the versioned `gnd init` block defined by FS-init.2.3. A missing block, malformed begin/end marker pair, older block version, or newer unsupported block version is an error. This lets CI catch repos whose agent entry point was never initialized or needs to be refreshed with `gnd init`.
+If `<path>/agents.md` exists, `check` verifies the versioned `gnd init` block defined by §FS-init.2.3. A missing block, malformed begin/end marker pair, older block version, or newer unsupported block version is an error. This lets CI catch repos whose agent entry point was never initialized or needs to be refreshed with `gnd init`.
 
 ## 4. Warnings
 
@@ -84,17 +84,19 @@ If `<path>/agents.md` exists, `check` verifies the versioned `gnd init` block de
 
 An ID that is declared but never cited. Reported as a warning, not an error — newly declared IDs may not yet have citations. Warnings never affect the exit code (§2).
 
+`E2E` declarations (§AS-scanner.6) are exempt: an end-to-end case is exercised by being run, not by being cited, so a `§E2E-<name>` that nothing references is not a warning. Every other kind is subject to this rule. `gnd list --unused` (§FS-list) still lists uncited `E2E` declarations — the suppression is of the *check warning*, not of the catalog query.
+
 ## 5. What gnd does not check
 
-See FS-non-goals — in particular FS-non-goals.1 (markdown links / URLs), FS-non-goals.2 (spelling/grammar), and the convention that ID numbers are stable handles, not ordinal positions.
+See §FS-non-goals — in particular §FS-non-goals.1 (markdown links / URLs), §FS-non-goals.2 (spelling/grammar), and the convention that ID numbers are stable handles, not ordinal positions.
 
 ## 6. Watch mode (`--watch`)
 
 Status: planned — implementation tracked under §RM-watch.
 
-When implemented, `gnd check --watch [<path>]` will run the check once, then stay resident and re-run it whenever a file under the scanned tree (or `.agents/gnd.toml`) changes. It is the editor-less counterpart to the optional LSP server (FS-lsp): the LSP integrates `gnd` into an editor's diagnostics; `--watch` is the plain-terminal "every save" loop that G-fast-feedback exists for. Until §RM-watch lands, `gnd check --watch` is a CLI error (`error: unknown flag \`--watch\``, exit 2).
+When implemented, `gnd check --watch [<path>]` will run the check once, then stay resident and re-run it whenever a file under the scanned tree (or `.agents/gnd.toml`) changes. It is the editor-less counterpart to the optional LSP server (§FS-lsp): the LSP integrates `gnd` into an editor's diagnostics; `--watch` is the plain-terminal "every save" loop that §G-fast-feedback exists for. Until §RM-watch lands, `gnd check --watch` is a CLI error (`error: unknown flag \`--watch\``, exit 2).
 
 - **Change detection.** Filesystem notifications where the OS provides them; a debounce window coalesces a burst of writes into one re-check. No polling loop is required, and there is no configurable interval — the watcher reacts, it does not sample.
-- **Each run is a plain `gnd check`.** Output and exit-status semantics of an individual run are exactly §2/§2.1 on the tree's state at that moment — byte-identical to what a non-`--watch` invocation would print (FS-errors.4). Before each run the previous run's output is cleared so the terminal always shows the current report; with `--format=json` each run emits one self-contained report object (never a running NDJSON stream).
-- **Lifecycle.** The process runs until interrupted (Ctrl-C / SIGINT). On interrupt it exits with the exit code of the most recently completed run (`0`/`1`/`2`), so `gnd check --watch &` followed by a later signal is still a meaningful CI-ish probe. There is no TUI, no key bindings, no prompt — it is non-interactive per FS-non-goals.10, just a re-printing checker. No network I/O (FS-non-goals.11); the only files touched are the ones the walk already reads.
-- **Scope.** `--watch` will be a `check` flag (and `gnd --watch [<path>]` will be shorthand for `gnd check --watch [<path>]`, FS-cli). Other subcommands will not take it; a one-shot `gnd fmt` or `gnd show` has nothing to keep watching.
+- **Each run is a plain `gnd check`.** Output and exit-status semantics of an individual run are exactly §2/§2.1 on the tree's state at that moment — byte-identical to what a non-`--watch` invocation would print (§FS-errors.4). Before each run the previous run's output is cleared so the terminal always shows the current report; with `--format=json` each run emits one self-contained report object (never a running NDJSON stream).
+- **Lifecycle.** The process runs until interrupted (Ctrl-C / SIGINT). On interrupt it exits with the exit code of the most recently completed run (`0`/`1`/`2`), so `gnd check --watch &` followed by a later signal is still a meaningful CI-ish probe. There is no TUI, no key bindings, no prompt — it is non-interactive per §FS-non-goals.10, just a re-printing checker. No network I/O (§FS-non-goals.11); the only files touched are the ones the walk already reads.
+- **Scope.** `--watch` will be a `check` flag (and `gnd --watch [<path>]` will be shorthand for `gnd check --watch [<path>]`, §FS-cli). Other subcommands will not take it; a one-shot `gnd fmt` or `gnd show` has nothing to keep watching.

@@ -14,7 +14,7 @@ A non-goal is not the same as "we'll do it later." Non-goals are commitments. To
 
 ## 3. Code AST parsing
 
-`gnd` does not parse code. It does line-oriented regex over comments and doc-comments (per AS-scanner). It does not understand classes, methods, types, scopes, or call graphs. The stub-heading link is a file path, not a symbol reference. Reasoning: G-fast-feedback rules out per-language parsers, and IDs are syntactic by design.
+`gnd` does not parse code. It does line-oriented regex over comments and doc-comments (per §AS-scanner). It does not understand classes, methods, types, scopes, or call graphs. The stub-heading link is a file path, not a symbol reference. Reasoning: §G-fast-feedback rules out per-language parsers, and IDs are syntactic by design.
 
 ## 4. Cross-workspace ID renaming
 
@@ -38,11 +38,11 @@ A non-goal is not the same as "we'll do it later." Non-goals are commitments. To
 
 ## 9. Severity, exit code, or report-ordering customization
 
-Per G-friendliness-first.2 and FS-config.6, the severity model (`error`/`warning`), the exit-code mapping (`0`/`1`/`2`), and the deterministic report ordering are **not** configurable. Reasoning: two correctly-configured `gnd` installs must agree on whether a repo passes. Letting any of these vary by project breaks that contract.
+Per §G-friendliness-first.2 and §FS-config.6, the severity model (`error`/`warning`), the exit-code mapping (`0`/`1`/`2`), and the deterministic report ordering are **not** configurable. Reasoning: two correctly-configured `gnd` installs must agree on whether a repo passes. Letting any of these vary by project breaks that contract.
 
 ## 10. Interactive mode
 
-`gnd` does not have a TUI, an interactive prompt, or a confirmation step. Every subcommand is non-interactive and CI-friendly. Reasoning: G-friendliness-first — interactive flows block CI and complicate scripting.
+`gnd` does not have a TUI, an interactive prompt, or a confirmation step. Every subcommand is non-interactive and CI-friendly. Reasoning: §G-friendliness-first — interactive flows block CI and complicate scripting.
 
 ## 11. Network access during a check
 

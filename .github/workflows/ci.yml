@@ -49,6 +49,16 @@ jobs:
       - name: cargo build
         run: cargo build --all-targets --locked
 
+      - name: gnd self-check
+        run: |
+          stdout_file="$(mktemp)"
+          cargo run --locked -- . > "$stdout_file"
+          if [ -s "$stdout_file" ]; then
+            echo "gnd self-check wrote unexpected stdout:" >&2
+            cat "$stdout_file" >&2
+            exit 1
+          fi
+
       # tests/e2e.rs walks every fixture under e2e/cases and asserts each case's
       # exit code, stdout, and stderr against its expected.* files; tests/init.rs
       # covers the file-content / config-validation contract for `gnd init`. So

@@ -1,6 +1,6 @@
 # FS-list: gnd lists every declared ID
 
-The `list` subcommand prints the repo's ID catalog: every declaration, where it lives, and its one-line title. It is the index that `gnd show` reads from and the broad counterpart of `gnd refs` — `refs` answers "who cites *this* ID?", `list` answers "what IDs are there?". An agent that has been told to ground itself with `gnd show <ID>` needs a way to discover the `<ID>`s; a human auditing a spec tree needs the same. Serves G-friendliness-first (no `grep` for `^# [A-Z]+-` across the tree) and the agent-grounding loop in the raison-detre.
+The `list` subcommand prints the repo's ID catalog: every declaration, where it lives, and its one-line title. It is the index that `gnd show` reads from and the broad counterpart of `gnd refs` — `refs` answers "who cites *this* ID?", `list` answers "what IDs are there?". An agent that has been told to ground itself with `gnd show <ID>` needs a way to discover the `<ID>`s; a human auditing a spec tree needs the same. Serves §G-friendliness-first (no `grep` for `^# [A-Z]+-` across the tree) and the agent-grounding loop in the raison-detre.
 
 ## 1. Inputs
 
@@ -51,7 +51,7 @@ NDJSON on stdout — one object per catalog entry, same order as the text form:
 {"id":"FS-login","kind":"FS","path":"docs/functional-spec/FS-login.md","line":1,"title":"A player can log in with email","stub":false,"defines":null,"refs":7,"duplicate":false}
 ```
 
-Fields: `id` (rendered ID), `kind`, `path` and `line` of the home declaration, `title` (`null` when the heading has no title tail or the home is a broken stub), `stub` (true when this entry's home is a stub heading — only ever true for a *broken* stub, since a healthy one collapses into its inline declaration), `defines` (the `<target>` of a stub heading, else `null`), `refs` (the count of recognised citations of this ID across the scanned tree — the JSON form always carries it so a tool need not run `gnd refs` per ID just to find the uncited ones), and `duplicate` (true when the ID has more than one home). The wire form is stable per G-no-silent-breakage.
+Fields: `id` (rendered ID), `kind`, `path` and `line` of the home declaration, `title` (`null` when the heading has no title tail or the home is a broken stub), `stub` (true when this entry's home is a stub heading — only ever true for a *broken* stub, since a healthy one collapses into its inline declaration), `defines` (the `<target>` of a stub heading, else `null`), `refs` (the count of recognised citations of this ID across the scanned tree — the JSON form always carries it so a tool need not run `gnd refs` per ID just to find the uncited ones), and `duplicate` (true when the ID has more than one home). The wire form is stable per §G-no-silent-breakage.
 
 ## 4. Exit codes
 

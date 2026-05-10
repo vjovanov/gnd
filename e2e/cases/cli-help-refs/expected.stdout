@@ -1,0 +1,17 @@
+gnd refs — list every citation of an ID, as `path:line`, so you can see who
+depends on a declaration before you change it.
+
+Usage:  gnd refs <ID>[.<section>] [PATH] [--section S] [--format text|json]
+
+PATH defaults to `.`. With a `.<section>` (or --section), only citations of that
+exact section are listed. An ID with no citations prints nothing and exits 0.
+
+Options:
+  --section S          list only citations of that section path   e.g. gnd refs FS-login --section 3
+  --format text|json   text (default) prints `path:line: <citation>`; json emits NDJSON.
+
+Exit:  0 scan succeeded (with or without hits) · 2 unreadable tree or CLI error.
+
+Examples:
+  gnd refs FS-login             # every citation of FS-login
+  gnd refs FS-login.3           # only citations of section 3

@@ -6,19 +6,19 @@ The check engine, the retrieval surface (`gnd show`, `gnd refs`, including E2E c
 
 ## RM-self-host: guard the self-host loop in CI
 
-`cargo run -- .` against this repository already exits zero with empty stdout — the fenced-block skip in the scanner and this repo's slug-only `[id] format` keep the `e2e/cases/*` fixture trees and the illustrative IDs out of the host report. What is missing is the CI guard and an explicit fixture for the fixture-tree case.
+`cargo run -- .` against this repository exits zero with empty stdout, and CI now enforces that self-host loop on every push and pull request. The fenced-block skip in the scanner and this repo's slug-only `[id] format` keep the `e2e/cases/*` fixture trees and the illustrative IDs out of the host report. What is still missing is an explicit fixture for the fixture-tree case.
 
 ### 1. What
 
-Two pieces: (a) a CI step on every push to `main` that runs `cargo run -- .` and fails on a non-zero exit or non-empty stdout; (b) an e2e fixture exercising a tree with nested fixture directories under a canonical *default* config (numbered IDs, non-strict) and asserting they do not pollute the outer report — the default `[scan] exclude` plus scan rules must keep nested case dirs out without relying on a particular `[id] format`.
+One remaining piece: an e2e fixture exercising a tree with nested fixture directories under a canonical *default* config (numbered IDs, non-strict) and asserting they do not pollute the outer report — the default `[scan] exclude` plus scan rules must keep nested case dirs out without relying on a particular `[id] format`.
 
 ### 2. Why now
 
-Self-host is the load-bearing demonstration of §G-no-dangling-refs and §G-fast-feedback. The loop passes today, but without the CI guard a future change could break it silently, and the current pass on this repo leans on a config coincidence rather than a guaranteed scan rule.
+Self-host is the load-bearing demonstration of §G-no-dangling-refs and §G-fast-feedback. The CI guard catches future regressions in this repo; the remaining fixture closes the gap for default-config fixture trees, where the pass should not lean on this repo's slug-only ID format.
 
 ### 3. Measurable
 
-CI on every push runs `cargo run -- .` and asserts exit 0 with empty stdout. A new e2e fixture proves nested fixture directories are not scanned under the default config.
+A new e2e fixture proves nested fixture directories are not scanned under the default config.
 
 ## RM-core-cli-split: split gnd-core from gnd-cli
 
@@ -30,7 +30,7 @@ Workspace split before bindings ship. `src/lib.rs` is currently a single module 
 
 ### 2. Why now
 
-RM-distribution publishes three bindings from one engine; bindings need a library, not a binary. Splitting first also makes the e2e harness call into the engine directly and keeps CLI concerns (exit codes, rendering) from leaking into scanner internals.
+§RM-distribution publishes three bindings from one engine; bindings need a library, not a binary. Splitting first also makes the e2e harness call into the engine directly and keeps CLI concerns (exit codes, rendering) from leaking into scanner internals.
 
 ### 3. Measurable
 
@@ -38,11 +38,11 @@ RM-distribution publishes three bindings from one engine; bindings need a librar
 
 ## RM-distribution-naming: verify package names before first publish
 
-Pre-release sanity check: the registry names claimed across the docs may not still be available, and the docs already disagree with each other. FS-distribution and DA-reference-checker-name reach different conclusions about the Python name; this must be reconciled before publishing plans harden.
+Pre-release sanity check: the registry names claimed across the docs may not still be available, and the future LSP slots have not been reserved. §FS-distribution and §DA-reference-checker-name must stay aligned before publishing plans harden.
 
 ### 1. What
 
-A pre-release CI step that queries crates.io, npm, and PyPI for each claimed package name and fails if any claimed-available name is in fact taken or owned by another project. Docs are corrected so they no longer claim a name is free unless the project owns it. Where a registry name is unavailable, an explicit alternate package name is chosen and recorded in FS-distribution.
+A pre-release CI step that queries crates.io, npm, and PyPI for each claimed package name and fails if any claimed-available name is in fact taken or owned by another project. Docs are corrected so they no longer claim a name is free unless the project owns it. Where a registry name is unavailable, an explicit alternate package name is chosen and recorded in §FS-distribution.
 
 ### 2. Why now
 
@@ -50,11 +50,11 @@ A doc contradiction at release time is a release blocker. The check is cheap to 
 
 ### 3. Measurable
 
-The release pipeline queries each registry and proceeds only if every claimed name resolves to either "available" or "owned by this project." FS-distribution and DA-reference-checker-name agree on every package name they mention.
+The release pipeline queries each registry and proceeds only if every claimed name resolves to either "available" or "owned by this project." §FS-distribution and §DA-reference-checker-name agree on every package name they mention.
 
 ## RM-distribution: cargo + npm + pypi from one engine
 
-Per FS-distribution and AS-bindings. Builds on the workspace split (§RM-core-cli-split) and the name verification (§RM-distribution-naming).
+Per §FS-distribution and §AS-bindings. Builds on the workspace split (§RM-core-cli-split) and the name verification (§RM-distribution-naming).
 
 ### 1. What
 
@@ -62,11 +62,11 @@ napi-rs binding for npm; PyO3 binding for PyPI; CI publish jobs for all three re
 
 ### 2. Why now
 
-`gnd` is only viable as a CI dependency for non-Rust projects once it ships on their native package manager (G-multi-language).
+`gnd` is only viable as a CI dependency for non-Rust projects once it ships on their native package manager (§G-multi-language).
 
 ### 3. Measurable
 
-Integration test runs the same spec corpus through all three bindings and asserts byte-identical reports (G-multi-language.3).
+Integration test runs the same spec corpus through all three bindings and asserts byte-identical reports (§G-multi-language.3).
 
 ## RM-lsp: ship the optional LSP server
 

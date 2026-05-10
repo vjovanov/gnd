@@ -58,7 +58,7 @@ creating false "unknown reference" errors.
 ## Why not use normal `[[kinds]]`
 
 Ticket schemes usually have different grammar from local spec IDs. A repo may use
-slug-only local IDs such as `FS-config`, while GitHub issues are numeric and Jira
+slug-only local IDs such as `§FS-config`, while GitHub issues are numeric and Jira
 issues combine project keys with numbers. Trying to force these into the current
 repo-wide `[id]` grammar would either make local IDs worse or make tickets too
 constrained.
