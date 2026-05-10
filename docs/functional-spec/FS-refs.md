@@ -1,7 +1,5 @@
 # FS-refs: gnd lists every citation of an ID
 
-Status: planned — implementation tracked under §RM-011-refs. This file is the contract for the `gnd refs` subcommand when it lands.
-
 The `refs` subcommand answers the reverse of `gnd show`: not "what does this ID say?" but "who points at it?". An agent about to change a declaration — or delete one — needs to know what leans on it; `gnd refs FS-check` is that lookup, scheme-aware in the ways a `grep` cannot be. Serves G-friendliness-first and the agent-grounding loop in the raison-detre (an agent verifying a change reads the cited bodies *and* the back-references).
 
 ## 1. Inputs

@@ -2,7 +2,7 @@
 
 ## Status
 
-Resolved by §DF-md-link-emission and §DF-md-link-anchor-strategy. Implementation tracked under §RM-010-md-link-emission. The "Open questions" section below is preserved as-is for historical context; the answers live in the two DFs above.
+Resolved by §DF-md-link-emission and §DF-md-link-anchor-strategy. Implementation tracked under §RM-md-link-emission. The "Open questions" section below is preserved as-is for historical context; the answers live in the two DFs above.
 
 ## Context
 

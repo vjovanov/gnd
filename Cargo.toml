@@ -3,6 +3,15 @@ name = "gnd"
 version = "0.1.0"
 edition = "2024"
 description = "Agent grounding tool — verify and read ID-based references in league-of-code style docs"
+license = "MIT"
+repository = "https://github.com/vjovanov/gnd"
+homepage = "https://github.com/vjovanov/gnd"
+readme = "README.md"
+exclude = [
+    ".agents/rhei/**",
+    "Cargo.toml.orig",
+    "target/**",
+]
 
 [dependencies]
 ignore = "0.4"

@@ -226,11 +226,20 @@ struct Declaration {
     sections: BTreeMap<String, String>,
     is_stub: bool,
     defined_in: Option<PathBuf>,
+    e2e_case: Option<E2eCase>,
     /// Heading text after `# <ID>:` — the one-line title an author wrote
     /// (AS-scanner.2.1). `None` when the heading carries no `: <text>` tail, or
     /// when the heading is a stub link (`# <ID>: [<text>](<path>)`), whose tail
     /// is a path, not a title.
     title: Option<String>,
+}
+
+#[derive(Debug)]
+struct E2eCase {
+    dir: PathBuf,
+    args: Vec<String>,
+    expected_exit: i32,
+    fixtures: Vec<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -285,7 +294,7 @@ struct Config {
     grammar: Grammar,
 }
 
-const DEFAULT_KINDS: &[&str] = &["G", "FS", "AS", "DF", "DA", "E2E"];
+const DEFAULT_KINDS: &[&str] = &["G", "FS", "AS", "DF", "DA", "E2E", "RM"];
 const DEFAULT_ID_FORMAT: &str = "{kind}-{number}-{slug}";
 const DEFAULT_SECTION_SEPARATOR: &str = ".";
 const DEFAULT_NUMBER_PATTERN: &str = r"\d+";
@@ -397,6 +406,7 @@ fn default_kind_folder(prefix: &str) -> Option<&'static str> {
         "DA" => Some("docs/decisions/architectural"),
         "DF" => Some("docs/decisions/functional"),
         "E2E" => Some("e2e/cases"),
+        "RM" => Some("docs"),
         _ => None,
     }
 }
@@ -409,6 +419,7 @@ fn default_kind_title(prefix: &str) -> Option<&'static str> {
         "DA" => Some("Architectural decision"),
         "DF" => Some("Functional decision"),
         "E2E" => Some("End-to-end test"),
+        "RM" => Some("Roadmap milestone"),
         _ => None,
     }
 }
@@ -437,6 +448,7 @@ struct ShowOutput {
     body: String,
     path: PathBuf,
     line: usize,
+    json: Option<String>,
 }
 
 fn parse_id(caps: &regex::Captures) -> Option<Id> {
@@ -860,6 +872,7 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
                 sections: BTreeMap::new(),
                 is_stub,
                 defined_in,
+                e2e_case: None,
                 title,
             });
             continue;
@@ -917,6 +930,155 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
             .entry(decl.id.clone())
             .or_default()
             .push(decl);
+    }
+    Ok(())
+}
+
+fn scan_e2e_cases(
+    config: &Config,
+    scope: Option<&Path>,
+    explicit_scope: bool,
+    findings: &mut Findings,
+) -> Result<()> {
+    let Some(kind) = config.kinds.iter().find(|kind| kind.prefix == "E2E") else {
+        return Ok(());
+    };
+    let Some(folder) = kind.folder.as_deref() else {
+        return Ok(());
+    };
+    let cases_root = config.root.join(folder);
+    if !cases_root.exists() || !cases_root.is_dir() {
+        return Ok(());
+    }
+    let cases_root = fs::canonicalize(&cases_root).unwrap_or(cases_root);
+    let mut scan_root = cases_root.clone();
+
+    if explicit_scope {
+        let scope = scope.unwrap_or(Path::new("."));
+        if scope.is_file() {
+            return Ok(());
+        }
+        let scope = fs::canonicalize(scope).unwrap_or_else(|_| scope.to_path_buf());
+        if scope.starts_with(&cases_root) {
+            scan_root = scope;
+        } else if !cases_root.starts_with(&scope) {
+            return Ok(());
+        }
+    } else if let Some(include) = &config.include {
+        let covered = include.iter().any(|path| {
+            let root = config.root.join(path);
+            cases_root.starts_with(&root) || root.starts_with(&cases_root)
+        });
+        if !covered {
+            return Ok(());
+        }
+    }
+
+    let mut case_dirs = Vec::new();
+    if scan_root.join("expected.exit").is_file() {
+        case_dirs.push(scan_root);
+    } else {
+        for entry in fs::read_dir(&scan_root)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() && path.join("expected.exit").is_file() {
+                case_dirs.push(path);
+            }
+        }
+    }
+    case_dirs.sort();
+
+    for dir in case_dirs {
+        let Some(name) = dir.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        let Some(id) = e2e_id_from_case_dir_name(config, name) else {
+            continue;
+        };
+        let case = read_e2e_case(&dir)?;
+        findings
+            .declarations
+            .entry(id.clone())
+            .or_default()
+            .push(Declaration {
+                id,
+                file: dir.clone(),
+                line: 1,
+                heading_level: 1,
+                sections: BTreeMap::new(),
+                is_stub: false,
+                defined_in: None,
+                e2e_case: Some(case),
+                title: Some(format!("e2e case `{name}`")),
+            });
+    }
+    Ok(())
+}
+
+fn e2e_id_from_case_dir_name(config: &Config, name: &str) -> Option<Id> {
+    let after_kind_literal = literal_after_kind_placeholder(&config.id_format)?;
+    let raw = format!("E2E{after_kind_literal}{name}");
+    let (id, section) = parse_id_arg(&raw, &config.grammar).ok()?;
+    if section.is_none() && id.kind == "E2E" {
+        Some(id)
+    } else {
+        None
+    }
+}
+
+fn literal_after_kind_placeholder(format: &str) -> Option<&str> {
+    let marker = "{kind}";
+    let start = format.find(marker)? + marker.len();
+    let rest = &format[start..];
+    let end = rest.find('{').unwrap_or(rest.len());
+    Some(&rest[..end])
+}
+
+fn e2e_case_dir_name(config: &Config, rendered: &str) -> String {
+    let prefix = format!(
+        "E2E{}",
+        literal_after_kind_placeholder(&config.id_format).unwrap_or("-")
+    );
+    rendered
+        .strip_prefix(&prefix)
+        .unwrap_or(rendered)
+        .to_string()
+}
+
+fn read_e2e_case(dir: &Path) -> Result<E2eCase> {
+    let command_args = dir.join("command.args");
+    let args = if command_args.is_file() {
+        fs::read_to_string(&command_args)?
+            .split_whitespace()
+            .map(str::to_string)
+            .collect()
+    } else {
+        vec!["check".to_string()]
+    };
+    let expected_exit = fs::read_to_string(dir.join("expected.exit"))?
+        .trim()
+        .parse::<i32>()
+        .with_context(|| format!("parse {}/expected.exit", dir.display()))?;
+    let mut fixtures = Vec::new();
+    collect_relative_fixture_files(dir, dir, &mut fixtures)?;
+    fixtures.sort();
+    Ok(E2eCase {
+        dir: dir.to_path_buf(),
+        args,
+        expected_exit,
+        fixtures,
+    })
+}
+
+fn collect_relative_fixture_files(root: &Path, dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_relative_fixture_files(root, &path, files)?;
+        } else {
+            files.push(path.strip_prefix(root).unwrap_or(&path).to_path_buf());
+        }
     }
     Ok(())
 }
@@ -1030,6 +1192,9 @@ fn scan_tree(
         if let Err(err) = scan_file(&file, config, &mut findings) {
             errors.push((file, format!("{err:#}")));
         }
+    }
+    if let Err(err) = scan_e2e_cases(config, scope, explicit_scope, &mut findings) {
+        errors.push((config.root.join("e2e/cases"), format!("{err:#}")));
     }
     Ok((findings, errors))
 }
@@ -1163,20 +1328,22 @@ fn check(findings: &Findings, config: &Config) -> Report {
 
     let cited: BTreeSet<&Id> = findings.citations.iter().map(|c| &c.id).collect();
     for (id, decls) in &findings.declarations {
-        if !cited.contains(id) {
-            if let Some(decl) = decls
+        if id.kind == "E2E" {
+            continue;
+        }
+        if !cited.contains(id)
+            && let Some(decl) = decls
                 .iter()
                 .find(|decl| !is_stub_for_inline_decl(&config.root, decl, decls))
                 .or_else(|| decls.first())
-            {
-                report.warnings.push(Diagnostic {
-                    code: "unused",
-                    path: Some(decl.file.clone()),
-                    line: Some(decl.line),
-                    message: format!("declared but never cited: {}", render_id(config, id)),
-                    sites: Vec::new(),
-                });
-            }
+        {
+            report.warnings.push(Diagnostic {
+                code: "unused",
+                path: Some(decl.file.clone()),
+                line: Some(decl.line),
+                message: format!("declared but never cited: {}", render_id(config, id)),
+                sites: Vec::new(),
+            });
         }
     }
 
@@ -1622,17 +1789,21 @@ fn command_show(args: &[String]) -> ExitCode {
     ) {
         Ok(output) => {
             if format == "json" {
-                println!(
-                    "{{\"id\":\"{}\",\"section\":{},\"body\":\"{}\",\"path\":\"{}\",\"line\":{}}}",
-                    json_escape(&render_id(&config, &id)),
-                    match section.as_deref() {
-                        Some(section) => format!("\"{}\"", json_escape(section)),
-                        None => "null".to_string(),
-                    },
-                    json_escape(&output.body),
-                    json_escape(&display_path(&config, &output.path)),
-                    output.line
-                );
+                if let Some(json) = output.json {
+                    println!("{json}");
+                } else {
+                    println!(
+                        "{{\"id\":\"{}\",\"section\":{},\"body\":\"{}\",\"path\":\"{}\",\"line\":{}}}",
+                        json_escape(&render_id(&config, &id)),
+                        match section.as_deref() {
+                            Some(section) => format!("\"{}\"", json_escape(section)),
+                            None => "null".to_string(),
+                        },
+                        json_escape(&output.body),
+                        json_escape(&display_path(&config, &output.path)),
+                        output.line
+                    );
+                }
             } else {
                 print!("{}", output.body);
             }
@@ -1686,6 +1857,9 @@ fn show_declaration(
         ));
     }
     let decl = decls.iter().find(|decl| decl.is_stub).unwrap_or(&decls[0]);
+    if let Some(case) = &decl.e2e_case {
+        return show_e2e_case(config, id, case, section, head);
+    }
     let file = if let Some(target) = &decl.defined_in {
         if target.is_absolute() {
             target.clone()
@@ -1717,6 +1891,65 @@ fn show_declaration(
         }
     }
     extract_declaration_body(&file, id, section, head, include_heading, config)
+}
+
+fn show_e2e_case(
+    config: &Config,
+    id: &Id,
+    case: &E2eCase,
+    section: Option<&str>,
+    head: bool,
+) -> Result<ShowOutput> {
+    if let Some(section) = section {
+        return Err(anyhow!(
+            "section not found: {}{}{}",
+            render_id(config, id),
+            config.section_separator,
+            section
+        ));
+    }
+    let invocation = format!("gnd {}", case.args.join(" "));
+    let body = if head {
+        format!("{invocation}\n")
+    } else {
+        let mut lines = vec![
+            invocation,
+            format!("expected exit: {}", case.expected_exit),
+            "fixtures:".to_string(),
+        ];
+        lines.extend(
+            case.fixtures
+                .iter()
+                .map(|path| format!("- {}", path.display())),
+        );
+        format!("{}\n", lines.join("\n"))
+    };
+    let args_json = case
+        .args
+        .iter()
+        .map(|arg| format!("\"{}\"", json_escape(arg)))
+        .collect::<Vec<_>>()
+        .join(",");
+    let fixtures_json = case
+        .fixtures
+        .iter()
+        .map(|path| format!("\"{}\"", json_escape(&path.display().to_string())))
+        .collect::<Vec<_>>()
+        .join(",");
+    let json = format!(
+        "{{\"id\":\"{}\",\"kind\":\"E2E\",\"path\":\"{}\",\"args\":[{}],\"expected_exit\":{},\"fixtures\":[{}]}}",
+        json_escape(&render_id(config, id)),
+        json_escape(&display_path(config, &case.dir)),
+        args_json,
+        case.expected_exit,
+        fixtures_json
+    );
+    Ok(ShowOutput {
+        body,
+        path: case.dir.clone(),
+        line: 1,
+        json: Some(json),
+    })
 }
 
 fn extract_declaration_body(
@@ -1790,19 +2023,29 @@ fn extract_declaration_body(
         }
         if let Some(caps) = config.grammar.section_re.captures(scan_line) {
             let sec = caps.name("sec").map(|m| m.as_str()).unwrap_or("");
-            if head {
-                break;
-            }
-            if let Some(target) = section {
-                let depth = sec.split('.').count();
-                if sec == target {
-                    found_section = true;
-                    target_depth = depth;
-                    output_line = lineno;
-                    continue;
+            match section {
+                // Whole-declaration head: stop at the first numbered subsection.
+                None => {
+                    if head {
+                        break;
+                    }
                 }
-                if found_section && depth <= target_depth {
-                    break;
+                Some(target) => {
+                    let depth = sec.split('.').count();
+                    if sec == target {
+                        found_section = true;
+                        target_depth = depth;
+                        output_line = lineno;
+                        continue;
+                    }
+                    // Inside the target section: a sibling-or-shallower heading
+                    // ends it (FS-show.2.2); in `--head` mode any further numbered
+                    // heading — including a child — ends the section's lead prose
+                    // (FS-show.2.1.1). Before the target section is found, keep
+                    // scanning past unrelated headings.
+                    if found_section && (head || depth <= target_depth) {
+                        break;
+                    }
                 }
             }
         }
@@ -1837,6 +2080,7 @@ fn extract_declaration_body(
         body,
         path: path.to_path_buf(),
         line: output_line,
+        json: None,
     })
 }
 
@@ -2578,6 +2822,12 @@ fn command_name(args: &[String]) -> ExitCode {
         println!("{rendered}");
         if explain {
             match kind_config.folder.as_deref() {
+                Some(folder) if kind == "E2E" => {
+                    let case_dir = e2e_case_dir_name(&config, &rendered);
+                    eprintln!(
+                        "next: create the case directory at {folder}/{case_dir}/ with expected.exit and fixtures, then cite it as §{rendered}"
+                    );
+                }
                 Some(folder) => eprintln!(
                     "next: write the declaration at {folder}/{rendered}.md  (H1: `# {rendered}: <one-line statement>`), then cite it as §{rendered}"
                 ),
@@ -3489,7 +3739,7 @@ fn print_help() {
         "  fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. gnd fmt --check"
     );
     println!(
-        "  name     Next conflict-free ID; KIND: G, FS, AS, DF, DA, E2E.     e.g. gnd name FS \"user login\""
+        "  name     Next conflict-free ID for a new KIND declaration.        e.g. gnd name FS \"user login\""
     );
     println!(
         "  init     Scaffold agents.md + .agents/gnd.toml; idempotent.       e.g. gnd init --docs"
@@ -3679,7 +3929,7 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!(
-                "KIND is one of the configured prefixes (default G, FS, AS, DF, DA, E2E). The title is"
+                "KIND is one of the configured prefixes (default G, FS, AS, DF, DA, E2E, RM). The title is"
             );
             println!(
                 "slugified deterministically; the number is `max(existing) + 1` (holes are never filled)."
@@ -3740,10 +3990,10 @@ fn print_subcommand_help(cmd: &str) {
         }
         "config" => {
             println!(
-                "gnd config — inspect the effective `.agents/gnd.toml` (the one discovered by walking up from `.`)."
+                "gnd config — inspect the effective `.agents/gnd.toml` discovered from a path."
             );
             println!();
-            println!("Usage:  gnd config <show | validate>");
+            println!("Usage:  gnd config <show | validate> [PATH]");
             println!();
             println!(
                 "  show       print the effective config as TOML (defaults filled in for keys you didn't set)."
@@ -3752,8 +4002,9 @@ fn print_subcommand_help(cmd: &str) {
                 "  validate   parse the discovered config and report the first error; exit 0 if it's well-formed."
             );
             println!();
+            println!("PATH defaults to `.`; config is discovered by walking up from that path.");
             println!(
-                "There is no `--config <path>` override — config is discovered, not pointed at (FS-cli.6)."
+                "There is no `--config <file>` override — config is discovered, not pointed at (FS-cli.6)."
             );
             println!();
             println!(

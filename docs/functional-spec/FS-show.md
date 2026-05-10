@@ -5,11 +5,12 @@ The `show` subcommand prints just the body of a declaration, given an ID. It exi
 ## 1. Inputs
 
 ```
-gnd show <ID> [--section <s>] [--head | --full] [--format <text|md|json>]
+gnd show <ID> [<path>] [--section <s>] [--head | --full] [--format <text|md|json>]
 ```
 
 - `<ID>` — the full ID (e.g. `FS-check`). May include an inline section (`FS-check.3.1`). The dotted form uses the configured `[id] section_separator` (FS-config.3.2). When the separator is non-default (e.g., `:` or `#`) the inline form may collide with the slug grammar; use `--section` instead.
-- `--section <s>` — alternative way to specify a section path (`3.1`). Mutually exclusive with the dotted form. Required when `[id] section_separator` makes the dotted form ambiguous.
+- `<path>` — directory or file whose tree is scanned to resolve the ID. Defaults to `.`. Discovery is the same as every other subcommand (walk up to `.agents/gnd.toml`, else defaults — FS-config.1). `--path <path>` is an accepted alias for scripts that prefer to pass it as a flag; the two forms are equivalent.
+- `--section <s>` — alternative way to specify a section path (`3.1`). Mutually exclusive with the dotted form. Required when `[id] section_separator` makes the dotted form ambiguous. Combined with `--head` it prints only the lead prose of that section (§2.1.1).
 - `--head` — print only the top of the context: the heading line and the prose up to the first numbered subsection. Useful for skimming.
 - `--full` — print the entire body (default).
 - `--head` and `--full` are mutually exclusive.
@@ -26,6 +27,8 @@ gnd show <ID> [--section <s>] [--head | --full] [--format <text|md|json>]
 `gnd show --head FS-check` prints only the top of the context: the prose between the ID heading line and the first numbered section heading (`## 1. ...`). This is the "what is this about" view — typically a paragraph or two — meant for quick scanning, hover previews, and agent prompts where the section structure isn't needed.
 
 If a declaration has no lead paragraph (its body opens directly with `## 1. ...`), `--head` prints **nothing** and exits `0`. This is not an error: the declaration simply has no head. Callers (IDE hovers, agents) can detect this case by the empty output and decide whether to fall back to the full body. We do not auto-fall-back; the caller knows what it wants.
+
+`gnd show --head FS-check.3.1` applies the same rule one level down: it prints the prose between section heading `### 3.1 ...` and the first numbered heading nested under it (`#### 3.1.1 ...`), or nothing when that section opens directly with a sub-subsection. A section that does not exist is still a `section not found` error regardless of `--head`.
 
 ### 2.2 Section
 
@@ -106,9 +109,9 @@ Stdout carries the body (or, with `--format=json`, the result object — one JSO
 
 A failed query (`1`) prints the bare result line and, where the next step is obvious, one extra `hint:` line on stderr below it — never on stdout, never in `--format=json`:
 
-- `ID not found: <ID>` → `hint: run \`gnd check\` to see what's declared, or \`gnd name <KIND> "<title>"\` to propose a new ID`
+- `ID not found: <ID>` → `hint: run \`gnd list\` to see every declared ID, or \`gnd name <KIND> "<title>"\` to propose a new one`
 - `section not found: <ID>.<s>` → `hint: run \`gnd show <ID>\` to print the whole declaration with its section numbers`
-- a `<ID>` argument that does not match the configured `[id] format` (FS-config.3.2) is rejected before the scan with `invalid ID \`<arg>\``, followed by `hint: this repo's [id] format is \`<format>\` (run \`gnd config show\`); \`gnd check\` lists the IDs that exist` — this is the common surprise in a repo whose format differs from the `{kind}-{slug}` `gnd` itself uses.
+- a `<ID>` argument that does not match the configured `[id] format` (FS-config.3.2) is rejected before the scan with `invalid ID \`<arg>\``, followed by `hint: this repo's [id] format is \`<format>\` (run \`gnd config show\`); \`gnd list\` shows the IDs that exist` — this is the common surprise in a repo whose format differs from the `{kind}-{slug}` `gnd` itself uses.
 
 `ambiguous ID` and `broken stub` get no hint: the fix (run `gnd check`, then edit the duplicate or the stub) is already stated in §2.2.1 / §2.3.4 and the message names the sites.
 

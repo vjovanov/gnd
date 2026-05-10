@@ -47,7 +47,7 @@ A separate package on every registry means the LSP's release cadence can decoupl
 - The workspace gains a third crate: `crates/gnd-lsp/`. §AS-bindings.1 is updated to list it alongside `gnd-core`, `gnd-cli`, `gnd-node`, and `gnd-py`.
 - Three new packages are published, one per registry: `gnd-lsp` on cargo, npm, and PyPI. §FS-distribution.1 is updated to list them.
 - §FS-lsp.2.1 ("Install") states that the CLI install does not pull in `gnd-lsp` transitively; the inverse is also true (`gnd-lsp` does not pull in the CLI binary).
-- The roadmap item §RM-006-lsp owns shipping the crate and the published packages. It depends on §RM-008-core-cli-split (the workspace split) — that prerequisite must land first so `gnd-lsp` has a `gnd-core` to depend on.
+- The roadmap item §RM-lsp owns shipping the crate and the published packages. It depends on §RM-core-cli-split (the workspace split) — that prerequisite must land first so `gnd-lsp` has a `gnd-core` to depend on.
 - §FS-non-goals adds an explicit entry: first-party per-editor plugins (VSCode/IntelliJ/Vim/Emacs wrappers) are out of scope. The LSP server is the only editor surface; editor configuration is the user's one-time work.
 
 ## 5. Alternatives considered

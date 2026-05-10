@@ -91,7 +91,7 @@ This split keeps the section grammar regular at any depth.
 
 One `[[kinds]]` table per allowed prefix. `folder` is the conventional home for declarations of this kind — used by `gnd name` (FS-name.2.2 emits it as the `folder` field) and by editor "create new declaration" / "go to home folder" actions; it is **not** enforced by the checker — declarations are recognized wherever they appear. `title` is human-readable metadata: it surfaces in `gnd show --format=json`, `gnd refs --format=json`, and IDE hover previews, and is **not** injected into `gnd show --format=md` text (which is the declaration verbatim — FS-show.3).
 
-The defaults declare the canonical six, in this order:
+The defaults declare the canonical seven, in this order:
 
 ```toml
 [[kinds]]
@@ -123,9 +123,14 @@ title  = "Architectural decision"
 prefix = "E2E"
 folder = "e2e/cases"
 title  = "End-to-end test"
+
+[[kinds]]
+prefix = "RM"
+folder = "docs"
+title  = "Roadmap milestone"
 ```
 
-`G` declarations are H2 headings inside the single file `docs/goals/goals.md` (one file, all goals inline); `FS`, `AS`, `DF`, and `DA` declarations are the H1 of a file in their `folder` (an `AS` declaration may instead live inline in a source doc-comment with an optional stub in `folder` — §AS-scanner.4); `E2E` declarations are case directories under `folder` rather than heading lines — §AS-scanner.6. A project that overrides this list replaces the defaults entirely — there is no merge. To extend rather than replace, copy the defaults and add to them.
+`G` declarations are H2 headings inside the single file `docs/goals/goals.md` (one file, all goals inline); `RM` declarations are likewise H2 headings inside the single file `docs/roadmap.md` (one file, all milestones inline) — `folder` is `docs` because that file lives at the top of `docs/`; `FS`, `AS`, `DF`, and `DA` declarations are the H1 of a file in their `folder` (an `AS` declaration may instead live inline in a source doc-comment with an optional stub in `folder` — §AS-scanner.4); `E2E` declarations are case directories under `folder` rather than heading lines — §AS-scanner.6. A project that overrides this list replaces the defaults entirely — there is no merge. To extend rather than replace, copy the defaults and add to them.
 
 Prefix sets must be unambiguous: no kind's `prefix` may itself be a prefix of another kind's `prefix`. For example, `prefix = "DA"` and `prefix = "DAT"` together are invalid because a token starting with `DAT-` would parse as either kind. gnd validates this on load and refuses ambiguous configs with a single error pointing at the offending pair (per §4.3).
 
@@ -172,11 +177,11 @@ The full contract for this block — what `enabled` does, the named `anchor_form
 
 ### 4.1 `gnd config validate [path]`
 
-Loads the config (or the one at `path`), checks the schema, and reports problems. Exits 0 on success, 1 on validation errors. No tree scan is performed.
+Loads the config discovered by walking up from `path` (or `.` when omitted), checks the schema, and reports problems. Exits 0 on success, 1 on validation errors. No tree scan is performed.
 
-### 4.2 `gnd config show`
+### 4.2 `gnd config show [path]`
 
-Prints the **effective** configuration — defaults merged with `gnd.toml` merged with CLI flags — as TOML. Useful for debugging "why did gnd recognize this citation" or "what does my config actually evaluate to."
+Prints the **effective** configuration — defaults merged with the config discovered by walking up from `path` (or `.` when omitted), plus CLI flags — as TOML. Useful for debugging "why did gnd recognize this citation" or "what does my config actually evaluate to."
 
 ### 4.3 Invalid config behavior
 

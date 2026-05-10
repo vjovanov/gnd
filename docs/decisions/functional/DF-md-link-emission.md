@@ -63,7 +63,7 @@ The link emission is a transformation on the source `.md` file (a sibling of the
 ## 4. Consequences
 
 - A new `--md-links` flag on `gnd fmt` and a `[fmt.md_links]` config block in `gnd.toml` (§FS-fmt.6.7).
-- A new roadmap item §RM-010-md-link-emission carries the implementation.
+- A new roadmap item §RM-md-link-emission carries the implementation.
 - The §G-polyglot-citation goal explicitly states that the polyglot grammar is the canonical form; this decision is the sanctioned exception that adds a presentation-layer view in `.md` only.
 - Repos that adopt `--md-links` should run `gnd fmt --md-links --write` as a pre-commit hook so the generated links stay in sync with file moves and citation edits. CI should run `gnd fmt --md-links --check` to flag drift.
 - The §G-no-silent-breakage path: shipping the flag does not change any existing behavior; `--md-links` and `[fmt.md_links] enabled = true` are both off by default, so a repo that does not opt in sees no diff.

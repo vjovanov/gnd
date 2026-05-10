@@ -102,7 +102,7 @@ exec gnd check
 
 | Command                    | What it does                                                                       |
 | -------------------------- | ---------------------------------------------------------------------------------- |
-| `gnd check [path] [--watch]` | Validate references. The default — `gnd <path>` is shorthand. `--watch` stays resident and re-checks on every change. |
+| `gnd check [path]` | Validate references. The default — `gnd <path>` is shorthand. (`--watch`, a resident re-check on every change, is specified in [`FS-check`](docs/functional-spec/FS-check.md) §6 but not yet implemented.) |
 | `gnd init [path] [--docs] [--force]` | Scaffold `agents.md` and `.agents/gnd.toml`; idempotent by default — appends/updates the managed block in an existing `agents.md`, reports `exists` for other files. `--docs` also seeds `docs/` and `e2e/`; `--force` overwrites. |
 | `gnd show <ID> [--head]`   | Print just the body of a declaration, for pulling spec content into agent prompts. |
 | `gnd list [path] [--kind K] [--unused]` | The ID catalog — every declared ID, `<ID>  path:line  title`, sorted by ID. `--kind` filters by prefix; `--unused` shows declarations nothing cites yet. The thing `gnd show` reads from. |
@@ -324,4 +324,5 @@ Empty output, exit 0 means nothing cites it yet (`gnd check` will also warn abou
 - [`docs/functional-spec/`](docs/functional-spec/) — external behavior
 - [`docs/architectural-spec/`](docs/architectural-spec/) — internals
 - [`docs/decisions/`](docs/decisions/) — how we got here
+- [`docs/discussions/`](docs/discussions/) — ideas still open, as `DISC-*` proposals
 - [`e2e/`](e2e/) — executable proof that the spec holds

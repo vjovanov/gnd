@@ -45,6 +45,11 @@ folder = "e2e/cases"
 title = "End-to-end test"
 
 [[kinds]]
+prefix = "RM"
+folder = "docs"
+title = "Roadmap milestone"
+
+[[kinds]]
 prefix = "DISC"
 folder = "docs/discussions"
 title = "Discussion"
@@ -61,3 +66,7 @@ respect_gitignore = true
 format = "text"
 color = "auto"
 relative_paths = true
+
+[fmt.md_links]
+enabled = false
+anchor_format = "github"

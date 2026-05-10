@@ -4,6 +4,15 @@ This file is the entry point for any agent (human or AI) working on **gnd**. Rea
 
 This project uses the [`gnd`](https://github.com/anthropics/gnd) reference scheme: every spec, goal, decision, and end-to-end test has a stable ID of the form `<KIND>-<NNN>-<slug>`, declared as a heading inside its home file. Citations are written prefixed by the marker `§`, e.g. `§FS-user-login.3.1`. Section paths can be arbitrary depth — `.3`, `.3.1`, `.3.1.2` are all valid as long as a heading at that depth exists in the declaration. Run `gnd check` to validate every citation; run `gnd list` to see every declared ID; run `gnd show <ID>` to print just the body of one declaration. See `gnd`'s own §FS-check, §FS-list, and §FS-show for the contract.
 
+## Grounding yourself in the spec
+
+A `§<ID>` — or `§<ID>.<section>` — is a pointer to a fact, not a file path. When a doc, a code comment, or a review note cites one, resolve it with `gnd` instead of opening the file and skimming:
+
+- `gnd show <ID>` — the full declaration body (a spec file's contents, a goal's success criterion, a decision record).
+- `gnd show <ID>.<section>` — just that subsection, so you pull one fact into context without loading the whole file. This is the cheap, precise move — prefer it.
+- `gnd show <ID> --head` — the lead paragraph only, for a quick "what is this about" before deciding whether to read more.
+- `gnd list` — every declared ID, when you need to discover the right `<ID>`. `gnd refs <ID>` — every place that cites it, so you know what leans on a declaration before you change it.
+
 ## How to use this file
 
 1. Start at the top of `docs/` and read down. Each document answers one question.
@@ -34,7 +43,7 @@ End-to-end tests live in `e2e/`. They are not documentation — they are executa
 
 ## References
 
-The `gnd` ID scheme: `<KIND>-<slug>[.<section>]` in this repo, where `KIND` ∈ `{G, FS, AS, DA, DF, E2E, DISC}` per `.agents/gnd.toml` (configurable per `gnd`'s §FS-config). Citations are written prefixed by the marker `§` (per `gnd`'s §DF-reference-marker). Bare tokens are ignored because `[reference] strict = true` is set in `.agents/gnd.toml`.
+The `gnd` ID scheme: `<KIND>-<slug>[.<section>]` in this repo, where `KIND` ∈ `{G, FS, AS, DA, DF, E2E, RM, DISC}` per `.agents/gnd.toml` (configurable per `gnd`'s §FS-config). Citations are written prefixed by the marker `§` (per `gnd`'s §DF-reference-marker). Bare tokens are ignored because `[reference] strict = true` is set in `.agents/gnd.toml`.
 
 Declarations are heading lines: `# FS-user-login: A player can log in …` in a markdown file, or the same shape inside a code doc-comment (Javadoc, JSDoc, Rustdoc, Python docstring, Go `//` block, etc.). An architectural spec, in particular, can live directly in the class-level doc-comment of the class it describes, with a one-line stub under `docs/architectural-spec/` whose H1 is `# <ID>: [<path>](<path>)` (a markdown link to the file with the inline declaration). See `gnd`'s §AS-scanner.4 for the exhaustive list of supported doc-comment forms.
 
@@ -64,6 +73,15 @@ This file is the entry point for any agent (human or AI) working on **gnd**. Rea
 
 This project uses the [`gnd`](https://github.com/anthropics/gnd) reference scheme: every spec, goal, decision, and end-to-end test has a stable ID of the form `<KIND>-<NNN>-<slug>`, declared as a heading inside its home file. Citations are written prefixed by the marker `§`, e.g. `§FS-user-login.3.1`. Section paths can be arbitrary depth — `.3`, `.3.1`, `.3.1.2` are all valid as long as a heading at that depth exists in the declaration. Run `gnd check` to validate every citation; run `gnd list` to see every declared ID; run `gnd show <ID>` to print just the body of one declaration. See `gnd`'s own §FS-check, §FS-list, and §FS-show for the contract.
 
+## Grounding yourself in the spec
+
+A `§<ID>` — or `§<ID>.<section>` — is a pointer to a fact, not a file path. When a doc, a code comment, or a review note cites one, resolve it with `gnd` instead of opening the file and skimming:
+
+- `gnd show <ID>` — the full declaration body (a spec file's contents, a goal's success criterion, a decision record).
+- `gnd show <ID>.<section>` — just that subsection, so you pull one fact into context without loading the whole file. This is the cheap, precise move — prefer it.
+- `gnd show <ID> --head` — the lead paragraph only, for a quick "what is this about" before deciding whether to read more.
+- `gnd list` — every declared ID, when you need to discover the right `<ID>`. `gnd refs <ID>` — every place that cites it, so you know what leans on a declaration before you change it.
+
 ## How to use this file
 
 1. Start at the top of `docs/` and read down. Each document answers one question.
@@ -94,7 +112,7 @@ End-to-end tests live in `e2e/`. They are not documentation — they are executa
 
 ## References
 
-The `gnd` ID scheme: `<KIND>-<slug>[.<section>]` in this repo, where `KIND` ∈ `{G, FS, AS, DA, DF, E2E, DISC}` per `.agents/gnd.toml` (configurable per `gnd`'s §FS-config). Citations are written prefixed by the marker `§` (per `gnd`'s §DF-reference-marker). Bare tokens are ignored because `[reference] strict = true` is set in `.agents/gnd.toml`.
+The `gnd` ID scheme: `<KIND>-<slug>[.<section>]` in this repo, where `KIND` ∈ `{G, FS, AS, DA, DF, E2E, RM, DISC}` per `.agents/gnd.toml` (configurable per `gnd`'s §FS-config). Citations are written prefixed by the marker `§` (per `gnd`'s §DF-reference-marker). Bare tokens are ignored because `[reference] strict = true` is set in `.agents/gnd.toml`.
 
 Declarations are heading lines: `# FS-user-login: A player can log in …` in a markdown file, or the same shape inside a code doc-comment (Javadoc, JSDoc, Rustdoc, Python docstring, Go `//` block, etc.). An architectural spec, in particular, can live directly in the class-level doc-comment of the class it describes, with a one-line stub under `docs/architectural-spec/` whose H1 is `# <ID>: [<path>](<path>)` (a markdown link to the file with the inline declaration). See `gnd`'s §AS-scanner.4 for the exhaustive list of supported doc-comment forms.
 

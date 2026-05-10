@@ -48,6 +48,6 @@ An unknown subcommand (including `gnd help <unknown>`), an unknown or malformed 
 ## 6. What is deliberately absent
 
 - No `--quiet` / `--verbose` knobs that change which findings print — severity is fixed (FS-non-goals.9), and a passing repo is already silent (G-friendliness-first.1.6).
-- No `--config <path>` override — config is discovered, not pointed at, to keep two installs on the same tree in agreement (FS-config.1). `gnd config show` reports what was discovered.
+- No `--config <file>` override — config is discovered by walking up from the command path, not pointed at directly, to keep two installs on the same tree in agreement (FS-config.1). `gnd config show [path]` reports what was discovered from that starting path.
 - No interactive flags, no TUI, no prompts (FS-non-goals.10).
 - No `gnd graph`, no `gnd new` — graph visualisation is not a committed feature (FS-non-goals.6), and file creation for a new declaration is the caller's job after `gnd name` (FS-name.7).

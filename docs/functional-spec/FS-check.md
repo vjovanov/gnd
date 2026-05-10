@@ -7,7 +7,7 @@ The `check` command walks a repo and reports every violation of the gnd referenc
 - Optional path argument; defaults to the current directory. May be a directory or a single file (`gnd check src/scanner.rs` scopes the scan to one file but still discovers `.agents/gnd.toml` by walking up — FS-config.1).
 - The walked tree may contain markdown (`.md`) and source files (Rust, Go, Java, TS, Python, etc.).
 - Optional `.agents/gnd.toml` configuring marker, trigger, kinds, and skip lists per G-configurable (FS-config).
-- `--watch` — stay resident and re-check on every change under the scanned tree (§6).
+- `--watch` is reserved for the planned resident checker (§6) and is not accepted by the current CLI.
 - `--format text|json` — output shape, per FS-errors.5. The global flags `--version` and `--help` are handled before any scan (FS-cli).
 
 ## 1.1 Recognized citations
@@ -90,11 +90,11 @@ See FS-non-goals — in particular FS-non-goals.1 (markdown links / URLs), FS-no
 
 ## 6. Watch mode (`--watch`)
 
-Status: planned — implementation tracked under §RM-012-watch.
+Status: planned — implementation tracked under §RM-watch.
 
-`gnd check --watch [<path>]` runs the check once, then stays resident and re-runs it whenever a file under the scanned tree (or `.agents/gnd.toml`) changes. It is the editor-less counterpart to the optional LSP server (FS-lsp): the LSP integrates `gnd` into an editor's diagnostics; `--watch` is the plain-terminal "every save" loop that G-fast-feedback exists for, available in every install with no editor configuration.
+When implemented, `gnd check --watch [<path>]` will run the check once, then stay resident and re-run it whenever a file under the scanned tree (or `.agents/gnd.toml`) changes. It is the editor-less counterpart to the optional LSP server (FS-lsp): the LSP integrates `gnd` into an editor's diagnostics; `--watch` is the plain-terminal "every save" loop that G-fast-feedback exists for. Until §RM-watch lands, `gnd check --watch` is a CLI error (`error: unknown flag \`--watch\``, exit 2).
 
 - **Change detection.** Filesystem notifications where the OS provides them; a debounce window coalesces a burst of writes into one re-check. No polling loop is required, and there is no configurable interval — the watcher reacts, it does not sample.
 - **Each run is a plain `gnd check`.** Output and exit-status semantics of an individual run are exactly §2/§2.1 on the tree's state at that moment — byte-identical to what a non-`--watch` invocation would print (FS-errors.4). Before each run the previous run's output is cleared so the terminal always shows the current report; with `--format=json` each run emits one self-contained report object (never a running NDJSON stream).
 - **Lifecycle.** The process runs until interrupted (Ctrl-C / SIGINT). On interrupt it exits with the exit code of the most recently completed run (`0`/`1`/`2`), so `gnd check --watch &` followed by a later signal is still a meaningful CI-ish probe. There is no TUI, no key bindings, no prompt — it is non-interactive per FS-non-goals.10, just a re-printing checker. No network I/O (FS-non-goals.11); the only files touched are the ones the walk already reads.
-- **Scope.** `--watch` is a `check` flag (and `gnd --watch [<path>]` is shorthand for `gnd check --watch [<path>]`, FS-cli). Other subcommands do not take it; a one-shot `gnd fmt` or `gnd show` has nothing to keep watching.
+- **Scope.** `--watch` will be a `check` flag (and `gnd --watch [<path>]` will be shorthand for `gnd check --watch [<path>]`, FS-cli). Other subcommands will not take it; a one-shot `gnd fmt` or `gnd show` has nothing to keep watching.

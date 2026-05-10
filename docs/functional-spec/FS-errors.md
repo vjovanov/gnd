@@ -57,7 +57,7 @@ Used only by query commands (currently `gnd show`). `check` does not use this sh
 
 The shape is structural; the text is human-readable. Style rules apply to every shape:
 
-- **Lowercase first letter.** `dangling citation: FS-foo` — not `Dangling citation`.
+- **Lowercase first letter.** `unknown reference FS-foo` — not `Unknown reference FS-foo`.
 - **No terminal period.** Messages do not end in `.` or `!`.
 - **No ANSI colors by default.** A future `--color=auto` may add them (G-no-silent-breakage applies); plain bytes are the contract.
 - **Stable phrasing.** The exact text of each message is part of the user-visible output covered by G-no-silent-breakage.1: changing it goes through a deprecation path. Tools grep on it.

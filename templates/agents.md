@@ -5,6 +5,15 @@ This file is the entry point for any agent (human or AI) working on **{NAME}**. 
 
 This project uses the [`gnd`](https://github.com/anthropics/gnd) reference scheme: every spec, goal, decision, and end-to-end test has a stable ID of the form `<KIND>-<NNN>-<slug>`, declared as a heading inside its home file. Citations are written prefixed by the marker `§`, e.g. `§FS-042-user-login.3.1` (the `FS-042-user-login` here is an illustration of the *shape*, not a real ID in this repo). Section paths can be arbitrary depth — `.3`, `.3.1`, `.3.1.2` are all valid as long as a heading at that depth exists in the declaration. Run `gnd check` to validate every citation; run `gnd list` to see every declared ID; run `gnd show <ID>` to print just the body of one declaration. (`gnd` documents its own `check`, `list`, and `show` contract under [`docs/functional-spec/`](https://github.com/anthropics/gnd/tree/main/docs/functional-spec) in the `gnd` repo — that's `gnd`'s spec, not this project's; only IDs declared *in this repo* resolve with `gnd show` here.)
 
+## Grounding yourself in the spec
+
+A `§<ID>` — or `§<ID>.<section>` — is a pointer to a fact, not a file path. When a doc, a code comment, or a review note cites one, resolve it with `gnd` instead of opening the file and skimming:
+
+- `gnd show <ID>` — the full declaration body (a spec file's contents, a goal's success criterion, a decision record).
+- `gnd show <ID>.<section>` — just that subsection, so you pull one fact into context without loading the whole file. This is the cheap, precise move — prefer it.
+- `gnd show <ID> --head` — the lead paragraph only, for a quick "what is this about" before deciding whether to read more.
+- `gnd list` — every declared ID, when you need to discover the right `<ID>`. `gnd refs <ID>` — every place that cites it, so you know what leans on a declaration before you change it.
+
 ## How to use this file
 
 1. Start at the top of `docs/` and read down. Each document answers one question.
@@ -34,7 +43,7 @@ End-to-end tests live in `e2e/`. They are not documentation — they are executa
 
 ## References
 
-The `gnd` ID scheme: `<KIND>-<NNN>-<slug>[.<section>]`, where `KIND` ∈ `{G, FS, AS, DA, DF, E2E}` by default — the kinds and the ID/marker syntax are configurable in `.agents/gnd.toml` (run `gnd config show` to see the effective settings). Citations are written prefixed by the marker `§`. Bare tokens are also recognized for backward compatibility unless `[reference] strict = true` is set in `.agents/gnd.toml`.
+The `gnd` ID scheme: `<KIND>-<NNN>-<slug>[.<section>]`, where `KIND` ∈ `{G, FS, AS, DA, DF, E2E, RM}` by default — the kinds and the ID/marker syntax are configurable in `.agents/gnd.toml` (run `gnd config show` to see the effective settings). Citations are written prefixed by the marker `§`. Bare tokens are also recognized for backward compatibility unless `[reference] strict = true` is set in `.agents/gnd.toml`.
 
 Declarations are heading lines: `# FS-042-user-login: A player can log in …` in a markdown file (again, `FS-042-user-login` is just the shape), or the same shape inside a code doc-comment (Javadoc, JSDoc, Rustdoc, Python docstring, Go `//` block, etc.). An architectural spec, in particular, can live directly in the class-level doc-comment of the class it describes, with a one-line stub under `docs/architectural-spec/` whose H1 is `# <ID>: [<path>](<path>)` (a markdown link to the file with the inline declaration). The exhaustive list of supported doc-comment forms is in [`gnd`'s own architectural spec](https://github.com/anthropics/gnd/tree/main/docs/architectural-spec).
 

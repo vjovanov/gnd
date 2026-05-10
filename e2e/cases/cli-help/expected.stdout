@@ -13,7 +13,7 @@ Commands:
   list     The ID catalog: every declared ID, path:line, title.     e.g. gnd list --kind FS
   refs     List every citation of an ID, as path:line.              e.g. gnd refs FS-login
   fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. gnd fmt --check
-  name     Next conflict-free ID; KIND: G, FS, AS, DF, DA, E2E.     e.g. gnd name FS "user login"
+  name     Next conflict-free ID for a new KIND declaration.        e.g. gnd name FS "user login"
   init     Scaffold agents.md + .agents/gnd.toml; idempotent.       e.g. gnd init --docs
   config   validate or show the effective .agents/gnd.toml.         e.g. gnd config show
   completions  Print shell completion scripts.                      e.g. gnd completions bash

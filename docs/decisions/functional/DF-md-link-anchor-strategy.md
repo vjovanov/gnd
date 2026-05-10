@@ -65,7 +65,7 @@ The reframed §raison-detre.2 names three pillars — verify, refactor-safe, ext
 - §FS-fmt.6.7's `anchor_format` config gains the named-profile shape from §2.3 above.
 - §AS-scanner.2.2 is extended to record heading text per section, in addition to the existing section path.
 - §DF-md-link-emission.2.2 is superseded by this DR. The section-coord stability framing in that section is retracted.
-- §RM-010-md-link-emission's "What" section grows by one item: implement the renderer-profile slugifiers and the heading-text storage in `Findings`.
+- §RM-md-link-emission's "What" section grows by one item: implement the renderer-profile slugifiers and the heading-text storage in `Findings`.
 
 ## 5. Alternatives considered
 
