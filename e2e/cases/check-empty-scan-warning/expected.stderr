@@ -1,0 +1,1 @@
+warning: nothing to scan — gnd looked under [scan] include = ["docs", "e2e", "src"] and found no files. Set `include` in `.agents/gnd.toml` (or run `gnd init`) to point gnd at your sources, or pass a path explicitly (`gnd check <dir>`).

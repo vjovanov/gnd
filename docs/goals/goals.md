@@ -49,9 +49,9 @@ The e2e suite includes positive and negative fixtures for every supported doc-co
 
 Speed is not a target — it is an **ordering principle**. When a design choice trades clarity, generality, or features for speed, speed wins. `gnd` exists to be invoked on every keystroke (IDE), every save (watcher), every commit (CI). Anything slower than human reflex breaks the loop it is meant to enable.
 
-### 1. Hard budgets
+### 1. Budgets
 
-These must hold; CI fails on regression.
+These are the targets the implementation holds itself to. As of 0.1.0 they are met by a wide margin in practice (`gnd .` on this repo runs in tens of milliseconds), but they are not yet *gated* by an automated benchmark — a criterion harness that fails CI on regression is tracked under §RM-benchmarks. Until that lands, CI carries only the cheap guard in §3.
 
 - Under **100 ms** on the `gnd` repo itself. The self-host loop must be invisible.
 - Under **1 s** on a 10k-file repo.
@@ -67,19 +67,19 @@ These must hold; CI fails on regression.
 
 ### 3. Measurable
 
-`time gnd .` on a synthetic 10k-file fixture; CI tracks the number across commits and fails on regression.
+`time gnd .` on a synthetic 10k-file fixture stays under budget. The full criterion harness that tracks the number across commits and fails CI on regression is §RM-benchmarks; until then CI runs the built `gnd .` under a generous timeout (§AS-ci.4) so a catastrophic regression — an accidental quadratic walk, a re-read pass — still fails the build.
 
 ## G-zero-config: works on any conformant tree
 
-No config file, no flags required for the common case. Discovery is by walking from the supplied root. The default behavior is the canonical `gnd` reference grammar — that is the contract.
+No config file, no flags required for the canonical layout. Discovery is by walking from the supplied root. The default behavior is the canonical `gnd` reference grammar — that is the contract.
 
-### 1. What "common case" means
+### 1. What "canonical layout" means
 
-A repo whose layout follows the canonical `gnd` conventions: `agents.md` at the root; `docs/` containing `functional-spec/`, `architectural-spec/`, `decisions/{architectural,functional}/`, `goals/`; `e2e/` for end-to-end tests; IDs in the canonical grammar. For such a repo, `gnd .` Just Works.
+A repo whose layout follows the canonical `gnd` conventions: `agents.md` at the root; `docs/` containing `functional-spec/`, `architectural-spec/`, `decisions/{architectural,functional}/`, `goals/`; `e2e/` for end-to-end tests; sources under `src/`; IDs in the canonical grammar. For such a repo, `gnd .` Just Works — with no config, the walk covers `docs/`, `e2e/`, and `src/` (the default `[scan] include`, §FS-config.3.5). A project whose sources or specs live elsewhere is one `[scan] include` line away from the same experience (`gnd init` writes the file for editing), and `gnd check <path>` always scans exactly the path it is handed regardless of the default scope. A walk that ends up reading nothing says so rather than exiting `0` silently (§FS-check.2.2) — the "any conformant tree" promise fails loud, never quiet.
 
 ### 2. Measurable
 
-`gnd <repo>` works on any conformant repo without additional setup. The e2e suite includes a "minimal conformant repo" fixture; `gnd` must report zero errors with no flags and no `gnd.toml`.
+`gnd <repo>` works on any canonical-layout repo without additional setup. The e2e suite includes a "minimal conformant repo" fixture; `gnd` must report zero errors with no flags and no `gnd.toml`. A repo whose content sits outside the default scope and carries no config gets the empty-scan notice of §FS-check.2.2, not a misleading clean exit.
 
 ### 3. Composition with §G-configurable
 

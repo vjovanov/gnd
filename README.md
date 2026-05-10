@@ -14,7 +14,9 @@ The three things `gnd` does that plain Markdown links can't:
 
 ## What it Checks
 
-When you run `gnd <path>`:
+`gnd <path>` scans `<path>`; with no path it scans the repo. By default — no `.agents/gnd.toml` — the walk covers `docs/`, `e2e/`, and `src/` (the canonical layout); `gnd init` writes a config you can point elsewhere with `[scan] include`, and pointing `gnd` at an explicit file or directory always scans exactly that, ignoring the default scope. A walk that reads no files is reported, not silently passed — so a misconfigured scope fails loud, never quiet.
+
+In the scanned tree:
 
 1. Every cited ID resolves to a declaration. *(dangling references)*
 2. Every section coordinate (`.3.1`) resolves to a heading inside the declaration. *(missing sections)*
@@ -61,9 +63,9 @@ Each subfolder is a tiny self-contained repo plus golden `expected.*` files — 
 ## Install
 
 ```bash
-cargo install gnd                                  # from crates.io
+cargo install --git https://github.com/vjovanov/gnd  # from a git ref
 cargo install --path .                             # from a clone
-cargo install --git https://github.com/vjovanov/gnd  # pin to a git ref
+cargo install gnd                                  # from crates.io (once published — RM-distribution-naming)
 ```
 
 This puts the `gnd` binary on your `PATH`. The npm and PyPI packages are planned — see [Distribution](#distribution) below.
@@ -136,7 +138,7 @@ Full surface in [`docs/functional-spec/`](docs/functional-spec/).
 
 Today, `gnd` ships as a single cargo crate. The plan is one engine across three registries with an idiomatic API on each (tracked in [`docs/roadmap.md`](docs/roadmap.md)):
 
-- **cargo** — `gnd` (library + binary) — *shipping now* (`cargo install gnd`)
+- **cargo** — `gnd` (library + binary) — *0.1.0; installable today from a clone or git ref (see [Install](#install)); the crates.io publish is gated on `RM-distribution-naming`*
 - **npm** — `gnd-cli` (prebuilt binary + Node API via `napi-rs`) — *planned*
 - **PyPI** — `gnd` (Python API via PyO3, wheels via `maturin`) — *planned; package name re-verified before first publish per `RM-distribution-naming`*
 

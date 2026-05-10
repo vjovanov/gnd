@@ -43,7 +43,7 @@ Severity is implicit. Per-finding lines carry no `error:`/`warning:` prefix beca
 
 When a finding inherently spans multiple sites (e.g., duplicate declarations, §FS-check.3.3), the message is anchored at the lexicographically-first site (sort by `path`, then `line`) and the other sites are listed parenthetically inside the message.
 
-Stdout is always empty for `check`. Stderr is empty when there are zero errors and zero warnings, satisfying §G-friendliness-first.1 ("zero noise on success"). There is no summary footer — the exit code is the machine-readable verdict, the per-finding lines are the human-readable detail.
+Stdout is always empty for `check`, including `--format=json`; diagnostics are emitted on stderr per §FS-errors.5. Stderr is empty when there are zero errors and zero warnings, satisfying §G-friendliness-first.1 ("zero noise on success"). There is no summary footer — the exit code is the machine-readable verdict, the per-finding lines are the human-readable detail.
 
 #### 2.1.1 CLI-level errors
 
@@ -53,7 +53,16 @@ Errors that have no source location — unknown subcommand, malformed flag, inva
 error: <message>
 ```
 
-These never carry a `<path>:<line>:` prefix. The `error:` prefix is what distinguishes them from per-finding lines, and CI scripts can grep for the leading `error:` to detect launch-time failures.
+These never carry a `<path>:<line>:` prefix. The `error:` prefix is what distinguishes them from per-finding lines, and CI scripts can grep for the leading `error:` to detect launch-time failures. The same shape with a `warning:` prefix is the CLI-level *warning* form — used by §2.2; like other warnings it does not affect the exit code.
+
+### 2.2 Empty scan
+
+A walk that read **no scannable files** at all, and turned up no findings (no errors, no warnings — including the agent-entrypoint check of §3.5, which still runs and still reports even when nothing is scanned), is almost always a misconfigured scope rather than a clean repo. Rather than print nothing and exit `0` — which reads as "all clear" — `check` emits one CLI-level `warning:` line to stderr:
+
+- when the scope is the repo root (no path argument, or `gnd check .`) and `[scan] include` is set: the message names the `include` list and points at `.agents/gnd.toml` / `gnd init`, since the usual cause is a project whose sources live outside the default `docs/`, `e2e/`, `src/`;
+- when an explicit path was given: the message names that path and the recognized extensions, since the usual cause is pointing `gnd` at a tree with no `.md`/source files.
+
+This is a warning, not an error: the exit code stays `0` (a genuinely empty tree is not a failure), `--format=json` emits the warning as one diagnostic JSON object on stderr, and a repo that *does* have a stale `agents.md` block or any other finding gets that finding and **no** empty-scan notice. This is the friendliness-first counterpart to "zero noise on success" (§G-friendliness-first.1): the run that scanned nothing is the one case where silence is the wrong answer.
 
 ## 3. Errors detected
 
@@ -110,6 +119,6 @@ Status: planned — implementation tracked under §RM-watch.
 When implemented, `gnd check --watch [<path>]` will run the check once, then stay resident and re-run it whenever a file under the scanned tree (or `.agents/gnd.toml`) changes. It is the editor-less counterpart to the optional LSP server (§FS-lsp): the LSP integrates `gnd` into an editor's diagnostics; `--watch` is the plain-terminal "every save" loop that §G-fast-feedback exists for. Until §RM-watch lands, `gnd check --watch` is a CLI error (`error: unknown flag \`--watch\``, exit 2).
 
 - **Change detection.** Filesystem notifications where the OS provides them; a debounce window coalesces a burst of writes into one re-check. No polling loop is required, and there is no configurable interval — the watcher reacts, it does not sample.
-- **Each run is a plain `gnd check`.** Output and exit-status semantics of an individual run are exactly §2/§2.1 on the tree's state at that moment — byte-identical to what a non-`--watch` invocation would print (§FS-errors.4). Before each run the previous run's output is cleared so the terminal always shows the current report; with `--format=json` each run emits one self-contained report object (never a running NDJSON stream).
+- **Each run is a plain `gnd check`.** Output and exit-status semantics of an individual run are exactly §2/§2.1 on the tree's state at that moment — byte-identical to what a non-`--watch` invocation would print (§FS-errors.4). Before each run the previous run's output is cleared so the terminal always shows the current report; with `--format=json` each run emits the same diagnostic NDJSON as non-watch mode, scoped to that run.
 - **Lifecycle.** The process runs until interrupted (Ctrl-C / SIGINT). On interrupt it exits with the exit code of the most recently completed run (`0`/`1`/`2`), so `gnd check --watch &` followed by a later signal is still a meaningful CI-ish probe. There is no TUI, no key bindings, no prompt — it is non-interactive per §FS-non-goals.10, just a re-printing checker. No network I/O (§FS-non-goals.11); the only files touched are the ones the walk already reads.
 - **Scope.** `--watch` will be a `check` flag (and `gnd --watch [<path>]` will be shorthand for `gnd check --watch [<path>]`, §FS-cli). Other subcommands will not take it; a one-shot `gnd fmt` or `gnd show` has nothing to keep watching.

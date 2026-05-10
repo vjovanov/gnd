@@ -18,9 +18,9 @@ AS-event-bus
 
 ## Pros
 
-- **Self-describing.** A reader sees `§FS-event-bus` and immediately knows the topic — no `gnd show` round-trip to triage a PR comment.
+- **Self-describing.** A reader sees a citation — the `§` marker followed by an ID like `FS-event-bus` — and immediately knows the topic, no `gnd show` round-trip to triage a PR comment. (Illustrative IDs in this README carry no `§` marker on purpose, so `gnd check examples/scheme-slug` stays clean — only a marker-prefixed token is a checked citation.)
 - **No number bookkeeping.** Authors and agents pick a title; the ID falls out. There is no "next free number" to allocate, so two contributors creating specs in parallel never race for a number.
-- **Greppable by topic.** `grep -r '§FS-event' src/` finds every citation in the area without a separate ID-to-topic lookup.
+- **Greppable by topic.** `grep -r 'FS-event' src/` finds every citation in the area without a separate ID-to-topic lookup.
 
 ## Cons
 

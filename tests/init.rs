@@ -122,6 +122,59 @@ fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
 }
 
 #[test]
+fn init_agents_guidance_uses_existing_configured_artifact_homes() {
+    let target = workdir("init_agents_guidance_uses_existing_configured_artifact_homes");
+    fs::create_dir_all(target.join(".agents")).expect("create .agents");
+    fs::write(
+        target.join(".agents/gnd.toml"),
+        r#"gnd_config_version = 1
+
+[scan]
+include = ["specs", "records", "crates"]
+
+[[kinds]]
+prefix = "FS"
+folder = "specs"
+title = "Product spec"
+
+[[kinds]]
+prefix = "ADR"
+folder = "records/adr"
+title = "Architecture decision"
+"#,
+    )
+    .expect("write custom gnd.toml");
+
+    let output = run_gnd(
+        &["init", target.to_str().unwrap(), "--name", "Configured"],
+        manifest_dir(),
+    );
+    assert!(
+        output.status.success(),
+        "init failed: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let agents = fs::read_to_string(target.join("agents.md")).expect("read agents.md");
+    assert!(
+        agents.contains("| `FS` | `specs` | Product spec |"),
+        "agents.md should describe configured spec homes:\n{agents}"
+    );
+    assert!(
+        agents.contains("| `ADR` | `records/adr` | Architecture decision |"),
+        "agents.md should describe configured decision homes:\n{agents}"
+    );
+    assert!(
+        agents.contains("`specs`, `records`, `crates`"),
+        "agents.md should describe configured scan scope:\n{agents}"
+    );
+    assert!(
+        !agents.contains("docs/architectural-spec/") && !agents.contains("docs/decisions/"),
+        "agents.md must not introduce canonical docs folders when specs are configured elsewhere"
+    );
+}
+
+#[test]
 fn init_is_byte_deterministic() {
     // FS-non-goals.13: same input → byte-identical output.
     let a = workdir("init_is_byte_deterministic_a");

@@ -64,7 +64,12 @@ jobs:
       - name: gnd self-check
         run: |
           stdout_file="$(mktemp)"
-          cargo run --locked -- . > "$stdout_file"
+          # `timeout 30` is the interim performance guard (§AS-ci.4 / §G-fast-feedback):
+          # `gnd .` on this repo runs in tens of milliseconds, so a 30s ceiling never
+          # flakes but still trips on a catastrophic regression (a quadratic walk, a
+          # second read pass). The criterion harness that tracks the real number is
+          # §RM-benchmarks.
+          timeout 30 cargo run --locked -- . > "$stdout_file"
           if [ -s "$stdout_file" ]; then
             echo "gnd self-check wrote unexpected stdout:" >&2
             cat "$stdout_file" >&2

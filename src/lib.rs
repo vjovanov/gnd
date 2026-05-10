@@ -572,7 +572,19 @@ fn load_config(start: &Path) -> Result<Config> {
         }
         cursor = dir.parent();
     }
-    Ok(Config::default_for(walk_start))
+    // Zero-config (§G-zero-config): the "project root" is the current working
+    // directory, never the path that happened to be passed on the command line —
+    // so `[scan] include` resolves against the repo and `gnd check src/` scopes
+    // *into* it instead of looking for `src/docs`, `src/e2e`, `src/src`. Reports
+    // stay relative to `cli_base` (the resolved path arg) when
+    // `[output] relative_paths = false` (§FS-config.3.6).
+    let root = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| fs::canonicalize(&cwd).ok())
+        .unwrap_or_else(|| walk_start.clone());
+    let mut config = Config::default_for(root);
+    config.cli_base = walk_start;
+    Ok(config)
 }
 
 /// Parse one `.agents/gnd.toml` over `config` — the schema of §FS-config.3 and its
@@ -1698,15 +1710,16 @@ fn print_report(config: &Config, report: &Report) {
     let mut diagnostics = report
         .warnings
         .iter()
-        .chain(report.errors.iter())
+        .map(|diagnostic| ("warning", diagnostic))
+        .chain(report.errors.iter().map(|diagnostic| ("error", diagnostic)))
         .collect::<Vec<_>>();
-    diagnostics.sort_by(|a, b| diagnostic_cmp(a, b));
-    for diagnostic in diagnostics {
-        eprintln!("{}", render_diagnostic_text(config, diagnostic));
+    diagnostics.sort_by(|(_, a), (_, b)| diagnostic_cmp(a, b));
+    for (severity, diagnostic) in diagnostics {
+        eprintln!("{}", render_diagnostic_text(config, severity, diagnostic));
     }
 }
 
-fn render_diagnostic_text(config: &Config, diagnostic: &Diagnostic) -> String {
+fn render_diagnostic_text(config: &Config, severity: &str, diagnostic: &Diagnostic) -> String {
     match (&diagnostic.path, diagnostic.line) {
         (Some(path), Some(line)) => {
             format!(
@@ -1717,20 +1730,17 @@ fn render_diagnostic_text(config: &Config, diagnostic: &Diagnostic) -> String {
             )
         }
         // A file-level finding with no line to point at (e.g. an unreadable file
-        // discovered mid-walk) uses the CLI-error shape — §FS-check.2, §FS-errors.2.2.
+        // discovered mid-walk) uses the CLI-level shape — §FS-check.2, §FS-errors.2.2.
         (Some(path), None) => format!(
-            "error: {}: {}",
+            "{severity}: {}: {}",
             display_path(config, path),
             diagnostic.message
         ),
-        _ => diagnostic.message.clone(),
+        _ => format!("{severity}: {}", diagnostic.message),
     }
 }
 
-/// Print the report as newline-delimited JSON objects on stderr — the `--format
-/// json` / `[output] format = "json"` shape (§FS-errors.5): one object per finding
-/// with `severity`, `path`, `line`, `code`, `message`, `sites`.
-fn print_json_report(config: &Config, report: &Report) {
+fn sorted_json_diagnostics<'a>(report: &'a Report) -> Vec<(&'static str, &'a Diagnostic)> {
     let mut diagnostics = report
         .warnings
         .iter()
@@ -1738,7 +1748,14 @@ fn print_json_report(config: &Config, report: &Report) {
         .chain(report.errors.iter().map(|diagnostic| ("error", diagnostic)))
         .collect::<Vec<_>>();
     diagnostics.sort_by(|(_, a), (_, b)| diagnostic_cmp(a, b));
-    for (severity, diagnostic) in diagnostics {
+    diagnostics
+}
+
+/// Print the report as newline-delimited JSON objects on stderr — the `--format
+/// json` / `[output] format = "json"` shape (§FS-errors.5): one object per finding
+/// with `severity`, `path`, `line`, `code`, `message`, `sites`.
+fn print_json_report(config: &Config, report: &Report) {
+    for (severity, diagnostic) in sorted_json_diagnostics(report) {
         eprintln!("{}", render_diagnostic_json(config, severity, diagnostic));
     }
 }
@@ -1839,6 +1856,45 @@ fn display_path(config: &Config, path: &Path) -> String {
         .into_owned()
 }
 
+/// The CLI-level warning `check` reports when the tree walk matched no files
+/// (§FS-check.2.2): a scan that read nothing is almost always a misconfigured
+/// scope, so we say so instead of printing nothing and exiting `0`. This is a
+/// warning — it never changes the exit code.
+fn empty_scan_warning(config: &Config, path: &Path, path_provided: bool) -> Diagnostic {
+    // `gnd`, `gnd check .`, and `gnd check <repo-root>` all walk `[scan] include`
+    // relative to the config root — so the "looked under include" message is the
+    // accurate one whenever the requested path *is* that root, not just when the
+    // path was omitted.
+    let scoped_to_root = !path_provided
+        || path == Path::new(".")
+        || fs::canonicalize(path)
+            .map(|p| p == config.root)
+            .unwrap_or(false);
+    let message = match (&config.include, scoped_to_root) {
+        (Some(dirs), true) => format!(
+            "nothing to scan — gnd looked under [scan] include = [{}] and found no files. Set \
+             `include` in `.agents/gnd.toml` (or run `gnd init`) to point gnd at your sources, \
+             or pass a path explicitly (`gnd check <dir>`).",
+            dirs.iter()
+                .map(|dir| format!("\"{dir}\""))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        _ => format!(
+            "nothing to scan — no files under `{}` matched gnd's extensions ({}).",
+            path.display(),
+            config.extensions.join(", ")
+        ),
+    };
+    Diagnostic {
+        code: "empty-scan",
+        path: None,
+        line: None,
+        message,
+        sites: Vec::new(),
+    }
+}
+
 /// `gnd check [path] [--format text|json]` — the default subcommand (§FS-cli.1):
 /// scan the tree, run the checker (§FS-check), print the report, and exit `0` clean
 /// / `1` on a finding / `2` on a CLI or I/O error (§FS-check.2.1, §FS-cli.5).
@@ -1912,6 +1968,17 @@ fn command_check(args: &[String]) -> ExitCode {
         });
     }
     sort_diagnostics(&mut report.errors);
+    // §FS-check.2.2: a walk that read no files and turned up nothing to report is
+    // almost always a misconfigured scope, not a clean repo — say so on stderr
+    // instead of printing nothing and exiting 0. This is a warning: it never
+    // changes the exit code. (The agent-entrypoint check, §FS-check.3.5, runs even
+    // when no source file is scanned, so a missing/stale `agents.md` block still
+    // reports normally and suppresses this notice.)
+    if findings.scanned_files.is_empty() && report.errors.is_empty() && report.warnings.is_empty() {
+        report
+            .warnings
+            .push(empty_scan_warning(&config, &path, path_provided));
+    }
     let format = format_override.unwrap_or_else(|| config.output_format.clone());
     if !matches!(format.as_str(), "text" | "json") {
         eprintln!("error: unsupported check format `{format}`");
@@ -3209,8 +3276,8 @@ fn command_name(args: &[String]) -> ExitCode {
 /// `gnd refs <ID>[.<section>] [--format text|json]` — the reverse of `gnd show`:
 /// list every place that cites the ID (§FS-refs.1, §FS-refs.2), scheme-aware where
 /// a grep cannot be. Shares the scanner with `check` so the two never disagree on
-/// what counts as a citation (§FS-refs.5); exits `1` if the ID is undeclared
-/// (§FS-refs.4).
+/// what counts as a citation (§FS-refs.5). Empty results, including undeclared IDs
+/// with no citations, exit `0` (§FS-refs.4).
 fn command_refs(args: &[String]) -> ExitCode {
     if args.is_empty() {
         eprintln!("error: refs requires an ID");
@@ -3303,6 +3370,15 @@ fn command_refs(args: &[String]) -> ExitCode {
     citations.sort_by(|a, b| {
         (a.file.as_os_str(), a.line, a.column).cmp(&(b.file.as_os_str(), b.line, b.column))
     });
+    // §FS-refs.2: zero citations is a normal answer, not an error — but if the ID
+    // is *also* undeclared, the caller most likely fat-fingered it, so leave a
+    // breadcrumb on stderr without changing the exit code.
+    if citations.is_empty() && !findings.declarations.contains_key(&id) {
+        eprintln!(
+            "note: {} is neither declared nor cited — run `gnd list` to see every declared ID",
+            render_id(&config, &id)
+        );
+    }
     if format == "json" {
         for citation in citations {
             println!("{}", render_citation_json(&config, citation));
@@ -4006,7 +4082,65 @@ fn agents_template_substitutions(name: &str, config: &Config) -> Vec<(&'static s
         ("{BARE_TOKEN_NOTE}", bare_note),
         ("{MARKER}", marker.to_string()),
         ("{TRIGGER}", config.trigger.clone()),
+        ("{SCAN_SCOPE}", scan_scope_summary(config)),
+        ("{DECLARATION_TABLE}", declaration_table(config)),
     ]
+}
+
+fn markdown_cell(raw: &str) -> String {
+    raw.replace('|', r"\|")
+}
+
+fn code_span(raw: &str) -> String {
+    format!("`{}`", raw.replace('`', "\\`"))
+}
+
+fn scan_scope_summary(config: &Config) -> String {
+    let include = config.include.as_deref().unwrap_or(&[]);
+    let roots = if include.is_empty() {
+        "the repository root".to_string()
+    } else {
+        include
+            .iter()
+            .map(|path| code_span(path))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    if config.exclude.is_empty() {
+        roots
+    } else {
+        format!(
+            "{roots}; excluded directories: {}",
+            config
+                .exclude
+                .iter()
+                .map(|path| code_span(path))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
+fn declaration_table(config: &Config) -> String {
+    let mut lines = vec![
+        "| Kind | Home | Purpose |".to_string(),
+        "|---|---|---|".to_string(),
+    ];
+    for kind in &config.kinds {
+        let home = kind
+            .folder
+            .as_deref()
+            .map(code_span)
+            .unwrap_or_else(|| "inline / configured by convention".to_string());
+        let title = kind.title.as_deref().unwrap_or("Declaration");
+        lines.push(format!(
+            "| `{}` | {} | {} |",
+            markdown_cell(&kind.prefix),
+            home,
+            markdown_cell(title)
+        ));
+    }
+    lines.join("\n")
 }
 
 /// The full generated `agents.md` for a fresh repo — the template with all
@@ -4517,8 +4651,12 @@ fn print_subcommand_help(cmd: &str) {
             println!("Usage:  gnd [check] [PATH] [--require-grounding] [--format text|json]");
             println!();
             println!(
-                "PATH defaults to `.`; config is discovered by walking up from it (FS-config.1)."
+                "PATH defaults to `.`; config (`.agents/gnd.toml`) is discovered by walking up from it."
             );
+            println!(
+                "With no config, gnd scans `docs/`, `e2e/`, and `src/`; set `[scan] include` to widen it."
+            );
+            println!("Pointing gnd at an explicit PATH scans exactly that file or directory.");
             println!("`gnd PATH` is shorthand for `gnd check PATH` — byte-for-byte equivalent.");
             println!();
             println!("Options:");
