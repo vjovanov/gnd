@@ -22,21 +22,9 @@ One bullet per change, present tense, leading with the affected ID. Example: `§
 
 Only **Unreleased** and the **most recent release** are inline. When a new release ships, the previous "latest" section is moved verbatim to `docs/changelog/<version>.md` and a one-line link is added under [§4 Older releases](#4-older-releases). The most recent release stays inline so the common reader and agent path — "what changed lately?" — is one file deep.
 
-## Unreleased
-
-### Added
-
-- §FS-check.3.6: `[reference] require_grounding` (off by default) and `gnd check --require-grounding` — when on, `check` reports an `ungrounded source file` error for every scanned non-Markdown file that carries no resolving citation and declares no ID inline. Shipped under §RM-require-grounding; the grounding floor of §DF-require-grounding; the diff-aware co-change recipe remains under §RM-cochange-gate. `gnd config show` now prints `require_grounding`; `templates/gnd.toml` carries `require_grounding = false`. Content change within `gnd_config_version = 1` — a v1 config without the key is unaffected.
-- §FS-config.3.1: document the `require_grounding` key.
-- §FS-cover: add `gnd cover [path] [--format text|json]`, the file-grouped citation graph for co-change recipes. It uses the same scanner data as `check` / `refs`, emits one JSON record per scanned file, includes files with zero citations, and keeps git diff policy outside the engine. Shipped under §RM-cover; §FS-cli, §FS-completions, README, and the e2e corpus now include the command.
-
-### Changed
-
-- §FS-init.2.3: the generated `agents.md` v1 block now explicitly tells agents to run `gnd show <ID>` or `gnd show <ID>.<section>` before editing code that carries a corresponding spec citation. Content change within the existing v1 block; no schema bump.
-
 ## 2. [0.1.0] — 2026-05-10
 
-First published binary. The CLI covers the full subcommand surface the specs describe (§2.7); the distribution arc — the `gnd-core`/`gnd-cli` workspace split, the npm/PyPI bindings, the optional `gnd-lsp` server, and `gnd check --watch` — is tracked in `docs/roadmap.md`.
+First published binary. The CLI covers the full subcommand surface the specs describe (§2.7) — including the opt-in grounding floor (§FS-check.3.6) and the coverage index (§FS-cover); the distribution arc — the `gnd-core`/`gnd-cli` workspace split, the npm/PyPI bindings, the optional `gnd-lsp` server, and `gnd check --watch` — plus the diff-aware co-change gate (§RM-cochange-gate) are tracked in `docs/roadmap.md`.
 
 ### 2.1 Baseline
 
@@ -71,6 +59,7 @@ First published binary. The CLI covers the full subcommand surface the specs des
 - README: add the `agents.md` init-block check (§FS-check.3.5) to the "What it Checks" list; add `RM` to the `[id]` kinds list; refresh the Subcommands table so it lists `show --section`/`--full`/`--format`, `fmt --check`/`--write`/`--md-links`, and the `[path]`/`--format` arguments other commands take; replace the `src/scanner.rs` / `{kind}-{number}-{slug}` worked examples in "Verifying what a file refers to" with ones that run against this repo's actual layout and slug-only `[id] format`.
 - Packaging: `Cargo.toml` `description` rewritten to the README's pitch ("the polyglot reference checker …") instead of the stale "league-of-code style docs" phrasing; `keywords` and `categories` added for the crates.io listing. The `examples/parallel-spec-review-example/` directory (an unrelated workflow demo, never referenced from `examples/README.md`) is removed so it no longer ships in the published crate.
 - §FS-init.2.3: the generated `agents.md` v1 block now follows the repo's effective config — the ID-shape line, the `## References` ID-scheme line, the worked declaration heading, the `KIND ∈ {…}` set, and the marker / `$$`-trigger / strict-vs-bare-tokens notes are rendered from `.agents/gnd.toml` (or the defaults `init` is about to write) instead of a fixed `<KIND>-<NNN>-<slug>` boilerplate. A `{kind}-{slug}` repo (like this one) now gets a `<KIND>-<slug>` description. Content change within v1; no schema bump (`gnd check` still validates the block markers and version, not a byte-diff). `templates/agents.md` carries the new placeholders.
+- §FS-init.2.3: the generated `agents.md` v1 block now explicitly tells agents to run `gnd show <ID>` or `gnd show <ID>.<section>` before editing code that carries a corresponding spec citation. Content change within the existing v1 block; no schema bump.
 - `agents.md` / `templates/agents.md`: the `gnd` project's own repository URL was `github.com/anthropics/gnd` in the agents template; corrected to `github.com/vjovanov/gnd` to match `Cargo.toml` `repository`/`homepage`. This repo's `agents.md` is regenerated from the corrected template (it had also accumulated a duplicated copy of the v1 block above the block).
 - CLI: restore the default `SIGPIPE` disposition at startup so a closed downstream pipe (`gnd list | head`, `gnd refs … | head`) ends the process quietly the way `ls | head` does, instead of panicking on the next `println!` with `failed printing to stdout: Broken pipe`. Unix only; a no-op elsewhere.
 - §FS-check.4.1: state that the unused-declaration warning skips `E2E` declarations — an end-to-end case is exercised by being run, not by being cited, so a never-cited `§E2E-…` is not a warning. README "What it Checks" updated to match.
@@ -93,6 +82,11 @@ First published binary. The CLI covers the full subcommand surface the specs des
 - §FS-show.2.4: `gnd show E2E-<name>` returns the case manifest; `--head` prints the invocation line; section paths are not defined for E2E cases.
 - §RM-refs: roadmap item owning `gnd refs` implementation (cheap — citations are already in `Findings`).
 - §RM-watch: roadmap item owning `gnd check --watch`; sequenced after §RM-core-cli-split so the watcher calls `gnd-core` rather than re-implementing the walk.
+- §DF-require-grounding: new functional decision record on the grounding floor — Tier 1 (the opt-in source-file citation requirement, §FS-check.3.6) ships now; Tier 2 (the diff-aware co-change gate) stays a recipe under §RM-cochange-gate, not engine behaviour.
+- §FS-check.3.6: `[reference] require_grounding` (off by default) and `gnd check --require-grounding` — when on, `check` reports an `ungrounded source file` error for every scanned non-Markdown file that carries no resolving citation and declares no ID inline. Shipped under §RM-require-grounding; the grounding floor of §DF-require-grounding; the diff-aware co-change recipe remains under §RM-cochange-gate. `gnd config show` now prints `require_grounding`; `templates/gnd.toml` carries `require_grounding = false`. Content change within `gnd_config_version = 1` — a v1 config without the key is unaffected.
+- §FS-config.3.1: document the `require_grounding` key.
+- §FS-cover: new functional spec — `gnd cover [path] [--format text|json]`, the file-grouped citation graph for co-change recipes. It uses the same scanner data as `check` / `refs`, emits one JSON record per scanned file, includes files with zero citations, and keeps git diff policy outside the engine. Shipped under §RM-cover; §FS-cli, §FS-completions, README, and the e2e corpus now include the command.
+- §RM-require-grounding / §RM-cover: roadmap items, created already-shipped; their detail lives in the §2.7 Implemented block below, with one-line declarations under `docs/roadmap.md` §"Shipped milestones" so `§RM-…` citations resolve.
 
 ### 2.4 Removed
 
@@ -110,7 +104,7 @@ First published binary. The CLI covers the full subcommand surface the specs des
 
 ### 2.7 Implemented
 
-The CLI now covers the full subcommand surface the specs describe. The remaining work — the `gnd-core`/`gnd-cli` workspace split, the npm/PyPI bindings, the optional `gnd-lsp` server, and `gnd check --watch` — is tracked in `docs/roadmap.md`.
+The CLI now covers the full subcommand surface the specs describe. The remaining work — the `gnd-core`/`gnd-cli` workspace split, the npm/PyPI bindings, the optional `gnd-lsp` server, `gnd check --watch`, and the diff-aware co-change gate (§RM-cochange-gate) — is tracked in `docs/roadmap.md`.
 
 - §RM-self-host: the self-host loop passes — `cargo run -- .` on this repo exits `0` with empty stdout — and CI now enforces it on every push and pull request. The scanner skips fenced Markdown blocks (§FS-fmt's existing exemption applied to the scanner), so illustrative IDs in fenced examples are inert. Remaining under §RM-self-host: a default-config nested-fixtures e2e fixture.
 - §RM-e2e-corpus: the `e2e/cases/*` corpus plus `tests/e2e.rs` and `tests/init.rs` run on every push (`.github/workflows/ci.yml`), with positive and negative fixtures per §FS-check error class and a byte-for-byte determinism sweep (§FS-non-goals.13).
@@ -119,6 +113,8 @@ The CLI now covers the full subcommand surface the specs describe. The remaining
 - §RM-marker-fmt: the `§` marker and `$$` trigger per §DF-reference-marker; `gnd fmt` with `--check` / `--write` / `--marker`, the deterministic string-literal carve-out (§FS-fmt.2.3.1), declaration-heading and fenced-block exemptions, and `[reference] strict = true` (this repo runs in strict mode).
 - §RM-md-link-emission: `gnd fmt --md-links` per §FS-fmt.6 and §DF-md-link-anchor-strategy — wraps marker-prefixed citations in `.md` files only, heading-text anchor slugs per the `github` / `gitlab` / `mkdocs` / `pandoc` / `none` profiles, re-derived each pass, fenced/inline-code-span and dangling-citation skips, idempotent, and the `[fmt.md_links] enabled` opt-in.
 - §RM-refs: `gnd refs <ID> [path] [--section <s>] [--format text|json]` per §FS-refs — over the same scan as `check`, sorted by `(path, line, column)`, honouring strict mode and the string-literal carve-out; NDJSON on stdout for `--format=json`, exit `0` always on a successful scan.
+- §RM-cover: `gnd cover [path] [--format text|json]` per §FS-cover — the scanner's citation graph grouped by scanned file, files with zero citations included, text on stdout or one JSON record per file (the nested citation objects byte-match `gnd refs --format=json`); no git history, no policy — the diff-aware co-change recipe (§RM-cochange-gate) sits on top.
+- §RM-require-grounding: `gnd check --require-grounding` and `[reference] require_grounding` per §FS-check.3.6 — the `ungrounded source file` error class for scanned non-Markdown files with no resolving citation and no inline declaration; `--require-grounding` only ever adds the check, never disables a config that already sets it; `gnd config show` prints `require_grounding`; this repo sets it `true`, `templates/gnd.toml` ships it `false`. The diff-aware co-change gate stays a recipe under §RM-cochange-gate.
 - `gnd init` per §FS-init — `agents.md` + `.agents/gnd.toml`, the `--docs` scaffold, the versioned managed block with append / in-place update / position preservation / CRLF handling, `--name` / `--force` / `--append`, and idempotent `exists ` reporting.
 - `gnd name <KIND> "<title>" [path]` per §FS-name — deterministic NFKD slugging, next-number derivation, `--width`, the collision check, number-less / slug-less `[id] format` handling, `--format text|json`.
 - `gnd` CLI surface per §FS-cli and §FS-errors — default-subcommand routing, `--version` / `-V`, `--help` / `-h`, the cross-subcommand `--format`, the three message shapes, `error:`-prefixed CLI errors, and the frozen `0`/`1`/`2` exit mapping.

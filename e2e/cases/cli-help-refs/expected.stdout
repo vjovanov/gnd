@@ -10,6 +10,8 @@ Options:
   --section S          list only citations of that section path   e.g. gnd refs FS-login --section 3
   --format text|json   text (default) prints `path:line: <citation>`; json emits NDJSON.
 
+Text citation lines go to stderr (the `check` diagnostic stream); json NDJSON goes to stdout.
+
 Exit:  0 scan succeeded (with or without hits) · 2 unreadable tree or CLI error.
 
 Examples:

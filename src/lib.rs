@@ -3379,7 +3379,7 @@ fn command_cover(args: &[String]) -> ExitCode {
             .push(citation);
     }
     for citations in by_file.values_mut() {
-        citations.sort_by(|a, b| (a.line, a.column).cmp(&(b.line, b.column)));
+        citations.sort_by_key(|c| (c.line, c.column));
     }
 
     if format == "json" {
@@ -4475,6 +4475,10 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!(
                 "  --format text|json   text (default) prints `path:line: <citation>`; json emits NDJSON."
+            );
+            println!();
+            println!(
+                "Text citation lines go to stderr (the `check` diagnostic stream); json NDJSON goes to stdout."
             );
             println!();
             println!(

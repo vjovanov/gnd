@@ -3,8 +3,9 @@
 Self-contained mini-repos demonstrating each ID scheme `gnd` supports.
 Each subfolder is shaped like an `e2e/cases/<name>/` directory — `repo/`
 holds the fixture, and `expected.exit`/`expected.stdout`/`expected.stderr`
-record the contract — so the same example doubles as a regression
-fixture if you want to wire it into the `tests/e2e.rs` discovery list.
+record the contract — so each example doubles as a regression fixture.
+`tests/examples.rs` runs `gnd <repo>` against every one of them on `cargo
+test`, so the snippets below cannot drift from what the tool actually does.
 
 ## ID schemes
 
@@ -29,9 +30,3 @@ echo $?    # 0
 ```
 
 A passing scheme prints nothing on stdout and exits 0.
-
-## Other examples
-
-`parallel-spec-review-example/` is unrelated to ID schemes — it is a
-checked-in render of the Rhei `parallel-spec-review` template that
-happens to live alongside this repo's docs.
