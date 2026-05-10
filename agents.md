@@ -52,6 +52,7 @@ Code back-references the spec it realizes. When a function, class, or block impl
 ## Rules for agents
 
 - **Citations climb toward the goals.** Specs cite goals. Architecture cites specs. Code cites the specs it implements. E2E tests cite the FS they verify.
+- **Refresh cited specs before editing code.** Before editing code that carries a `§<ID>` or `§<ID>.<section>` citation, run `gnd show <ID>` or `gnd show <ID>.<section>` for the cited behavior and keep that output in context while making the change.
 - **No dangling decisions.** Every decision record is cited from the spec or architecture doc it shaped, at the point where the choice applies — so a reader lands on the *why* without searching. A decision may also cite back into a spec; what it may not be is uncited — `gnd check` flags that as unused.
 - **Decisions are append-only.** Never rewrite history under `docs/decisions/`. If a decision is reversed, add a new entry that supersedes the old one and link both ways.
 - **Cross-link everything via IDs.** Use the ID. No markdown links between docs.

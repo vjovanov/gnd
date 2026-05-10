@@ -29,6 +29,10 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 - §FS-check.3.6: `[reference] require_grounding` (off by default) and `gnd check --require-grounding` — when on, `check` reports an `ungrounded source file` error for every scanned non-Markdown file that carries no resolving citation and declares no ID inline. Shipped under §RM-require-grounding; the grounding floor of §DF-require-grounding; the diff-aware tiers are tracked under §RM-cover and §RM-cochange-gate. `gnd config show` now prints `require_grounding`; `templates/gnd.toml` carries `require_grounding = false`. Content change within `gnd_config_version = 1` — a v1 config without the key is unaffected.
 - §FS-config.3.1: document the `require_grounding` key.
 
+### Changed
+
+- §FS-init.2.3: the generated `agents.md` v1 block now explicitly tells agents to run `gnd show <ID>` or `gnd show <ID>.<section>` before editing code that carries a corresponding spec citation. Content change within the existing v1 block; no schema bump.
+
 ## 2. [0.1.0] — 2026-05-10
 
 First published binary. The CLI covers the full subcommand surface the specs describe (§2.7); the distribution arc — the `gnd-core`/`gnd-cli` workspace split, the npm/PyPI bindings, the optional `gnd-lsp` server, and `gnd check --watch` — is tracked in `docs/roadmap.md`.
