@@ -5380,6 +5380,10 @@ mod tests {
         std::fs::write(path, text).expect("write fixture");
     }
 
+    fn canonical_test_path(path: &Path) -> PathBuf {
+        std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    }
+
     fn current_block() -> String {
         render_agents_append_block("demo", &Config::default_for(PathBuf::from(".")))
     }
@@ -5467,11 +5471,11 @@ mod tests {
             .errors
             .iter()
             .filter(|e| e.code == "ungrounded")
-            .map(|e| e.path.as_deref().unwrap().to_path_buf())
+            .map(|e| canonical_test_path(e.path.as_deref().unwrap()))
             .collect();
         assert_eq!(
             ungrounded,
-            vec![root.join("src/util.rs")],
+            vec![canonical_test_path(&root.join("src/util.rs"))],
             "only the uncited source file is flagged; the one citing §FS-001-login is grounded"
         );
     }
@@ -5531,12 +5535,10 @@ mod tests {
             report.errors.iter().any(|e| e.code == "dangling"),
             "the dangling citation is still its own error"
         );
-        let app = root.join("src/app.rs");
+        let app = canonical_test_path(&root.join("src/app.rs"));
         assert!(
-            report
-                .errors
-                .iter()
-                .any(|e| e.code == "ungrounded" && e.path.as_deref() == Some(app.as_path())),
+            report.errors.iter().any(|e| e.code == "ungrounded"
+                && e.path.as_deref().map(canonical_test_path).as_deref() == Some(app.as_path())),
             "a file whose only citation resolves to nothing is not grounded"
         );
     }
