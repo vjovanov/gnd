@@ -1,13 +1,14 @@
-# Run `gnd check`, `gnd fmt --cross-refs`, and `lychee` before every commit. With
+# Run `gnd check`, `gnd fmt`, and `lychee` before every commit. With
 # `[reference] require_grounding = true` in `.agents/gnd.toml`, `gnd check` also
 # enforces the grounding floor (§FS-check.3.6): every source file under
-# `[scan] include` must cite a declared ID. `gnd fmt --cross-refs --write` keeps
-# every `§…` citation in the `.md` tree wrapped in a clickable link to its
-# declaration (§FS-fmt.6) — idempotent, so it is a no-op when nothing drifted; a
-# heading rename or file move shows up as a one-line `fmt` diff and pre-commit
-# aborts so the change can be re-staged. `lychee --include-fragments` then checks
-# that those links — and every other Markdown link — resolve, *including* the
-# `#fragment` (§DF-github-anchor-fidelity), so a stale anchor fails the commit.
+# `[scan] include` must cite a declared ID. `[fmt.cross_refs] enabled = true`
+# makes `gnd fmt --write` keep every `§…` citation in the `.md` tree wrapped in a
+# clickable link to its declaration (§FS-fmt.6) — idempotent, so it is a no-op
+# when nothing drifted; a heading rename or file move shows up as a one-line
+# `fmt` diff and pre-commit aborts so the change can be re-staged. `lychee
+# --include-fragments` then checks that those links — and every other Markdown
+# link — resolve, *including* the `#fragment` (§DF-github-anchor-fidelity), so a
+# stale anchor fails the commit.
 #
 # Uses `cargo run` so a fresh clone needs no installed `gnd`; if you have the
 # binary on PATH, swap each `entry` for `gnd …` (the form shown in the README).
@@ -25,9 +26,9 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-      - id: gnd-fmt-cross-refs
-        name: gnd fmt --cross-refs
-        entry: cargo run --quiet -- fmt --cross-refs --write
+      - id: gnd-fmt
+        name: gnd fmt
+        entry: cargo run --quiet -- fmt --write
         language: system
         pass_filenames: false
         always_run: true

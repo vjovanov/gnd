@@ -73,5 +73,5 @@ color = "auto"
 relative_paths = true
 
 [fmt.cross_refs]
-enabled = false
+enabled = true
 anchor_format = "github"
