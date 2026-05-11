@@ -664,7 +664,15 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
         match (section.as_str(), key) {
             ("", "gnd_config_version") => {
                 if value != "1" {
-                    bail_config(path, line_no, "unsupported config version".to_string())?;
+                    bail_config(
+                        path,
+                        line_no,
+                        format!(
+                            "unsupported config version `{value}` \
+                             (this gnd understands gnd_config_version = 1; \
+                             upgrade gnd if the config is newer)"
+                        ),
+                    )?;
                 }
             }
             ("", "project_name") => {
@@ -749,7 +757,21 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
                 config.output_format = format;
             }
             ("output", "color") => {
-                parse_string(path, line_no, value)?;
+                // Reserved — colored output is not yet implemented (§FS-config.6,
+                // §FS-errors.3): the value is inert today, but it is still validated
+                // against the documented `auto | always | never` set so a typo here
+                // fails on load like any other enum knob, rather than being silently
+                // accepted and then ignored when the feature lands.
+                let color = parse_string(path, line_no, value)?;
+                if !matches!(color.as_str(), "auto" | "always" | "never") {
+                    bail_config(
+                        path,
+                        line_no,
+                        format!(
+                            "unknown [output] color `{color}` (expected auto, always, or never)"
+                        ),
+                    )?;
+                }
             }
             ("output", "relative_paths") => {
                 config.relative_paths = parse_bool(path, line_no, value)?;
@@ -2022,8 +2044,9 @@ fn command_check(args: &[String]) -> ExitCode {
     let mut idx = 0;
     while idx < args.len() {
         match args[idx].as_str() {
-            "--format=json" => format_override = Some("json".to_string()),
-            "--format=text" => format_override = Some("text".to_string()),
+            other if other.starts_with("--format=") => {
+                format_override = Some(other.trim_start_matches("--format=").to_string());
+            }
             "--format" => {
                 idx += 1;
                 if idx >= args.len() {
@@ -2149,9 +2172,9 @@ fn command_show(args: &[String]) -> ExitCode {
                 saw_full = true;
                 head = false;
             }
-            "--format=json" => format = "json".to_string(),
-            "--format=text" => format = "text".to_string(),
-            "--format=md" => format = "md".to_string(),
+            other if other.starts_with("--format=") => {
+                format = other.trim_start_matches("--format=").to_string();
+            }
             "--section" => {
                 idx += 1;
                 if idx >= args.len() {
@@ -2248,7 +2271,12 @@ fn command_show(args: &[String]) -> ExitCode {
         head,
         format == "md",
     ) {
-        Ok(output) => {
+        Ok(mut output) => {
+            // §FS-show.3.2: `text` and `json` flatten `--cross-refs` link wrappers
+            // back to bare `§…` citations; `md` keeps the renderable form verbatim.
+            if format != "md" {
+                output.body = flatten_cross_ref_links(&output.body, &config);
+            }
             if format == "json" {
                 if let Some(json) = output.json {
                     println!("{json}");
@@ -2985,6 +3013,72 @@ fn wrap_markdown_links(line: &str, path: &Path, config: &Config, findings: &Find
     output
 }
 
+/// Flatten `gnd fmt --cross-refs` link wrappers in a body before `gnd show`
+/// prints it in `text` / `json` (§FS-show.3.2, §DF-show-cross-ref-flattening):
+/// `[§<ID>.<section>](path#anchor)` → `§<ID>.<section>`. The inverse of
+/// `wrap_markdown_links` (§FS-fmt.6.2) — the wrap shape is a `[` immediately
+/// before a marker-prefixed citation token and `](…)` immediately after it,
+/// exactly what `gnd fmt --cross-refs` emits and re-derives (§FS-fmt.6.3); that
+/// is the only thing flattened. Ordinary Markdown links, an unwrapped citation,
+/// a citation inside an inline-code span (illustrative, like `fmt` itself —
+/// §FS-fmt.6.4), and `--format md` output (kept verbatim by the caller) are all
+/// left untouched. Purely textual: the citation is never resolved, so a dangling
+/// one is flattened just the same and `gnd check` still reports it.
+fn flatten_cross_ref_links(body: &str, config: &Config) -> String {
+    if !body.contains("](") {
+        return body.to_string();
+    }
+    let mut out = String::with_capacity(body.len());
+    for line in body.split_inclusive('\n') {
+        out.push_str(&flatten_cross_ref_links_line(line, config));
+    }
+    out
+}
+
+fn flatten_cross_ref_links_line(line: &str, config: &Config) -> String {
+    let marker = config.marker.as_str();
+    let mut output = String::new();
+    let mut cursor = 0usize;
+    for caps in config.grammar.citation_re.captures_iter(line) {
+        let Some(full) = caps.get(0) else { continue };
+        let (cite_start, cite_end) = (full.start(), full.end());
+        if !line[..cite_start].ends_with(marker) {
+            continue;
+        }
+        let Some(marker_start) = cite_start.checked_sub(marker.len()) else {
+            continue;
+        };
+        // `[` immediately before the marker?
+        let Some(bracket_pos) = marker_start.checked_sub(1) else {
+            continue;
+        };
+        if line.as_bytes()[bracket_pos] != b'[' {
+            continue;
+        }
+        // A citation shown inside `` `…` `` is an illustration, not a citation —
+        // leave it exactly as written, the same call `gnd fmt --cross-refs` makes.
+        if is_inside_inline_code(line, bracket_pos) {
+            continue;
+        }
+        // `](…)` immediately after the citation?
+        let Some(rest) = line[cite_end..].strip_prefix("](") else {
+            continue;
+        };
+        let Some(close_rel) = rest.find(')') else {
+            continue;
+        };
+        let close = cite_end + 2 + close_rel; // index of the `)`
+        if bracket_pos < cursor {
+            continue;
+        }
+        output.push_str(&line[cursor..bracket_pos]);
+        output.push_str(&line[marker_start..cite_end]); // §<ID>[.<section>]
+        cursor = close + 1;
+    }
+    output.push_str(&line[cursor..]);
+    output
+}
+
 /// Compute the link URL for a citation: a repo-relative path to the declaration's
 /// home file — following an inline-spec stub to its real source file — plus a
 /// heading anchor whenever the home is Markdown: the cited section's heading for a
@@ -3381,8 +3475,9 @@ fn command_id(args: &[String]) -> ExitCode {
                     }
                 };
             }
-            "--format=json" => format = "json".to_string(),
-            "--format=text" => format = "text".to_string(),
+            other if other.starts_with("--format=") => {
+                format = other.trim_start_matches("--format=").to_string();
+            }
             "--format" => {
                 idx += 1;
                 if idx >= args.len() {
@@ -3543,8 +3638,9 @@ fn command_refs(args: &[String]) -> ExitCode {
                 }
                 section_override = Some(args[idx].clone());
             }
-            "--format=json" => format_override = Some("json".to_string()),
-            "--format=text" => format_override = Some("text".to_string()),
+            other if other.starts_with("--format=") => {
+                format_override = Some(other.trim_start_matches("--format=").to_string());
+            }
             "--format" => {
                 idx += 1;
                 if idx >= args.len() {
@@ -3693,8 +3789,9 @@ fn command_cover(args: &[String]) -> ExitCode {
     let mut idx = 0;
     while idx < args.len() {
         match args[idx].as_str() {
-            "--format=json" => format_override = Some("json".to_string()),
-            "--format=text" => format_override = Some("text".to_string()),
+            other if other.starts_with("--format=") => {
+                format_override = Some(other.trim_start_matches("--format=").to_string());
+            }
             "--format" => {
                 idx += 1;
                 if idx >= args.len() {
@@ -3816,8 +3913,9 @@ fn command_list(args: &[String]) -> ExitCode {
             other if other.starts_with("--kind=") => {
                 kind_filter = Some(other.trim_start_matches("--kind=").to_string());
             }
-            "--format=json" => format_override = Some("json".to_string()),
-            "--format=text" => format_override = Some("text".to_string()),
+            other if other.starts_with("--format=") => {
+                format_override = Some(other.trim_start_matches("--format=").to_string());
+            }
             "--format" => {
                 idx += 1;
                 if idx >= args.len() {
@@ -3893,6 +3991,15 @@ fn command_list(args: &[String]) -> ExitCode {
         }
         let refs = ref_counts.get(id).copied().unwrap_or(0);
         if unused_only && refs > 0 {
+            continue;
+        }
+        // `--unused` lists declarations nothing cites — but an E2E case is a proof
+        // artifact, exercised by being run, not a citation target (the same reason
+        // §FS-check.4.1 does not warn for uncited E2E cases). Bare `gnd list --unused`
+        // therefore skips E2E so the actionable signal — uncited specs and decisions —
+        // is not buried under the whole case corpus; `gnd list --unused --kind E2E`
+        // opts back in for an inventory (§FS-list.1, §FS-list.3.1).
+        if unused_only && id.kind == "E2E" && kind_filter.as_deref() != Some("E2E") {
             continue;
         }
         // A stub paired with the inline declaration it points at is *one* home,
@@ -4951,7 +5058,9 @@ fn print_subcommand_help(cmd: &str) {
             println!(
                 "--format json | jq` need no redirect. Only run-level `error:` / `warning:` lines"
             );
-            println!("(unreadable path, empty scan) go to stderr; a clean text run prints `success`.");
+            println!(
+                "(unreadable path, empty scan) go to stderr; a clean text run prints `success`."
+            );
             println!();
             println!(
                 "Exit:  0 clean · 1 dangling / duplicate / unknown-section / ungrounded findings · 2 unreadable tree or CLI error."
@@ -5016,7 +5125,7 @@ fn print_subcommand_help(cmd: &str) {
                 "  --kind KIND          only IDs of that kind                e.g. gnd list --kind FS"
             );
             println!(
-                "  --unused             only declarations nothing cites yet  e.g. gnd list --unused"
+                "  --unused             only declarations nothing cites yet (skips E2E cases; --kind E2E re-includes them)"
             );
             println!(
                 "  --format text|json   text (default) is the table on stdout; json emits NDJSON (adds `refs` count)."
@@ -5029,10 +5138,10 @@ fn print_subcommand_help(cmd: &str) {
             println!("Examples:");
             println!("  gnd list                      # the whole catalog");
             println!("  gnd list --kind AS docs/      # architectural-spec IDs under docs/");
-            println!("  gnd list --unused             # declarations no citation points at");
             println!(
-                "  gnd list --unused --kind FS   # uncited specs only (--unused alone also lists uncited E2E cases)"
+                "  gnd list --unused             # uncited declarations (specs, decisions, …) — E2E cases excluded"
             );
+            println!("  gnd list --unused --kind E2E  # uncited e2e cases only, for inventory");
         }
         "refs" => {
             println!("gnd refs — list every citation of an ID, as `path:line`, so you can see who");
@@ -5101,7 +5210,7 @@ fn print_subcommand_help(cmd: &str) {
             println!();
             println!("Options:");
             println!(
-                "  --check        report what would change, exit 1 if anything would   e.g. gnd fmt --check"
+                "  --check        report pending rewrites, exit 1 if any exist         e.g. gnd fmt --check"
             );
             println!(
                 "  --write        apply the changes in place                           e.g. gnd fmt --write"
@@ -5136,11 +5245,12 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!(
-                "KIND is one of the configured prefixes (default G, FS, AS, DF, DA, E2E, RM). The title is"
+                "KIND is one of the configured `[[kinds]]` prefixes — defaults G, FS, AS, DF, DA, E2E, RM;"
             );
             println!(
-                "slugified deterministically; the number is `max(existing) + 1` (holes are never filled)."
+                "`gnd config show` lists this repo's. The title is slugified deterministically; the number"
             );
+            println!("is `max(existing) + 1` (holes are never filled).");
             println!();
             println!("Options:");
             println!(
@@ -5317,11 +5427,23 @@ pub fn main_entry() -> ExitCode {
         };
     }
     // `--help` / `-h` short-circuits before any work; with a known subcommand
-    // first it prints that subcommand's page, otherwise the top-level one.
+    // first it prints that subcommand's page, with no command it prints the
+    // top-level one, and with an unknown first word it remains an unknown-command
+    // error rather than hiding a typo behind generic help (§FS-cli.2, §FS-cli.4).
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         match first {
             Some(cmd) if SUBCOMMANDS.contains(&cmd) => print_subcommand_help(cmd),
-            _ => print_help(),
+            None | Some("--help" | "-h") => print_help(),
+            Some(other) if other.starts_with('-') => print_help(),
+            Some(other) if Path::new(other).exists() => print_help(),
+            Some(other) => {
+                eprintln!("error: unknown command or missing path: {other}");
+                eprintln!("known commands: {}", SUBCOMMANDS.join(", "));
+                eprintln!(
+                    "(a bare path is shorthand for `gnd check <path>`; run `gnd --help` for commands)"
+                );
+                return ExitCode::from(2);
+            }
         }
         return ExitCode::SUCCESS;
     }

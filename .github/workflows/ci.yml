@@ -75,7 +75,7 @@ jobs:
 
           try:
               result = subprocess.run(
-                  ["cargo", "run", "--locked", "--", "."],
+                  ["cargo", "run", "--locked", "--", "check", ".", "--format", "json"],
                   stdout=subprocess.PIPE,
                   timeout=30,
               )

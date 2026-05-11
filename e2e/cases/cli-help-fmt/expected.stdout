@@ -4,7 +4,7 @@ optionally upgrade bare ID tokens, and optionally emit Markdown cross-reference 
 Usage:  gnd fmt [PATH] [--check | --write] [--marker] [--cross-refs]
 
 Options:
-  --check        report what would change, exit 1 if anything would   e.g. gnd fmt --check
+  --check        report pending rewrites, exit 1 if any exist         e.g. gnd fmt --check
   --write        apply the changes in place                           e.g. gnd fmt --write
   --marker       also prefix bare `<ID>` tokens with the marker        e.g. gnd fmt --write --marker
   --cross-refs   wrap citations as Markdown links to targets          e.g. gnd fmt --write --cross-refs

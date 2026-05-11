@@ -180,7 +180,7 @@ The full contract for this block — what `enabled` does, the named `anchor_form
 
 ### 4.1 `gnd config validate [path]`
 
-Loads the config discovered by walking up from `path` (or `.` when omitted), checks the schema, and reports problems. Exits 0 on success, 1 on validation errors. No tree scan is performed.
+Loads the config discovered by walking up from `path` (or `.` when omitted), checks the schema, and reports problems. Exits 0 on success, 1 on validation errors — the error in the same `error: <path>:<line>: <message>` shape §4.3 defines. No tree scan is performed.
 
 ### 4.2 `gnd config show [path]`
 
@@ -188,7 +188,7 @@ Prints the **effective** configuration — defaults merged with the config disco
 
 ### 4.3 Invalid config behavior
 
-A `gnd.toml` that fails validation causes every `gnd` subcommand to exit with code 2 and a single error message pointing at the first problem. Subsequent problems are not reported until the first is fixed — this avoids cascading errors that obscure the root cause.
+A `gnd.toml` that fails validation causes every `gnd` subcommand to exit with code 2 (code 1 for `gnd config validate` itself, §4.1) and a single error message pointing at the first problem, in the form `error: <path>:<line>: <message>` on stderr ([§FS-errors.2.2](FS-errors.md#22-cli-level-message), [§FS-check.2.1.1](FS-check.md#211-cli-level-messages)) — the `error:` prefix marks it a CLI-level failure, the `<path>:<line>:` inside the text points at the offending key or line. Subsequent problems are not reported until the first is fixed — this avoids cascading errors that obscure the root cause.
 
 ## 5. Schema versioning
 

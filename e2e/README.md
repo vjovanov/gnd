@@ -34,6 +34,7 @@ Error output is part of the contract. Non-zero cases should keep `expected.stder
 - strict-mode bare tokens ignored
 - strict-mode marker citations accepted
 - config unknown-key failure
+- config unsupported-version failure (newer `gnd_config_version` refused, with upgrade hint)
 - config custom marker in strict mode
 - config include/exclude/extensions
 - explicit `check` subcommand

@@ -1,0 +1,50 @@
+name: Pre-release checks
+
+on:
+  workflow_dispatch:
+
+jobs:
+  registry-names:
+    name: verify package-name availability
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check package names
+        run: bash scripts/check-registry-names.sh
+
+  pgo-release-binary:
+    name: build and self-check PGO release binary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # llvm-profdata, used by scripts/pgo-build.sh to merge the .profraw profiles.
+          components: llvm-tools-preview
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-prerelease-pgo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-prerelease-pgo-
+            ${{ runner.os }}-cargo-
+
+      - name: Build PGO release binary
+        run: bash scripts/pgo-build.sh
+
+      - name: Self-check PGO release binary
+        run: |
+          out="$(./target/release/gnd check . --format json)"
+          if [ -n "$out" ]; then
+            echo "PGO gnd self-check wrote unexpected stdout:" >&2
+            printf '%s\n' "$out" >&2
+            exit 1
+          fi

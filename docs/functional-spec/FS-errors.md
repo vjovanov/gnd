@@ -39,7 +39,7 @@ Emitted on **stdout** — it is the command's output (§1): every finding from `
 
 ### 2.2 CLI-level message
 
-A line that has no source location — it is about the *run*, not a site in the repo:
+A line that is about the *run*, not a finding at a site in the repo:
 
 ```
 error: <message>
@@ -47,25 +47,25 @@ warning: <message>
 ```
 
 - On **stderr** (§1) — it is not the command's output.
-- The literal `error: ` / `warning: ` prefix is what distinguishes a CLI-level message from a located finding (which has the `<path>:<line>:` prefix instead). CI scripts grep for the leading `error:` to tell a launch-time failure from a clean run that found findings on stdout.
-- No `<path>:<line>:` is attached, even if a config file is the cause — the message text names the file when relevant (e.g. `error: invalid gnd.toml: ...`).
-- `error:` always accompanies a non-zero exit (`2` for a launch / I/O failure, `1` for a failed slug/collision query). `warning:` leaves the exit code alone — it is a caution, not a failure.
+- The literal `error: ` / `warning: ` prefix is what distinguishes a CLI-level message from a located finding (which wears the bare `<path>:<line>:` prefix instead, with no `error:`). CI scripts grep for the leading `error:` to tell a launch-time failure from a clean run that found findings on stdout.
+- The bare `<path>:<line>:` *prefix* a located finding wears (§2.1) is never used here — that prefix, with no `error:`, is the signal of a per-site finding on stdout. The message *text* may still carry a location: a `.agents/gnd.toml` schema error is reported `error: <path>:<line>: <message>` ([§FS-config.4.3](FS-config.md#43-invalid-config-behavior)) — the `error:` marks it CLI-level (stderr, exit `2`), and the `<path>:<line>:` inside the text is the breadcrumb to the bad line, since a config file has one where a bad flag does not. Other CLI-level messages just name the file in prose when relevant (e.g. `error: invalid gnd.toml: ...`) or carry no path at all.
+- `error:` always accompanies exit `2` — a launch-time or I/O failure: the run could not do its job. `warning:` leaves the exit code alone — it is a caution, not a failure. The exit-`1` failures (`gnd id`'s empty-slug / collision, `gnd show`'s missing / ambiguous ID) are *not* CLI-level — the request was well-formed, it just yielded nothing — so they take the bare shape of §2.3, no `error:` prefix.
 
-Used by [§FS-cli.4](FS-cli.md#4-errors-with-no-source-location) (unknown subcommand / bad flag), [§FS-id.3](FS-id.md#3-slug-derivation) (empty slug), [§FS-id.5](FS-id.md#5-collision-check) (collision), [§FS-config.6](FS-config.md#6-what-is-not-configured-here) (config validation), [§FS-check.2.1.1](FS-check.md#211-cli-level-messages) (a malformed config or a per-file read failure mid-walk), [§FS-check.2.2](FS-check.md#22-empty-scan) (the empty-scan `warning:`), and any subcommand reporting a launch-time failure. A *launch-time* `error:` (bad flag, unreadable config, missing path) is printed as raw text and is never JSON-ified; a *mid-walk* per-file failure collected by `gnd check` is one of the report's diagnostics and is rendered in `--format=json` like the others (§5), still on stderr because it is not a finding about the spec graph.
+Used by [§FS-cli.4](FS-cli.md#4-errors-with-no-source-location) (unknown subcommand / bad flag), [§FS-id.6](FS-id.md#6-exit-codes) (unknown kind, unknown `--format`, scan / I/O error), [§FS-config.6](FS-config.md#6-what-is-not-configured-here) (config validation), [§FS-check.2.1.1](FS-check.md#211-cli-level-messages) (a malformed config or a per-file read failure mid-walk), [§FS-check.2.2](FS-check.md#22-empty-scan) (the empty-scan `warning:`), and any subcommand reporting a launch-time failure. A *launch-time* `error:` (bad flag, unreadable config, missing path) is printed as raw text and is never JSON-ified; a *mid-walk* per-file failure collected by `gnd check` is one of the report's diagnostics and is rendered in `--format=json` like the others (§5), still on stderr because it is not a finding about the spec graph.
 
 ### 2.3 Bare query failure
 
-When a *query* (a subcommand whose job is to return one body) finds something other than exactly one body — `gnd show` on a missing ID, a missing section, or an ambiguous ID:
+When a subcommand had a well-formed request but has no result to put on stdout — `gnd show` on a missing ID, a missing section, or an ambiguous ID; `gnd id` when the title slugifies to nothing or the proposed ID collides with an existing declaration:
 
 ```
 <message>
 ```
 
-- No prefix at all, on **stderr**, exit `1`. There is no single site to point at and no body to return, so stdout is empty; this line plus the exit code is what tells the caller what happened.
+- No prefix at all, on **stderr**, exit `1`. There is no single site to point at and no result to return, so stdout is empty; this line plus the exit code is what tells the caller what happened.
 - Ambiguity messages list every site in lexicographic `path:line` order ([§FS-show.2.2.1](FS-show.md#221-ambiguous-id)). A `hint:` line may follow on stderr where the next step is obvious (§1).
-- Distinct from §2.2: there is no `error:` prefix, because this is not a launch/run failure — the query ran fine, it just did not find one body.
+- Distinct from §2.2: there is no `error:` prefix, because this is not a launch/run failure — the command ran fine, the request was just unsatisfiable.
 
-Used only by query commands (currently `gnd show`). `check` does not use this shape — every line it prints is a located finding (stdout) or a CLI-level message (stderr).
+Used by `gnd show` (missing ID, missing section — [§FS-show.3](FS-show.md#3-outputs); ambiguous ID — [§FS-show.2.2.1](FS-show.md#221-ambiguous-id)) and by `gnd id` for a well-formed-but-unsatisfiable request (empty slug — [§FS-id.3](FS-id.md#3-slug-derivation); proposed-ID collision — [§FS-id.5](FS-id.md#5-collision-check)). `check` does not use this shape — every line it prints is a located finding (stdout) or a CLI-level message (stderr).
 
 ### 2.4 Text success marker
 

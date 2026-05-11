@@ -34,7 +34,7 @@ repos:
         always_run: true
       - id: lychee
         name: lychee
-        entry: lychee --no-progress --include-fragments README.md docs
+        entry: lychee --no-progress --include-fragments README.md docs examples
         language: system
         pass_filenames: false
         always_run: true

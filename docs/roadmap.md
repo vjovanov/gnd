@@ -60,7 +60,7 @@ Pre-release sanity check: the registry names claimed across the docs may not sti
 
 ### 1. What
 
-The `scripts/check-registry-names.sh` pre-release guard and the manual **Release registry names** workflow query crates.io, npm, and PyPI for each claimed package name and fail if any claimed-available name is in fact taken or owned by another project. Docs are corrected so they no longer claim a name is free unless the project owns it. Where a registry name is unavailable, an explicit alternate package name is chosen and recorded in [§FS-distribution](functional-spec/FS-distribution.md#fs-distribution-gnd-distribution-targets).
+The `scripts/check-registry-names.sh` pre-release guard and the manual **Pre-release checks** workflow query crates.io, npm, and PyPI for each claimed package name and fail if any claimed-available name is in fact taken or owned by another project. The same workflow also runs the PGO release-binary build pinned by [§DA-pgo-release](decisions/architectural/DA-pgo-release.md#da-pgo-release-distributed-binaries-are-pgo-built-trained-on-the-benchmark-workload), so package-name drift and a broken optimized release build both block publish. Docs are corrected so they no longer claim a name is free unless the project owns it. Where a registry name is unavailable, an explicit alternate package name is chosen and recorded in [§FS-distribution](functional-spec/FS-distribution.md#fs-distribution-gnd-distribution-targets).
 
 ### 2. Why now
 
@@ -76,7 +76,7 @@ Per [§FS-distribution](functional-spec/FS-distribution.md#fs-distribution-gnd-d
 
 ### 1. What
 
-napi-rs binding for npm; PyO3 binding for PyPI; CI publish jobs for all three registries (`gnd-core` first, in dependency order).
+napi-rs binding for npm; PyO3 binding for PyPI; CI publish jobs for all three registries (`gnd-core` first, in dependency order). Each publish job builds the CLI binary with profile-guided optimization via `scripts/pgo-build.sh` ([§DA-pgo-release](decisions/architectural/DA-pgo-release.md#da-pgo-release-distributed-binaries-are-pgo-built-trained-on-the-benchmark-workload), [§FS-distribution.4](functional-spec/FS-distribution.md#4-release-process)) — wired for the crates.io `gnd` binary already, extended to the prebuilt npm and PyPI binaries here.
 
 ### 2. Why now
 

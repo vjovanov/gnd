@@ -1,0 +1,5 @@
+Foo overview. Built per §FS-002-bar.1 — see there for the detail. A plain [link](https://example.com) is left alone.
+
+## 1. First
+
+First body, and a sectionless cross-ref to §FS-002-bar.

@@ -16,8 +16,8 @@ test`, so the snippets below cannot drift from what the tool actually does.
 | [`scheme-slug/`](scheme-slug/)                               | `{kind}-{slug}`           | `FS-login`, `AS-event-bus` |
 
 Each subfolder's `README.md` lists the trade-offs for that scheme. The
-top-level project [README](../README.md#supported-id-schemes) summarizes
-when to reach for each.
+top-level project [README](../README.md#4-the-structure-that-gets-cited)
+summarizes when to reach for each.
 
 ## Run an example
 

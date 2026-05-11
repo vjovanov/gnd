@@ -49,14 +49,14 @@ With `--format=json`, the findings are emitted as NDJSON on stdout instead — s
 
 #### 2.1.1 CLI-level messages
 
-Lines that have no source location — unknown subcommand, malformed flag, invalid `gnd.toml` schema (when the config itself parses but a value is wrong), a per-file read failure mid-walk (§2), the empty-scan caution (§2.2) — are emitted on **stderr**, never on stdout, as:
+Lines that are about the run rather than a finding at a site in the repo — unknown subcommand, malformed flag, invalid `gnd.toml` schema (when the config itself parses but a value is wrong), a per-file read failure mid-walk (§2), the empty-scan caution (§2.2) — are emitted on **stderr**, never on stdout, as:
 
 ```
 error: <message>
 warning: <message>
 ```
 
-These never carry a `<path>:<line>:` prefix; the `error:` / `warning:` prefix is what distinguishes them from per-finding lines on stdout. CI scripts grep for the leading `error:` to detect launch-time failures. An `error:` always accompanies a non-zero exit; a `warning:` does not affect the exit code. In `--format=json`, a launch-time `error:` (bad flag, unreadable config) stays as raw text; a mid-walk per-file failure is one of the report's diagnostics and is rendered as JSON like the rest (on stderr, since it is `line`-less and not a graph finding — [§FS-errors.5](FS-errors.md#5-json-format)).
+These never carry the bare `<path>:<line>:` prefix a per-finding line wears (the one with no `error:`); the `error:` / `warning:` prefix is what distinguishes them from per-finding lines on stdout. A `.agents/gnd.toml` schema error is the one CLI-level message that still points at a line — it is reported `error: <path>:<line>: <message>` ([§FS-config.4.3](FS-config.md#43-invalid-config-behavior)): the `error:` prefix keeps it CLI-level (stderr, exit `2`), but the `<path>:<line>:` inside the message text is the breadcrumb to the offending key, since a config file has one and a bad flag does not. CI scripts grep for the leading `error:` to detect launch-time failures. An `error:` always accompanies a non-zero exit; a `warning:` does not affect the exit code. In `--format=json`, a launch-time `error:` (bad flag, unreadable config) stays as raw text; a mid-walk per-file failure is one of the report's diagnostics and is rendered as JSON like the rest (on stderr, since it is `line`-less and not a graph finding — [§FS-errors.5](FS-errors.md#5-json-format)).
 
 ### 2.2 Empty scan
 

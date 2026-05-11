@@ -33,7 +33,7 @@ How `gnd` is shipped.
 Behavior every subcommand inherits.
 
 - [§FS-cli](FS-cli.md#fs-cli-gnds-command-line-surface-conventions) — the command-line surface: default subcommand, `--version`/`--help`, exit-code mapping
-- [§FS-errors](FS-errors.md#fs-errors-gnd-emits-messages-in-one-of-three-fixed-shapes) — the shape and style of every message `gnd` prints
+- [§FS-errors](FS-errors.md#fs-errors-gnd-emits-messages-in-fixed-shapes) — the shape and style of every message `gnd` prints
 
 ## Configuration and scope
 

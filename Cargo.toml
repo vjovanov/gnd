@@ -25,6 +25,12 @@ unicode-normalization = "0.1"
 [profile.release]
 lto = true
 codegen-units = 1
+# Distributed release binaries are additionally profile-guided-optimized via
+# `scripts/pgo-build.sh` (training run = the benchmark workload — §AS-benchmarks,
+# §DA-pgo-release). PGO is a multi-phase generate/run/rebuild pipeline that needs
+# a profile absent on a fresh clone, so it cannot live here or in the dev loop;
+# a plain `cargo build --release` (and `cargo install gnd`) is LTO-only and
+# behaviour-identical.
 
 [dev-dependencies]
 iai-callgrind = "0.16.1"
@@ -38,8 +44,9 @@ iai-callgrind = "0.16.1"
 bench = []
 
 # Instruction-counting benchmarks for the hot CLI commands (§AS-benchmarks).
-# `harness = false` hands the entry point to iai-callgrind's `main!` macro.
+# `harness = false` hands the entry point to iai-callgrind's `main!` macro under
+# `--features bench`; without the feature the target is a no-op `fn main`, so the
+# default build/test matrix compiles it but never needs Valgrind.
 [[bench]]
 name = "instructions"
 harness = false
-required-features = ["bench"]

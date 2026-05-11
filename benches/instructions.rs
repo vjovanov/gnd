@@ -16,8 +16,14 @@
 //! - `cover` — what the co-change recipe / CI consume.
 //! - `fmt --check` — the pre-commit / CI normalization gate.
 //!
-//! Run with `cargo bench` (requires Valgrind and `iai-callgrind-runner` on
-//! `PATH`; CI installs both — see `.github/workflows/ci.yml`).
+//! The same workload drives the release/benchmark PGO training run in
+//! `scripts/pgo-build.sh` (§DA-pgo-release) — keep the command list there in
+//! sync with this file.
+//!
+//! Run with `cargo bench --features bench` (requires Valgrind and
+//! `iai-callgrind-runner` on `PATH`; CI installs both — see
+//! `.github/workflows/ci.yml`). Without the `bench` feature this target builds
+//! to a no-op `main`, so `cargo test --all-targets` never needs Valgrind.
 
 #[cfg(feature = "bench")]
 use iai_callgrind::{Command, binary_benchmark, binary_benchmark_group, main};

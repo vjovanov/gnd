@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-const CANONICAL_KINDS: &[&str] = &["G", "FS", "AS", "DF", "DA", "E2E"];
+const CANONICAL_KINDS: &[&str] = &["G", "FS", "AS", "DF", "DA", "E2E", "RM"];
 
 #[test]
 fn e2e_cases_match_expected_reports() {
