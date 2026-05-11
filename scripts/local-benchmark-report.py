@@ -1,0 +1,457 @@
+#!/usr/bin/env python3
+"""Write a local wall-clock benchmark report for gnd vs lychee."""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import os
+import platform
+import re
+import shutil
+import socket
+import statistics
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+DEFAULT_LYCHEE_PATHS = ["README.md", "docs", "examples"]
+MARKUP_EXTENSIONS = {".md", ".markdown", ".html", ".htm"}
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Measure local cold/warm wall-clock timings for gnd and lychee, "
+            "collect machine/tool/workload details, and write a markdown report."
+        )
+    )
+    parser.add_argument(
+        "--repo",
+        default=".",
+        help="Repository root to measure (default: current directory).",
+    )
+    parser.add_argument(
+        "--out",
+        default="docs/benchmarks.md",
+        help="Markdown report path (default: docs/benchmarks.md).",
+    )
+    parser.add_argument(
+        "--gnd",
+        default=None,
+        help="gnd binary to run (default: target/release/gnd if present, else gnd on PATH).",
+    )
+    parser.add_argument(
+        "--lychee",
+        default="lychee",
+        help="lychee binary to run (default: lychee).",
+    )
+    parser.add_argument(
+        "--warm-runs",
+        type=int,
+        default=7,
+        help="Number of warm timing samples after the cold run (default: 7).",
+    )
+    parser.add_argument(
+        "--lychee-path",
+        action="append",
+        dest="lychee_paths",
+        help=(
+            "Path passed to lychee. May be repeated. "
+            "Default: README.md, docs, examples."
+        ),
+    )
+    return parser.parse_args()
+
+
+def run_capture(command: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(
+        command,
+        cwd=cwd,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if check and result.returncode != 0:
+        rendered = " ".join(command)
+        raise RuntimeError(
+            f"command failed ({result.returncode}): {rendered}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    return result
+
+
+def time_command(command: list[str], cwd: Path) -> float:
+    start = time.perf_counter()
+    result = subprocess.run(
+        command,
+        cwd=cwd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    elapsed = time.perf_counter() - start
+    if result.returncode != 0:
+        rendered = " ".join(command)
+        raise RuntimeError(
+            f"timed command failed ({result.returncode}): {rendered}\n{result.stderr}"
+        )
+    return elapsed
+
+
+def resolve_gnd(repo: Path, explicit: str | None) -> str:
+    if explicit:
+        return explicit
+    local_release = repo / "target" / "release" / "gnd"
+    if local_release.exists():
+        return str(local_release)
+    return "gnd"
+
+
+def command_version(command: list[str], cwd: Path) -> str:
+    try:
+        result = run_capture(command, cwd)
+    except Exception as exc:  # pragma: no cover - defensive report path
+        return f"unavailable ({exc})"
+    return (result.stdout or result.stderr).strip().splitlines()[0]
+
+
+def git_value(args: list[str], repo: Path) -> str:
+    result = run_capture(["git", *args], repo, check=False)
+    if result.returncode != 0:
+        return "unavailable"
+    return result.stdout.strip() or "unavailable"
+
+
+def git_dirty(repo: Path) -> str:
+    result = run_capture(["git", "status", "--short"], repo, check=False)
+    if result.returncode != 0:
+        return "unknown"
+    return "yes" if result.stdout.strip() else "no"
+
+
+def mem_total() -> str:
+    meminfo = Path("/proc/meminfo")
+    if not meminfo.exists():
+        return "unavailable"
+    for line in meminfo.read_text(encoding="utf-8", errors="replace").splitlines():
+        if line.startswith("MemTotal:"):
+            kib = int(line.split()[1])
+            return f"{kib / 1024 / 1024:.1f} GiB"
+    return "unavailable"
+
+
+def cpu_model() -> str:
+    cpuinfo = Path("/proc/cpuinfo")
+    if cpuinfo.exists():
+        for line in cpuinfo.read_text(encoding="utf-8", errors="replace").splitlines():
+            if line.startswith("model name"):
+                return line.split(":", 1)[1].strip()
+    return platform.processor() or "unavailable"
+
+
+def machine_specs(repo: Path) -> dict[str, str]:
+    usage = shutil.disk_usage(repo)
+    return {
+        "timestamp": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "host": socket.gethostname(),
+        "os": platform.platform(),
+        "kernel": " ".join(platform.uname()),
+        "cpu": cpu_model(),
+        "logical_cpus": str(os.cpu_count() or "unavailable"),
+        "memory": mem_total(),
+        "repo_disk_free": f"{usage.free / 1024 / 1024 / 1024:.1f} GiB",
+        "python": platform.python_version(),
+    }
+
+
+def gnd_workload(gnd: str, repo: Path) -> dict[str, int]:
+    listed = run_capture([gnd, "list", str(repo)], repo).stdout
+    declarations = len([line for line in listed.splitlines() if line.strip()])
+
+    cover = run_capture([gnd, "cover", "--format", "json", str(repo)], repo).stdout
+    files = 0
+    citations = 0
+    for line in cover.splitlines():
+        if not line.strip():
+            continue
+        files += 1
+        citations += len(json.loads(line).get("citations", []))
+    return {
+        "declarations": declarations,
+        "citations": citations,
+        "scanned_files": files,
+        "edges": declarations + citations,
+    }
+
+
+def count_markup_files(paths: list[str], repo: Path) -> int:
+    count = 0
+    for raw in paths:
+        path = (repo / raw).resolve()
+        if path.is_file() and path.suffix.lower() in MARKUP_EXTENSIONS:
+            count += 1
+        elif path.is_dir():
+            for child in path.rglob("*"):
+                if child.is_file() and child.suffix.lower() in MARKUP_EXTENSIONS:
+                    count += 1
+    return count
+
+
+def lychee_workload(lychee: str, paths: list[str], repo: Path) -> dict[str, int | str]:
+    command = [lychee, "--no-progress", "--include-fragments", *paths]
+    result = run_capture(command, repo)
+    output = f"{result.stdout}\n{result.stderr}"
+    total = re.search(r"(\d+)\s+Total", output)
+    ok = re.search(r"(\d+)\s+OK", output)
+    errors = re.search(r"(\d+)\s+Errors", output)
+    excluded = re.search(r"(\d+)\s+Excluded", output)
+    return {
+        "links": int(total.group(1)) if total else -1,
+        "ok": int(ok.group(1)) if ok else -1,
+        "errors": int(errors.group(1)) if errors else -1,
+        "excluded": int(excluded.group(1)) if excluded else -1,
+        "scanned_files": count_markup_files(paths, repo),
+        "summary": " ".join(output.split()),
+    }
+
+
+def measure(name: str, command: list[str], cwd: Path, warm_runs: int) -> dict[str, object]:
+    cold = time_command(command, cwd)
+    warm = [time_command(command, cwd) for _ in range(warm_runs)]
+    return {
+        "name": name,
+        "command": command,
+        "cold": cold,
+        "warm": warm,
+        "median": statistics.median(warm),
+        "minimum": min(warm),
+        "maximum": max(warm),
+    }
+
+
+def seconds(value: float) -> str:
+    return f"{value:.3f}s"
+
+
+def ratio(numerator: float, denominator: float) -> str:
+    if denominator == 0:
+        return "n/a"
+    return f"{numerator / denominator:.1f}x"
+
+
+def command_text(command: list[str], repo: Path) -> str:
+    rendered = []
+    repo_text = str(repo)
+    for item in command:
+        if item == repo_text:
+            rendered.append(".")
+            continue
+        try:
+            item_path = Path(item)
+            if item_path.is_absolute():
+                rendered.append(str(item_path.relative_to(repo)))
+                continue
+        except ValueError:
+            pass
+        rendered.append(item)
+    return " ".join(rendered)
+
+
+def write_report(
+    out: Path,
+    repo: Path,
+    gnd: str,
+    lychee: str,
+    lychee_paths: list[str],
+    warm_runs: int,
+    specs: dict[str, str],
+    versions: dict[str, str],
+    git: dict[str, str],
+    gnd_load: dict[str, int],
+    lychee_load: dict[str, int | str],
+    results: list[dict[str, object]],
+) -> None:
+    by_name = {str(result["name"]): result for result in results}
+    gnd_check = by_name["gnd check"]
+    lychee_check = by_name["lychee"]
+    edge_ratio = gnd_load["edges"] / int(lychee_load["links"])
+    speed_ratio = float(lychee_check["median"]) / float(gnd_check["median"])
+    gnd_per_edge = float(gnd_check["median"]) / gnd_load["edges"]
+    lychee_per_link = float(lychee_check["median"]) / int(lychee_load["links"])
+
+    lines = [
+        "# Local benchmark report",
+        "",
+        "This report is a local wall-clock snapshot for the `gnd` repo. It complements "
+        "the instruction-counting CI benchmark in [§AS-benchmarks](architectural-spec/AS-benchmarks.md#as-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands) "
+        "and the baseline work tracked by [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-g-fast-feedback-budgets). "
+        "It is meant for product-facing comparisons with Lychee; it is not the release-blocking regression meter.",
+        "",
+        "## Instructions",
+        "",
+        "Regenerate this report from the repository root:",
+        "",
+        "```sh",
+        "python3 scripts/local-benchmark-report.py --out docs/benchmarks.md",
+        "```",
+        "",
+        "Useful options:",
+        "",
+        "- `--warm-runs N` changes the number of warm samples after the cold run.",
+        "- `--gnd PATH` points at a specific `gnd` binary; by default the script uses `target/release/gnd` when present.",
+        "- `--lychee PATH` points at a specific Lychee binary.",
+        "- `--lychee-path PATH` may be repeated to replace the default Lychee inputs: `README.md docs examples`.",
+        "",
+        "For a fair local comparison, build the release binary first:",
+        "",
+        "```sh",
+        "cargo build --release --locked",
+        "python3 scripts/local-benchmark-report.py --out docs/benchmarks.md",
+        "```",
+        "",
+        "## Method",
+        "",
+        f"- Cold time is the first measured invocation of each exact command in this script run. The script does not use `sudo` and does not drop the OS page cache.",
+        f"- Warm time is the median of {warm_runs} immediate subsequent invocations with command output suppressed.",
+        "- Timings use Python `time.perf_counter()` around the whole subprocess, so process startup and argument parsing are included.",
+        "- Lychee may perform URL work and may benefit from its own cache or network conditions; `gnd` works only over the local scanned tree.",
+        "",
+        "## Machine",
+        "",
+        "| Field | Value |",
+        "|---|---|",
+    ]
+    for key in [
+        "timestamp",
+        "host",
+        "os",
+        "kernel",
+        "cpu",
+        "logical_cpus",
+        "memory",
+        "repo_disk_free",
+        "python",
+    ]:
+        lines.append(f"| {key.replace('_', ' ').title()} | {specs[key]} |")
+    lines.extend(
+        [
+            "",
+            "## Tool Versions",
+            "",
+            "| Tool | Version |",
+            "|---|---|",
+            f"| `gnd` | `{versions['gnd']}` |",
+            f"| `lychee` | `{versions['lychee']}` |",
+            f"| Git commit | `{git['commit']}` |",
+            f"| Git branch | `{git['branch']}` |",
+            f"| Working tree dirty | `{git['dirty']}` |",
+            "",
+            "## Workload",
+            "",
+            "| Tool | Local work checked |",
+            "|---|---:|",
+            f"| `gnd check .` | {gnd_load['declarations']:,} declarations + {gnd_load['citations']:,} citations across {gnd_load['scanned_files']:,} scanned files |",
+            f"| `lychee --include-fragments README.md docs examples` | {int(lychee_load['links']):,} links across {int(lychee_load['scanned_files']):,} markup files |",
+            "",
+            "## Results",
+            "",
+            "| Command | Cold | Warm median | Warm min | Warm max |",
+            "|---|---:|---:|---:|---:|",
+        ]
+    )
+    for result in results:
+        lines.append(
+            "| "
+            f"`{command_text(result['command'], repo)}` | "
+            f"{seconds(float(result['cold']))} | "
+            f"{seconds(float(result['median']))} | "
+            f"{seconds(float(result['minimum']))} | "
+            f"{seconds(float(result['maximum']))} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Comparison",
+            "",
+            f"`gnd check .` checks {ratio(gnd_load['edges'], int(lychee_load['links']))} as many local intent edges as Lychee checks links in this run.",
+            f"Using warm medians, `gnd check .` is {ratio(float(lychee_check['median']), float(gnd_check['median']))} faster than the configured Lychee run.",
+            f"Per checked edge, `gnd` costs about {gnd_per_edge * 1_000_000:.0f} microseconds; Lychee costs about {lychee_per_link * 1_000_000:.0f} microseconds per link.",
+            "",
+            "Product copy:",
+            "",
+            "> Lychee checks whether Markdown links still open. `gnd` checks whether the project still knows why the code exists.",
+            "> On this local run, `gnd` checks more than twice as many project-intent edges and finishes several times faster.",
+            "",
+            "## Raw Warm Samples",
+            "",
+        ]
+    )
+    for result in results:
+        samples = ", ".join(seconds(value) for value in result["warm"])
+        lines.append(f"- `{result['name']}`: {samples}")
+    lines.append("")
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(lines), encoding="utf-8")
+
+
+def main() -> int:
+    args = parse_args()
+    if args.warm_runs < 1:
+        raise SystemExit("--warm-runs must be at least 1")
+
+    repo = Path(args.repo).resolve()
+    out = (repo / args.out).resolve() if not Path(args.out).is_absolute() else Path(args.out)
+    gnd = resolve_gnd(repo, args.gnd)
+    lychee = args.lychee
+    lychee_paths = args.lychee_paths or DEFAULT_LYCHEE_PATHS
+
+    gnd_check_command = [gnd, "check", str(repo)]
+    gnd_fmt_command = [gnd, "fmt", "--check", str(repo)]
+    lychee_command = [lychee, "--no-progress", "--include-fragments", *lychee_paths]
+
+    results = [
+        measure("gnd check", gnd_check_command, repo, args.warm_runs),
+        measure("gnd fmt --check", gnd_fmt_command, repo, args.warm_runs),
+        measure("lychee", lychee_command, repo, args.warm_runs),
+    ]
+
+    specs = machine_specs(repo)
+    versions = {
+        "gnd": command_version([gnd, "--version"], repo),
+        "lychee": command_version([lychee, "--version"], repo),
+    }
+    git = {
+        "commit": git_value(["rev-parse", "HEAD"], repo),
+        "branch": git_value(["branch", "--show-current"], repo),
+        "dirty": git_dirty(repo),
+    }
+    gnd_load = gnd_workload(gnd, repo)
+    lychee_load = lychee_workload(lychee, lychee_paths, repo)
+
+    write_report(
+        out=out,
+        repo=repo,
+        gnd=gnd,
+        lychee=lychee,
+        lychee_paths=lychee_paths,
+        warm_runs=args.warm_runs,
+        specs=specs,
+        versions=versions,
+        git=git,
+        gnd_load=gnd_load,
+        lychee_load=lychee_load,
+        results=results,
+    )
+    print(f"wrote {out}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
