@@ -35,7 +35,7 @@ When both a global flag and a subcommand are present, the global flag wins: `gnd
 ## 3. Cross-subcommand flags
 
 - `--format text|json` — accepted by every subcommand that emits messages (§FS-errors.5). `text` is the default; `json` opts into the stable machine shapes (diagnostic NDJSON on stderr, result object on stdout — §FS-errors.5, §FS-distribution.3.0).
-- A path argument, when a subcommand takes one, defaults to `.` and is resolved the same way everywhere (config discovery walks up from it — §FS-config.1).
+- A path argument, when a subcommand takes one, defaults to `.` and is resolved the same way everywhere (config discovery walks up from it — §FS-config.1). Every path-taking subcommand accepts **at most one** path: a second positional — `gnd check a b`, `gnd show ID a b`, `gnd refs ID a b`, `gnd cover a b`, `gnd fmt a b`, `gnd list a b`, `gnd name FS "t" a b` — is a CLI-level error (`error: <subcommand> takes at most one path argument`, exit `2`, §4), never a silent use of one and a quiet drop of the rest. `config` and `agent-setup-instructions` already enforce this; the rule is uniform across the surface, so a typo'd path is reported, never absorbed.
 
 ## 4. Errors with no source location
 

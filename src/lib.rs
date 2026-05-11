@@ -1872,9 +1872,10 @@ fn empty_scan_warning(config: &Config, path: &Path, path_provided: bool) -> Diag
             .unwrap_or(false);
     let message = match (&config.include, scoped_to_root) {
         (Some(dirs), true) => format!(
-            "nothing to scan — gnd looked under [scan] include = [{}] and found no files. Set \
-             `include` in `.agents/gnd.toml` (or run `gnd init`) to point gnd at your sources, \
-             or pass a path explicitly (`gnd check <dir>`).",
+            "nothing to scan — gnd looked under [scan] include = [{}] and found no files. Run \
+             `gnd init --docs` to scaffold the canonical docs/ and e2e/ trees, point `[scan] \
+             include` in `.agents/gnd.toml` at your sources, or pass a path explicitly \
+             (`gnd check <dir>`).",
             dirs.iter()
                 .map(|dir| format!("\"{dir}\""))
                 .collect::<Vec<_>>()
@@ -1922,6 +1923,12 @@ fn command_check(args: &[String]) -> ExitCode {
                 return ExitCode::from(2);
             }
             other => {
+                // §FS-cli.3: a path-taking subcommand accepts at most one path;
+                // a second positional is a CLI error, never a silent drop.
+                if path_provided {
+                    eprintln!("error: check takes at most one path argument");
+                    return ExitCode::from(2);
+                }
                 path = PathBuf::from(other);
                 path_provided = true;
             }
@@ -2061,6 +2068,10 @@ fn command_show(args: &[String]) -> ExitCode {
             }
             other if id_arg.is_none() => id_arg = Some(other.to_string()),
             other => {
+                if path_provided {
+                    eprintln!("error: show takes an ID and at most one path argument");
+                    return ExitCode::from(2);
+                }
                 path = PathBuf::from(other);
                 path_provided = true;
             }
@@ -2500,6 +2511,10 @@ fn command_fmt(args: &[String]) -> ExitCode {
                 return ExitCode::from(2);
             }
             other => {
+                if path_provided {
+                    eprintln!("error: fmt takes at most one path argument");
+                    return ExitCode::from(2);
+                }
                 path = PathBuf::from(other);
                 path_provided = true;
             }
@@ -3088,14 +3103,21 @@ fn command_config(args: &[String]) -> ExitCode {
                 println!("[id]");
                 println!("format = \"{}\"", config.id_format);
                 println!("section_separator = \"{}\"", config.section_separator);
-                println!(
-                    "number_pattern = \"{}\"",
-                    escape_toml_basic(&config.number_pattern)
-                );
-                println!(
-                    "slug_pattern = \"{}\"",
-                    escape_toml_basic(&config.slug_pattern)
-                );
+                // `number_pattern` / `slug_pattern` each govern one `[id] format`
+                // placeholder — under a format that omits the placeholder the pattern
+                // is dead config, so don't print it.
+                if config.id_format.contains("{number}") {
+                    println!(
+                        "number_pattern = \"{}\"",
+                        escape_toml_basic(&config.number_pattern)
+                    );
+                }
+                if config.id_format.contains("{slug}") {
+                    println!(
+                        "slug_pattern = \"{}\"",
+                        escape_toml_basic(&config.slug_pattern)
+                    );
+                }
                 println!();
                 for kind in &config.kinds {
                     println!("[[kinds]]");
@@ -3202,8 +3224,12 @@ fn command_name(args: &[String]) -> ExitCode {
         }
         idx += 1;
     }
-    if positional.len() < 2 || positional.len() > 3 {
+    if positional.len() < 2 {
         eprintln!("error: name requires <KIND> and <title>");
+        return ExitCode::from(2);
+    }
+    if positional.len() > 3 {
+        eprintln!("error: name takes <KIND>, <title>, and at most one path argument");
         return ExitCode::from(2);
     }
     if !matches!(format.as_str(), "text" | "json") {
@@ -3358,6 +3384,10 @@ fn command_refs(args: &[String]) -> ExitCode {
             }
             other if id_arg.is_none() => id_arg = Some(other.to_string()),
             other => {
+                if path_provided {
+                    eprintln!("error: refs takes an ID and at most one path argument");
+                    return ExitCode::from(2);
+                }
                 path = PathBuf::from(other);
                 path_provided = true;
             }
@@ -3490,6 +3520,10 @@ fn command_cover(args: &[String]) -> ExitCode {
                 return ExitCode::from(2);
             }
             other => {
+                if path_provided {
+                    eprintln!("error: cover takes at most one path argument");
+                    return ExitCode::from(2);
+                }
                 path = PathBuf::from(other);
                 path_provided = true;
             }
@@ -3609,6 +3643,10 @@ fn command_list(args: &[String]) -> ExitCode {
                 return ExitCode::from(2);
             }
             other => {
+                if path_provided {
+                    eprintln!("error: list takes at most one path argument");
+                    return ExitCode::from(2);
+                }
                 path = PathBuf::from(other);
                 path_provided = true;
             }
@@ -4428,8 +4466,8 @@ fn command_init(args: &[String]) -> ExitCode {
 
     eprintln!();
     eprintln!("next:");
-    eprintln!("  1. run `gnd check` — a freshly scaffolded tree is clean");
     if docs {
+        eprintln!("  1. run `gnd check` — a freshly scaffolded tree is clean");
         eprintln!(
             "  2. allocate an ID:  ID=$(gnd name FS \"…\")  then write  docs/functional-spec/$ID.md"
         );
@@ -4439,8 +4477,9 @@ fn command_init(args: &[String]) -> ExitCode {
         );
     } else {
         eprintln!(
-            "  2. re-run with --docs to scaffold docs/ and e2e/, or create those folders yourself"
+            "  1. re-run with --docs to scaffold docs/ and e2e/ (or create those folders yourself) — until then `gnd check` has nothing to scan"
         );
+        eprintln!("  2. run `gnd check` — a scaffolded tree is clean");
         eprintln!(
             "  3. allocate an ID:  ID=$(gnd name FS \"…\")  then write  docs/functional-spec/$ID.md"
         );

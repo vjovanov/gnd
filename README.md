@@ -146,14 +146,16 @@ See [`FS-distribution`](docs/functional-spec/FS-distribution.md).
 
 ## Example
 
-Two spec files in a small `gnd` repo, citing each other:
+> The IDs below — `FS-walk`, `FS-read`, `G-clarity` — are illustrative; they are *not* IDs in this repo. (`gnd`'s own specs use the same scheme — `gnd list` shows the real catalogue.)
+
+Two spec files in a small repo, citing each other:
 
 ```markdown
-# docs/functional-spec/FS-check.md
-# FS-check: gnd validates every reference in a repo
+# docs/functional-spec/FS-walk.md
+# FS-walk: the checker validates every reference in a repo
 
 Walks a repo and reports every violation. Companion read path is
-FS-show. Tracked under G-clarity.
+FS-read. Tracked under G-clarity.
 
 ## 1. Inputs
 
@@ -161,20 +163,20 @@ Optional path argument; defaults to the current directory.
 ```
 
 ```markdown
-# docs/functional-spec/FS-show.md
-# FS-show: gnd reads a single declaration body by ID
+# docs/functional-spec/FS-read.md
+# FS-read: the checker reads a single declaration body by ID
 
 Prints the body of a declaration, given an ID. Default path matches
-FS-check.1.
+FS-walk.1.
 ```
 
 `gnd .` reports the one dangling citation and exits non-zero:
 
 ```
-docs/functional-spec/FS-check.md:4: unknown reference G-clarity
+docs/functional-spec/FS-walk.md:4: unknown reference G-clarity
 ```
 
-`FS-show` resolves to the second file. `FS-check.1` resolves to the `## 1. Inputs` heading. Only `G-clarity` has no declaration anywhere in the tree.
+`FS-read` resolves to the second file. `FS-walk.1` resolves to the `## 1. Inputs` heading. Only `G-clarity` has no declaration anywhere in the tree.
 
 ## Example: spec in code
 
@@ -212,29 +214,29 @@ The same `gnd check` walks both files, treats the doc-comment as prose, and vali
 
 ## Reading a reference
 
-When an agent (human or AI) sees a citation in code or docs — say `§FS-check.1` in a comment — it pulls the grounded body with `gnd show`:
+(Same illustrative `FS-walk` / `FS-read` repo as above — not real IDs in this tree.) When an agent (human or AI) sees a citation in code or docs — say `§FS-walk.1` in a comment — it pulls the grounded body with `gnd show`:
 
 ```bash
-$ gnd show FS-check.1
+$ gnd show FS-walk.1
 Optional path argument; defaults to the current directory.
 ```
 
 Skim the lead paragraph of a declaration without loading sections:
 
 ```bash
-$ gnd show --head FS-show
+$ gnd show --head FS-read
 Prints the body of a declaration, given an ID. Default path matches
-FS-check.1.
+FS-walk.1.
 ```
 
 The whole declaration:
 
 ```bash
-$ gnd show FS-check
-# FS-check: gnd validates every reference in a repo
+$ gnd show FS-walk
+# FS-walk: the checker validates every reference in a repo
 
 Walks a repo and reports every violation. Companion read path is
-FS-show. Tracked under G-clarity.
+FS-read. Tracked under G-clarity.
 
 ## 1. Inputs
 
@@ -248,8 +250,8 @@ The same works when the declaration lives inline in source — a Rustdoc, Javado
 JSON for tooling:
 
 ```bash
-$ gnd show --format json FS-check.1
-{"id":"FS-check","section":"1","body":"Optional path argument; defaults to the current directory.\n","path":"docs/functional-spec/FS-check.md","line":7}
+$ gnd show --format json FS-walk.1
+{"id":"FS-walk","section":"1","body":"Optional path argument; defaults to the current directory.\n","path":"docs/functional-spec/FS-walk.md","line":7}
 ```
 
 Errors are bare lines on stderr with empty stdout — exit `1` for a missing ID or missing section, exit `1` with `ambiguous ID: …` if duplicates exist (run `gnd check` first). See [`FS-show`](docs/functional-spec/FS-show.md).

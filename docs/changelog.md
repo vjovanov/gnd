@@ -140,6 +140,9 @@ The CLI now covers the full subcommand surface the specs describe. The remaining
 
 - §FS-show: `gnd show <ID>.<section> --head` (and `--head --section S`) reported `section not found` for a section that exists — the `--head` short-circuit fired before the section was matched. It now prints the lead prose of the requested section; a missing section is still a `section not found` error. New e2e case `show-head-section-markdown` covers it.
 - §FS-fmt.2.3: `gnd fmt --marker` no longer rewrites ID-shaped file names inside Markdown link destinations, so a link like `[§FS-check](FS-check.md)` keeps its URL intact while the visible citation remains canonical.
+- §FS-cli.3: `gnd check`, `show`, `refs`, `cover`, `fmt`, `list`, and `name` now reject a second path positional with `error: <subcommand> takes at most one path argument` (exit `2`) instead of silently using the last one and dropping the rest — for `check` the silent drop could turn `gnd check docs src` into a flood of misleading `unknown reference …` findings. `config` and `agent-setup-instructions` already enforced this; the rule is now uniform. New e2e cases `check-extra-path-arg` and `show-extra-path-arg`.
+- §FS-init: `gnd init` without `--docs` no longer tells the user to "run `gnd check` — a freshly scaffolded tree is clean" as step 1 — without `docs/`/`e2e/` that run prints the empty-scan warning. The `next:` block now leads with scaffolding (`gnd init --docs` or creating the folders), then the clean `gnd check`. The empty-scan warning itself (§FS-check.2.2) points at `gnd init --docs` rather than `gnd init`, which was the command the user had just run.
+- §FS-config: `gnd config show` no longer prints `number_pattern` under a number-less `[id] format` (nor `slug_pattern` under a slug-less one) — the pattern only governs its placeholder, so emitting it implied a grammar that isn't in effect.
 
 ## 3. [0.0.0] — 2026-05-08
 
