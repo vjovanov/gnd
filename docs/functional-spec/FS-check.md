@@ -113,6 +113,8 @@ An ID that is declared but never cited. Reported as a warning, not an error — 
 
 See [§FS-non-goals](FS-non-goals.md#fs-non-goals-what-gnd-will-deliberately-not-do) — in particular [§FS-non-goals.1](FS-non-goals.md#1-markdown-link-validation) (markdown links / URLs), [§FS-non-goals.2](FS-non-goals.md#2-spelling-grammar-prose-quality) (spelling/grammar), and the convention that ID numbers are stable handles, not ordinal positions.
 
+One near-miss `check` does not flag *today*: a heading shaped like `# <KIND>-…: <title>` whose ID does not match the configured `[id] format` ([§FS-config.3.2](FS-config.md#32-id--id-grammar)) is simply not a declaration — invisible to `check`, to `gnd list`, and to citation resolution, with no warning that something heading-shaped was ignored (the classic stumble: `# FS-login: …` under the default `{kind}-{number}-{slug}`). A non-heuristic "looks like a declaration" warning for it is tracked under [§RM-declaration-near-miss](../roadmap.md#rm-declaration-near-miss-warn-on-a-heading-that-looks-like-a-declaration-but-does-not-match-id-format) — it would surface the mismatch, never guess the corrected ID (`check` reports facts about the tree, §3 vs §4).
+
 ## 6. Watch mode (`--watch`)
 
 Status: planned — implementation tracked under [§RM-watch](../roadmap.md#rm-watch-implement-gnd-check---watch).

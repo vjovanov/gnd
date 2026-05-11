@@ -1364,15 +1364,93 @@ fn scan_tree_strict(
     Ok(findings)
 }
 
-/// The checker (§AS-checker): turn the scanner's `Findings` into a `Report` of
-/// errors and warnings — duplicate declarations (§FS-check.3.3), dangling
-/// citations (§FS-check.3.1), missing sections (§FS-check.3.2), broken inline-spec
-/// stubs (§FS-check.3.4), an invalid `AGENTS.md` init block (§FS-check.3.5),
-/// ungrounded source files when `[reference] require_grounding` is set
-/// (§FS-check.3.6, §DF-require-grounding), and the unused-declaration warning
-/// (§FS-check.4.1) — then sort everything into the fixed report order
-/// (§FS-errors.4, §FS-non-goals.9). It re-reads files only for stub verification
-/// (§AS-checker.4); everything else comes from `findings`.
+/// # AS-checker: how gnd validates the scanner's findings
+///
+/// The checker takes the `Findings` produced by §AS-scanner and produces a
+/// `Report`. It implements the rules in §FS-check.
+///
+/// ## 1. Inputs and outputs
+///
+/// - Input: `Findings` from the scanner, plus the repo root and config (needed
+///   to resolve stub-link paths, to read the `AGENTS.md` init block, and to know
+///   whether `[reference] require_grounding` is on).
+/// - Output: a `Report` containing two ordered lists: `errors` and `warnings`.
+///   Order is deterministic — sorted into the fixed report order of §FS-errors.4
+///   and §FS-non-goals.9 — for §G-friendliness-first.
+///
+/// ## 2. Rules
+///
+/// Each rule is a single pass over part of the findings. Rules are independent —
+/// adding a rule does not force re-scanning.
+///
+/// ### 2.1 Duplicate declarations (§FS-check.3.3)
+///
+/// For each ID with more than one declaration, emit one error anchored at the
+/// lexicographically-first site (sort by `path`, then `line`); list every other
+/// site parenthetically in the message. This keeps the report's `path:line:`
+/// prefix invariant (§3, §FS-check.2.1) while still naming all sites. A stub and
+/// the inline declaration it points at count as one home, not two.
+///
+/// ### 2.2 Dangling citations (§FS-check.3.1)
+///
+/// For each citation whose ID has no declaration, emit one error at the citation
+/// site.
+///
+/// ### 2.3 Missing sections (§FS-check.3.2)
+///
+/// For each citation with a section path, look up the section in the matching
+/// declaration's recorded sections. Missing → one error at the citation site.
+///
+/// ### 2.4 Broken inline-spec stubs (§FS-check.3.4)
+///
+/// For each declaration whose H1 has the stub shape `# <ID>: [<text>](<path>)`
+/// (description after the colon is a single bare markdown link), extract the link
+/// target, resolve it against the repo root, verify the path exists, then re-scan
+/// that file for an inline declaration of the same ID. Either failure → one error
+/// at the stub site. This is the only rule that re-reads a file; everything else
+/// comes from `findings`.
+///
+/// ### 2.5 Unused declarations (§FS-check.4.1)
+///
+/// For each declared ID never cited, emit one warning. Warnings do not cause a
+/// non-zero exit. `E2E` declarations are exempt — a case is exercised by being
+/// run, not by being cited (§FS-check.4.1).
+///
+/// ### 2.6 Invalid agent-entrypoint init block (§FS-check.3.5)
+///
+/// When `<root>/AGENTS.md` exists, verify its versioned `gnd init` block (and the
+/// matching block in any non-symlink companion entrypoint that is present): a
+/// missing block, a malformed begin/end pair, an older version, or a newer
+/// unsupported version is one error at the entrypoint's line.
+///
+/// ### 2.7 Ungrounded source files — opt-in (§FS-check.3.6, §DF-require-grounding)
+///
+/// When `[reference] require_grounding = true` (or `gnd check --require-grounding`),
+/// every scanned non-`.md` file must carry at least one recognised citation that
+/// resolves, or itself declare an ID inline; a source file that does neither is
+/// one error anchored at line 1. Off by default.
+///
+/// ## 3. Error format
+///
+/// Every error and warning follows `<path>:<line>: <message>` so that editors and
+/// agents can jump to the source. There is no severity prefix, and there is no
+/// aggregate summary footer — the exit code is the machine-readable verdict. This
+/// is mandated by §G-friendliness-first and §FS-check.2.1.
+///
+/// Findings without a single source location (CLI launch errors, malformed
+/// configuration that prevents a scan from starting, a per-file read failure
+/// mid-walk) are emitted on stderr as `error: <message>` per §FS-check.2.1.1,
+/// distinguishable from per-finding lines by the leading `error:`.
+///
+/// ## 4. Why a separate stage from the scanner
+///
+/// The scanner produces a complete view of the world; the checker enforces rules
+/// on that view. Keeping them separate means:
+///
+/// - New rules can be added without touching the scanner.
+/// - The optional LSP server (§AS-lsp) can run a subset of checks (e.g., only
+///   dangling references on the active file's citations) against a cached scan.
+/// - Tests can feed synthetic `Findings` directly to the checker without disk I/O.
 fn check(findings: &Findings, config: &Config) -> Report {
     let mut report = Report::default();
     // §FS-check.3.5: an `AGENTS.md` whose managed block is out of date (or newer
@@ -2492,14 +2570,22 @@ fn clean_body_line(line: &str, is_md: bool) -> String {
     if is_md {
         return line.to_string();
     }
-    let mut trimmed = line.trim_start();
-    for prefix in ["///", "//!", "//", "#", "*", "/*", "*/"] {
-        if let Some(rest) = trimmed.strip_prefix(prefix) {
-            trimmed = rest.trim_start();
-            break;
+
+    let marker_start = line
+        .char_indices()
+        .find_map(|(idx, ch)| (!ch.is_whitespace()).then_some(idx))
+        .unwrap_or(line.len());
+    let (leading, body) = line.split_at(marker_start);
+    for prefix in ["///", "//!", "//", "*/", "#", "*", "/*"] {
+        if let Some(rest) = body.strip_prefix(prefix) {
+            if prefix == "*/" && rest.trim().is_empty() {
+                return String::new();
+            }
+            let rest = rest.strip_prefix(' ').unwrap_or(rest);
+            return format!("{leading}{rest}");
         }
     }
-    trimmed.trim_end_matches("*/").trim_end().to_string()
+    line.to_string()
 }
 
 /// Whether a line still looks like part of the comment block — used to decide
@@ -3482,7 +3568,16 @@ fn command_refs(args: &[String]) -> ExitCode {
     let (id, inline_section) = match parse_id_arg(&id_arg, &config.grammar) {
         Ok(parsed) => parsed,
         Err(err) => {
+            // §FS-refs.1: an ID arg that does not match `[id] format` is a CLI-level
+            // error (exit 2 — `refs` has no exit-`1` query-failure class, §FS-refs.4),
+            // but the hint is the same one `gnd show` gives for the same stumble
+            // (§FS-show.3) — the common surprise in a repo whose format differs from
+            // the `{kind}-{slug}` `gnd` itself uses.
             eprintln!("error: {err:#}");
+            eprintln!(
+                "hint: this repo's [id] format is `{}` (run `gnd config show`); `gnd list` shows the IDs that exist",
+                config.id_format
+            );
             return ExitCode::from(2);
         }
     };
@@ -4508,6 +4603,7 @@ fn command_init(args: &[String]) -> ExitCode {
         match update_agents_block(&path, &agents_block, &rel) {
             Ok(AgentsUpdateResult::Appended) => eprintln!("appended {rel}"),
             Ok(AgentsUpdateResult::Updated) => eprintln!("updated {rel}"),
+            Ok(AgentsUpdateResult::Unchanged) => eprintln!("exists {rel}"),
             Err(err) => {
                 eprintln!("error: update {}: {err}", path.display());
                 return ExitCode::from(2);
@@ -4566,12 +4662,16 @@ fn command_init(args: &[String]) -> ExitCode {
 }
 
 /// What `init` did to an existing `AGENTS.md`'s managed block — `appended ` (no
-/// block before) or `updated ` (supported block replaced in place) — the
-/// agent-entrypoint stderr prefixes of §FS-init.2.2 / §FS-init.2.3.
+/// block before), `updated ` (a supported block whose bytes changed: an older
+/// block upgraded, or a same-version block re-rendered against a changed
+/// template or config), or `unchanged` (a supported block already byte-identical
+/// to the current render — `init` rewrites nothing, §FS-init.2.2/§FS-init.2.3,
+/// and reports it with the `exists ` prefix like any other untouched file).
 #[derive(Debug, Eq, PartialEq)]
 enum AgentsUpdateResult {
     Appended,
     Updated,
+    Unchanged,
 }
 
 fn write_or_update_canonical_agent_entrypoint(
@@ -4586,6 +4686,7 @@ fn write_or_update_canonical_agent_entrypoint(
         match update_agents_block(&dest, block, rel) {
             Ok(AgentsUpdateResult::Appended) => eprintln!("appended {rel}"),
             Ok(AgentsUpdateResult::Updated) => eprintln!("updated {rel}"),
+            Ok(AgentsUpdateResult::Unchanged) => eprintln!("exists {rel}"),
             Err(err) => {
                 eprintln!("error: update {}: {err}", dest.display());
                 return false;
@@ -4608,19 +4709,25 @@ fn write_or_update_canonical_agent_entrypoint(
 }
 
 /// Append or update the managed block in an existing agent entrypoint on disk
-/// (§FS-init.2.3). Existing supported blocks are always re-rendered from the
-/// current template/config, even when the schema version already matches.
+/// (§FS-init.2.3). A supported block is re-rendered from the current
+/// template/config even when the schema version already matches — but when that
+/// re-render is byte-identical to what is on disk the file is left untouched
+/// (`Unchanged`, reported as `exists `), so re-running `gnd init` on an
+/// up-to-date repo writes nothing (§FS-init.2.2).
 fn update_agents_block(dest: &Path, block: &str, label: &str) -> Result<AgentsUpdateResult> {
     let existing = fs::read_to_string(dest)?;
     let (updated, result) = update_agents_text(&existing, block, label)?;
-    fs::write(dest, updated)?;
+    if result != AgentsUpdateResult::Unchanged {
+        fs::write(dest, updated)?;
+    }
     Ok(result)
 }
 
 /// The pure string transform behind `update_agents_block`: splice the current
 /// managed block into `existing`, preserving everything outside the begin/end
 /// markers byte-for-byte — including the block's position and any CRLF endings
-/// (§FS-init.2.3.1, §FS-init.2.3.2). A newer-than-supported block is an error.
+/// (§FS-init.2.3.1, §FS-init.2.3.2). Returns `Unchanged` when the splice would
+/// reproduce `existing` exactly. A newer-than-supported block is an error.
 fn update_agents_text(
     existing: &str,
     block: &str,
@@ -4638,7 +4745,12 @@ fn update_agents_text(
         updated.push_str(&existing[..existing_block.start]);
         updated.push_str(block.trim_end());
         updated.push_str(&existing[existing_block.end..]);
-        return Ok((updated, AgentsUpdateResult::Updated));
+        let result = if updated == existing {
+            AgentsUpdateResult::Unchanged
+        } else {
+            AgentsUpdateResult::Updated
+        };
+        return Ok((updated, result));
     }
 
     if AGENTS_BLOCK_BEGIN.is_match(existing) {
@@ -5495,11 +5607,13 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
     #[test]
     fn agents_update_does_not_append_current_block_twice() {
+        // §FS-init.2.2: a file already holding the current rendered block is left
+        // untouched (`Unchanged` → `exists `), not rewritten and reported `updated `.
         let existing = current_block();
         let (updated, result) =
             update_agents_text(&existing, &current_block(), "AGENTS.md").expect("current block");
 
-        assert_eq!(result, AgentsUpdateResult::Updated);
+        assert_eq!(result, AgentsUpdateResult::Unchanged);
         assert_eq!(updated, existing);
         assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
     }
@@ -5539,9 +5653,9 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
     #[test]
     fn agents_update_keeps_current_block_in_middle_position() {
-        // §FS-init.2.3.1: a v1 block that already sits between user-authored
-        // sections is re-rendered in place, preserving the block's position and
-        // all user-authored content around it.
+        // §FS-init.2.3.1 / §FS-init.2.2: a v1 block already current and already
+        // sitting between user-authored sections is left byte-for-byte untouched
+        // (`Unchanged` → `exists `) — nothing around it moves, nothing is rewritten.
         let existing = format!(
             "# Existing agents\n\n{}\n\n# Local notes\n",
             current_block()
@@ -5549,10 +5663,10 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         let (updated, result) = update_agents_text(&existing, &current_block(), "AGENTS.md")
             .expect("non-EOF current block");
 
-        assert_eq!(result, AgentsUpdateResult::Updated);
+        assert_eq!(result, AgentsUpdateResult::Unchanged);
         assert_eq!(
             updated, existing,
-            "same rendered block still preserves bytes around the managed block"
+            "an already-current block preserves every byte, inside and out"
         );
         assert!(updated.starts_with("# Existing agents\n\n"));
         assert!(updated.ends_with("\n\n# Local notes\n"));

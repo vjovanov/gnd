@@ -175,6 +175,46 @@ title = "Architecture decision"
 }
 
 #[test]
+fn init_rerun_on_current_repo_writes_nothing_and_reports_exists() {
+    // FS-init.2.2 / FS-init.2.3: re-running `gnd init` on a repo whose managed
+    // AGENTS.md block already matches the current render rewrites nothing — the
+    // file's bytes are untouched and it is reported with `exists `, not `updated `.
+    let target = workdir("init_rerun_on_current_repo_writes_nothing_and_reports_exists");
+    let first = run_gnd(&["init", target.to_str().unwrap()], manifest_dir());
+    assert!(first.status.success());
+
+    let agents_before = fs::read(target.join("AGENTS.md")).unwrap();
+    let toml_before = fs::read(target.join(".agents/gnd.toml")).unwrap();
+
+    let second = run_gnd(&["init", target.to_str().unwrap()], manifest_dir());
+    assert!(second.status.success());
+    let stderr = String::from_utf8_lossy(&second.stderr);
+    assert!(
+        stderr.contains("exists AGENTS.md"),
+        "second `gnd init` should report `exists AGENTS.md`, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("updated AGENTS.md") && !stderr.contains("wrote AGENTS.md"),
+        "second `gnd init` must not rewrite an already-current AGENTS.md, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("exists .agents/gnd.toml"),
+        "second `gnd init` should report `exists .agents/gnd.toml`, got:\n{stderr}"
+    );
+
+    assert_eq!(
+        fs::read(target.join("AGENTS.md")).unwrap(),
+        agents_before,
+        "AGENTS.md bytes changed on a no-op re-init"
+    );
+    assert_eq!(
+        fs::read(target.join(".agents/gnd.toml")).unwrap(),
+        toml_before,
+        ".agents/gnd.toml bytes changed on a no-op re-init"
+    );
+}
+
+#[test]
 fn init_is_byte_deterministic() {
     // FS-non-goals.13: same input → byte-identical output.
     let a = workdir("init_is_byte_deterministic_a");

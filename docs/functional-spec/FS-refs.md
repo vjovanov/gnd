@@ -8,7 +8,7 @@ The `refs` subcommand answers the reverse of `gnd show`: not "what does this ID 
 gnd refs <ID> [<path>] [--section <s>] [--format text|json]
 ```
 
-- `<ID>` — the ID to look up, without the marker. May carry an inline section (`FS-check.3.1`) using the configured `[id] section_separator`; equivalently pass `--section 3.1`.
+- `<ID>` — the ID to look up, without the marker. May carry an inline section (`FS-check.3.1`) using the configured `[id] section_separator`; equivalently pass `--section 3.1`. An `<ID>` that does not match the repo's `[id] format` ([§FS-config.3.2](FS-config.md#32-id--id-grammar)) is rejected before the scan with `error: invalid ID \`<arg>\`` followed by `hint: this repo's [id] format is \`<format>\` (run \`gnd config show\`); \`gnd list\` shows the IDs that exist` on stderr, exit `2` (§4) — the same hint `gnd show` gives for the same stumble ([§FS-show.3](FS-show.md#3-outputs)), the common surprise in a repo whose format differs from the `{kind}-{slug}` `gnd` itself uses.
 - `<path>` — directory or file whose tree is scanned. Defaults to `.`. Discovery is the same as every other subcommand (walk up to `.agents/gnd.toml`, else defaults — [§FS-config.1](FS-config.md#1-file-location-and-discovery)).
 - `--section <s>` — restrict to citations that reference exactly that section path. Without it, every citation of `<ID>` is listed regardless of section (including bare-ID citations with no section). Mutually exclusive with the dotted inline form.
 - `--format text|json` — output shape (§3). Default `text`.
@@ -49,7 +49,7 @@ NDJSON on stdout — one object per citation, matching the `Citation` shape ([§
 ## 4. Exit codes
 
 - `0` — scan succeeded; the listed citations (possibly none) are the result.
-- `2` — scan / I/O error ([§FS-check.2](FS-check.md#2-outputs) partial-scan semantics apply: an incomplete scan exits `2` and the lookup is not trustworthy as complete).
+- `2` — scan / I/O error ([§FS-check.2](FS-check.md#2-outputs) partial-scan semantics apply: an incomplete scan exits `2` and the lookup is not trustworthy as complete), an `<ID>` argument that does not match the configured `[id] format` (§1), an unsupported `--format`, or any other CLI-level error ([§FS-cli.4](FS-cli.md#4-errors-with-no-source-location)).
 
 There is no `1`: `refs` is a query that always returns *its* answer (a possibly-empty list), never "found something other than one body" — unlike `show`, it has no single-result expectation to violate.
 

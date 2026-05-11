@@ -97,6 +97,8 @@ pub struct EventBus { /* … */ }
 
 `gnd show AS-event-bus` follows the stub, strips the `///` markers, and prints the Rustdoc prose. The same goes for Javadoc, JSDoc, Python docstrings, Go doc blocks, KDoc, Doxygen — every comment form enumerated in `gnd`'s scanner spec.
 
+`gnd` does this itself: `§AS-checker` lives in the doc-comment of `fn check` in [`src/lib.rs`](src/lib.rs), with the one-line stub at [`docs/architectural-spec/AS-checker.md`](docs/architectural-spec/AS-checker.md) — `gnd show AS-checker` prints it.
+
 **ID format:**
 
 ```plaintext

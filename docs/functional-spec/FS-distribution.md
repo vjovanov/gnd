@@ -37,11 +37,16 @@ Report {
 
 Finding {
   severity: "error" | "warning"
-  code:     "dangling" | "missing-section" | "duplicate" | "broken-stub" | "unused" | "agents-init" | "io"
+  code:     // a `check` finding — "dangling" | "missing-section" | "duplicate" | "broken-stub"
+            //                   | "unused" | "ungrounded" | "agents-init" | "empty-scan" | "io"
+            // — or, on a failed `gnd show` query (FS-show.3, rendered with this same shape on stderr,
+            //   path/line null) — "not-found" | "missing-section" | "broken-stub" | "ambiguous"
+            //                   | "invalid-id" | "query-failed"
   path:     string?        // relative to config root (FS-config.3.6); null for a CLI-level error
   line:     u32?           // 1-indexed; null for a file-level finding with no line (e.g. an unreadable file, FS-check.2)
   message:  string         // the human-readable text
-  sites:    [{ path, line }]?  // present for multi-site findings (e.g. duplicates)
+  sites:    [{ path, line }]?  // null for a single-site diagnostic; a list naming every site for a multi-site
+                               // finding (a duplicate declaration) or an ambiguous-ID query failure
 }
 
 ShowOpts {

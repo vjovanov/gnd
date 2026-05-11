@@ -1,9 +1,9 @@
 <!-- gnd:init:agents:v1 begin -->
-# gnd — agent instructions
+# repo — agent instructions
 
-This file is the entry point for any agent (human or AI) working on **gnd**. Read it first, then read the declared artifacts it points to before making changes.
+This file is the entry point for any agent (human or AI) working on **repo**. Read it first, then read the declared artifacts it points to before making changes.
 
-This project uses the [`gnd`](https://github.com/vjovanov/gnd) reference scheme: every spec, goal, decision, and end-to-end test has a stable ID of the form `<KIND>-<slug>`, declared as a heading inside its home file. Citations are written prefixed by the marker `§`, e.g. `§FS-user-login.3.1` (the `FS-user-login` here is an illustration of the *shape*, not a real ID in this repo). Section paths can be arbitrary depth — `.3`, `.3.1`, `.3.1.2` are all valid as long as a heading at that depth exists in the declaration. Run `gnd check` to validate every citation; `gnd show <ID>` to print just the body of one declaration; `gnd list` to see every declared ID; `gnd refs <ID>` to see every place that cites it — the blast radius before you change or move a declaration. (`gnd` documents its own `check`, `show`, `list`, and `refs` contract under [`docs/functional-spec/`](https://github.com/vjovanov/gnd/tree/main/docs/functional-spec) in the `gnd` repo — that's `gnd`'s spec, not this project's; only IDs declared *in this repo* resolve with `gnd show` here.)
+This project uses the [`gnd`](https://github.com/vjovanov/gnd) reference scheme: every spec, goal, decision, and end-to-end test has a stable ID of the form `<KIND>-<NNN>-<slug>`, declared as a heading inside its home file. Citations are written prefixed by the marker `§`, e.g. `§FS-042-user-login.3.1` (the `FS-042-user-login` here is an illustration of the *shape*, not a real ID in this repo). Section paths can be arbitrary depth — `.3`, `.3.1`, `.3.1.2` are all valid as long as a heading at that depth exists in the declaration. Run `gnd check` to validate every citation; `gnd show <ID>` to print just the body of one declaration; `gnd list` to see every declared ID; `gnd refs <ID>` to see every place that cites it — the blast radius before you change or move a declaration. (`gnd` documents its own `check`, `show`, `list`, and `refs` contract under [`docs/functional-spec/`](https://github.com/vjovanov/gnd/tree/main/docs/functional-spec) in the `gnd` repo — that's `gnd`'s spec, not this project's; only IDs declared *in this repo* resolve with `gnd show` here.)
 
 ## Grounding yourself in the spec
 
@@ -23,7 +23,7 @@ A `§<ID>` — or `§<ID>.<section>` — is a pointer to a fact, not a file path
 
 ## Project knowledge map
 
-`gnd` scans: `docs`, `e2e`, `src`; excluded directories: `target`, `node_modules`, `.git`, `dist`, `build`, `.venv`, `repo`, `expected.repo`.
+`gnd` scans: `docs`, `e2e`, `src`; excluded directories: `target`, `node_modules`, `.git`, `dist`, `build`, `.venv`.
 
 Configured declaration homes:
 
@@ -36,15 +36,14 @@ Configured declaration homes:
 | `DA` | `docs/decisions/architectural` | Architectural decision |
 | `E2E` | `e2e/cases` | End-to-end test |
 | `RM` | `docs` | Roadmap milestone |
-| `DISC` | `docs/discussions` | Discussion |
 
 These paths come from `.agents/gnd.toml`. If this repo's specs, roadmaps, changelogs, decisions, plans, tests, or examples live somewhere else, update the config first and re-run `gnd init` so this guidance stays aligned with the repository instead of introducing a parallel layout.
 
 ## References
 
-The `gnd` ID scheme in this repo: `<KIND>-<slug>[.<section>]`, where `KIND` ∈ `{G, FS, AS, DF, DA, E2E, RM, DISC}` — the kinds and the ID/marker syntax are configurable in `.agents/gnd.toml` (run `gnd config show` to see the effective settings). Citations are written prefixed by the marker `§` — type `$$` in a `gnd`-aware editor and it becomes `§` automatically. Bare ID-shaped tokens are ignored — `[reference] strict = true` is set in `.agents/gnd.toml`, so only `§`-prefixed citations are checked.
+The `gnd` ID scheme in this repo: `<KIND>-<NNN>-<slug>[.<section>]`, where `KIND` ∈ `{G, FS, AS, DF, DA, E2E, RM}` — the kinds and the ID/marker syntax are configurable in `.agents/gnd.toml` (run `gnd config show` to see the effective settings). Citations are written prefixed by the marker `§` — type `$$` in a `gnd`-aware editor and it becomes `§` automatically. Bare ID-shaped tokens are also recognized as citations for backward compatibility; set `[reference] strict = true` in `.agents/gnd.toml` to require the `§` marker (run `gnd fmt --marker` first to upgrade existing bare citations).
 
-Declarations are heading lines: `# FS-user-login: A player can log in …` in a markdown file (again, `FS-user-login` is just the shape), or the same shape inside a code doc-comment (Javadoc, JSDoc, Rustdoc, Python docstring, Go `//` block, etc.). A declaration can also live directly in a class-level or module-level doc-comment, with a one-line stub in that kind's configured home whose H1 is `# <ID>: [<path>](<path>)` (a markdown link to the file with the inline declaration). The exhaustive list of supported doc-comment forms is in [`gnd`'s own architectural spec](https://github.com/vjovanov/gnd/tree/main/docs/architectural-spec).
+Declarations are heading lines: `# FS-042-user-login: A player can log in …` in a markdown file (again, `FS-042-user-login` is just the shape), or the same shape inside a code doc-comment (Javadoc, JSDoc, Rustdoc, Python docstring, Go `//` block, etc.). A declaration can also live directly in a class-level or module-level doc-comment, with a one-line stub in that kind's configured home whose H1 is `# <ID>: [<path>](<path>)` (a markdown link to the file with the inline declaration). The exhaustive list of supported doc-comment forms is in [`gnd`'s own architectural spec](https://github.com/vjovanov/gnd/tree/main/docs/architectural-spec).
 
 Code back-references the spec it realizes. When a function, class, or block implements a behavior, it carries a `§<ID>` citation — on its doc-comment for a whole behavior, or on an inline comment beside the line that enforces one clause (`§<ID>.2.1`) or honors one decision. Cite at the granularity you implement: the behavior on the doc-comment, the clause on the `if` that checks it, the decision ID on the literal it pinned. Each citation is one more edge `gnd refs <ID>` reports, so a reviewer changing a spec sees exactly which code leans on it — closing the loop goals ← specs ← architecture ← code, alongside specs ← executable tests.
 
