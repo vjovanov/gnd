@@ -1,14 +1,20 @@
 # gnd — Ground Your Agents in the Spec
 
-> A small, fast Rust CLI that validates ID-based citations everywhere they live — in your docs *and* in your code's doc-comments — so every agent (human or AI) points at the same facts.
+> A small, fast Rust CLI that keeps every agent (human or AI) cited as it works — across your docs *and* your code's doc-comments.
 
-`lychee` and `markdown-link-check` walk `.md` files and validate `[text](url)`. They can't see a `§FS-events.4` cited from `src/bus.rs`. **That gap is what `gnd` exists to close.**
+`gnd` is built around one workflow:
+
+1. **Cite as you write.** Every code unit carries a `§<ID>` back to the spec section it implements.
+2. **Re-read before you edit.** `gnd show <ID>.<section>` pulls just that subsection into context — no full-file reads, no token bloat.
+3. **No dangling pointers.** `gnd check` validates that every cited ID resolves — in `.md`, Rust `///`, Java doc-comments, Python docstrings, Go `//`, JSDoc, every doc-comment form `gnd` knows about.
+
+Off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) only handle `.md` and only validate `[text](url)`. A `§FS-events.4` cited from `src/bus.rs` is invisible to them. That gap is what `gnd` exists to close.
 
 > Status: 0.1.0 Cargo CLI. The core command surface is implemented and self-hosted on this repo; npm / PyPI bindings, the optional LSP server, and watch mode are tracked in [`docs/roadmap.md`](docs/roadmap.md).
 
-## See it in 30 seconds
+## 1. Cite as you write
 
-A spec can live in the doc-comment of the class it describes:
+When code realizes a named behavior, it carries a `§<ID>` citation — on its doc-comment for a whole behavior, or inline beside the line that enforces one clause:
 
 ```rust
 // src/bus.rs
@@ -16,19 +22,110 @@ A spec can live in the doc-comment of the class it describes:
 /// # AS-event-bus: In-process event broadcaster
 ///
 /// Implements the publish-subscribe contract from §FS-events.
-/// Slow receivers are dropped silently as required by §FS-events.4.
-pub struct EventBus { /* … */ }
+pub struct EventBus {
+    receivers: Vec<Receiver<Event>>, // §FS-events.4 — slow receivers are dropped silently
+}
 ```
 
-Rename the spec heading from `FS-events` to `FS-event-stream` and `gnd` flags both citations on the line, across the docs/code boundary, with one resolver:
+`gnd` doesn't invent these citations — that's the contributor's call. What `gnd` does is make sure the ones you wrote *resolve*, and tell you when a diff added a new code unit without one (`[reference] require_grounding = true`).
+
+## 2. Re-read before you edit
+
+A citation is a pointer to a fact, not a file path. Resolve it without opening files:
+
+```bash
+$ gnd show FS-events.4
+A receiver that falls behind the broadcaster is disconnected, not blocked.
+The sender never waits on a slow consumer.
+```
+
+`gnd show` returns *just* that subsection — well under 200 lines for the common case — so the agent pulls one fact into context instead of an entire file. Its companions:
+
+- `gnd show <ID>` — the whole declaration body
+- `gnd show <ID> --head` — the lead paragraph only
+- `gnd show <ID> --format json` — for tooling
+
+That's the "cheap grounding" half of the workflow: every agent fetches the same bytes for the same ID, every time.
+
+## 3. Check for dangling pointers
+
+Rename the heading `FS-events` to `FS-event-stream` and `gnd check` flags both sides of the boundary in one resolver:
 
 ```
 $ gnd check
 src/bus.rs:5: unknown reference FS-events
-src/bus.rs:6: unknown reference FS-events.4
+src/bus.rs:7: unknown reference FS-events.4
 ```
 
-The same citation grammar (`§<ID>` or `§<ID>.<section>`) reads, parses, and resolves identically in Markdown, Rust `///`, Java doc-comments, Python docstrings, Go `//` blocks, JSDoc — every doc-comment form `gnd` knows about. (`FS-events` here is illustrative; `gnd list` shows this repo's real catalogue.)
+`gnd <path>` scans `<path>`; with no path it scans the canonical layout (`docs/`, `e2e/`, `src/`). In the scanned tree it enforces:
+
+1. Every cited ID resolves to a declaration. *(dangling references)*
+2. Every section coordinate (`.3.1`) resolves to a heading inside the declaration. *(missing sections)*
+3. No ID is declared in two places. *(duplicates)*
+4. Every stub heading `# <ID>: [<text>](<path>)` points at a file containing the inline declaration. *(broken stubs)*
+5. The `agents.md` / `CLAUDE.md` / `AGENTS.md` entry-point block is up to date. *(stale init)*
+6. Declared-but-uncited IDs are flagged. *(unused — warning, not error; `E2E-` cases are exempt)*
+7. *(opt-in)* With `[reference] require_grounding = true`: every source file carries at least one citation. *(ungrounded source file)*
+
+A passing repo prints nothing on stdout and exits 0. Errors go to stderr as `<path>:<line>: <message>` so editors and agents jump straight to the source.
+
+`gnd` does **not** check Markdown links, URLs, spelling, or grammar. Use [`lychee`](https://github.com/lycheeverse/lychee), `vale`, etc. for those.
+
+## 4. The structure that gets cited
+
+Every fact in a `gnd` repo has a stable ID. The default kinds (configurable):
+
+| Kind  | What it is              | Where it lives                                 |
+|-------|-------------------------|------------------------------------------------|
+| `G`   | goal                    | `docs/goals/goals.md` (one file, all goals inline) |
+| `FS`  | functional spec         | `docs/functional-spec/` — external behavior    |
+| `AS`  | architectural spec      | `docs/architectural-spec/` — **or inline in a class / module doc-comment** |
+| `DF`  | functional decision     | `docs/decisions/functional/` (append-only)     |
+| `DA`  | architectural decision  | `docs/decisions/architectural/` (append-only)  |
+| `E2E` | end-to-end test         | `e2e/cases/<id>/` (the test *is* the body)     |
+| `RM`  | roadmap milestone       | `docs/roadmap.md`                              |
+
+**Architectural specs can live inline in source.** Drop a one-line stub in `docs/architectural-spec/AS-foo.md` whose H1 is `# AS-foo: [src/foo.rs](src/foo.rs)`, then declare the spec in the class doc-comment:
+
+```rust
+/// # AS-event-bus: In-process event broadcaster
+///
+/// ## 1. Topology
+/// One sender, many receivers. Senders never block.
+pub struct EventBus { /* … */ }
+```
+
+`gnd show AS-event-bus` follows the stub, strips the `///` markers, and prints the Rustdoc prose. The same goes for Javadoc, JSDoc, Python docstrings, Go doc blocks, KDoc, Doxygen — every comment form enumerated in `gnd`'s scanner spec.
+
+**ID format:**
+
+```
+<KIND>-<NNN>-<slug>[.<section>]
+```
+
+Three schemes are supported — `{kind}-{number}-{slug}`, `{kind}-{number}` (RFC-style), `{kind}-{slug}` (`gnd` itself uses this). Each has a runnable tiny repo under [`examples/`](examples/).
+
+Citations use the marker `§`, e.g. `§FS-user-login.3.1`. Type `$$` in a `gnd`-aware editor and it's rewritten to `§` automatically. Both marker and trigger are configurable in `.agents/gnd.toml`.
+
+## 5. Reviewing code
+
+Before changing or removing a declaration, see what leans on it:
+
+```bash
+$ gnd refs FS-events.4 2>&1
+docs/architectural-spec/AS-event-bus.md:6: §FS-events.4
+src/bus.rs:7: §FS-events.4
+```
+
+(Text lines go to stderr — the same diagnostic stream as `gnd check` — so a clean stdout still means "no result". Add `--format=json` for NDJSON on stdout.)
+
+Before reviewing a diff, group the citation graph by file so you can join changed files to the specs they touch:
+
+```bash
+$ gnd cover --format json | jq '.files[] | select(.path | startswith("src/bus"))'
+```
+
+For an agent reviewing a code change, the loop is mechanical: list the `§…` citations in the changed files, run `gnd show` on each, and ask "does the code still match what the spec claims?"
 
 ## Install
 
@@ -47,22 +144,6 @@ gnd init --docs    # also scaffolds docs/ and e2e/ trees
 
 `init` is non-interactive and idempotent: re-running never errors on existing files. See [`FS-init`](docs/functional-spec/FS-init.md) for the full state table.
 
-## What it checks
-
-`gnd <path>` scans `<path>`; with no path it scans the canonical layout (`docs/`, `e2e/`, `src/`). In the scanned tree:
-
-1. Every cited ID resolves to a declaration. *(dangling references)*
-2. Every section coordinate (`.3.1`) resolves to a heading inside the declaration. *(missing sections)*
-3. No ID is declared in two places. *(duplicates)*
-4. Every stub heading `# <ID>: [<text>](<path>)` points at a file containing the inline declaration. *(broken stubs)*
-5. The `agents.md` / `CLAUDE.md` / `AGENTS.md` entry-point block is up to date. *(stale init)*
-6. Declared-but-uncited IDs are flagged. *(unused — warning, not error; `E2E-` cases are exempt)*
-7. *(opt-in)* With `[reference] require_grounding = true`: every source file carries at least one citation. *(ungrounded source file)*
-
-A passing repo prints nothing on stdout and exits 0. Errors go to stderr as `<path>:<line>: <message>` so editors and agents jump straight to the source.
-
-`gnd` does **not** check Markdown links, URLs, spelling, or grammar. Use [`lychee`](https://github.com/lycheeverse/lychee), `vale`, etc. for those.
-
 ## Pre-commit
 
 This repo ships a ready-to-install [.pre-commit-config.yaml](.pre-commit-config.yaml) — `gnd check` for citations, `lychee` for Markdown links:
@@ -73,11 +154,11 @@ pip install pre-commit && cargo install lychee && pre-commit install
 
 ## Commands
 
-`gnd --help` is one screen; `gnd <command> --help` is one page with flags, examples, and exit codes. The headline subcommands:
+`gnd --help` is one screen; `gnd <command> --help` is one page with flags, examples, and exit codes.
 
 - **`gnd check`** — validate every reference in the tree.
 - **`gnd show <ID>[.<section>]`** — print one declaration body, for pulling spec content into agent prompts.
-- **`gnd refs <ID>`** — list every citation of a declaration, so you know what leans on it before you change it.
+- **`gnd refs <ID>`** — list every citation of a declaration.
 - **`gnd list`** — the ID catalog.
 - **`gnd name <KIND> "<title>"`** — emit the next conflict-free ID for a new declaration.
 - **`gnd fmt`** — normalize citation syntax (`$$` → `§`, optional Markdown link wrapping).
@@ -86,32 +167,13 @@ pip install pre-commit && cargo install lychee && pre-commit install
 
 Full surface (flags, JSON shapes, exit codes) in [`docs/functional-spec/`](docs/functional-spec/).
 
-## ID format
-
-```
-<KIND>-<NNN>-<slug>[.<section>]
-```
-
-`KIND` is one of (configurable):
-
-- **`G`** — goal (declared in `docs/goals/goals.md`)
-- **`FS`** — functional spec (external behavior)
-- **`AS`** — architectural spec (internals; can live inline in a class doc-comment)
-- **`DF`** / **`DA`** — functional / architectural decision records
-- **`E2E`** — end-to-end test
-- **`RM`** — roadmap milestone
-
-Three ID schemes are supported — `{kind}-{number}-{slug}`, `{kind}-{number}` (RFC-style), `{kind}-{slug}` (`gnd` itself uses this). Each has a runnable tiny repo under [`examples/`](examples/).
-
-Citations are written with the marker `§`, e.g. `§FS-user-login.3.1`. Type `$$` in a `gnd`-aware editor and it's rewritten to `§` automatically. Both marker and trigger are configurable in `.agents/gnd.toml`.
-
 ## Agent prompt pattern
 
-The grounding loop for an AI agent is one rule in its system prompt:
+The grounding loop, distilled to one rule for an AI agent's system prompt:
 
 > When you see `§<ID>` or `§<ID>.<section>` in any file you are reading, run `gnd show <ID>[.<section>]` and treat the output as the authoritative definition. Do not paraphrase or guess — quote what `show` returned, or cite the ID and move on.
 
-That rule plus a clean `gnd check` is the entire contract: every reference resolves, every agent fetches the same bytes for the same ID.
+That rule plus a clean `gnd check` is the whole contract: every reference resolves, every agent fetches the same bytes for the same ID.
 
 ## Project layout
 
