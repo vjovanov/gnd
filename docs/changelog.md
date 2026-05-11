@@ -42,6 +42,7 @@ First published binary. The CLI covers the full subcommand surface the specs des
 - §FS-show.1 / §FS-show.2.1.1: document that `gnd show <ID>` also takes a positional `[<path>]` (with `--path` as an accepted alias), and that `--head` combined with a section path prints the lead prose of *that* section — previously the spec listed neither.
 - §FS-errors.3: the worked example for the "lowercase first letter" rule used `dangling citation: <ID>`, which is not the text `gnd` emits (`unknown reference <ID>`); the example now matches the shipped message.
 - §FS-distribution.1: stop claiming the PyPI name `gnd` is "free" — §DA-reference-checker-name records it as a dormant squat; the text now matches that record and points at §RM-distribution-naming as the gate that re-verifies every name (and picks an explicit alternate if a name assumed dormant turns out live) before the first publish.
+- §FS-distribution.1 / §DA-pypi-package-name: the final registry check found PyPI `gnd` unavailable to this project, so the planned PyPI package is now `gnd-cli`; the installed binary remains `gnd`, and the Python import module remains intended as `gnd`.
 - README: drop `--watch` from the `gnd check` synopsis row (it is specified in §FS-check.6 but not yet implemented — `gnd check --watch` errors as an unknown flag); add `docs/discussions/` to the project-layout list.
 - `.agents/gnd.toml` (this repo): add the `[fmt.md_links]` block so the on-disk config matches what `gnd init` now writes (§FS-config.3.7 / §FS-init.2.4 require the generated config to carry every documented key).
 - §FS-config.3.5 / 3.6: note that the default `comment_prefixes` set is broader than the §AS-scanner.4 doc-comment table (`;`, `--`, `*`, `/*`); define `relative_paths = false` (paths relative to the path argument / cwd, never absolute — keeps §FS-errors.4 intact); cross-reference `color` to §FS-errors.3.
@@ -138,6 +139,7 @@ The CLI now covers the full subcommand surface the specs describe. The remaining
 ### 2.8 Fixed
 
 - §FS-show: `gnd show <ID>.<section> --head` (and `--head --section S`) reported `section not found` for a section that exists — the `--head` short-circuit fired before the section was matched. It now prints the lead prose of the requested section; a missing section is still a `section not found` error. New e2e case `show-head-section-markdown` covers it.
+- §FS-fmt.2.3: `gnd fmt --marker` no longer rewrites ID-shaped file names inside Markdown link destinations, so a link like `[§FS-check](FS-check.md)` keeps its URL intact while the visible citation remains canonical.
 
 ## 3. [0.0.0] — 2026-05-08
 

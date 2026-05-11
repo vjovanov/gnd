@@ -10,10 +10,10 @@ Status: planned beyond the Cargo CLI. `gnd` is written in Rust; the target distr
 | cargo    | `gnd-lsp`           | Optional LSP server binary (§FS-lsp). Depends on `gnd-core`.              |
 | npm      | `gnd-cli`           | Prebuilt CLI binary + thin Node API surface (via `napi-rs`).              |
 | npm      | `gnd-lsp`           | Optional LSP server binary, prebuilt per platform.                        |
-| PyPI     | `gnd`               | Prebuilt CLI wheel + Python API surface (via `PyO3` / `maturin`).         |
+| PyPI     | `gnd-cli`           | Prebuilt CLI wheel + Python API surface (via `PyO3` / `maturin`).         |
 | PyPI     | `gnd-lsp`           | Optional LSP server, distributed via wheel (`pipx install gnd-lsp`).      |
 
-The PyPI name `gnd` is held by an unrelated dormant package (§DA-reference-checker-name records it as a squat ignorable for our purposes); using `gnd` rather than `gnd-cli` on PyPI avoids a `pip install gnd-cli` mismatch with the Python convention. The npm package uses `gnd-cli` because the unscoped `gnd` is likewise held by an unrelated dormant package (see §DA-reference-checker-name). Both squats — and the `gnd-lsp` slot on each registry — are re-verified by §RM-distribution-naming before the first publish; if a name that the docs assumed dormant turns out to be live, §RM-distribution-naming picks and records an explicit alternate (e.g. `gnd-cli` on PyPI).
+The PyPI name `gnd` is held by an unrelated package, so PyPI uses the explicit alternate `gnd-cli` per §DA-pypi-package-name. The installed binary is still `gnd`, and the Python import module is still intended to be `gnd`. The npm package also uses `gnd-cli` because the unscoped `gnd` is likewise held by an unrelated dormant package (see §DA-reference-checker-name). The remaining registry slots — including `gnd-lsp` — are re-verified by §RM-distribution-naming before first publish.
 
 The CLI install on each registry does **not** transitively pull in `gnd-lsp` — they are independent published packages, per §DA-lsp-optional. A user who only runs `gnd check` in CI installs the CLI alone; a user who wants editor integration installs `gnd-lsp` separately and configures their editor to launch it (§FS-lsp.2).
 
@@ -74,7 +74,7 @@ const body = await show('FS-check', { head: true });
 
 The Node binding is built with `napi-rs`. Native binaries are prebuilt for the platforms covered by `napi-rs` (macOS arm64/x64, Linux x64/arm64, Windows x64). Source builds are supported as a fallback.
 
-### 3.3 Python (`gnd` PyPI package)
+### 3.3 Python (`gnd-cli` PyPI package)
 
 ```python
 from gnd import check, show
@@ -83,7 +83,7 @@ report = check("./repo")
 body = show("FS-check", head=True)
 ```
 
-The Python binding is built with `PyO3` and packaged with `maturin`. Wheels are built for CPython 3.10+ across the platforms covered by `cibuildwheel`.
+The Python binding is built with `PyO3` and packaged with `maturin`. Wheels are built for CPython 3.10+ across the platforms covered by `cibuildwheel`. The distribution package is named `gnd-cli`; the import module is `gnd` (§DA-pypi-package-name).
 
 ## 4. Release process
 
@@ -91,7 +91,7 @@ A single release tag triggers parallel jobs that:
 
 1. Publish the `gnd-core`, `gnd`, and `gnd-lsp` crates to crates.io (in dependency order: `gnd-core` first).
 2. Build per-platform Node binaries and publish `gnd-cli` and `gnd-lsp` to npm.
-3. Build per-platform Python wheels and publish `gnd` and `gnd-lsp` to PyPI.
+3. Build per-platform Python wheels and publish `gnd-cli` and `gnd-lsp` to PyPI.
 
 All artifacts must succeed for a release to be considered complete. Versions across the CLI and the LSP move together within a release; `gnd-lsp` pins its `gnd-core` dependency to the same version the CLI ships, so a CLI/LSP version mismatch in editors is structurally impossible.
 

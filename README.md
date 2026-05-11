@@ -140,7 +140,7 @@ Today, `gnd` ships as a single cargo crate. The plan is one engine across three 
 
 - **cargo** — `gnd` (library + binary) — *0.1.0; installable today from a clone or git ref (see [Install](#install)); the crates.io publish is gated on `RM-distribution-naming`*
 - **npm** — `gnd-cli` (prebuilt binary + Node API via `napi-rs`) — *planned*
-- **PyPI** — `gnd` (Python API via PyO3, wheels via `maturin`) — *planned; package name re-verified before first publish per `RM-distribution-naming`*
+- **PyPI** — `gnd-cli` (Python API via PyO3, wheels via `maturin`; installs the `gnd` command) — *planned; `gnd` is occupied by an unrelated package, so PyPI uses the explicit alternate from §DA-pypi-package-name*
 
 See [`FS-distribution`](docs/functional-spec/FS-distribution.md).
 

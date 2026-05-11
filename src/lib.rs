@@ -1740,7 +1740,7 @@ fn render_diagnostic_text(config: &Config, severity: &str, diagnostic: &Diagnost
     }
 }
 
-fn sorted_json_diagnostics<'a>(report: &'a Report) -> Vec<(&'static str, &'a Diagnostic)> {
+fn sorted_json_diagnostics(report: &Report) -> Vec<(&'static str, &Diagnostic)> {
     let mut diagnostics = report
         .warnings
         .iter()
@@ -2657,7 +2657,8 @@ fn fmt_line(
 
 /// Rewrite each `$$<ID>` trigger to `§<ID>` — but only where `$$` is immediately
 /// followed by a real ID-shaped token, and never inside a string literal in source
-/// code (§FS-fmt.2.1, §FS-fmt.2.3.1, §DF-reference-marker).
+/// code or Markdown link destinations (§FS-fmt.2.1, §FS-fmt.2.3.1,
+/// §DF-reference-marker).
 fn replace_trigger(line: &str, config: &Config, is_md: bool) -> String {
     let mut output = String::new();
     let mut cursor = 0;
@@ -2668,6 +2669,7 @@ fn replace_trigger(line: &str, config: &Config, is_md: bool) -> String {
             && found.start() == after
             && (is_md || !is_inside_string_literal(line, start))
             && (!is_md || !is_inside_inline_code(line, start))
+            && (!is_md || !is_inside_markdown_link_destination(line, start))
         {
             output.push_str(&line[cursor..start]);
             output.push_str(&config.marker);
@@ -2683,7 +2685,7 @@ fn replace_trigger(line: &str, config: &Config, is_md: bool) -> String {
 
 /// Prefix `§` onto bare ID-shaped tokens that lack it — the `--marker` upgrade
 /// (§FS-fmt.2.2) — skipping tokens already marked, Markdown inline-code examples,
-/// and source-code string literals (§FS-fmt.2.3).
+/// Markdown link destinations, and source-code string literals (§FS-fmt.2.3).
 fn add_markers(line: &str, config: &Config, is_md: bool) -> String {
     let mut output = String::new();
     let mut cursor = 0;
@@ -2692,6 +2694,9 @@ fn add_markers(line: &str, config: &Config, is_md: bool) -> String {
             continue;
         }
         if is_md && is_inside_inline_code(line, found.start()) {
+            continue;
+        }
+        if is_md && is_inside_markdown_link_destination(line, found.start()) {
             continue;
         }
         if !is_md && is_inside_string_literal(line, found.start()) {
@@ -2741,6 +2746,44 @@ fn is_inside_inline_code(line: &str, pos: usize) -> bool {
         i += 1;
     }
     in_code
+}
+
+/// Whether byte offset `pos` falls inside the destination part of an inline
+/// Markdown link (`[text](destination)`). URLs are presentation syntax, not
+/// citations, so `fmt --marker` must not rewrite ID-shaped file names there
+/// (§FS-fmt.2.3).
+fn is_inside_markdown_link_destination(line: &str, pos: usize) -> bool {
+    let bytes = line.as_bytes();
+    let mut i = 0;
+    while i + 1 < bytes.len() {
+        if bytes[i] == b']' && bytes[i + 1] == b'(' && !is_escaped(bytes, i) {
+            let start = i + 2;
+            let mut depth = 1usize;
+            let mut j = start;
+            while j < bytes.len() {
+                match bytes[j] {
+                    b'(' if !is_escaped(bytes, j) => depth += 1,
+                    b')' if !is_escaped(bytes, j) => {
+                        depth -= 1;
+                        if depth == 0 {
+                            if pos >= start && pos < j {
+                                return true;
+                            }
+                            i = j;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                j += 1;
+            }
+            if j >= bytes.len() {
+                return pos >= start;
+            }
+        }
+        i += 1;
+    }
+    false
 }
 
 /// Wrap each `§<ID>[.<section>]` citation on this Markdown line as `[§<ID>…](url)`

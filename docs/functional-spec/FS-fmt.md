@@ -31,6 +31,7 @@ When `--marker` is given, every recognized bare citation is also rewritten to it
 - Declaration headings (the line that names the ID). The marker is for *citations*, not declarations.
 - Citations inside string literals on a source line (where rewriting would change runtime behavior).
 - Citations inside Markdown inline code spans (where rewriting would change a literal command, path, or example).
+- ID-shaped text inside Markdown link destinations (where rewriting would change the URL rather than the visible citation).
 - Files outside the configured scan set.
 
 #### 2.3.1 String-literal exclusion rule
