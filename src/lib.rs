@@ -30,10 +30,10 @@ static STUB_LINK_HEADING: Lazy<Regex> =
 /// An inline Markdown link `[text](url)` — used to reduce a heading to the text a
 /// renderer would slugify (the destination URL is not part of that text), so an
 /// anchor stays correct even when a citation in a section heading has been wrapped
-/// by `gnd fmt --cross-refs` (§DF-github-anchor-fidelity, §FS-fmt.6.2).
+/// by `grund fmt --cross-refs` (§DF-github-anchor-fidelity, §FS-fmt.6.2).
 static MD_INLINE_LINK: Lazy<Regex> = Lazy::new(|| Regex::new(r"\[([^\]]*)\]\([^)]*\)").unwrap());
 /// An HTML-tag-shaped span `<…>` — a renderer drops it from a heading's text
-/// (`## RM-show: gnd show <ID>` slugs as `rm-show-gnd-show`), so it must be removed
+/// (`## RM-show: grund show <ID>` slugs as `rm-show-grund-show`), so it must be removed
 /// before slugging the heading (§DF-github-anchor-fidelity, §FS-fmt.6.2).
 static HTML_TAG: Lazy<Regex> = Lazy::new(|| Regex::new(r"<[^>]*>").unwrap());
 
@@ -47,9 +47,9 @@ fn reduce_heading_text(text: &str) -> String {
         .into_owned()
 }
 static AGENTS_BLOCK_BEGIN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"<!--\s*gnd:init:agents:v(?P<version>\d+)\s+begin\s*-->").unwrap());
+    Lazy::new(|| Regex::new(r"<!--\s*grund:init:agents:v(?P<version>\d+)\s+begin\s*-->").unwrap());
 static AGENTS_BLOCK_END: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"<!--\s*gnd:init:agents:v\d+\s+end\s*-->").unwrap());
+    Lazy::new(|| Regex::new(r"<!--\s*grund:init:agents:v\d+\s+end\s*-->").unwrap());
 
 /// ID grammar compiled from [id].format + [[kinds]] — the single place that knows the
 /// shape of a declaration heading or a citation. Built once per config load.
@@ -275,7 +275,7 @@ struct Declaration {
 
 /// An `e2e/cases/<name>/` directory treated as an `E2E-<name>` declaration
 /// (§AS-scanner.6) — its `command.args`, `expected.exit`, and fixture file list
-/// are what `gnd show E2E-<name>` renders (§FS-show.2.4).
+/// are what `grund show E2E-<name>` renders (§FS-show.2.4).
 #[derive(Debug)]
 struct E2eCase {
     dir: PathBuf,
@@ -286,7 +286,7 @@ struct E2eCase {
 
 /// One citation site: an `<ID>[.<section>]` token, optionally `§`-prefixed
 /// (§AS-scanner.2.3, §FS-check.1.1). `has_marker` drives strict-mode filtering
-/// (§FS-config.3.1) and is what `gnd fmt` upgrades a bare token from (§FS-fmt.2.2).
+/// (§FS-config.3.1) and is what `grund fmt` upgrades a bare token from (§FS-fmt.2.2).
 #[derive(Debug)]
 struct Citation {
     id: Id,
@@ -314,7 +314,7 @@ struct Findings {
 }
 
 /// One `[[kinds]]` entry: prefix plus the folder its declarations live in and the
-/// human title `gnd id` prints (§FS-config.3.4).
+/// human title `grund id` prints (§FS-config.3.4).
 #[derive(Clone)]
 struct KindConfig {
     prefix: String,
@@ -322,15 +322,15 @@ struct KindConfig {
     title: Option<String>,
 }
 
-/// The effective configuration: every `.agents/gnd.toml` key (§FS-config.3) merged
+/// The effective configuration: every `.agents/grund.toml` key (§FS-config.3) merged
 /// over the built-in defaults (§FS-config.2), plus the compiled `Grammar` and the
 /// `root` / `cli_base` paths the walk and the report use.
 #[derive(Clone)]
 struct Config {
     root: PathBuf,
     /// The resolved path argument (or cwd) — the base for reports when
-    /// `[output] relative_paths = false`, i.e. the base `gnd` would use if no
-    /// `.agents/gnd.toml` were discovered (§FS-config.3.6).
+    /// `[output] relative_paths = false`, i.e. the base `grund` would use if no
+    /// `.agents/grund.toml` were discovered (§FS-config.3.6).
     cli_base: PathBuf,
     marker: String,
     trigger: String,
@@ -338,7 +338,7 @@ struct Config {
     /// `[reference] require_grounding` (§FS-config.3.1, §FS-check.3.6,
     /// §DF-require-grounding) — when true, `check` also reports every scanned
     /// source file that carries no resolving citation (and declares no ID inline).
-    /// `--require-grounding` on `gnd check` forces it on for one run.
+    /// `--require-grounding` on `grund check` forces it on for one run.
     require_grounding: bool,
     include: Option<Vec<String>>,
     exclude: Vec<String>,
@@ -358,7 +358,7 @@ struct Config {
     grammar: Grammar,
 }
 
-const DEFAULT_KINDS: &[&str] = &["G", "FS", "AS", "DF", "DA", "E2E", "RM"];
+const DEFAULT_KINDS: &[&str] = &["GND", "GOAL", "FS", "AS", "DF", "DA", "E2E", "RM"];
 const DEFAULT_ID_FORMAT: &str = "{kind}-{number}-{slug}";
 const DEFAULT_SECTION_SEPARATOR: &str = ".";
 const DEFAULT_NUMBER_PATTERN: &str = r"\d+";
@@ -366,7 +366,7 @@ const DEFAULT_SLUG_PATTERN: &str = r"[a-z0-9][a-z0-9-]*";
 
 impl Config {
     /// The built-in defaults — the canonical grammar a conformant tree gets with
-    /// no `.agents/gnd.toml` at all (§FS-config.2, §G-zero-config). `gnd init`
+    /// no `.agents/grund.toml` at all (§FS-config.2, §GOAL-zero-config). `grund init`
     /// writes these same values out verbatim as a teaching surface (§FS-init.2.4).
     fn default_for(root: PathBuf) -> Self {
         let kinds: Vec<KindConfig> = DEFAULT_KINDS
@@ -469,11 +469,12 @@ fn kind_prefixes(kinds: &[KindConfig]) -> Vec<String> {
     kinds.iter().map(|kind| kind.prefix.clone()).collect()
 }
 
-/// Default home folder for each built-in kind — the directory `gnd id` proposes
-/// a path under and `gnd check` expects the declaration to live in (§FS-config.3.4).
+/// Default home folder for each built-in kind — the directory `grund id` proposes
+/// a path under and `grund check` expects the declaration to live in (§FS-config.3.4).
 fn default_kind_folder(prefix: &str) -> Option<&'static str> {
     match prefix {
-        "G" => Some("docs/goals"),
+        "GND" => Some("docs"),
+        "GOAL" => Some("docs/goals"),
         "FS" => Some("docs/functional-spec"),
         "AS" => Some("docs/architectural-spec"),
         "DA" => Some("docs/decisions/architectural"),
@@ -484,11 +485,12 @@ fn default_kind_folder(prefix: &str) -> Option<&'static str> {
     }
 }
 
-/// Default human title for each built-in kind, printed by `gnd id` (§FS-config.3.4,
+/// Default human title for each built-in kind, printed by `grund id` (§FS-config.3.4,
 /// §FS-id.2).
 fn default_kind_title(prefix: &str) -> Option<&'static str> {
     match prefix {
-        "G" => Some("Goal"),
+        "GND" => Some("Grund"),
+        "GOAL" => Some("Goal"),
         "FS" => Some("Functional spec"),
         "AS" => Some("Architectural spec"),
         "DA" => Some("Architectural decision"),
@@ -526,7 +528,7 @@ struct Report {
     warnings: Vec<Diagnostic>,
 }
 
-/// What `gnd show` resolved an ID to: the body text to print, the `path:line` it
+/// What `grund show` resolved an ID to: the body text to print, the `path:line` it
 /// came from, and the pre-rendered JSON when `--format json` was asked for
 /// (§FS-show.3, §FS-errors.5).
 struct ShowOutput {
@@ -548,7 +550,7 @@ fn parse_id(caps: &regex::Captures) -> Option<Id> {
     Some(Id { kind, num, slug })
 }
 
-/// Parse a CLI `<ID>[.<section>]` argument (the form `gnd show` / `gnd refs` take,
+/// Parse a CLI `<ID>[.<section>]` argument (the form `grund show` / `grund refs` take,
 /// §FS-show.1, §FS-refs.1) into an `Id` and an optional section path (§FS-config.3.3).
 fn parse_id_arg(raw: &str, grammar: &Grammar) -> Result<(Id, Option<String>)> {
     let caps = grammar
@@ -560,9 +562,9 @@ fn parse_id_arg(raw: &str, grammar: &Grammar) -> Result<(Id, Option<String>)> {
 }
 
 /// Discover and load the effective config: walk upward from `start` for the
-/// nearest `.agents/gnd.toml` (§FS-config.1), parse it over the defaults
+/// nearest `.agents/grund.toml` (§FS-config.1), parse it over the defaults
 /// (§FS-config.2), or fall back to the pure defaults if none is found
-/// (§G-zero-config).
+/// (§GOAL-zero-config).
 fn load_config(start: &Path) -> Result<Config> {
     let start_dir = if start.is_file() {
         start.parent().unwrap_or(Path::new(".")).to_path_buf()
@@ -571,11 +573,11 @@ fn load_config(start: &Path) -> Result<Config> {
     };
     // Resolve to an absolute path before walking up, mirroring how `cargo` finds
     // `Cargo.toml` (§FS-config.1): a relative `.` or `subdir/` must still discover
-    // a `.agents/gnd.toml` in an ancestor directory.
+    // a `.agents/grund.toml` in an ancestor directory.
     let walk_start = fs::canonicalize(&start_dir).unwrap_or(start_dir);
     let mut cursor = Some(walk_start.as_path());
     while let Some(dir) = cursor {
-        let candidate = dir.join(".agents").join("gnd.toml");
+        let candidate = dir.join(".agents").join("grund.toml");
         if candidate.exists() {
             let mut config = Config::default_for(dir.to_path_buf());
             config.cli_base = walk_start.clone();
@@ -591,9 +593,9 @@ fn load_config(start: &Path) -> Result<Config> {
         }
         cursor = dir.parent();
     }
-    // Zero-config (§G-zero-config): the "project root" is the current working
+    // Zero-config (§GOAL-zero-config): the "project root" is the current working
     // directory, never the path that happened to be passed on the command line —
-    // so `[scan] include` resolves against the repo and `gnd check src/` scopes
+    // so `[scan] include` resolves against the repo and `grund check src/` scopes
     // *into* it instead of looking for `src/docs`, `src/e2e`, `src/src`. Reports
     // stay relative to `cli_base` (the resolved path arg) when
     // `[output] relative_paths = false` (§FS-config.3.6).
@@ -606,7 +608,7 @@ fn load_config(start: &Path) -> Result<Config> {
     Ok(config)
 }
 
-/// Parse one `.agents/gnd.toml` over `config` — the schema of §FS-config.3 and its
+/// Parse one `.agents/grund.toml` over `config` — the schema of §FS-config.3 and its
 /// subsections (`[reference]` 3.1, `[id]` 3.2/3.3, `[[kinds]]` 3.4, `[scan]` 3.5,
 /// `[output]` 3.6, `[fmt.cross_refs]` 3.7). Any unknown section/key or malformed
 /// value is a hard error reported as `path:line:` (§FS-config.4.3, §FS-errors.2.1).
@@ -662,15 +664,15 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
         let key = key.trim();
         let value = value.trim();
         match (section.as_str(), key) {
-            ("", "gnd_config_version") => {
+            ("", "grund_config_version") => {
                 if value != "1" {
                     bail_config(
                         path,
                         line_no,
                         format!(
                             "unsupported config version `{value}` \
-                             (this gnd understands gnd_config_version = 1; \
-                             upgrade gnd if the config is newer)"
+                             (this grund understands grund_config_version = 1; \
+                             upgrade grund if the config is newer)"
                         ),
                     )?;
                 }
@@ -842,7 +844,7 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
     Ok(())
 }
 
-/// Drop a trailing `#`-comment from a `.agents/gnd.toml` line (§FS-config.3).
+/// Drop a trailing `#`-comment from a `.agents/grund.toml` line (§FS-config.3).
 fn strip_comment(line: &str) -> &str {
     // A `#` inside a quoted string is not a comment marker. Walk the line and stop at the
     // first unquoted `#`; otherwise return the line unchanged.
@@ -871,7 +873,7 @@ fn is_escaped(bytes: &[u8], pos: usize) -> bool {
 }
 
 /// Fail config parsing with a `path:line: message` error — the located-finding
-/// shape applied to a malformed `.agents/gnd.toml` (§FS-config.4.3, §FS-errors.2.1).
+/// shape applied to a malformed `.agents/grund.toml` (§FS-config.4.3, §FS-errors.2.1).
 fn bail_config<T>(path: &Path, line: usize, message: String) -> Result<T> {
     Err(anyhow!("{}:{}: {}", path.display(), line, message))
 }
@@ -1081,7 +1083,7 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
 
 /// Discover `e2e/cases/<name>/` directories and register each as an `E2E-<name>`
 /// declaration whose body is the case manifest (§AS-scanner.6, §FS-show.2.4) — so
-/// `gnd check` sees `§E2E-…` citations resolve and `gnd refs` finds e2e tests.
+/// `grund check` sees `§E2E-…` citations resolve and `grund refs` finds e2e tests.
 fn scan_e2e_cases(
     config: &Config,
     scope: Option<&Path>,
@@ -1188,7 +1190,7 @@ fn literal_after_kind_placeholder(format: &str) -> Option<&str> {
 }
 
 /// Inverse of `e2e_id_from_case_dir_name`: strip the `E2E` prefix off a rendered ID
-/// to get the `e2e/cases/<name>/` directory `gnd id` tells the author to create
+/// to get the `e2e/cases/<name>/` directory `grund id` tells the author to create
 /// (§FS-id.2, §AS-scanner.6).
 fn e2e_case_dir_name(config: &Config, rendered: &str) -> String {
     let prefix = format!(
@@ -1203,7 +1205,7 @@ fn e2e_case_dir_name(config: &Config, rendered: &str) -> String {
 
 /// Read one e2e case directory into an `E2eCase` — `command.args` (defaulting to
 /// `check`), `expected.exit`, and the recursive fixture file list — the data
-/// `gnd show E2E-<name>` renders (§FS-show.2.4).
+/// `grund show E2E-<name>` renders (§FS-show.2.4).
 fn read_e2e_case(dir: &Path) -> Result<E2eCase> {
     let command_args = dir.join("command.args");
     let args = if command_args.is_file() {
@@ -1386,7 +1388,7 @@ fn scan_tree_strict(
     Ok(findings)
 }
 
-/// # AS-checker: how gnd validates the scanner's findings
+/// # AS-checker: how grund validates the scanner's findings
 ///
 /// The checker takes the `Findings` produced by §AS-scanner and produces a
 /// `Report`. It implements the rules in §FS-check.
@@ -1398,7 +1400,7 @@ fn scan_tree_strict(
 ///   whether `[reference] require_grounding` is on).
 /// - Output: a `Report` containing two ordered lists: `errors` and `warnings`.
 ///   Order is deterministic — sorted into the fixed report order of §FS-errors.4
-///   and §FS-non-goals.9 — for §G-friendliness-first.
+///   and §FS-non-goals.9 — for §GOAL-friendliness-first.
 ///
 /// ## 2. Rules
 ///
@@ -1440,14 +1442,14 @@ fn scan_tree_strict(
 ///
 /// ### 2.6 Invalid agent-entrypoint init block (§FS-check.3.5)
 ///
-/// When `<root>/AGENTS.md` exists, verify its versioned `gnd init` block (and the
+/// When `<root>/AGENTS.md` exists, verify its versioned `grund init` block (and the
 /// matching block in any non-symlink companion entrypoint that is present): a
 /// missing block, a malformed begin/end pair, an older version, or a newer
 /// unsupported version is one error at the entrypoint's line.
 ///
 /// ### 2.7 Ungrounded source files — opt-in (§FS-check.3.6, §DF-require-grounding)
 ///
-/// When `[reference] require_grounding = true` (or `gnd check --require-grounding`),
+/// When `[reference] require_grounding = true` (or `grund check --require-grounding`),
 /// every scanned non-`.md` file must carry at least one recognised citation that
 /// resolves, or itself declare an ID inline; a source file that does neither is
 /// one error anchored at line 1. Off by default.
@@ -1457,7 +1459,7 @@ fn scan_tree_strict(
 /// Every error and warning follows `<path>:<line>: <message>` so that editors and
 /// agents can jump to the source. There is no severity prefix, and there is no
 /// aggregate summary footer — the exit code is the machine-readable verdict. This
-/// is mandated by §G-friendliness-first and §FS-check.2.1.
+/// is mandated by §GOAL-friendliness-first and §FS-check.2.1.
 ///
 /// Findings without a single source location (CLI launch errors, malformed
 /// configuration that prevents a scan from starting, a per-file read failure
@@ -1654,7 +1656,7 @@ fn check(findings: &Findings, config: &Config) -> Report {
     report
 }
 
-/// Put diagnostics in the one fixed order `gnd` ever prints them in — by path, then
+/// Put diagnostics in the one fixed order `grund` ever prints them in — by path, then
 /// line, then message text — so two runs over the same tree agree byte-for-byte
 /// (§FS-errors.4) and ordering is not a knob (§FS-non-goals.9).
 fn sort_diagnostics(diagnostics: &mut [Diagnostic]) {
@@ -1676,7 +1678,7 @@ fn diagnostic_cmp(a: &Diagnostic, b: &Diagnostic) -> std::cmp::Ordering {
 
 /// Validate the managed agent-entrypoint blocks (§FS-check.3.5): the begin/end
 /// marker pair must be present and intact, and the `vN` version must match this
-/// binary — an older `vN` is "run `gnd init`" (§FS-init.2.3), a newer one is
+/// binary — an older `vN` is "run `grund init`" (§FS-init.2.3), a newer one is
 /// fatal. `AGENTS.md` is canonical; known companion entrypoints are checked only
 /// when present and not symlinked to `AGENTS.md`.
 fn check_agents_block_version(root: &Path, report: &mut Report) {
@@ -1728,7 +1730,7 @@ fn check_agent_block_path(path: &Path, report: &mut Report) {
                 path: Some(path.to_path_buf()),
                 line: Some(line),
                 message: format!(
-                    "outdated gnd init block v{} (run `gnd init` to update to v{})",
+                    "outdated grund init block v{} (run `grund init` to update to v{})",
                     block.version, AGENTS_BLOCK_VERSION
                 ),
                 sites: Vec::new(),
@@ -1739,7 +1741,7 @@ fn check_agent_block_path(path: &Path, report: &mut Report) {
                 path: Some(path.to_path_buf()),
                 line: Some(line),
                 message: format!(
-                    "unsupported gnd init block v{} (this gnd supports v{})",
+                    "unsupported grund init block v{} (this grund supports v{})",
                     block.version, AGENTS_BLOCK_VERSION
                 ),
                 sites: Vec::new(),
@@ -1756,7 +1758,7 @@ fn check_agent_block_path(path: &Path, report: &mut Report) {
             code: "agents-init",
             path: Some(path.to_path_buf()),
             line: Some(line),
-            message: "malformed gnd init block".to_string(),
+            message: "malformed grund init block".to_string(),
             sites: Vec::new(),
         });
     } else {
@@ -1764,7 +1766,7 @@ fn check_agent_block_path(path: &Path, report: &mut Report) {
             code: "agents-init",
             path: Some(path.to_path_buf()),
             line: Some(1),
-            message: format!("missing gnd init block v{}", AGENTS_BLOCK_VERSION),
+            message: format!("missing grund init block v{}", AGENTS_BLOCK_VERSION),
             sites: Vec::new(),
         });
     }
@@ -1998,7 +2000,7 @@ fn display_path(config: &Config, path: &Path) -> String {
 /// scope, so we say so instead of printing nothing and exiting `0`. This is a
 /// warning — it never changes the exit code.
 fn empty_scan_warning(config: &Config, path: &Path, path_provided: bool) -> Diagnostic {
-    // `gnd`, `gnd check .`, and `gnd check <repo-root>` all walk `[scan] include`
+    // `grund`, `grund check .`, and `grund check <repo-root>` all walk `[scan] include`
     // relative to the config root — so the "looked under include" message is the
     // accurate one whenever the requested path *is* that root, not just when the
     // path was omitted.
@@ -2009,17 +2011,17 @@ fn empty_scan_warning(config: &Config, path: &Path, path_provided: bool) -> Diag
             .unwrap_or(false);
     let message = match (&config.include, scoped_to_root) {
         (Some(dirs), true) => format!(
-            "nothing to scan — gnd looked under [scan] include = [{}] and found no files. Run \
-             `gnd init --docs` to scaffold the canonical docs/ and e2e/ trees, point `[scan] \
-             include` in `.agents/gnd.toml` at your sources, or pass a path explicitly \
-             (`gnd check <dir>`).",
+            "nothing to scan — grund looked under [scan] include = [{}] and found no files. Run \
+             `grund init --docs` to scaffold the canonical docs/ and e2e/ trees, point `[scan] \
+             include` in `.agents/grund.toml` at your sources, or pass a path explicitly \
+             (`grund check <dir>`).",
             dirs.iter()
                 .map(|dir| format!("\"{dir}\""))
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
         _ => format!(
-            "nothing to scan — no files under `{}` matched gnd's extensions ({}).",
+            "nothing to scan — no files under `{}` matched grund's extensions ({}).",
             path.display(),
             config.extensions.join(", ")
         ),
@@ -2033,7 +2035,7 @@ fn empty_scan_warning(config: &Config, path: &Path, path_provided: bool) -> Diag
     }
 }
 
-/// `gnd check [path] [--format text|json]` — the default subcommand (§FS-cli.1):
+/// `grund check [path] [--format text|json]` — the default subcommand (§FS-cli.1):
 /// scan the tree, run the checker (§FS-check), print the report, and exit `0` clean
 /// / `1` on a finding / `2` on a CLI or I/O error (§FS-check.2.1, §FS-cli.5).
 fn command_check(args: &[String]) -> ExitCode {
@@ -2143,7 +2145,7 @@ fn command_check(args: &[String]) -> ExitCode {
     }
 }
 
-/// `gnd show <ID>[.<section>] [--head|--full] [--section S] [--format text|md|json]`
+/// `grund show <ID>[.<section>] [--head|--full] [--section S] [--format text|md|json]`
 /// — print the body of one declaration (§FS-show.1): the whole thing by default
 /// (§FS-show.2.1), the lead paragraph with `--head` (§FS-show.2.1.1), one
 /// subsection with `.<section>` or `--section` (§FS-show.2.2). Ambiguous IDs and
@@ -2240,7 +2242,7 @@ fn command_show(args: &[String]) -> ExitCode {
             } else {
                 eprintln!("{message}");
                 eprintln!(
-                    "hint: this repo's [id] format is `{}` (run `gnd config show`); `gnd list` shows the IDs that exist",
+                    "hint: this repo's [id] format is `{}` (run `grund config show`); `grund list` shows the IDs that exist",
                     config.id_format
                 );
             }
@@ -2306,11 +2308,11 @@ fn command_show(args: &[String]) -> ExitCode {
                 eprintln!("{message}");
                 if message.starts_with("ID not found:") {
                     eprintln!(
-                        "hint: run `gnd list` to see every declared ID, or `gnd id <KIND> \"<title>\"` to propose a new one"
+                        "hint: run `grund list` to see every declared ID, or `grund id <KIND> \"<title>\"` to propose a new one"
                     );
                 } else if message.starts_with("section not found:") {
                     eprintln!(
-                        "hint: run `gnd show {}` to print the whole declaration with its section numbers",
+                        "hint: run `grund show {}` to print the whole declaration with its section numbers",
                         render_id(&config, &id)
                     );
                 }
@@ -2391,7 +2393,7 @@ fn show_declaration(
     extract_declaration_body(&file, id, section, head, include_heading, config)
 }
 
-/// Render an e2e case as a `gnd show` body: the invocation, expected exit, and
+/// Render an e2e case as a `grund show` body: the invocation, expected exit, and
 /// fixture list (or just the invocation with `--head`), plus the JSON shape — the
 /// case manifest of §FS-show.2.4. E2E declarations have no sections, so any
 /// `.<section>` is "section not found".
@@ -2410,7 +2412,7 @@ fn show_e2e_case(
             section
         ));
     }
-    let invocation = format!("gnd {}", case.args.join(" "));
+    let invocation = format!("grund {}", case.args.join(" "));
     let body = if head {
         format!("{invocation}\n")
     } else {
@@ -2639,7 +2641,7 @@ fn is_line_style_comment_line(line: &str) -> bool {
         || trimmed.starts_with("--")
 }
 
-/// `gnd fmt [path] [--check|--write] [--marker] [--cross-refs]` — normalize citation
+/// `grund fmt [path] [--check|--write] [--marker] [--cross-refs]` — normalize citation
 /// syntax in bulk (§FS-fmt.1): rewrite the `$$` trigger to the `§` marker
 /// (§FS-fmt.2.1), and with `--marker` upgrade bare ID-shaped tokens to `§`-prefixed
 /// (§FS-fmt.2.2); with `--cross-refs` (or `[fmt.cross_refs] enabled`) also wrap
@@ -2699,8 +2701,8 @@ fn command_fmt(args: &[String]) -> ExitCode {
         }
     };
     // §FS-fmt.3 / §FS-errors.1: the report is `fmt`'s output — on stdout, the
-    // same stream `gnd check`'s findings use, not the stderr transcript shape
-    // `gnd init` uses (§FS-errors.6). Only CLI-level `error:` lines go to stderr.
+    // same stream `grund check`'s findings use, not the stderr transcript shape
+    // `grund init` uses (§FS-errors.6). Only CLI-level `error:` lines go to stderr.
     if write {
         let mut files: Vec<PathBuf> = changes.iter().map(|(path, _, _)| path.clone()).collect();
         files.sort();
@@ -3013,17 +3015,17 @@ fn wrap_markdown_links(line: &str, path: &Path, config: &Config, findings: &Find
     output
 }
 
-/// Flatten `gnd fmt --cross-refs` link wrappers in a body before `gnd show`
+/// Flatten `grund fmt --cross-refs` link wrappers in a body before `grund show`
 /// prints it in `text` / `json` (§FS-show.3.2, §DF-show-cross-ref-flattening):
 /// `[§<ID>.<section>](path#anchor)` → `§<ID>.<section>`. The inverse of
 /// `wrap_markdown_links` (§FS-fmt.6.2) — the wrap shape is a `[` immediately
 /// before a marker-prefixed citation token and `](…)` immediately after it,
-/// exactly what `gnd fmt --cross-refs` emits and re-derives (§FS-fmt.6.3); that
+/// exactly what `grund fmt --cross-refs` emits and re-derives (§FS-fmt.6.3); that
 /// is the only thing flattened. Ordinary Markdown links, an unwrapped citation,
 /// a citation inside an inline-code span (illustrative, like `fmt` itself —
 /// §FS-fmt.6.4), and `--format md` output (kept verbatim by the caller) are all
 /// left untouched. Purely textual: the citation is never resolved, so a dangling
-/// one is flattened just the same and `gnd check` still reports it.
+/// one is flattened just the same and `grund check` still reports it.
 fn flatten_cross_ref_links(body: &str, config: &Config) -> String {
     if !body.contains("](") {
         return body.to_string();
@@ -3056,7 +3058,7 @@ fn flatten_cross_ref_links_line(line: &str, config: &Config) -> String {
             continue;
         }
         // A citation shown inside `` `…` `` is an illustration, not a citation —
-        // leave it exactly as written, the same call `gnd fmt --cross-refs` makes.
+        // leave it exactly as written, the same call `grund fmt --cross-refs` makes.
         if is_inside_inline_code(line, bracket_pos) {
             continue;
         }
@@ -3142,7 +3144,7 @@ fn declaration_heading_text(decl: &Declaration, config: &Config) -> String {
 }
 
 /// `../`-style relative path from one repo file to another — the link form
-/// `gnd fmt --cross-refs` writes (§FS-fmt.6.2).
+/// `grund fmt --cross-refs` writes (§FS-fmt.6.2).
 fn relative_url(from_file: &Path, to_file: &Path, config: &Config) -> String {
     let from_rel = from_file.strip_prefix(&config.root).unwrap_or(from_file);
     let to_rel = to_file.strip_prefix(&config.root).unwrap_or(to_file);
@@ -3182,7 +3184,7 @@ fn path_components(path: &Path) -> Vec<String> {
 /// stored (§DF-md-link-anchor-strategy). The title is reduced to its rendered form
 /// (`reduce_heading_text`: `[§FS-<x>.1](path)` → `§FS-<x>.1`, `<ID>` dropped) so
 /// the anchor is stable whether or not a citation in this heading has been wrapped
-/// by `gnd fmt --cross-refs` (§DF-github-anchor-fidelity).
+/// by `grund fmt --cross-refs` (§DF-github-anchor-fidelity).
 fn section_anchor_text(line: &str, section: &str) -> String {
     let trimmed = line.trim_start();
     let heading = trimmed
@@ -3271,7 +3273,7 @@ fn anchor_slug_github(text: &str) -> String {
 
 fn anchor_slug_gitlab(text: &str) -> String {
     // "Similar to GitHub with minor Unicode-handling differences"
-    // (§DF-md-link-anchor-strategy.2.3); identical for the ASCII headings gnd's own
+    // (§DF-md-link-anchor-strategy.2.3); identical for the ASCII headings grund's own
     // specs use, so it rides the github slugger (§DF-github-anchor-fidelity).
     anchor_slug_github(text)
 }
@@ -3318,10 +3320,10 @@ fn anchor_slug_pandoc(text: &str) -> String {
     out
 }
 
-/// `gnd config validate|show [path]` — `validate` loads the discovered config and
+/// `grund config validate|show [path]` — `validate` loads the discovered config and
 /// exits `1` if it is malformed (§FS-config.4.1, §FS-config.4.3); `show` prints the
 /// *effective* config (file merged over defaults) as TOML (§FS-config.4.2), which
-/// is also what `AGENTS.md` and `gnd id` read for the repo's grammar.
+/// is also what `AGENTS.md` and `grund id` read for the repo's grammar.
 fn command_config(args: &[String]) -> ExitCode {
     let Some(action) = args.first().map(|arg| arg.as_str()) else {
         eprintln!("error: expected `config validate` or `config show`");
@@ -3361,7 +3363,7 @@ fn command_config(args: &[String]) -> ExitCode {
         },
         "show" => match load_config(&path) {
             Ok(config) => {
-                println!("gnd_config_version = 1");
+                println!("grund_config_version = 1");
                 println!();
                 println!("[reference]");
                 println!("marker = \"{}\"", config.marker);
@@ -3446,7 +3448,7 @@ fn format_toml_string_list(values: &[String]) -> String {
     )
 }
 
-/// `gnd id <KIND> "<title>" [--width N] [--explain] [--format text|json]` —
+/// `grund id <KIND> "<title>" [--width N] [--explain] [--format text|json]` —
 /// propose an ID for a new declaration (§FS-id.1): derive a slug from the title
 /// (§FS-id.3), the next free number for number-bearing formats (§FS-id.4),
 /// check it doesn't collide with an existing declaration (§FS-id.5), and print
@@ -3612,7 +3614,7 @@ fn command_id(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// `gnd refs <ID>[.<section>] [--format text|json]` — the reverse of `gnd show`:
+/// `grund refs <ID>[.<section>] [--format text|json]` — the reverse of `grund show`:
 /// list every place that cites the ID (§FS-refs.1, §FS-refs.2), scheme-aware where
 /// a grep cannot be. Shares the scanner with `check` so the two never disagree on
 /// what counts as a citation (§FS-refs.5). Empty results, including undeclared IDs
@@ -3681,12 +3683,12 @@ fn command_refs(args: &[String]) -> ExitCode {
         Err(err) => {
             // §FS-refs.1: an ID arg that does not match `[id] format` is a CLI-level
             // error (exit 2 — `refs` has no exit-`1` query-failure class, §FS-refs.4),
-            // but the hint is the same one `gnd show` gives for the same stumble
+            // but the hint is the same one `grund show` gives for the same stumble
             // (§FS-show.3) — the common surprise in a repo whose format differs from
-            // the `{kind}-{slug}` `gnd` itself uses.
+            // the `{kind}-{slug}` `grund` itself uses.
             eprintln!("error: {err:#}");
             eprintln!(
-                "hint: this repo's [id] format is `{}` (run `gnd config show`); `gnd list` shows the IDs that exist",
+                "hint: this repo's [id] format is `{}` (run `grund config show`); `grund list` shows the IDs that exist",
                 config.id_format
             );
             return ExitCode::from(2);
@@ -3728,12 +3730,12 @@ fn command_refs(args: &[String]) -> ExitCode {
     // breadcrumb on stderr without changing the exit code.
     if citations.is_empty() && !findings.declarations.contains_key(&id) {
         eprintln!(
-            "note: {} is neither declared nor cited — run `gnd list` to see every declared ID",
+            "note: {} is neither declared nor cited — run `grund list` to see every declared ID",
             render_id(&config, &id)
         );
     }
     // §FS-refs.3: the citation list is the *result* of the query, so it goes to
-    // stdout (text and JSON alike), like `gnd list` / `gnd cover` / `gnd show` —
+    // stdout (text and JSON alike), like `grund list` / `grund cover` / `grund show` —
     // even though a line shares the `path:line: <text>` shape `check` uses for
     // diagnostics on stderr. Only the `note:` breadcrumb above stays on stderr.
     if format == "json" {
@@ -3779,7 +3781,7 @@ fn render_citation_json(config: &Config, citation: &Citation) -> String {
     )
 }
 
-/// `gnd cover [path] [--format text|json]` — expose the citation graph grouped by
+/// `grund cover [path] [--format text|json]` — expose the citation graph grouped by
 /// scanned file (§FS-cover): no new scan logic, no git diff, just the same
 /// `Findings` data `check` and `refs` already consume.
 fn command_cover(args: &[String]) -> ExitCode {
@@ -3887,7 +3889,7 @@ fn command_cover(args: &[String]) -> ExitCode {
     }
 }
 
-/// `gnd list [path] [--kind K] [--unused] [--format text|json]` — print every
+/// `grund list [path] [--kind K] [--unused] [--format text|json]` — print every
 /// declared ID with its home `path:line` and one-line title (§FS-list.1,
 /// §FS-list.3), optionally filtered to one kind or to declarations nothing cites
 /// (the same set as the §FS-check.4.1 warning). The discovery side of the loop:
@@ -3981,7 +3983,7 @@ fn command_list(args: &[String]) -> ExitCode {
         refs: usize,
     }
     // `findings.declarations` is a BTreeMap keyed by `Id`, so the catalog comes
-    // out in the same stable order `gnd check` reports diagnostics in.
+    // out in the same stable order `grund check` reports diagnostics in.
     let mut entries: Vec<Entry> = Vec::new();
     for (id, decls) in &findings.declarations {
         if let Some(kind) = &kind_filter
@@ -3995,9 +3997,9 @@ fn command_list(args: &[String]) -> ExitCode {
         }
         // `--unused` lists declarations nothing cites — but an E2E case is a proof
         // artifact, exercised by being run, not a citation target (the same reason
-        // §FS-check.4.1 does not warn for uncited E2E cases). Bare `gnd list --unused`
+        // §FS-check.4.1 does not warn for uncited E2E cases). Bare `grund list --unused`
         // therefore skips E2E so the actionable signal — uncited specs and decisions —
-        // is not buried under the whole case corpus; `gnd list --unused --kind E2E`
+        // is not buried under the whole case corpus; `grund list --unused --kind E2E`
         // opts back in for an inventory (§FS-list.1, §FS-list.3.1).
         if unused_only && id.kind == "E2E" && kind_filter.as_deref() != Some("E2E") {
             continue;
@@ -4073,9 +4075,9 @@ fn command_list(args: &[String]) -> ExitCode {
             };
             if entry.duplicate {
                 if note.is_empty() {
-                    note = "(duplicate declaration — gnd check)".to_string();
+                    note = "(duplicate declaration — grund check)".to_string();
                 } else {
-                    note.push_str("  (duplicate declaration — gnd check)");
+                    note.push_str("  (duplicate declaration — grund check)");
                 }
             }
             if note.is_empty() {
@@ -4098,7 +4100,7 @@ fn command_list(args: &[String]) -> ExitCode {
     }
 }
 
-/// `gnd complete <subcommand>` — the namespace for internal completion helpers
+/// `grund complete <subcommand>` — the namespace for internal completion helpers
 /// the generated shell scripts call (§FS-completions.2).
 fn command_complete(args: &[String]) -> ExitCode {
     match args.first().map(|arg| arg.as_str()) {
@@ -4110,7 +4112,7 @@ fn command_complete(args: &[String]) -> ExitCode {
     }
 }
 
-/// `gnd complete ids [--prefix P] [--sections] [path]` — the dynamic helper a
+/// `grund complete ids [--prefix P] [--sections] [path]` — the dynamic helper a
 /// shell completion calls on every tab press (§FS-completions.2): emit declared
 /// IDs (or `ID.section` candidates) matching the prefix, one per line. Scan/config
 /// failures exit `0` silently so a broken repo never smears diagnostics across the
@@ -4194,9 +4196,9 @@ fn command_complete_ids(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// `gnd completions <bash|zsh|fish>` — print the completion script for one shell
+/// `grund completions <bash|zsh|fish>` — print the completion script for one shell
 /// to stdout, ready to `source` (§FS-completions.1, §FS-completions.4). The scripts
-/// call back into `gnd complete ids` for the dynamic ID list.
+/// call back into `grund complete ids` for the dynamic ID list.
 fn command_completions(args: &[String]) -> ExitCode {
     if args.is_empty() {
         eprintln!("error: completions requires <bash|zsh|fish>");
@@ -4227,18 +4229,18 @@ fn command_completions(args: &[String]) -> ExitCode {
     }
 }
 
-/// The bash completion script: subcommand + flag completion, with `gnd show` /
-/// `gnd refs` ID arguments wired to `gnd complete ids` (§FS-completions.1,
+/// The bash completion script: subcommand + flag completion, with `grund show` /
+/// `grund refs` ID arguments wired to `grund complete ids` (§FS-completions.1,
 /// §FS-completions.2).
 fn print_bash_completion() {
     print!(
-        r#"# bash completion for gnd
-_gnd_complete_ids() {{
+        r#"# bash completion for grund
+_grund_complete_ids() {{
     local cur="${{COMP_WORDS[COMP_CWORD]}}"
-    mapfile -t COMPREPLY < <(gnd complete ids --prefix "$cur" 2>/dev/null)
+    mapfile -t COMPREPLY < <(grund complete ids --prefix "$cur" 2>/dev/null)
 }}
 
-_gnd() {{
+_grund() {{
     local cur="${{COMP_WORDS[COMP_CWORD]}}"
     local sub="${{COMP_WORDS[1]}}"
     COMPREPLY=()
@@ -4250,13 +4252,13 @@ _gnd() {{
 
     case "$sub" in
         show|refs)
-            _gnd_complete_ids
+            _grund_complete_ids
             return 0
             ;;
     esac
 }}
 
-complete -F _gnd gnd
+complete -F _grund grund
 "#
     );
 }
@@ -4265,15 +4267,15 @@ complete -F _gnd gnd
 /// (§FS-completions.1, §FS-completions.2).
 fn print_zsh_completion() {
     println!(
-        r#"#compdef gnd
+        r#"#compdef grund
 
-_gnd_ids() {{
+_grund_ids() {{
   local -a ids
-  ids=("${{(@f)$(gnd complete ids --prefix "$words[CURRENT]" 2>/dev/null)}}")
-  _describe 'gnd ids' ids
+  ids=("${{(@f)$(grund complete ids --prefix "$words[CURRENT]" 2>/dev/null)}}")
+  _describe 'grund ids' ids
 }}
 
-_gnd() {{
+_grund() {{
   local -a commands
   commands=(
     'check:validate every reference in a repo'
@@ -4290,40 +4292,40 @@ _gnd() {{
   )
 
   if (( CURRENT == 2 )); then
-    _describe 'gnd command' commands
+    _describe 'grund command' commands
     return
   fi
 
   case "$words[2]" in
-    show|refs) _gnd_ids ;;
+    show|refs) _grund_ids ;;
     *) _files ;;
   esac
 }}
 
-_gnd "$@"
+_grund "$@"
 "#
     );
 }
 
-/// The fish completion script — `complete -c gnd …` lines, ID arguments wired to
-/// `gnd complete ids` (§FS-completions.1, §FS-completions.2).
+/// The fish completion script — `complete -c grund …` lines, ID arguments wired to
+/// `grund complete ids` (§FS-completions.1, §FS-completions.2).
 fn print_fish_completion() {
     println!(
-        r#"# fish completion for gnd
-function __gnd_complete_ids
+        r#"# fish completion for grund
+function __grund_complete_ids
     set -l token (commandline -ct)
-    gnd complete ids --prefix "$token" 2>/dev/null
+    grund complete ids --prefix "$token" 2>/dev/null
 end
 
-complete -c gnd -f -n "__fish_use_subcommand" -a "check show list refs cover fmt id init config agent-setup-instructions completions"
-complete -c gnd -f -n "__fish_seen_subcommand_from show refs" -a "(__gnd_complete_ids)"
+complete -c grund -f -n "__fish_use_subcommand" -a "check show list refs cover fmt id init config agent-setup-instructions completions"
+complete -c grund -f -n "__fish_seen_subcommand_from show refs" -a "(__grund_complete_ids)"
 "#
     );
 }
 
 /// The repeating character class of a slug pattern — the last `[...]` bracket
 /// expression in `slug_pattern` (e.g. `[a-z0-9-]` from `[a-z0-9][a-z0-9-]*`) —
-/// used when slugifying a `gnd id` title so the result fits the configured
+/// used when slugifying a `grund id` title so the result fits the configured
 /// `[id] slug_pattern` (§FS-id.3, §FS-config.3.2). Falls back to the canonical
 /// default if the pattern has no bracket expression.
 fn slug_char_class(slug_pattern: &str) -> String {
@@ -4335,7 +4337,7 @@ fn slug_char_class(slug_pattern: &str) -> String {
     "[a-z0-9-]".to_string()
 }
 
-/// Derive a slug from a `gnd id` title (§FS-id.3).
+/// Derive a slug from a `grund id` title (§FS-id.3).
 fn slugify_title(title: &str, slug_pattern: &str) -> String {
     // §FS-id.3: NFKD-normalize, drop combining marks, lower-case to ASCII, then
     // replace every run of characters outside the configured slug character class
@@ -4373,7 +4375,7 @@ fn slugify_title(title: &str, slug_pattern: &str) -> String {
 }
 
 /// Render an `Id` back to text under the repo's `[id] format`, zero-padding the
-/// number to `width` (§FS-config.3.2, §FS-id.2 — the form `gnd id` prints and
+/// number to `width` (§FS-config.3.2, §FS-id.2 — the form `grund id` prints and
 /// every report uses).
 fn format_id(id: &Id, config: &Config, width: usize) -> String {
     let mut rendered = config.id_format.clone();
@@ -4388,25 +4390,25 @@ fn format_id(id: &Id, config: &Config, width: usize) -> String {
 }
 
 /// Render an `Id` at the default 3-digit number width — the form used everywhere
-/// `gnd` prints an ID in a report, listing, or message (§FS-config.3.2).
+/// `grund` prints an ID in a report, listing, or message (§FS-config.3.2).
 fn render_id(config: &Config, id: &Id) -> String {
     format_id(id, config, 3)
 }
 
-// The scaffold templates `gnd init` writes are embedded in the binary; the
+// The scaffold templates `grund init` writes are embedded in the binary; the
 // reference copies live under `templates/` in the source tree (§FS-init.2.1).
 const AGENTS_TEMPLATE: &str = include_str!("../templates/AGENTS.md");
-const GND_TOML_TEMPLATE: &str = include_str!("../templates/gnd.toml");
-const RAISON_DETRE_TEMPLATE: &str = include_str!("../templates/raison-detre.md");
+const GRUND_TOML_TEMPLATE: &str = include_str!("../templates/grund.toml");
+const GRUND_DOC_TEMPLATE: &str = include_str!("../templates/grund.md");
 const GOALS_TEMPLATE: &str = include_str!("../templates/goals.md");
 const E2E_README_TEMPLATE: &str = include_str!("../templates/e2e-README.md");
 const FS_README_TEMPLATE: &str = include_str!("../templates/functional-spec-README.md");
 const AS_README_TEMPLATE: &str = include_str!("../templates/architectural-spec-README.md");
 const GITKEEP_TEMPLATE: &str = include_str!("../templates/gitkeep.md");
-const AGENT_SETUP_INSTRUCTIONS: &str = include_str!("../skills/gnd-init/SKILL.md");
+const AGENT_SETUP_INSTRUCTIONS: &str = include_str!("../skills/grund-init/SKILL.md");
 const AGENTS_BLOCK_VERSION: u32 = 1;
-const AGENTS_APPEND_BEGIN: &str = "<!-- gnd:init:agents:v1 begin -->";
-const AGENTS_APPEND_END: &str = "<!-- gnd:init:agents:v1 end -->";
+const AGENTS_APPEND_BEGIN: &str = "<!-- grund:init:agents:v1 begin -->";
+const AGENTS_APPEND_END: &str = "<!-- grund:init:agents:v1 end -->";
 const CANONICAL_AGENT_ENTRYPOINT: &str = "AGENTS.md";
 const COMPANION_AGENT_ENTRYPOINTS: &[&str] = &[
     "AGENTS.override.md",
@@ -4418,7 +4420,7 @@ const COMPANION_AGENT_ENTRYPOINTS: &[&str] = &[
 
 /// The substitutions that turn `templates/AGENTS.md` into a concrete `AGENTS.md`
 /// for a repo (§FS-init.2.3): the project name, plus the ID/marker shape taken
-/// from the config `gnd init` leaves in place — so a `{kind}-{slug}` repo gets a
+/// from the config `grund init` leaves in place — so a `{kind}-{slug}` repo gets a
 /// `<KIND>-<slug>` description, a strict repo gets the strict-mode note, custom
 /// kinds show up in the kind set, and so on. Everything *not* substituted here is
 /// fixed for the block version. `{ID_SHAPE_SEC}` is listed before `{ID_SHAPE}`
@@ -4440,11 +4442,11 @@ fn agents_template_substitutions(name: &str, config: &Config) -> Vec<(&'static s
     let kinds_set = format!("{{{}}}", kind_prefixes(&config.kinds).join(", "));
     let bare_note = if config.strict {
         format!(
-            "Bare ID-shaped tokens are ignored — `[reference] strict = true` is set in `.agents/gnd.toml`, so only `{marker}`-prefixed citations are checked."
+            "Bare ID-shaped tokens are ignored — `[reference] strict = true` is set in `.agents/grund.toml`, so only `{marker}`-prefixed citations are checked."
         )
     } else {
         format!(
-            "Bare ID-shaped tokens are also recognized as citations for backward compatibility; set `[reference] strict = true` in `.agents/gnd.toml` to require the `{marker}` marker (run `gnd fmt --marker` first to upgrade existing bare citations)."
+            "Bare ID-shaped tokens are also recognized as citations for backward compatibility; set `[reference] strict = true` in `.agents/grund.toml` to require the `{marker}` marker (run `grund fmt --marker` first to upgrade existing bare citations)."
         )
     };
     vec![
@@ -4519,7 +4521,7 @@ fn declaration_table(config: &Config) -> String {
 }
 
 /// The full generated `AGENTS.md` for a fresh repo — the template with all
-/// substitutions applied (§FS-init.2.3). Deterministic: same `gnd` version, same
+/// substitutions applied (§FS-init.2.3). Deterministic: same `grund` version, same
 /// `--name`, same effective config ⇒ byte-identical output (§FS-non-goals.13).
 fn render_agents_md(name: &str, config: &Config) -> String {
     let mut rendered = AGENTS_TEMPLATE.to_string();
@@ -4529,7 +4531,7 @@ fn render_agents_md(name: &str, config: &Config) -> String {
     rendered
 }
 
-/// Just the `<!-- gnd:init:agents:vN begin -->`…`end` managed block — what `init`
+/// Just the `<!-- grund:init:agents:vN begin -->`…`end` managed block — what `init`
 /// appends to, or replaces inside, an existing `AGENTS.md` (§FS-init.2.3).
 fn render_agents_append_block(name: &str, config: &Config) -> String {
     let rendered = render_agents_md(name, config);
@@ -4543,7 +4545,7 @@ fn render_agents_append_block(name: &str, config: &Config) -> String {
     format!("{}\n", rendered[start..end].trim_end())
 }
 
-/// Existing companion agent entrypoints that should carry the same managed gnd
+/// Existing companion agent entrypoints that should carry the same managed grund
 /// block as `AGENTS.md` (§FS-init.2.1). A symlink to `AGENTS.md` is already
 /// covered by the canonical file and is intentionally skipped.
 fn companion_agent_entrypoints(root: &Path) -> Result<Vec<PathBuf>, (PathBuf, String)> {
@@ -4594,13 +4596,13 @@ fn normalize_path_lexically(path: &Path) -> PathBuf {
     normalized
 }
 
-/// The config that `gnd init` will leave governing `target`, which the generated
-/// `AGENTS.md` must describe (§FS-init.2.3): an existing `target/.agents/gnd.toml`
+/// The config that `grund init` will leave governing `target`, which the generated
+/// `AGENTS.md` must describe (§FS-init.2.3): an existing `target/.agents/grund.toml`
 /// if there is one, otherwise the defaults (exactly what `init` is about to write
-/// into `target/.agents/gnd.toml`). We do **not** walk up to an ancestor's config
+/// into `target/.agents/grund.toml`). We do **not** walk up to an ancestor's config
 /// here — `init` always writes a config *in* `target`.
 fn init_effective_config(target: &Path) -> Config {
-    let local_config = target.join(".agents").join("gnd.toml");
+    let local_config = target.join(".agents").join("grund.toml");
     if local_config.is_file() {
         load_config(target).unwrap_or_else(|_| Config::default_for(target.to_path_buf()))
     } else {
@@ -4608,23 +4610,25 @@ fn init_effective_config(target: &Path) -> Config {
     }
 }
 
-/// The generated `.agents/gnd.toml` — every default written out explicitly as a
+/// The generated `.agents/grund.toml` — every default written out explicitly as a
 /// teaching surface, with only `project_name` substituted (§FS-init.2.4).
-fn render_gnd_toml(name: &str) -> String {
-    GND_TOML_TEMPLATE.replace("{NAME}", &escape_toml_basic(name))
+fn render_grund_toml(name: &str) -> String {
+    GRUND_TOML_TEMPLATE.replace("{NAME}", &escape_toml_basic(name))
 }
 
 fn escape_toml_basic(raw: &str) -> String {
     raw.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-/// `gnd init [path] [--name N] [--docs] [--force|--append]` — scaffold a repo for
-/// `gnd` (§FS-init.1): write `AGENTS.md` and `.agents/gnd.toml` (and, with
+/// `grund init [path] [--name N] [--docs] [--force|--append]` — scaffold a repo for
+/// `grund` (§FS-init.1): write `AGENTS.md` and `.agents/grund.toml` (and, with
 /// `--docs`, the `docs/`+`e2e/` tree, §FS-init.2.1), append/update the managed
 /// `AGENTS.md` block when the file already exists (§FS-init.2.3), refuse to clobber
-/// other existing files without `--force` (§FS-init.3), print a `next:` block, and
-/// exit `2` on a missing target / CLI error / unsupported block version
-/// (§FS-init.4). Non-interactive — every choice is a flag (§FS-non-goals.10).
+/// edited scaffold files without `--force` — and never overwrite an existing
+/// `.agents/grund.toml` even with `--force`, since that file is the user's config
+/// (§FS-init.3) — print a `next:` block, and exit `2` on a missing target / CLI
+/// error / unsupported block version (§FS-init.4). Non-interactive — every choice
+/// is a flag (§FS-non-goals.10).
 fn command_init(args: &[String]) -> ExitCode {
     let mut path: Option<PathBuf> = None;
     let mut name: Option<String> = None;
@@ -4693,7 +4697,7 @@ fn command_init(args: &[String]) -> ExitCode {
     };
 
     // §FS-init.2.3: render `AGENTS.md` against the config `init` leaves in place,
-    // so the ID-shape / kind / marker prose in it matches `.agents/gnd.toml`.
+    // so the ID-shape / kind / marker prose in it matches `.agents/grund.toml`.
     let init_config = init_effective_config(&target);
 
     let agents_contents = render_agents_md(&resolved_name, &init_config);
@@ -4733,12 +4737,31 @@ fn command_init(args: &[String]) -> ExitCode {
         }
     }
 
-    let mut files: Vec<(&'static str, String)> =
-        vec![(".agents/gnd.toml", render_gnd_toml(&resolved_name))];
-    if docs {
-        files.extend(docs_scaffold());
+    // `.agents/grund.toml` is the project's configuration — the surface a repo
+    // customizes (kinds, marker, scan scope, …, §GOAL-configurable). `init` writes
+    // the canonical template only when it is **absent**; an existing config is never
+    // overwritten, not even with `--force`. `--force` targets the things `init`
+    // owns end to end — the managed `AGENTS.md` block and the `--docs` scaffold
+    // stubs — not the user's settings (§FS-init.3).
+    let config_rel = ".agents/grund.toml";
+    let config_dest = target.join(config_rel);
+    if config_dest.exists() {
+        eprintln!("exists {config_rel}");
+    } else {
+        if let Some(parent) = config_dest.parent()
+            && let Err(err) = fs::create_dir_all(parent)
+        {
+            eprintln!("error: create {}: {err}", parent.display());
+            return ExitCode::from(2);
+        }
+        if let Err(err) = fs::write(&config_dest, render_grund_toml(&resolved_name)) {
+            eprintln!("error: write {}: {err}", config_dest.display());
+            return ExitCode::from(2);
+        }
+        eprintln!("wrote {config_rel}");
     }
 
+    let files: Vec<(&'static str, String)> = if docs { docs_scaffold() } else { Vec::new() };
     for (rel, contents) in &files {
         let dest = target.join(rel);
         if !force && dest.exists() {
@@ -4761,21 +4784,21 @@ fn command_init(args: &[String]) -> ExitCode {
     eprintln!();
     eprintln!("next:");
     if docs {
-        eprintln!("  1. run `gnd check` — a freshly scaffolded tree is clean");
+        eprintln!("  1. run `grund check` — a freshly scaffolded tree is clean");
         eprintln!(
-            "  2. allocate an ID:  ID=$(gnd id FS \"…\")  then write  docs/functional-spec/$ID.md"
+            "  2. allocate an ID:  ID=$(grund id FS \"…\")  then write  docs/functional-spec/$ID.md"
         );
         eprintln!("     (H1: `# <ID>: <one-line statement of the behavior>`)");
         eprintln!(
-            "  3. cite it as §<ID> from the docs and e2e tests that depend on it, then `gnd check` again"
+            "  3. cite it as §<ID> from the docs and e2e tests that depend on it, then `grund check` again"
         );
     } else {
         eprintln!(
-            "  1. re-run with --docs to scaffold docs/ and e2e/ (or create those folders yourself) — until then `gnd check` has nothing to scan"
+            "  1. re-run with --docs to scaffold docs/ and e2e/ (or create those folders yourself) — until then `grund check` has nothing to scan"
         );
-        eprintln!("  2. run `gnd check` — a scaffolded tree is clean");
+        eprintln!("  2. run `grund check` — a scaffolded tree is clean");
         eprintln!(
-            "  3. allocate an ID:  ID=$(gnd id FS \"…\")  then write  docs/functional-spec/$ID.md"
+            "  3. allocate an ID:  ID=$(grund id FS \"…\")  then write  docs/functional-spec/$ID.md"
         );
     }
     eprintln!("see AGENTS.md for the full workflow.");
@@ -4834,7 +4857,7 @@ fn write_or_update_canonical_agent_entrypoint(
 /// (§FS-init.2.3). A supported block is re-rendered from the current
 /// template/config even when the schema version already matches — but when that
 /// re-render is byte-identical to what is on disk the file is left untouched
-/// (`Unchanged`, reported as `exists `), so re-running `gnd init` on an
+/// (`Unchanged`, reported as `exists `), so re-running `grund init` on an
 /// up-to-date repo writes nothing (§FS-init.2.2).
 fn update_agents_block(dest: &Path, block: &str, label: &str) -> Result<AgentsUpdateResult> {
     let existing = fs::read_to_string(dest)?;
@@ -4858,7 +4881,7 @@ fn update_agents_text(
     if let Some(existing_block) = find_agents_block(existing) {
         if existing_block.version > AGENTS_BLOCK_VERSION {
             return Err(anyhow!(
-                "{label} contains newer gnd init block v{}; this binary supports v{}",
+                "{label} contains newer grund init block v{}; this binary supports v{}",
                 existing_block.version,
                 AGENTS_BLOCK_VERSION
             ));
@@ -4877,7 +4900,7 @@ fn update_agents_text(
 
     if AGENTS_BLOCK_BEGIN.is_match(existing) {
         return Err(anyhow!(
-            "{label} contains a gnd init block start without a matching end"
+            "{label} contains a grund init block start without a matching end"
         ));
     }
 
@@ -4896,7 +4919,7 @@ fn update_agents_text(
 }
 
 /// The byte span and `vN` version of the managed block inside an `AGENTS.md`
-/// (§FS-init.2.3) — what both `gnd init`'s update and `gnd check`'s validation
+/// (§FS-init.2.3) — what both `grund init`'s update and `grund check`'s validation
 /// (§FS-check.3.5) key off.
 struct AgentsBlock {
     start: usize,
@@ -4904,7 +4927,7 @@ struct AgentsBlock {
     version: u32,
 }
 
-/// Locate the `<!-- gnd:init:agents:vN begin -->`…`end` block in `AGENTS.md`,
+/// Locate the `<!-- grund:init:agents:vN begin -->`…`end` block in `AGENTS.md`,
 /// tolerating any whitespace (including `\r`) between marker tokens so a CRLF file
 /// is still recognized (§FS-init.2.3.2, §FS-check.3.5).
 fn find_agents_block(text: &str) -> Option<AgentsBlock> {
@@ -4931,13 +4954,13 @@ fn derive_default_name(target: &Path) -> Result<String> {
         .ok_or_else(|| anyhow!("cannot derive project name from {}", absolute.display()))
 }
 
-/// The `--docs` scaffold: the canonical `docs/` tree (stub `raison-detre.md`,
+/// The `--docs` scaffold: the canonical `docs/` tree (stub `grund.md`,
 /// `goals/goals.md`, `roadmap.md`, `changelog.md`, the two spec READMEs, the
 /// decision `.gitkeep`s) plus an empty `e2e/` with a README — the file list of
-/// §FS-init.2.1, each a minimal starter that leaves `gnd check` clean.
+/// §FS-init.2.1, each a minimal starter that leaves `grund check` clean.
 fn docs_scaffold() -> Vec<(&'static str, String)> {
     vec![
-        ("docs/raison-detre.md", RAISON_DETRE_TEMPLATE.to_string()),
+        ("docs/grund.md", GRUND_DOC_TEMPLATE.to_string()),
         ("docs/goals/goals.md", GOALS_TEMPLATE.to_string()),
         (
             "docs/roadmap.md",
@@ -4968,52 +4991,52 @@ fn docs_scaffold() -> Vec<(&'static str, String)> {
     ]
 }
 
-/// `gnd --help` / `gnd help` — the top-level usage text: the subcommand list and
-/// global flags (§FS-cli.2). `gnd help <cmd>` defers to `print_subcommand_help`.
+/// `grund --help` / `grund help` — the top-level usage text: the subcommand list and
+/// global flags (§FS-cli.2). `grund help <cmd>` defers to `print_subcommand_help`.
 fn print_help() {
-    println!("gnd — ground your agents in the spec.");
+    println!("grund — ground your agents in the spec.");
     println!("Checks ID-based citations (§<ID>.<section>) across Markdown docs and source-code");
     println!("doc-comments, so every reader — human or AI — points at the same facts.");
     println!();
     println!("Usage:");
     println!(
-        "  gnd [check] [PATH] [OPTIONS]      check is the default — `gnd PATH` means `gnd check PATH`"
+        "  grund [check] [PATH] [OPTIONS]      check is the default — `grund PATH` means `grund check PATH`"
     );
     println!(
-        "  gnd <COMMAND> [ARGS] [OPTIONS]    run `gnd <COMMAND> --help` for that command's options"
+        "  grund <COMMAND> [ARGS] [OPTIONS]    run `grund <COMMAND> --help` for that command's options"
     );
     println!();
     println!("Commands:");
-    println!("  check    Validate every reference in a repo (the default).        e.g. gnd .");
+    println!("  check    Validate every reference in a repo (the default).        e.g. grund .");
     println!(
-        "  show     Print one declaration body for agent context.            e.g. gnd show FS-login.3"
+        "  show     Print one declaration body for agent context.            e.g. grund show FS-login.3"
     );
     println!(
-        "  list     The ID catalog: every declared ID, path:line, title.     e.g. gnd list --kind FS"
+        "  list     The ID catalog: every declared ID, path:line, title.     e.g. grund list --kind FS"
     );
     println!(
-        "  refs     List every citation of an ID, as path:line.              e.g. gnd refs FS-login"
+        "  refs     List every citation of an ID, as path:line.              e.g. grund refs FS-login"
     );
     println!(
-        "  cover    Group the citation graph by scanned file.                e.g. gnd cover --format json"
+        "  cover    Group the citation graph by scanned file.                e.g. grund cover --format json"
     );
     println!(
-        "  fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. gnd fmt --check"
+        "  fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. grund fmt --check"
     );
     println!(
-        "  id       Next conflict-free ID for a new declaration.             e.g. gnd id FS \"user login\""
+        "  id       Next conflict-free ID for a new declaration.             e.g. grund id FS \"user login\""
     );
     println!(
-        "  init     Scaffold AGENTS.md + .agents/gnd.toml; idempotent.       e.g. gnd init --docs"
+        "  init     Scaffold AGENTS.md + .agents/grund.toml; idempotent.     e.g. grund init --docs"
     );
     println!(
-        "  config   Validate or show the effective .agents/gnd.toml.         e.g. gnd config show"
+        "  config   Validate or show the effective .agents/grund.toml.       e.g. grund config show"
     );
     println!(
-        "  agent-setup-instructions  Print AI setup guide.                   e.g. gnd agent-setup-instructions"
+        "  agent-setup-instructions  Print AI setup guide.                   e.g. grund agent-setup-instructions"
     );
     println!(
-        "  completions  Print shell completion scripts.                      e.g. gnd completions bash"
+        "  completions  Print shell completion scripts.                      e.g. grund completions bash"
     );
     println!();
     println!(
@@ -5030,19 +5053,21 @@ fn print_subcommand_help(cmd: &str) {
     match cmd {
         "check" => {
             println!(
-                "gnd check — validate every ID citation across the repo (the default subcommand)."
+                "grund check — validate every ID citation across the repo (the default subcommand)."
             );
             println!();
-            println!("Usage:  gnd [check] [PATH] [--require-grounding] [--format text|json]");
+            println!("Usage:  grund [check] [PATH] [--require-grounding] [--format text|json]");
             println!();
             println!(
-                "PATH defaults to `.`; config (`.agents/gnd.toml`) is discovered by walking up from it."
+                "PATH defaults to `.`; config (`.agents/grund.toml`) is discovered by walking up from it."
             );
             println!(
-                "With no config, gnd scans `docs/`, `e2e/`, and `src/`; set `[scan] include` to widen it."
+                "With no config, grund scans `docs/`, `e2e/`, and `src/`; set `[scan] include` to widen it."
             );
-            println!("Pointing gnd at an explicit PATH scans exactly that file or directory.");
-            println!("`gnd PATH` is shorthand for `gnd check PATH` — byte-for-byte equivalent.");
+            println!("Pointing grund at an explicit PATH scans exactly that file or directory.");
+            println!(
+                "`grund PATH` is shorthand for `grund check PATH` — byte-for-byte equivalent."
+            );
             println!();
             println!("Options:");
             println!(
@@ -5053,7 +5078,7 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!(
-                "Findings go to stdout (the linter convention) — `gnd check | …` and `gnd check"
+                "Findings go to stdout (the linter convention) — `grund check | …` and `grund check"
             );
             println!(
                 "--format json | jq` need no redirect. Only run-level `error:` / `warning:` lines"
@@ -5067,27 +5092,27 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!("Examples:");
-            println!("  gnd                    # check the whole repo");
-            println!("  gnd docs/              # check one subtree");
-            println!("  gnd --format json | jq # machine-readable diagnostics for CI");
+            println!("  grund                    # check the whole repo");
+            println!("  grund docs/              # check one subtree");
+            println!("  grund --format json | jq # machine-readable diagnostics for CI");
         }
         "show" => {
             println!(
-                "gnd show — print one declaration's body by ID, so an agent pulls a single fact"
+                "grund show — print one declaration's body by ID, so an agent pulls a single fact"
             );
             println!("into context without loading the whole document.");
             println!();
             println!(
-                "Usage:  gnd show <ID>[.<section>] [PATH] [--section S] [--head|--full] [--format text|md|json] [--path PATH]"
+                "Usage:  grund show <ID>[.<section>] [PATH] [--section S] [--head|--full] [--format text|md|json] [--path PATH]"
             );
             println!();
             println!("Options:");
             println!("  --section S            show only that section path, e.g. --section 3.1");
             println!(
-                "  --head                 first paragraph only       e.g. gnd show --head FS-login"
+                "  --head                 first paragraph only       e.g. grund show --head FS-login"
             );
             println!(
-                "  --full                 the whole declaration       e.g. gnd show --full FS-login"
+                "  --full                 the whole declaration       e.g. grund show --full FS-login"
             );
             println!(
                 "  --format text|md|json  text (default) is the body; md keeps the heading; json wraps it"
@@ -5099,19 +5124,23 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!("Examples:");
-            println!("  gnd show FS-login              # the whole declaration body");
-            println!("  gnd show FS-login.3.1          # just that nested section");
+            println!("  grund show FS-login              # the whole declaration body");
+            println!("  grund show FS-login.3.1          # just that nested section");
             println!();
             println!(
-                "ID not found? `gnd list` shows every declared ID; `gnd id <KIND> \"…\"` proposes a new one."
+                "ID not found? `grund list` shows every declared ID; `grund id <KIND> \"…\"` proposes a new one."
             );
         }
         "list" => {
-            println!("gnd list — the ID catalog: every declared ID in the repo, with where it's");
-            println!("declared and its one-line title. The complement of `gnd refs` (which lists");
-            println!("the citations of one ID) — `list` is the index of what you can `gnd show`.");
+            println!("grund list — the ID catalog: every declared ID in the repo, with where it's");
+            println!(
+                "declared and its one-line title. The complement of `grund refs` (which lists"
+            );
+            println!(
+                "the citations of one ID) — `list` is the index of what you can `grund show`."
+            );
             println!();
-            println!("Usage:  gnd list [PATH] [--kind KIND] [--unused] [--format text|json]");
+            println!("Usage:  grund list [PATH] [--kind KIND] [--unused] [--format text|json]");
             println!();
             println!(
                 "Output is one line per declared ID, `<ID>  <path>:<line>  <title>`, sorted by ID."
@@ -5122,7 +5151,7 @@ fn print_subcommand_help(cmd: &str) {
             println!();
             println!("Options:");
             println!(
-                "  --kind KIND          only IDs of that kind                e.g. gnd list --kind FS"
+                "  --kind KIND          only IDs of that kind                e.g. grund list --kind FS"
             );
             println!(
                 "  --unused             only declarations nothing cites yet (skips E2E cases; --kind E2E re-includes them)"
@@ -5136,18 +5165,22 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!("Examples:");
-            println!("  gnd list                      # the whole catalog");
-            println!("  gnd list --kind AS docs/      # architectural-spec IDs under docs/");
+            println!("  grund list                      # the whole catalog");
+            println!("  grund list --kind AS docs/      # architectural-spec IDs under docs/");
             println!(
-                "  gnd list --unused             # uncited declarations (specs, decisions, …) — E2E cases excluded"
+                "  grund list --unused             # uncited declarations (specs, decisions, …) — E2E cases excluded"
             );
-            println!("  gnd list --unused --kind E2E  # uncited e2e cases only, for inventory");
+            println!("  grund list --unused --kind E2E  # uncited e2e cases only, for inventory");
         }
         "refs" => {
-            println!("gnd refs — list every citation of an ID, as `path:line`, so you can see who");
+            println!(
+                "grund refs — list every citation of an ID, as `path:line`, so you can see who"
+            );
             println!("depends on a declaration before you change it.");
             println!();
-            println!("Usage:  gnd refs <ID>[.<section>] [PATH] [--section S] [--format text|json]");
+            println!(
+                "Usage:  grund refs <ID>[.<section>] [PATH] [--section S] [--format text|json]"
+            );
             println!();
             println!(
                 "PATH defaults to `.`. With a `.<section>` (or --section), only citations of that"
@@ -5158,7 +5191,7 @@ fn print_subcommand_help(cmd: &str) {
             println!();
             println!("Options:");
             println!(
-                "  --section S          list only citations of that section path   e.g. gnd refs FS-login --section 3"
+                "  --section S          list only citations of that section path   e.g. grund refs FS-login --section 3"
             );
             println!(
                 "  --format text|json   text (default) prints `path:line: <citation>`; json emits NDJSON."
@@ -5168,7 +5201,7 @@ fn print_subcommand_help(cmd: &str) {
                 "The citation list is the result, so it goes to stdout (text and json alike) —"
             );
             println!(
-                "`gnd refs <ID> | …` works like `gnd list`. Only the typo `note:` goes to stderr."
+                "`grund refs <ID> | …` works like `grund list`. Only the typo `note:` goes to stderr."
             );
             println!();
             println!(
@@ -5176,13 +5209,13 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!("Examples:");
-            println!("  gnd refs FS-login             # every citation of FS-login");
-            println!("  gnd refs FS-login.3           # only citations of section 3");
+            println!("  grund refs FS-login             # every citation of FS-login");
+            println!("  grund refs FS-login.3           # only citations of section 3");
         }
         "cover" => {
-            println!("gnd cover — group the citation graph by scanned file.");
+            println!("grund cover — group the citation graph by scanned file.");
             println!();
-            println!("Usage:  gnd cover [PATH] [--format text|json]");
+            println!("Usage:  grund cover [PATH] [--format text|json]");
             println!();
             println!("PATH defaults to `.`. The command runs the same scan as `check` and `refs`,");
             println!("then prints one file record with the citations found in that file.");
@@ -5195,31 +5228,31 @@ fn print_subcommand_help(cmd: &str) {
             println!("Exit:  0 scan succeeded · 2 unreadable tree, incomplete scan, or CLI error.");
             println!();
             println!("Examples:");
-            println!("  gnd cover src/                # source files and their spec citations");
-            println!("  gnd cover --format json       # machine-readable coverage index");
+            println!("  grund cover src/                # source files and their spec citations");
+            println!("  grund cover --format json       # machine-readable coverage index");
         }
         "fmt" => {
             println!(
-                "gnd fmt — normalize citation syntax: rewrite the `$$` trigger to the `§` marker,"
+                "grund fmt — normalize citation syntax: rewrite the `$$` trigger to the `§` marker,"
             );
             println!(
                 "optionally upgrade bare ID tokens, and optionally emit Markdown cross-reference links."
             );
             println!();
-            println!("Usage:  gnd fmt [PATH] [--check | --write] [--marker] [--cross-refs]");
+            println!("Usage:  grund fmt [PATH] [--check | --write] [--marker] [--cross-refs]");
             println!();
             println!("Options:");
             println!(
-                "  --check        report pending rewrites, exit 1 if any exist         e.g. gnd fmt --check"
+                "  --check        report pending rewrites, exit 1 if any exist         e.g. grund fmt --check"
             );
             println!(
-                "  --write        apply the changes in place                           e.g. gnd fmt --write"
+                "  --write        apply the changes in place                           e.g. grund fmt --write"
             );
             println!(
-                "  --marker       also prefix bare `<ID>` tokens with the marker        e.g. gnd fmt --write --marker"
+                "  --marker       also prefix bare `<ID>` tokens with the marker        e.g. grund fmt --write --marker"
             );
             println!(
-                "  --cross-refs   wrap citations as Markdown links to targets          e.g. gnd fmt --write --cross-refs"
+                "  --cross-refs   wrap citations as Markdown links to targets          e.g. grund fmt --write --cross-refs"
             );
             println!("                 also runs on --write when [fmt.cross_refs].enabled = true");
             println!();
@@ -5230,7 +5263,7 @@ fn print_subcommand_help(cmd: &str) {
                 "--write prints `rewrote N references:` then one `  <path> (count)` line per file touched."
             );
             println!(
-                "The report goes to stdout (like `gnd check`); CLI-level `error:` lines go to stderr."
+                "The report goes to stdout (like `grund check`); CLI-level `error:` lines go to stderr."
             );
             println!();
             println!(
@@ -5238,26 +5271,26 @@ fn print_subcommand_help(cmd: &str) {
             );
         }
         "id" => {
-            println!("gnd id — emit the next conflict-free ID for a new declaration of a kind.");
+            println!("grund id — emit the next conflict-free ID for a new declaration of a kind.");
             println!();
             println!(
-                "Usage:  gnd id <KIND> \"<title>\" [PATH] [--width N] [--explain] [--format text|json]"
+                "Usage:  grund id <KIND> \"<title>\" [PATH] [--width N] [--explain] [--format text|json]"
             );
             println!();
             println!(
                 "KIND is one of the configured `[[kinds]]` prefixes — defaults G, FS, AS, DF, DA, E2E, RM;"
             );
             println!(
-                "`gnd config show` lists this repo's. The title is slugified deterministically; the number"
+                "`grund config show` lists this repo's. The title is slugified deterministically; the number"
             );
             println!("is `max(existing) + 1` (holes are never filled).");
             println!();
             println!("Options:");
             println!(
-                "  --width N      minimum digit width for the number (default 3)   e.g. gnd id FS \"x\" --width 4"
+                "  --width N      minimum digit width for the number (default 3)   e.g. grund id FS \"x\" --width 4"
             );
             println!(
-                "  --explain      also print where to put the declaration file     e.g. gnd id FS \"x\" --explain"
+                "  --explain      also print where to put the declaration file     e.g. grund id FS \"x\" --explain"
             );
             println!(
                 "  --format text|json   text (default) is the bare ID on stdout; json adds kind/number/slug/folder."
@@ -5269,30 +5302,32 @@ fn print_subcommand_help(cmd: &str) {
             println!();
             println!("Examples:");
             println!(
-                "  gnd id FS \"User can log in\"          # -> FS-007-user-can-log-in (or FS-user-can-log-in)"
+                "  grund id FS \"User can log in\"          # -> FS-007-user-can-log-in (or FS-user-can-log-in)"
             );
             println!(
-                "  ID=$(gnd id FS \"User can log in\"); $EDITOR \"docs/functional-spec/$ID.md\""
+                "  ID=$(grund id FS \"User can log in\"); $EDITOR \"docs/functional-spec/$ID.md\""
             );
         }
         "init" => {
             println!(
-                "gnd init — scaffold `AGENTS.md` + `.agents/gnd.toml` (and, with --docs, the docs/ and e2e/ layout)."
+                "grund init — scaffold `AGENTS.md` + `.agents/grund.toml` (and, with --docs, the docs/ and e2e/ layout)."
             );
             println!(
                 "Idempotent: re-running updates the managed `AGENTS.md` block in place and leaves your edits alone."
             );
             println!();
-            println!("Usage:  gnd init [PATH] [--docs] [--name NAME] [--force | --append]");
+            println!("Usage:  grund init [PATH] [--docs] [--name NAME] [--force | --append]");
             println!();
             println!("Options:");
             println!(
-                "  --docs         also write docs/ (raison-detre, goals, roadmap, changelog, spec READMEs) and e2e/"
+                "  --docs         also write docs/ (grund, goals, roadmap, changelog, spec READMEs) and e2e/"
             );
             println!(
                 "  --name NAME    project name to interpolate (default: derived from the directory)"
             );
-            println!("  --force        overwrite existing files with the canonical version");
+            println!(
+                "  --force        reset an edited AGENTS.md / scaffold file to canonical (an existing .agents/grund.toml is left alone)"
+            );
             println!(
                 "  --append       append the managed AGENTS.md block instead of replacing an older one"
             );
@@ -5302,15 +5337,17 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!("Examples:");
-            println!("  gnd init --docs                  # full first-time scaffold");
-            println!("  gnd init --name \"My Service\"      # just AGENTS.md + .agents/gnd.toml");
+            println!("  grund init --docs                  # full first-time scaffold");
+            println!(
+                "  grund init --name \"My Service\"      # just AGENTS.md + .agents/grund.toml"
+            );
         }
         "config" => {
             println!(
-                "gnd config — inspect the effective `.agents/gnd.toml` discovered from a path."
+                "grund config — inspect the effective `.agents/grund.toml` discovered from a path."
             );
             println!();
-            println!("Usage:  gnd config <show | validate> [PATH]");
+            println!("Usage:  grund config <show | validate> [PATH]");
             println!();
             println!(
                 "  show       print the effective config as TOML (defaults filled in for keys you didn't set)."
@@ -5329,30 +5366,30 @@ fn print_subcommand_help(cmd: &str) {
             );
         }
         "completions" => {
-            println!("gnd completions — print a shell completion script for gnd.");
+            println!("grund completions — print a shell completion script for grund.");
             println!();
-            println!("Usage:  gnd completions <bash|zsh|fish>");
+            println!("Usage:  grund completions <bash|zsh|fish>");
             println!();
             println!("The generated scripts complete subcommands and complete declared IDs for");
-            println!("`gnd show <ID>` and `gnd refs <ID>` by calling the hidden helper:");
-            println!("`gnd complete ids --prefix <word>`.");
+            println!("`grund show <ID>` and `grund refs <ID>` by calling the hidden helper:");
+            println!("`grund complete ids --prefix <word>`.");
             println!();
             println!("Install examples:");
-            println!("  source <(gnd completions bash)");
-            println!("  gnd completions zsh > ~/.zfunc/_gnd");
-            println!("  gnd completions fish > ~/.config/fish/completions/gnd.fish");
+            println!("  source <(grund completions bash)");
+            println!("  grund completions zsh > ~/.zfunc/_grund");
+            println!("  grund completions fish > ~/.config/fish/completions/grund.fish");
             println!();
             println!("Exit:  0 script printed · 2 unsupported shell.");
         }
         "agent-setup-instructions" => {
             println!(
-                "gnd agent-setup-instructions — print the guided setup instructions for AI agents."
+                "grund agent-setup-instructions — print the guided setup instructions for AI agents."
             );
             println!();
-            println!("Usage:  gnd agent-setup-instructions");
+            println!("Usage:  grund agent-setup-instructions");
             println!();
             println!(
-                "The output is the same Markdown source shipped as `skills/gnd-init/SKILL.md`,"
+                "The output is the same Markdown source shipped as `skills/grund-init/SKILL.md`,"
             );
             println!("embedded in the binary so installed agents can discover the setup workflow");
             println!("without access to the source tree.");
@@ -5375,7 +5412,7 @@ fn command_agent_setup_instructions(args: &[String]) -> ExitCode {
 /// Restore the default `SIGPIPE` disposition (Unix only).
 ///
 /// Rust ignores `SIGPIPE` at startup, which turns a closed downstream pipe
-/// (`gnd list | head`) into an `EPIPE` on the next write — and `println!`
+/// (`grund list | head`) into an `EPIPE` on the next write — and `println!`
 /// panics on a write error. A CLI in a pipeline should instead die quietly,
 /// the way `ls | head` does. This is a no-op off Unix.
 #[cfg(unix)]
@@ -5395,19 +5432,19 @@ fn restore_default_sigpipe() {
 fn restore_default_sigpipe() {}
 
 /// The CLI entry point: parse `argv`, dispatch to the matching `command_*`, and
-/// return its `ExitCode` (§FS-cli). `gnd` with no subcommand — or with a leading
-/// flag or a path — is `gnd check` (§FS-cli.1); `--version`/`--help` short-circuit
+/// return its `ExitCode` (§FS-cli). `grund` with no subcommand — or with a leading
+/// flag or a path — is `grund check` (§FS-cli.1); `--version`/`--help` short-circuit
 /// to stdout, exit 0 (§FS-cli.2); an unknown command exits 2 and lists the known
 /// ones (§FS-cli.4). The exit-code mapping (0/1/2) is fixed (§FS-cli.5).
 pub fn main_entry() -> ExitCode {
     restore_default_sigpipe();
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     if args.iter().any(|arg| arg == "--version" || arg == "-V") {
-        println!("gnd {}", env!("CARGO_PKG_VERSION"));
+        println!("grund {}", env!("CARGO_PKG_VERSION"));
         return ExitCode::SUCCESS;
     }
     let first = args.first().map(|arg| arg.as_str());
-    // `gnd help [<subcommand>]` — the top-level page with no argument, that
+    // `grund help [<subcommand>]` — the top-level page with no argument, that
     // subcommand's page with one, an error for an unknown name (§FS-cli.2).
     if first == Some("help") {
         return match args.get(1).map(String::as_str) {
@@ -5440,7 +5477,7 @@ pub fn main_entry() -> ExitCode {
                 eprintln!("error: unknown command or missing path: {other}");
                 eprintln!("known commands: {}", SUBCOMMANDS.join(", "));
                 eprintln!(
-                    "(a bare path is shorthand for `gnd check <path>`; run `gnd --help` for commands)"
+                    "(a bare path is shorthand for `grund check <path>`; run `grund --help` for commands)"
                 );
                 return ExitCode::from(2);
             }
@@ -5463,7 +5500,7 @@ pub fn main_entry() -> ExitCode {
         Some("complete") => command_complete(&args[1..]),
         Some(other) if other.starts_with('-') => command_check(&args),
         // Any first argument that is not a known subcommand is a path argument:
-        // `gnd <path>` ≡ `gnd check <path>` (§FS-cli.1). When that path doesn't
+        // `grund <path>` ≡ `grund check <path>` (§FS-cli.1). When that path doesn't
         // exist the message names both readings, so a mistyped subcommand isn't
         // misreported as a missing file (§FS-cli.1, §FS-cli.4).
         Some(other) => {
@@ -5471,7 +5508,7 @@ pub fn main_entry() -> ExitCode {
                 eprintln!("error: unknown command or missing path: {other}");
                 eprintln!("known commands: {}", SUBCOMMANDS.join(", "));
                 eprintln!(
-                    "(a bare path is shorthand for `gnd check <path>`; run `gnd --help` for commands)"
+                    "(a bare path is shorthand for `grund check <path>`; run `grund --help` for commands)"
                 );
                 return ExitCode::from(2);
             }
@@ -5491,7 +5528,7 @@ mod tests {
             std::process::id(),
             std::thread::current().id()
         );
-        let dir = std::env::temp_dir().join("gnd-lib-tests").join(unique);
+        let dir = std::env::temp_dir().join("grund-lib-tests").join(unique);
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("create test root");
         dir
@@ -5695,8 +5732,8 @@ mod tests {
     fn diagnostics_render_custom_id_format() {
         let root = test_root("diagnostics_render_custom_id_format");
         write(
-            &root.join(".agents/gnd.toml"),
-            r#"gnd_config_version = 1
+            &root.join(".agents/grund.toml"),
+            r#"grund_config_version = 1
 
 [id]
 format = "{kind}_{number}_{slug}"
@@ -5779,8 +5816,8 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     #[test]
     fn agents_update_replaces_older_block_in_place() {
         let old_block = current_block()
-            .replace("gnd:init:agents:v1 begin", "gnd:init:agents:v0 begin")
-            .replace("gnd:init:agents:v1 end", "gnd:init:agents:v0 end");
+            .replace("grund:init:agents:v1 begin", "grund:init:agents:v0 begin")
+            .replace("grund:init:agents:v1 end", "grund:init:agents:v0 end");
         let existing = format!("# Existing agents\n\n{old_block}\n\n# Local notes\n");
         let (updated, result) =
             update_agents_text(&existing, &current_block(), "AGENTS.md").expect("update old block");
@@ -5789,7 +5826,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         assert!(updated.starts_with("# Existing agents\n\n"));
         assert!(updated.ends_with("\n\n# Local notes\n"));
         assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
-        assert!(!updated.contains("gnd:init:agents:v0"));
+        assert!(!updated.contains("grund:init:agents:v0"));
     }
 
     #[test]
@@ -5820,8 +5857,8 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         // between user-authored sections must still be detected and updated, with
         // CRLF preserved outside the managed block.
         let v0_lf = current_block()
-            .replace("gnd:init:agents:v1 begin", "gnd:init:agents:v0 begin")
-            .replace("gnd:init:agents:v1 end", "gnd:init:agents:v0 end");
+            .replace("grund:init:agents:v1 begin", "grund:init:agents:v0 begin")
+            .replace("grund:init:agents:v1 end", "grund:init:agents:v0 end");
         let v0_crlf = v0_lf.replace('\n', "\r\n");
         let existing = format!("# Existing agents\r\n\r\n{v0_crlf}\r\n\r\n# Local notes\r\n");
         let (updated, result) = update_agents_text(&existing, &current_block(), "AGENTS.md")
@@ -5837,7 +5874,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
             "CRLF suffix must be preserved verbatim"
         );
         assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
-        assert!(!updated.contains("gnd:init:agents:v0"));
+        assert!(!updated.contains("grund:init:agents:v0"));
     }
 
     #[test]

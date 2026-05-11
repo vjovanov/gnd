@@ -1,1 +1,1 @@
-error: .agents/gnd.toml: invalid [id] grammar: [id].section_separator `-` collides with a literal in [id].format
+error: .agents/grund.toml: invalid [id] grammar: [id].section_separator `-` collides with a literal in [id].format

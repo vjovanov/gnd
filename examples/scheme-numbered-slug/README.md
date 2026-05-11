@@ -1,9 +1,9 @@
 # Scheme: `{kind}-{number}-{slug}`
 
-The default `gnd` ID format. Numbers disambiguate; slugs describe.
+The default `grund` ID format. Numbers disambiguate; slugs describe.
 
 ```toml
-# .agents/gnd.toml — empty `[id]` block, defaults apply
+# .agents/grund.toml — empty `[id]` block, defaults apply
 ```
 
 Example IDs:
@@ -16,7 +16,7 @@ AS-014-event-bus
 
 ## Pros
 
-- **Stable refs.** Renaming a spec's title rewrites the slug only — the number keeps every existing citation valid (with `gnd fmt --marker` to refresh slugs in prose later).
+- **Stable refs.** Renaming a spec's title rewrites the slug only — the number keeps every existing citation valid (with `grund fmt --marker` to refresh slugs in prose later).
 - **Skimmable.** A reader sees both an identifier and a hint of what it's about (`§FS-014-event-bus` vs `§FS-014`).
 - **No slug-uniqueness collisions.** Two specs with similar slugs are fine — different numbers separate them.
 
@@ -31,7 +31,7 @@ AS-014-event-bus
 From the repo root:
 
 ```bash
-gnd examples/scheme-numbered-slug/repo
+grund examples/scheme-numbered-slug/repo
 echo $?    # 0
 ```
 

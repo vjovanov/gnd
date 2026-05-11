@@ -1,2 +1,2 @@
 error: invalid ID `FS-bar`
-hint: this repo's [id] format is `{kind}-{number}-{slug}` (run `gnd config show`); `gnd list` shows the IDs that exist
+hint: this repo's [id] format is `{kind}-{number}-{slug}` (run `grund config show`); `grund list` shows the IDs that exist

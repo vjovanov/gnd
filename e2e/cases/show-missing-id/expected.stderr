@@ -1,2 +1,2 @@
 ID not found: FS-999-missing
-hint: run `gnd list` to see every declared ID, or `gnd id <KIND> "<title>"` to propose a new one
+hint: run `grund list` to see every declared ID, or `grund id <KIND> "<title>"` to propose a new one

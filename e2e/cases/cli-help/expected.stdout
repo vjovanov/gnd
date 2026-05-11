@@ -1,23 +1,23 @@
-gnd — ground your agents in the spec.
+grund — ground your agents in the spec.
 Checks ID-based citations (§<ID>.<section>) across Markdown docs and source-code
 doc-comments, so every reader — human or AI — points at the same facts.
 
 Usage:
-  gnd [check] [PATH] [OPTIONS]      check is the default — `gnd PATH` means `gnd check PATH`
-  gnd <COMMAND> [ARGS] [OPTIONS]    run `gnd <COMMAND> --help` for that command's options
+  grund [check] [PATH] [OPTIONS]      check is the default — `grund PATH` means `grund check PATH`
+  grund <COMMAND> [ARGS] [OPTIONS]    run `grund <COMMAND> --help` for that command's options
 
 Commands:
-  check    Validate every reference in a repo (the default).        e.g. gnd .
-  show     Print one declaration body for agent context.            e.g. gnd show FS-login.3
-  list     The ID catalog: every declared ID, path:line, title.     e.g. gnd list --kind FS
-  refs     List every citation of an ID, as path:line.              e.g. gnd refs FS-login
-  cover    Group the citation graph by scanned file.                e.g. gnd cover --format json
-  fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. gnd fmt --check
-  id       Next conflict-free ID for a new declaration.             e.g. gnd id FS "user login"
-  init     Scaffold AGENTS.md + .agents/gnd.toml; idempotent.       e.g. gnd init --docs
-  config   Validate or show the effective .agents/gnd.toml.         e.g. gnd config show
-  agent-setup-instructions  Print AI setup guide.                   e.g. gnd agent-setup-instructions
-  completions  Print shell completion scripts.                      e.g. gnd completions bash
+  check    Validate every reference in a repo (the default).        e.g. grund .
+  show     Print one declaration body for agent context.            e.g. grund show FS-login.3
+  list     The ID catalog: every declared ID, path:line, title.     e.g. grund list --kind FS
+  refs     List every citation of an ID, as path:line.              e.g. grund refs FS-login
+  cover    Group the citation graph by scanned file.                e.g. grund cover --format json
+  fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. grund fmt --check
+  id       Next conflict-free ID for a new declaration.             e.g. grund id FS "user login"
+  init     Scaffold AGENTS.md + .agents/grund.toml; idempotent.     e.g. grund init --docs
+  config   Validate or show the effective .agents/grund.toml.       e.g. grund config show
+  agent-setup-instructions  Print AI setup guide.                   e.g. grund agent-setup-instructions
+  completions  Print shell completion scripts.                      e.g. grund completions bash
 
 Options:  --format text|json   output shape; text is the default (where it applies).
           --version, -V        print version.       --help, -h   show this screen.

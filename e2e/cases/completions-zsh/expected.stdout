@@ -1,12 +1,12 @@
-#compdef gnd
+#compdef grund
 
-_gnd_ids() {
+_grund_ids() {
   local -a ids
-  ids=("${(@f)$(gnd complete ids --prefix "$words[CURRENT]" 2>/dev/null)}")
-  _describe 'gnd ids' ids
+  ids=("${(@f)$(grund complete ids --prefix "$words[CURRENT]" 2>/dev/null)}")
+  _describe 'grund ids' ids
 }
 
-_gnd() {
+_grund() {
   local -a commands
   commands=(
     'check:validate every reference in a repo'
@@ -23,15 +23,15 @@ _gnd() {
   )
 
   if (( CURRENT == 2 )); then
-    _describe 'gnd command' commands
+    _describe 'grund command' commands
     return
   fi
 
   case "$words[2]" in
-    show|refs) _gnd_ids ;;
+    show|refs) _grund_ids ;;
     *) _files ;;
   esac
 }
 
-_gnd "$@"
+_grund "$@"
 

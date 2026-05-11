@@ -61,10 +61,10 @@ jobs:
       - name: cargo build
         run: cargo build --all-targets --locked
 
-      - name: gnd self-check
+      - name: grund self-check
         run: |
           # `timeout 30` is the catastrophic-regression guard (§AS-ci.4 / §G-fast-feedback):
-          # `gnd .` on this repo runs in tens of milliseconds, so a 30s ceiling never
+          # `grund .` on this repo runs in tens of milliseconds, so a 30s ceiling never
           # flakes but still trips on a quadratic walk or a second read pass. The precise
           # per-commit meter is the `bench` job (§AS-benchmarks / §AS-ci.5); this timeout
           # is its backstop. Use Python rather than GNU `timeout` so the same step runs
@@ -80,26 +80,26 @@ jobs:
                   timeout=30,
               )
           except subprocess.TimeoutExpired:
-              print("gnd self-check exceeded 30s", file=sys.stderr)
+              print("grund self-check exceeded 30s", file=sys.stderr)
               sys.exit(124)
 
           if result.returncode != 0:
               sys.exit(result.returncode)
           if result.stdout:
-              print("gnd self-check wrote unexpected stdout:", file=sys.stderr)
+              print("grund self-check wrote unexpected stdout:", file=sys.stderr)
               sys.stderr.buffer.write(result.stdout)
               sys.exit(1)
           PY
 
       # tests/e2e.rs walks every fixture under e2e/cases and asserts each case's
       # exit code, stdout, and stderr against its expected.* files; tests/init.rs
-      # covers the file-content / config-validation contract for `gnd init`. So
+      # covers the file-content / config-validation contract for `grund init`. So
       # `cargo test` runs the full e2e suite plus the unit tests in src/main.rs.
       - name: cargo test
         run: cargo test --all-targets --locked
 
   # Instruction-counting benchmarks for the hot CLI commands (§AS-benchmarks /
-  # §AS-ci.5). Kept out of the `test` matrix because the harness runs `gnd` under
+  # §AS-ci.5). Kept out of the `test` matrix because the harness runs `grund` under
   # Callgrind — only this job needs Valgrind, and the `bench` Cargo feature gate
   # keeps the matrix above from building or running it. One platform: it measures
   # instruction counts, not cross-platform behavior. Records the numbers per

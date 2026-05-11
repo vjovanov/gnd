@@ -8,10 +8,10 @@ Discussion.
 
 Project discussions often need to reference issue trackers alongside local specs:
 GitHub issues, Jira tickets, Linear issues, or internal trackers. Those references
-are useful in the same prose where `gnd` IDs appear, but they are not local
+are useful in the same prose where `grund` IDs appear, but they are not local
 declarations and should not behave like `FS-*` or `AS-*` specs.
 
-The design tension is that `gnd check` is intentionally deterministic and
+The design tension is that `grund check` is intentionally deterministic and
 offline, while validating a ticket's existence usually requires network access
 and authentication.
 
@@ -47,12 +47,12 @@ creating false "unknown reference" errors.
 
 ## Semantics
 
-- Local IDs resolve to local declarations and support `gnd show`.
-- External tickets resolve to configured URLs and do not support `gnd show`.
-- Default `gnd check` validates syntax and resolver configuration only.
-- Default `gnd check` does not perform network calls.
+- Local IDs resolve to local declarations and support `grund show`.
+- External tickets resolve to configured URLs and do not support `grund show`.
+- Default `grund check` validates syntax and resolver configuration only.
+- Default `grund check` does not perform network calls.
 - A later opt-in command could validate ticket existence online, for example
-  `gnd external check --online`, but that should be separate from the normal
+  `grund external check --online`, but that should be separate from the normal
   offline pass.
 
 ## Why not use normal `[[kinds]]`
@@ -69,8 +69,8 @@ local declaration kinds.
 ## Open questions
 
 - Should ticket references require the same marker as local citations, or should
-  they use a separate marker to avoid confusing them with `gnd show`-able IDs?
+  they use a separate marker to avoid confusing them with `grund show`-able IDs?
 - Should URL expansion support only simple placeholders, or a small named set of
   provider presets such as GitHub, Jira, and Linear?
-- Should online validation live in `gnd` at all, or should `gnd` only emit URLs
+- Should online validation live in `grund` at all, or should `grund` only emit URLs
   and leave validation to tracker-specific tooling?

@@ -1,9 +1,0 @@
-gnd_config_version = 1
-
-[id]
-# Slug-only scheme — `{kind}-{slug}`. Slugs must be unique within a kind.
-# Slug must start with a letter so digit-prefixed tokens (e.g. `FS-001`
-# in illustrative prose) are not picked up as citations.
-format = "{kind}-{slug}"
-section_separator = "."
-slug_pattern = "[a-z][a-z0-9-]*"

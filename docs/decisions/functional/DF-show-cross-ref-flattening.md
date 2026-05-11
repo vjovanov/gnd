@@ -1,58 +1,58 @@
-# DF-show-cross-ref-flattening: gnd show flattens cross-reference link wrappers
+# DF-show-cross-ref-flattening: grund show flattens cross-reference link wrappers
 
 **Status:** Accepted
 **Date:** 2026-05-11
 
 ## 1. Context
 
-[§DF-md-link-emission](DF-md-link-emission.md#df-md-link-emission-gnd-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations) gave `gnd fmt --cross-refs` an opt-in mode that, in `.md` files, wraps each marker-prefixed citation in a Markdown link to the declaration body — `§FS-check.1` becomes `[§FS-check.1](FS-check.md#1-inputs)` — so a reader inside a *rendered* doc can click through. `gnd` itself opts in (`[fmt.cross_refs] enabled = true`), so this repo's `.md` bodies carry the wrapped form on disk.
+[§DF-md-link-emission](DF-md-link-emission.md#df-md-link-emission-grund-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations) gave `grund fmt --cross-refs` an opt-in mode that, in `.md` files, wraps each marker-prefixed citation in a Markdown link to the declaration body — `§FS-check.1` becomes `[§FS-check.1](FS-check.md#1-inputs)` — so a reader inside a *rendered* doc can click through. `grund` itself opts in (`[fmt.cross_refs] enabled = true`), so this repo's `.md` bodies carry the wrapped form on disk.
 
-`gnd show` exists for the opposite consumer: an agent (human or AI) pulling one grounded fact into context, on the command line, without loading the whole file ([§FS-show](../../functional-spec/FS-show.md#fs-show-gnd-reads-a-single-declaration-body-by-id), [§G-friendliness-first](../../goals/goals.md#g-friendliness-first-as-user--and-agent-friendly-as-possible)). For that consumer the link wrapper is the wrong shape twice over:
+`grund show` exists for the opposite consumer: an agent (human or AI) pulling one grounded fact into context, on the command line, without loading the whole file ([§FS-show](../../functional-spec/FS-show.md#fs-show-grund-reads-a-single-declaration-body-by-id), [§GOAL-friendliness-first](../../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible)). For that consumer the link wrapper is the wrong shape twice over:
 
-- it is noise — `[§G-friendliness-first](../goals/goals.md#g-friendliness-first-as-user--and-agent-friendly-as-possible)` is ~70 characters of brackets and a slug where `§G-friendliness-first` would do, and `gnd show`'s whole pitch is *cheap* grounding;
-- the relative path inside it is a pointer the consumer should not follow — the right next step for `§G-friendliness-first` is `gnd show G-friendliness-first`, not opening `../goals/goals.md` and scrolling to an anchor. Handing an agent a path encourages the file-read that `gnd show` was built to avoid.
+- it is noise — `[§GOAL-friendliness-first](../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible)` is ~70 characters of brackets and a slug where `§GOAL-friendliness-first` would do, and `grund show`'s whole pitch is *cheap* grounding;
+- the relative path inside it is a pointer the consumer should not follow — the right next step for `§GOAL-friendliness-first` is `grund show G-friendliness-first`, not opening `../goals/goals.md` and scrolling to an anchor. Handing an agent a path encourages the file-read that `grund show` was built to avoid.
 
-So the dogfood produced a worse `gnd show` output than the pitch advertises, purely because the repo enabled a presentation-layer feature aimed at a different reader.
+So the dogfood produced a worse `grund show` output than the pitch advertises, purely because the repo enabled a presentation-layer feature aimed at a different reader.
 
 ## 2. Decision
 
-`gnd show` **flattens** every `gnd fmt --cross-refs` link wrapper back to the bare citation before printing — in `--format text` (the agent-context default) and in the `body` field of `--format json`. `--format md` keeps the wrapper **verbatim**: that form is the self-contained, renderable Markdown fragment ([§FS-show.3.1](../../functional-spec/FS-show.md#31-format-variants)), where a clickable link is exactly what is wanted.
+`grund show` **flattens** every `grund fmt --cross-refs` link wrapper back to the bare citation before printing — in `--format text` (the agent-context default) and in the `body` field of `--format json`. `--format md` keeps the wrapper **verbatim**: that form is the self-contained, renderable Markdown fragment ([§FS-show.3.1](../../functional-spec/FS-show.md#31-format-variants)), where a clickable link is exactly what is wanted.
 
 ### 2.1 What "a wrapper" is
 
-The same shape `gnd fmt --cross-refs` emits and re-derives ([§FS-fmt.6.2](../../functional-spec/FS-fmt.md#62-form), [§FS-fmt.6.3](../../functional-spec/FS-fmt.md#63-idempotency-and-re-derive)): a `[` immediately before a marker-prefixed citation token, and `](` … `)` immediately after it. That `[§<ID>[.<section>]](<destination>)` collapses to just `§<ID>[.<section>]`. This is a textual inverse of the wrap pass, line by line — it parses no Markdown beyond that shape.
+The same shape `grund fmt --cross-refs` emits and re-derives ([§FS-fmt.6.2](../../functional-spec/FS-fmt.md#62-form), [§FS-fmt.6.3](../../functional-spec/FS-fmt.md#63-idempotency-and-re-derive)): a `[` immediately before a marker-prefixed citation token, and `](` … `)` immediately after it. That `[§<ID>[.<section>]](<destination>)` collapses to just `§<ID>[.<section>]`. This is a textual inverse of the wrap pass, line by line — it parses no Markdown beyond that shape.
 
 Nothing else is touched:
 
 - an ordinary Markdown link in the prose (`[the spec](https://example.com)`) — its bracket text is not a marker-prefixed citation, so it is left alone;
-- a citation that was never wrapped (a bare `§FS-check.1` in running text, or a `.md` that has not been run through `gnd fmt --cross-refs`) — already in the target form, nothing to do;
+- a citation that was never wrapped (a bare `§FS-check.1` in running text, or a `.md` that has not been run through `grund fmt --cross-refs`) — already in the target form, nothing to do;
 - a `--format md` body — kept exactly as written;
 - a body extracted from a source-code doc-comment ([§FS-show.2.3](../../functional-spec/FS-show.md#23-inline-declarations-in-code-and-doc-comments)) — `--cross-refs` never runs on source files ([§FS-fmt.6.1](../../functional-spec/FS-fmt.md#61-scope)), so there is nothing of this shape there; the flatten pass is a no-op on it.
 
 ### 2.2 Purely textual — no resolution
 
-The flatten pass does not look the citation up. A wrapper whose ID does not resolve — `[§FS-<gone>.1](FS-<gone>.md#1-x)` — is flattened to `§FS-<gone>.1` just the same, and `gnd check` still reports that citation as dangling, exactly as before. `gnd show` does not "paper over" anything; it only changes how it *renders* a body it found, never whether the body or its citations are valid.
+The flatten pass does not look the citation up. A wrapper whose ID does not resolve — `[§FS-<gone>.1](FS-<gone>.md#1-x)` — is flattened to `§FS-<gone>.1` just the same, and `grund check` still reports that citation as dangling, exactly as before. `grund show` does not "paper over" anything; it only changes how it *renders* a body it found, never whether the body or its citations are valid.
 
-## 3. Why this fits gnd's goals
+## 3. Why this fits grund's goals
 
-- [§FS-show](../../functional-spec/FS-show.md#fs-show-gnd-reads-a-single-declaration-body-by-id) / [§G-friendliness-first](../../goals/goals.md#g-friendliness-first-as-user--and-agent-friendly-as-possible) — `gnd show` is the cheap-grounding half of the workflow; handing the agent the bare `§<ID>` (which it can feed straight back to `gnd show`) instead of a path-and-anchor is the friendlier, lower-token answer.
-- [§DF-md-link-emission](DF-md-link-emission.md#df-md-link-emission-gnd-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations) — that decision already says the wrapped form is a *presentation layer* over the canonical `§<ID>` citation, regenerated by `gnd fmt`, never the source of truth. `gnd show` printing the canonical form for a non-rendered consumer is consistent with that; `--format md` keeping the wrapper serves the rendered consumer.
-- [§FS-non-goals.13](../../functional-spec/FS-non-goals.md#13-anything-that-would-let-two-gnd-installs-disagree) (two installs agree) — still byte-deterministic on `(tree, config)`: the flatten is a fixed textual rewrite, no heuristics.
-- [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation) (no link validation) — `gnd show` neither validates nor rewrites anything on disk; it strips a wrapper from the *output* only.
-- [§G-no-silent-breakage](../../goals/goals.md#g-no-silent-breakage-changes-ship-through-a-deprecation-path) — the wire form of `--format json` is stable output ([§FS-show.3.1](../../functional-spec/FS-show.md#31-format-variants)); this changes `body` (and `text` stdout) for a repo that uses `--cross-refs`. Shipping it now, in `0.1.0` (`gnd show` is part of the same release), folds it into the initial contract rather than changing it later.
+- [§FS-show](../../functional-spec/FS-show.md#fs-show-grund-reads-a-single-declaration-body-by-id) / [§GOAL-friendliness-first](../../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) — `grund show` is the cheap-grounding half of the workflow; handing the agent the bare `§<ID>` (which it can feed straight back to `grund show`) instead of a path-and-anchor is the friendlier, lower-token answer.
+- [§DF-md-link-emission](DF-md-link-emission.md#df-md-link-emission-grund-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations) — that decision already says the wrapped form is a *presentation layer* over the canonical `§<ID>` citation, regenerated by `grund fmt`, never the source of truth. `grund show` printing the canonical form for a non-rendered consumer is consistent with that; `--format md` keeping the wrapper serves the rendered consumer.
+- [§FS-non-goals.13](../../functional-spec/FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree) (two installs agree) — still byte-deterministic on `(tree, config)`: the flatten is a fixed textual rewrite, no heuristics.
+- [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation) (no link validation) — `grund show` neither validates nor rewrites anything on disk; it strips a wrapper from the *output* only.
+- [§GOAL-no-silent-breakage](../../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — the wire form of `--format json` is stable output ([§FS-show.3.1](../../functional-spec/FS-show.md#31-format-variants)); this changes `body` (and `text` stdout) for a repo that uses `--cross-refs`. Shipping it now, in `0.1.0` (`grund show` is part of the same release), folds it into the initial contract rather than changing it later.
 
 ## 4. Consequences
 
 - New [§FS-show.3.2](../../functional-spec/FS-show.md#32-cross-reference-links-are-flattened-in-text-and-json) states the rule; the `text` / `md` / `json` bullets in [§FS-show.3.1](../../functional-spec/FS-show.md#31-format-variants) point at it.
 - `flatten_cross_ref_links` in `src/lib.rs`, applied in `command_show` whenever the format is not `md`.
 - E2E fixtures `show-cross-refs-flattened` (text output is flattened) and `show-cross-refs-kept-in-md` (`--format md` keeps the wrapper) cover both halves; the `json` `body` rides the same code path as `text`.
-- `gnd show` over this repo's own `--cross-refs`-wrapped `.md` specs now prints bare `§…` citations in `text` and `json`.
+- `grund show` over this repo's own `--cross-refs`-wrapped `.md` specs now prints bare `§…` citations in `text` and `json`.
 
 ## 5. Alternatives considered
 
 | Approach | Why rejected |
 |---|---|
-| Keep the body verbatim in every format | The status quo, and it defeats the point of `gnd show` for the consumer it exists for — token-bloated output and a path that invites the file-read `show` replaces. |
+| Keep the body verbatim in every format | The status quo, and it defeats the point of `grund show` for the consumer it exists for — token-bloated output and a path that invites the file-read `show` replaces. |
 | Flatten in *all* formats, `md` included | `--format md` is documented as a self-contained, renderable Markdown fragment ([§FS-show.3.1](../../functional-spec/FS-show.md#31-format-variants)); a clickable cross-reference is the right thing there. Flattening it would make `md` strictly worse for its stated use. |
-| Don't enable `[fmt.cross_refs]` in `gnd`'s own repo | Avoids the symptom by not dogfooding the feature — and any other repo that opts into `--cross-refs` would still hit it. The fix belongs in `gnd show`, not in one repo's config. |
-| Make it a flag (`gnd show --raw` / `--no-cross-refs`) | A knob where a default will do. The flattened form is the right output for `text`/`json` essentially always; `--format md` already covers the "I want the renderable bytes" case. |
+| Don't enable `[fmt.cross_refs]` in `grund`'s own repo | Avoids the symptom by not dogfooding the feature — and any other repo that opts into `--cross-refs` would still hit it. The fix belongs in `grund show`, not in one repo's config. |
+| Make it a flag (`grund show --raw` / `--no-cross-refs`) | A knob where a default will do. The flattened form is the right output for `text`/`json` essentially always; `--format md` already covers the "I want the renderable bytes" case. |

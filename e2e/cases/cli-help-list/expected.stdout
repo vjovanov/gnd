@@ -1,21 +1,21 @@
-gnd list — the ID catalog: every declared ID in the repo, with where it's
-declared and its one-line title. The complement of `gnd refs` (which lists
-the citations of one ID) — `list` is the index of what you can `gnd show`.
+grund list — the ID catalog: every declared ID in the repo, with where it's
+declared and its one-line title. The complement of `grund refs` (which lists
+the citations of one ID) — `list` is the index of what you can `grund show`.
 
-Usage:  gnd list [PATH] [--kind KIND] [--unused] [--format text|json]
+Usage:  grund list [PATH] [--kind KIND] [--unused] [--format text|json]
 
 Output is one line per declared ID, `<ID>  <path>:<line>  <title>`, sorted by ID.
 Stub-and-inline pairs collapse to one line; a duplicate-declared ID gets a line per home.
 
 Options:
-  --kind KIND          only IDs of that kind                e.g. gnd list --kind FS
+  --kind KIND          only IDs of that kind                e.g. grund list --kind FS
   --unused             only declarations nothing cites yet (skips E2E cases; --kind E2E re-includes them)
   --format text|json   text (default) is the table on stdout; json emits NDJSON (adds `refs` count).
 
 Exit:  0 scan succeeded (an empty catalog prints nothing) · 2 unreadable tree, or an unknown --kind.
 
 Examples:
-  gnd list                      # the whole catalog
-  gnd list --kind AS docs/      # architectural-spec IDs under docs/
-  gnd list --unused             # uncited declarations (specs, decisions, …) — E2E cases excluded
-  gnd list --unused --kind E2E  # uncited e2e cases only, for inventory
+  grund list                      # the whole catalog
+  grund list --kind AS docs/      # architectural-spec IDs under docs/
+  grund list --unused             # uncited declarations (specs, decisions, …) — E2E cases excluded
+  grund list --unused --kind E2E  # uncited e2e cases only, for inventory

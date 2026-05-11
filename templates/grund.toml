@@ -1,0 +1,71 @@
+grund_config_version = 1
+project_name = "{NAME}"
+
+[reference]
+marker = "§"
+trigger = "$$"
+strict = false
+require_grounding = false
+
+[id]
+format = "{kind}-{number}-{slug}"
+section_separator = "."
+number_pattern = "\\d+"
+slug_pattern = "[a-z0-9][a-z0-9-]*"
+
+[[kinds]]
+prefix = "GND"
+folder = "docs"
+title = "Grund"
+
+[[kinds]]
+prefix = "GOAL"
+folder = "docs/goals"
+title = "Goal"
+
+[[kinds]]
+prefix = "FS"
+folder = "docs/functional-spec"
+title = "Functional spec"
+
+[[kinds]]
+prefix = "AS"
+folder = "docs/architectural-spec"
+title = "Architectural spec"
+
+[[kinds]]
+prefix = "DF"
+folder = "docs/decisions/functional"
+title = "Functional decision"
+
+[[kinds]]
+prefix = "DA"
+folder = "docs/decisions/architectural"
+title = "Architectural decision"
+
+[[kinds]]
+prefix = "E2E"
+folder = "e2e/cases"
+title = "End-to-end test"
+
+[[kinds]]
+prefix = "RM"
+folder = "docs"
+title = "Roadmap milestone"
+
+[scan]
+include = ["docs", "e2e", "src"]
+exclude = ["target", "node_modules", ".git", "dist", "build", ".venv"]
+extensions = ["md", "rs", "go", "java", "kt", "ts", "tsx", "js", "py", "c", "cpp", "swift", "scala", "rb", "php", "cs"]
+comment_prefixes = ["//", "#", ";", "--", "*", "/*"]
+docstring_python = true
+respect_gitignore = true
+
+[output]
+format = "text"
+color = "auto"
+relative_paths = true
+
+[fmt.cross_refs]
+enabled = false
+anchor_format = "github"

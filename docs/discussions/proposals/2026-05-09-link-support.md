@@ -2,17 +2,17 @@
 
 ## Status
 
-Resolved by [§DF-md-link-emission](../../decisions/functional/DF-md-link-emission.md#df-md-link-emission-gnd-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations) and [§DF-md-link-anchor-strategy](../../decisions/functional/DF-md-link-anchor-strategy.md#df-md-link-anchor-strategy-heading-text-slugs-re-derived-on-every-fmt-pass). Implementation tracked under [§RM-md-link-emission](../../roadmap.md#rm-md-link-emission-gnd-fmt---cross-refs). The "Open questions" section below is preserved as-is for historical context; the answers live in the two DFs above.
+Resolved by [§DF-md-link-emission](../../decisions/functional/DF-md-link-emission.md#df-md-link-emission-grund-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations) and [§DF-md-link-anchor-strategy](../../decisions/functional/DF-md-link-anchor-strategy.md#df-md-link-anchor-strategy-heading-text-slugs-re-derived-on-every-fmt-pass). Implementation tracked under [§RM-md-link-emission](../../roadmap.md#rm-md-link-emission-grund-fmt---cross-refs). The "Open questions" section below is preserved as-is for historical context; the answers live in the two DFs above.
 
 ## Context
 
-Readers often want clickable navigation in rendered Markdown, while `gnd`'s core
+Readers often want clickable navigation in rendered Markdown, while `grund`'s core
 model is based on stable ID citations. A Markdown link is useful for a human in a
 browser or IDE preview, but it is path-coupled and anchor-coupled. An ID citation
 is location-independent and works across Markdown and source doc-comments.
 
-The current direction in [§DF-md-link-emission](../../decisions/functional/DF-md-link-emission.md#df-md-link-emission-gnd-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations) and [§FS-fmt.6](../../functional-spec/FS-fmt.md#6-cross-reference-emission-with---cross-refs) is to keep IDs as the
-source of truth and let `gnd fmt --cross-refs` generate Markdown links around
+The current direction in [§DF-md-link-emission](../../decisions/functional/DF-md-link-emission.md#df-md-link-emission-grund-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations) and [§FS-fmt.6](../../functional-spec/FS-fmt.md#6-cross-reference-emission-with---cross-refs) is to keep IDs as the
+source of truth and let `grund fmt --cross-refs` generate Markdown links around
 marker-prefixed citations in `.md` files.
 
 ## Proposed shape
@@ -31,13 +31,13 @@ Allow `fmt` to derive this rendered-Markdown convenience form:
 
 The link target should be regenerated from the ID graph, not edited by hand as
 the authoritative reference. If a file moves or a heading changes, a later
-`gnd fmt --cross-refs --write` pass updates the generated URL.
+`grund fmt --cross-refs --write` pass updates the generated URL.
 
 ## Boundaries
 
-- `gnd check` should continue to validate the underlying ID citation, not general
+- `grund check` should continue to validate the underlying ID citation, not general
   Markdown links.
-- General Markdown link validation remains out of scope for `gnd` per
+- General Markdown link validation remains out of scope for `grund` per
   [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation); tools such as lychee remain better suited to `[text](url)`
   and HTTP validation.
 - Source files should not be rewritten with Markdown link syntax. The universal
@@ -48,7 +48,7 @@ the authoritative reference. If a file moves or a heading changes, a later
 - Should repositories be able to opt into `--cross-refs` globally through config,
   or should it stay invocation-only until the formatter behavior is mature?
 - Should generated links to source-hosted declarations point only at the file, or
-  should `gnd` eventually support best-effort line anchors where hosts support
+  should `grund` eventually support best-effort line anchors where hosts support
   them?
-- Should CI recommend both `gnd fmt --cross-refs --check` and a separate lychee
+- Should CI recommend both `grund fmt --cross-refs --check` and a separate lychee
   pass, or leave that composition entirely to the project?

@@ -1,4 +1,4 @@
-gnd check repo
+grund check repo
 expected exit: 0
 fixtures:
 - command.args

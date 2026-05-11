@@ -1,13 +1,13 @@
 [package]
-name = "gnd"
+name = "grund"
 version = "0.1.0"
 edition = "2024"
 description = "The polyglot reference checker: validate and read ID-based citations across Markdown docs and source-code doc-comments."
 keywords = ["documentation", "references", "linter", "agents", "cli"]
 categories = ["command-line-utilities", "development-tools"]
 license = "MIT"
-repository = "https://github.com/vjovanov/gnd"
-homepage = "https://github.com/vjovanov/gnd"
+repository = "https://github.com/vjovanov/grund"
+homepage = "https://github.com/vjovanov/grund"
 readme = "README.md"
 exclude = [
     ".agents/rhei/**",
@@ -29,7 +29,7 @@ codegen-units = 1
 # `scripts/pgo-build.sh` (training run = the benchmark workload — §AS-benchmarks,
 # §DA-pgo-release). PGO is a multi-phase generate/run/rebuild pipeline that needs
 # a profile absent on a fresh clone, so it cannot live here or in the dev loop;
-# a plain `cargo build --release` (and `cargo install gnd`) is LTO-only and
+# a plain `cargo build --release` (and `cargo install grund`) is LTO-only and
 # behaviour-identical.
 
 [dev-dependencies]

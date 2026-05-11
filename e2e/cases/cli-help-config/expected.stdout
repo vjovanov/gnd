@@ -1,6 +1,6 @@
-gnd config — inspect the effective `.agents/gnd.toml` discovered from a path.
+grund config — inspect the effective `.agents/grund.toml` discovered from a path.
 
-Usage:  gnd config <show | validate> [PATH]
+Usage:  grund config <show | validate> [PATH]
 
   show       print the effective config as TOML (defaults filled in for keys you didn't set).
   validate   parse the discovered config and report the first error; exit 0 if it's well-formed.

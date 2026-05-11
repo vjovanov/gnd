@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Profile-guided-optimization build of the `gnd` release binary (§DA-pgo-release).
+# Profile-guided-optimization build of the `grund` release binary (§DA-pgo-release).
 # This is a release/benchmarking tool, not part of the normal development build
 # or push/PR CI loop.
 #
@@ -12,10 +12,10 @@ set -euo pipefail
 # commands `benches/instructions.rs` benchmarks — the ones agents and CI invoke
 # most — so the profile reflects the hot paths the tool actually runs.
 #
-# Output: target/release/gnd, optimized against the merged profile.
+# Output: target/release/grund, optimized against the merged profile.
 # Requires: the `llvm-tools-preview` rustup component (`llvm-profdata`).
 #
-# `cargo install gnd` from source does not run this — a plain `cargo build
+# `cargo install grund` from source does not run this — a plain `cargo build
 # --release` has no profile to use. The release pipeline (§RM-distribution) runs
 # this script to produce the distributed binary; benchmarking can also run it
 # when comparing the optimized release artifact. The napi-rs / PyO3 builds get
@@ -39,7 +39,7 @@ mkdir -p "$pgo_dir"
 echo "==> 1/3  build instrumented binary (-Cprofile-generate)"
 RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Cprofile-generate=$pgo_dir" cargo build --release --locked
 
-gnd="$repo/target/release/gnd"
+grund="$repo/target/release/grund"
 
 echo "==> 2/3  training run — the §AS-benchmarks workload"
 # Keep this list in sync with benches/instructions.rs. Exit codes are irrelevant
@@ -47,12 +47,12 @@ echo "==> 2/3  training run — the §AS-benchmarks workload"
 # paths exercised.
 set +e
 for _ in 1 2 3; do
-  "$gnd" check "$repo"                  >/dev/null 2>&1
-  "$gnd" list "$repo"                   >/dev/null 2>&1
-  "$gnd" show FS-check "$repo"          >/dev/null 2>&1
-  "$gnd" refs G-fast-feedback "$repo"   >/dev/null 2>&1
-  "$gnd" cover "$repo"                  >/dev/null 2>&1
-  "$gnd" fmt --check "$repo"            >/dev/null 2>&1
+  "$grund" check "$repo"                  >/dev/null 2>&1
+  "$grund" list "$repo"                   >/dev/null 2>&1
+  "$grund" show FS-check "$repo"          >/dev/null 2>&1
+  "$grund" refs G-fast-feedback "$repo"   >/dev/null 2>&1
+  "$grund" cover "$repo"                  >/dev/null 2>&1
+  "$grund" fmt --check "$repo"            >/dev/null 2>&1
 done
 set -e
 
@@ -61,5 +61,5 @@ set -e
 echo "==> 3/3  rebuild optimized (-Cprofile-use)"
 RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Cprofile-use=$profdata -Cllvm-args=-pgo-warn-missing-function" cargo build --release --locked
 
-echo "==> done: $gnd"
-"$gnd" --version
+echo "==> done: $grund"
+"$grund" --version

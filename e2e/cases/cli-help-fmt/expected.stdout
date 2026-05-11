@@ -1,17 +1,17 @@
-gnd fmt — normalize citation syntax: rewrite the `$$` trigger to the `§` marker,
+grund fmt — normalize citation syntax: rewrite the `$$` trigger to the `§` marker,
 optionally upgrade bare ID tokens, and optionally emit Markdown cross-reference links.
 
-Usage:  gnd fmt [PATH] [--check | --write] [--marker] [--cross-refs]
+Usage:  grund fmt [PATH] [--check | --write] [--marker] [--cross-refs]
 
 Options:
-  --check        report pending rewrites, exit 1 if any exist         e.g. gnd fmt --check
-  --write        apply the changes in place                           e.g. gnd fmt --write
-  --marker       also prefix bare `<ID>` tokens with the marker        e.g. gnd fmt --write --marker
-  --cross-refs   wrap citations as Markdown links to targets          e.g. gnd fmt --write --cross-refs
+  --check        report pending rewrites, exit 1 if any exist         e.g. grund fmt --check
+  --write        apply the changes in place                           e.g. grund fmt --write
+  --marker       also prefix bare `<ID>` tokens with the marker        e.g. grund fmt --write --marker
+  --cross-refs   wrap citations as Markdown links to targets          e.g. grund fmt --write --cross-refs
                  also runs on --write when [fmt.cross_refs].enabled = true
 
 With neither --check nor --write, fmt prints the would-be changes and exits 1 if any (a dry run).
 --write prints `rewrote N references:` then one `  <path> (count)` line per file touched.
-The report goes to stdout (like `gnd check`); CLI-level `error:` lines go to stderr.
+The report goes to stdout (like `grund check`); CLI-level `error:` lines go to stderr.
 
 Exit:  0 nothing to do, or --write succeeded · 1 changes pending (dry run / --check) · 2 unreadable tree or CLI error.

@@ -1,7 +1,7 @@
-//! Instruction-counting benchmarks for the `gnd` CLI — see
+//! Instruction-counting benchmarks for the `grund` CLI — see
 //! `docs/architectural-spec/AS-benchmarks.md`.
 //!
-//! Each benchmark runs the freshly built `gnd` binary under Callgrind via
+//! Each benchmark runs the freshly built `grund` binary under Callgrind via
 //! `iai-callgrind`, so the reported figure is the deterministic instruction
 //! count for an actual CLI invocation against this repository's conformant
 //! tree. Instruction counts (unlike wall-clock time) do not flake on a loaded
@@ -28,63 +28,63 @@
 #[cfg(feature = "bench")]
 use iai_callgrind::{Command, binary_benchmark, binary_benchmark_group, main};
 
-/// The freshly built `gnd` binary under test (Cargo exports this env var).
+/// The freshly built `grund` binary under test (Cargo exports this env var).
 #[cfg(feature = "bench")]
-const GND: &str = env!("CARGO_BIN_EXE_gnd");
+const GRUND: &str = env!("CARGO_BIN_EXE_grund");
 /// This repository's root — the conformant tree every benchmark scans, matching
-/// the `gnd .` self-host loop CI already runs.
+/// the `grund .` self-host loop CI already runs.
 #[cfg(feature = "bench")]
 const REPO: &str = env!("CARGO_MANIFEST_DIR");
 
-/// A representative declared ID with a substantial body — what `gnd show` reads
+/// A representative declared ID with a substantial body — what `grund show` reads
 /// when an agent grounds itself before editing.
 #[cfg(feature = "bench")]
 const SHOW_ID: &str = "FS-check";
-/// A heavily-cited goal — `gnd refs` over it walks the whole tree and returns
+/// A heavily-cited goal — `grund refs` over it walks the whole tree and returns
 /// the blast radius an agent checks before changing a declaration.
 #[cfg(feature = "bench")]
 const REFS_ID: &str = "G-fast-feedback";
 
-// `gnd check <repo>` — validate every citation in the tree.
+// `grund check <repo>` — validate every citation in the tree.
 #[cfg(feature = "bench")]
 #[binary_benchmark]
 fn check() -> Command {
-    Command::new(GND).args(["check", REPO]).build()
+    Command::new(GRUND).args(["check", REPO]).build()
 }
 
-// `gnd list <repo>` — every declared ID.
+// `grund list <repo>` — every declared ID.
 #[cfg(feature = "bench")]
 #[binary_benchmark]
 fn list() -> Command {
-    Command::new(GND).args(["list", REPO]).build()
+    Command::new(GRUND).args(["list", REPO]).build()
 }
 
-// `gnd show <ID> <repo>` — one declaration body.
+// `grund show <ID> <repo>` — one declaration body.
 #[cfg(feature = "bench")]
 #[binary_benchmark]
 fn show() -> Command {
-    Command::new(GND).args(["show", SHOW_ID, REPO]).build()
+    Command::new(GRUND).args(["show", SHOW_ID, REPO]).build()
 }
 
-// `gnd refs <ID> <repo>` — every citation site of an ID.
+// `grund refs <ID> <repo>` — every citation site of an ID.
 #[cfg(feature = "bench")]
 #[binary_benchmark]
 fn refs() -> Command {
-    Command::new(GND).args(["refs", REFS_ID, REPO]).build()
+    Command::new(GRUND).args(["refs", REFS_ID, REPO]).build()
 }
 
-// `gnd cover <repo>` — the citation graph grouped by scanned file.
+// `grund cover <repo>` — the citation graph grouped by scanned file.
 #[cfg(feature = "bench")]
 #[binary_benchmark]
 fn cover() -> Command {
-    Command::new(GND).args(["cover", REPO]).build()
+    Command::new(GRUND).args(["cover", REPO]).build()
 }
 
-// `gnd fmt --check <repo>` — report (without writing) any non-canonical citation.
+// `grund fmt --check <repo>` — report (without writing) any non-canonical citation.
 #[cfg(feature = "bench")]
 #[binary_benchmark]
 fn fmt_check() -> Command {
-    Command::new(GND).args(["fmt", "--check", REPO]).build()
+    Command::new(GRUND).args(["fmt", "--check", REPO]).build()
 }
 
 #[cfg(feature = "bench")]

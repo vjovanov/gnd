@@ -1,18 +1,18 @@
-gnd id — emit the next conflict-free ID for a new declaration of a kind.
+grund id — emit the next conflict-free ID for a new declaration of a kind.
 
-Usage:  gnd id <KIND> "<title>" [PATH] [--width N] [--explain] [--format text|json]
+Usage:  grund id <KIND> "<title>" [PATH] [--width N] [--explain] [--format text|json]
 
 KIND is one of the configured `[[kinds]]` prefixes — defaults G, FS, AS, DF, DA, E2E, RM;
-`gnd config show` lists this repo's. The title is slugified deterministically; the number
+`grund config show` lists this repo's. The title is slugified deterministically; the number
 is `max(existing) + 1` (holes are never filled).
 
 Options:
-  --width N      minimum digit width for the number (default 3)   e.g. gnd id FS "x" --width 4
-  --explain      also print where to put the declaration file     e.g. gnd id FS "x" --explain
+  --width N      minimum digit width for the number (default 3)   e.g. grund id FS "x" --width 4
+  --explain      also print where to put the declaration file     e.g. grund id FS "x" --explain
   --format text|json   text (default) is the bare ID on stdout; json adds kind/number/slug/folder.
 
 Exit:  0 ID emitted · 1 empty slug / collision · 2 unknown kind, scan, or CLI error.
 
 Examples:
-  gnd id FS "User can log in"          # -> FS-007-user-can-log-in (or FS-user-can-log-in)
-  ID=$(gnd id FS "User can log in"); $EDITOR "docs/functional-spec/$ID.md"
+  grund id FS "User can log in"          # -> FS-007-user-can-log-in (or FS-user-can-log-in)
+  ID=$(grund id FS "User can log in"); $EDITOR "docs/functional-spec/$ID.md"

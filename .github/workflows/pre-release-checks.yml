@@ -42,9 +42,9 @@ jobs:
 
       - name: Self-check PGO release binary
         run: |
-          out="$(./target/release/gnd check . --format json)"
+          out="$(./target/release/grund check . --format json)"
           if [ -n "$out" ]; then
-            echo "PGO gnd self-check wrote unexpected stdout:" >&2
+            echo "PGO grund self-check wrote unexpected stdout:" >&2
             printf '%s\n' "$out" >&2
             exit 1
           fi

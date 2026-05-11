@@ -5,7 +5,7 @@ Working notes for ideas that are not yet accepted specs or decision records.
 Use this area for design sketches, trade-off notes, and proposals that need more
 review before they become `FS-*`, `AS-*`, `DF-*`, `DA-*`, or roadmap entries.
 
-Discussion notes use the project-local `DISC-*` kind in `.agents/gnd.toml`.
+Discussion notes use the project-local `DISC-*` kind in `.agents/grund.toml`.
 Current proposals:
 
 - [§DISC-link-support](proposals/2026-05-09-link-support.md#disc-link-support-link-support-as-a-derived-presentation-layer)

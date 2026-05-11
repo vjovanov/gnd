@@ -1,5 +1,5 @@
 # Existing agents
 
-<!-- gnd:init:agents:v1 begin -->
+<!-- grund:init:agents:v1 begin -->
 managed block
-<!-- gnd:init:agents:v1 end -->
+<!-- grund:init:agents:v1 end -->

@@ -1,12 +1,12 @@
 //! Regression coverage for the runnable mini-repos under `examples/`.
 //!
 //! `README.md` and `examples/README.md` advertise each `examples/<scheme>/repo`
-//! as a self-contained tree that `gnd <path>` validates, with golden
+//! as a self-contained tree that `grund <path>` validates, with golden
 //! `expected.exit` / `expected.stdout` / `expected.stderr` files alongside it.
-//! This test runs `gnd` against every such directory and asserts the golden
+//! This test runs `grund` against every such directory and asserts the golden
 //! contract, so the advertised examples cannot silently rot. It uses the lighter
 //! contract the examples carry (no `spec.refs`, no `command.args`): each example
-//! is exercised by the bare `gnd <repo>` form documented in the READMEs.
+//! is exercised by the bare `grund <repo>` form documented in the READMEs.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -53,11 +53,11 @@ fn run_example(manifest_dir: &Path, case: &Path) {
         .to_string_lossy()
         .into_owned();
 
-    let output = Command::new(env!("CARGO_BIN_EXE_gnd"))
+    let output = Command::new(env!("CARGO_BIN_EXE_grund"))
         .arg(&repo_arg)
         .current_dir(manifest_dir)
         .output()
-        .unwrap_or_else(|err| panic!("{name}: run gnd: {err}"));
+        .unwrap_or_else(|err| panic!("{name}: run grund: {err}"));
 
     let actual_exit = output.status.code().unwrap_or(-1);
     let actual_stdout = String::from_utf8(output.stdout)

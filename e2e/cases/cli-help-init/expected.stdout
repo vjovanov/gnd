@@ -1,16 +1,16 @@
-gnd init — scaffold `AGENTS.md` + `.agents/gnd.toml` (and, with --docs, the docs/ and e2e/ layout).
+grund init — scaffold `AGENTS.md` + `.agents/grund.toml` (and, with --docs, the docs/ and e2e/ layout).
 Idempotent: re-running updates the managed `AGENTS.md` block in place and leaves your edits alone.
 
-Usage:  gnd init [PATH] [--docs] [--name NAME] [--force | --append]
+Usage:  grund init [PATH] [--docs] [--name NAME] [--force | --append]
 
 Options:
-  --docs         also write docs/ (raison-detre, goals, roadmap, changelog, spec READMEs) and e2e/
+  --docs         also write docs/ (grund, goals, roadmap, changelog, spec READMEs) and e2e/
   --name NAME    project name to interpolate (default: derived from the directory)
-  --force        overwrite existing files with the canonical version
+  --force        reset an edited AGENTS.md / scaffold file to canonical (an existing .agents/grund.toml is left alone)
   --append       append the managed AGENTS.md block instead of replacing an older one
 
 Exit:  0 written / updated / already current · 2 missing target, --force+--append, or unsupported newer block.
 
 Examples:
-  gnd init --docs                  # full first-time scaffold
-  gnd init --name "My Service"      # just AGENTS.md + .agents/gnd.toml
+  grund init --docs                  # full first-time scaffold
+  grund init --name "My Service"      # just AGENTS.md + .agents/grund.toml

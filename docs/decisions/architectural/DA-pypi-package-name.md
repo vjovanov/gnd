@@ -1,8 +1,9 @@
 # DA-pypi-package-name: PyPI uses gnd-cli as the package name
 
-**Status:** Accepted
+**Status:** Superseded
 **Date:** 2026-05-11
 **Supersedes:** [§DA-reference-checker-name](DA-reference-checker-name.md#da-reference-checker-name-name-for-the-spec-reference-checker-tool) for the PyPI package name only.
+**Superseded by:** [§DA-rename-to-grund](DA-rename-to-grund.md#da-rename-to-grund-rename-gnd-to-grund-before-first-publish) — the rename to `grund` voids the PyPI-collision premise below (the `gnd`/`GND` clash does not exist for `grund`); see that record for the package names that actually ship.
 
 ## 1. Context
 
@@ -20,7 +21,7 @@ Keep `gnd-lsp` as the planned PyPI package name for the optional LSP server.
 
 - `pip install gnd-cli` is the documented PyPI install command once Python wheels ship.
 - `from gnd import check, show` remains the intended Python API surface.
-- [§FS-distribution](../../functional-spec/FS-distribution.md#fs-distribution-gnd-distribution-targets) records `gnd-cli` for PyPI instead of `gnd`.
+- [§FS-distribution](../../functional-spec/FS-distribution.md#fs-distribution-grund-distribution-targets) records `gnd-cli` for PyPI instead of `gnd`.
 - The cargo crate, binary, repository, and npm package naming decisions from [§DA-reference-checker-name](DA-reference-checker-name.md#da-reference-checker-name-name-for-the-spec-reference-checker-tool) are unchanged.
 
 ## 4. Alternatives considered

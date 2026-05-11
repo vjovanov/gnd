@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-const CANONICAL_KINDS: &[&str] = &["G", "FS", "AS", "DF", "DA", "E2E", "RM"];
+const CANONICAL_KINDS: &[&str] = &["GND", "GOAL", "FS", "AS", "DF", "DA", "E2E", "RM"];
 
 #[test]
 fn e2e_cases_match_expected_reports() {
@@ -26,8 +26,8 @@ fn e2e_output_is_deterministic() {
             continue;
         }
         let args = command_args(&manifest_dir, &case, name);
-        let first = run_gnd(&manifest_dir, &args, name);
-        let second = run_gnd(&manifest_dir, &args, name);
+        let first = run_grund(&manifest_dir, &args, name);
+        let second = run_grund(&manifest_dir, &args, name);
         assert_eq!(
             first.status.code(),
             second.status.code(),
@@ -69,12 +69,12 @@ fn discover_cases(manifest_dir: &Path) -> Vec<PathBuf> {
     cases
 }
 
-fn run_gnd(manifest_dir: &Path, args: &[String], name: &str) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_gnd"))
+fn run_grund(manifest_dir: &Path, args: &[String], name: &str) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_grund"))
         .args(args)
         .current_dir(manifest_dir)
         .output()
-        .unwrap_or_else(|err| panic!("{name}: run gnd: {err}"))
+        .unwrap_or_else(|err| panic!("{name}: run grund: {err}"))
 }
 
 fn run_case(manifest_dir: &Path, case: &Path) {
@@ -85,7 +85,7 @@ fn run_case(manifest_dir: &Path, case: &Path) {
     assert_spec_refs(case, name);
 
     let args = command_args(manifest_dir, case, name);
-    let output = run_gnd(manifest_dir, &args, name);
+    let output = run_grund(manifest_dir, &args, name);
     let actual_exit = output.status.code().unwrap_or(-1);
     let actual_stdout = String::from_utf8(output.stdout)
         .unwrap_or_else(|err| panic!("{name}: stdout was not UTF-8: {err}"));

@@ -3,11 +3,12 @@ set -euo pipefail
 
 # Pre-release package-name guard for §RM-distribution-naming.
 # Claimed future package names must be either available or already owned by this
-# repository. The historical collisions for bare "gnd" on npm/PyPI are reported
-# as notices so the release manager can revisit the docs if those names change.
+# repository. The bare "grund" name — a dormant low-use squat on npm, currently
+# appearing free on PyPI (§DA-rename-to-grund) — is reported as a notice so the
+# release manager can revisit FS-distribution if either of those changes.
 
-ua="gnd-release-name-check/0.1"
-repo_pattern='github.com[/:]vjovanov/gnd'
+ua="grund-release-name-check/0.1"
+repo_pattern='github.com[/:]vjovanov/grund'
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -87,12 +88,12 @@ notice_external_json_name() {
   esac
 }
 
-check_claimed_json_name "crates.io" "gnd" "https://crates.io/api/v1/crates/gnd"
-check_claimed_json_name "crates.io" "gnd-lsp" "https://crates.io/api/v1/crates/gnd-lsp"
-check_claimed_json_name "npm" "gnd-cli" "https://registry.npmjs.org/gnd-cli"
-check_claimed_json_name "npm" "gnd-lsp" "https://registry.npmjs.org/gnd-lsp"
-check_claimed_json_name "pypi" "gnd-cli" "https://pypi.org/pypi/gnd-cli/json"
-check_claimed_json_name "pypi" "gnd-lsp" "https://pypi.org/pypi/gnd-lsp/json"
+check_claimed_json_name "crates.io" "grund" "https://crates.io/api/v1/crates/grund"
+check_claimed_json_name "crates.io" "grund-lsp" "https://crates.io/api/v1/crates/grund-lsp"
+check_claimed_json_name "npm" "grund-cli" "https://registry.npmjs.org/grund-cli"
+check_claimed_json_name "npm" "grund-lsp" "https://registry.npmjs.org/grund-lsp"
+check_claimed_json_name "pypi" "grund-cli" "https://pypi.org/pypi/grund-cli/json"
+check_claimed_json_name "pypi" "grund-lsp" "https://pypi.org/pypi/grund-lsp/json"
 
-notice_external_json_name "npm" "gnd" "https://registry.npmjs.org/gnd"
-notice_external_json_name "pypi" "gnd" "https://pypi.org/pypi/gnd/json"
+notice_external_json_name "npm" "grund" "https://registry.npmjs.org/grund"
+notice_external_json_name "pypi" "grund" "https://pypi.org/pypi/grund/json"

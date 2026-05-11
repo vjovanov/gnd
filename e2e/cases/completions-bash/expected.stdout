@@ -1,10 +1,10 @@
-# bash completion for gnd
-_gnd_complete_ids() {
+# bash completion for grund
+_grund_complete_ids() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
-    mapfile -t COMPREPLY < <(gnd complete ids --prefix "$cur" 2>/dev/null)
+    mapfile -t COMPREPLY < <(grund complete ids --prefix "$cur" 2>/dev/null)
 }
 
-_gnd() {
+_grund() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local sub="${COMP_WORDS[1]}"
     COMPREPLY=()
@@ -16,10 +16,10 @@ _gnd() {
 
     case "$sub" in
         show|refs)
-            _gnd_complete_ids
+            _grund_complete_ids
             return 0
             ;;
     esac
 }
 
-complete -F _gnd gnd
+complete -F _grund grund

@@ -1,0 +1,22 @@
+# Custom config for the init-force-keeps-existing-config e2e case: `grund init --force`
+# must leave this file byte-for-byte unchanged (it is the repo's settings, not a
+# scaffold stub). The values below are deliberately not the canonical defaults.
+grund_config_version = 1
+project_name = "Existing Project"
+
+[reference]
+marker = "§"
+trigger = "$$"
+strict = true
+
+[id]
+format = "{kind}-{slug}"
+slug_pattern = "[a-z][a-z0-9-]*"
+
+[[kinds]]
+prefix = "SPEC"
+folder = "specs"
+title = "Spec"
+
+[scan]
+include = ["specs"]

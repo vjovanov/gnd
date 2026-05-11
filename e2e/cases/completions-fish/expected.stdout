@@ -1,9 +1,9 @@
-# fish completion for gnd
-function __gnd_complete_ids
+# fish completion for grund
+function __grund_complete_ids
     set -l token (commandline -ct)
-    gnd complete ids --prefix "$token" 2>/dev/null
+    grund complete ids --prefix "$token" 2>/dev/null
 end
 
-complete -c gnd -f -n "__fish_use_subcommand" -a "check show list refs cover fmt id init config agent-setup-instructions completions"
-complete -c gnd -f -n "__fish_seen_subcommand_from show refs" -a "(__gnd_complete_ids)"
+complete -c grund -f -n "__fish_use_subcommand" -a "check show list refs cover fmt id init config agent-setup-instructions completions"
+complete -c grund -f -n "__fish_seen_subcommand_from show refs" -a "(__grund_complete_ids)"
 

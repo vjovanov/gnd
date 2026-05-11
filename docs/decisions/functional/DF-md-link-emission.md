@@ -1,19 +1,19 @@
-# DF-md-link-emission: gnd fmt may emit clickable Markdown links alongside §-prefixed citations
+# DF-md-link-emission: grund fmt may emit clickable Markdown links alongside §-prefixed citations
 
 **Status:** Accepted
 **Date:** 2026-05-09
 
 ## 1. Context
 
-The gnd reference scheme cites IDs in the form `§<KIND>-<slug>.<section>`. In rendered Markdown (GitHub, MkDocs, an IDE preview), these citations are not clickable — they are plain text. A reader scanning a doc has to mentally resolve the citation to a path, navigate there, and scroll to the section. `gnd show <ID>` answers the question on the command line, but a reader already inside the rendered doc wants the link there too.
+The grund reference scheme cites IDs in the form `§<KIND>-<slug>.<section>`. In rendered Markdown (GitHub, MkDocs, an IDE preview), these citations are not clickable — they are plain text. A reader scanning a doc has to mentally resolve the citation to a path, navigate there, and scroll to the section. `grund show <ID>` answers the question on the command line, but a reader already inside the rendered doc wants the link there too.
 
-Off-the-shelf Markdown links solve the click problem but lose every other property an ID has — they are path-coupled (renames break them), anchor-coupled (heading rewrites break them), and they do not work in source comments (`§G-polyglot-citation`). The whole point of `gnd` is that none of those losses are necessary.
+Off-the-shelf Markdown links solve the click problem but lose every other property an ID has — they are path-coupled (renames break them), anchor-coupled (heading rewrites break them), and they do not work in source comments (`§GOAL-polyglot-citation`). The whole point of `grund` is that none of those losses are necessary.
 
 We want to keep IDs as the source of truth and *also* deliver clickable links in rendered Markdown — without the losses, and without the user maintaining two forms by hand.
 
 ## 2. Decision
 
-Extend `gnd fmt` (per [§FS-fmt.6](../../functional-spec/FS-fmt.md#6-cross-reference-emission-with---cross-refs)) with an opt-in `--cross-refs` mode that, in `.md` files only, wraps each marker-prefixed citation in a Markdown link to the declaration body. The unwrapped citation remains the canonical, source-of-truth form; the wrap is a derived presentation layer that `fmt` regenerates idempotently.
+Extend `grund fmt` (per [§FS-fmt.6](../../functional-spec/FS-fmt.md#6-cross-reference-emission-with---cross-refs)) with an opt-in `--cross-refs` mode that, in `.md` files only, wraps each marker-prefixed citation in a Markdown link to the declaration body. The unwrapped citation remains the canonical, source-of-truth form; the wrap is a derived presentation layer that `fmt` regenerates idempotently.
 
 ### 2.1 Form
 
@@ -38,7 +38,7 @@ Wrap-the-citation keeps one artifact per citation, keeps the cite human-readable
 
 ### 2.2 Anchor format
 
-**Superseded by [§DF-md-link-anchor-strategy](DF-md-link-anchor-strategy.md#df-md-link-anchor-strategy-heading-text-slugs-re-derived-on-every-fmt-pass).** This DR's first draft proposed a section-coordinate anchor (`.3.1` → `#3-1`) on a "stability under heading edits" argument. On review the proposed format proved factually wrong about renderer behavior — GitHub's slugger strips punctuation rather than converting it, so `### 3.1 Inputs` produces `#31-inputs`, not `#3-1`. [§DF-md-link-anchor-strategy](DF-md-link-anchor-strategy.md#df-md-link-anchor-strategy-heading-text-slugs-re-derived-on-every-fmt-pass) picks the actual strategy: heading-text slugs per a configurable renderer profile, re-derived on every `gnd fmt` pass. The "stability" framing is retracted there in favor of a normalize-on-each-run rule that matches the existing trigger→marker pass.
+**Superseded by [§DF-md-link-anchor-strategy](DF-md-link-anchor-strategy.md#df-md-link-anchor-strategy-heading-text-slugs-re-derived-on-every-fmt-pass).** This DR's first draft proposed a section-coordinate anchor (`.3.1` → `#3-1`) on a "stability under heading edits" argument. On review the proposed format proved factually wrong about renderer behavior — GitHub's slugger strips punctuation rather than converting it, so `### 3.1 Inputs` produces `#31-inputs`, not `#3-1`. [§DF-md-link-anchor-strategy](DF-md-link-anchor-strategy.md#df-md-link-anchor-strategy-heading-text-slugs-re-derived-on-every-fmt-pass) picks the actual strategy: heading-text slugs per a configurable renderer profile, re-derived on every `grund fmt` pass. The "stability" framing is retracted there in favor of a normalize-on-each-run rule that matches the existing trigger→marker pass.
 
 ### 2.3 Source-file links
 
@@ -50,29 +50,29 @@ When the citation's declaration lives in source code (a stub of the form `# <ID>
 
 ## 3. Reconciliation with non-goals
 
-This decision sits close to two [§FS-non-goals](../../functional-spec/FS-non-goals.md#fs-non-goals-what-gnd-will-deliberately-not-do) entries; both stand and this is consistent with them.
+This decision sits close to two [§FS-non-goals](../../functional-spec/FS-non-goals.md#fs-non-goals-what-grund-will-deliberately-not-do) entries; both stand and this is consistent with them.
 
-### 3.1 [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation) — gnd does not validate Markdown links
+### 3.1 [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation) — grund does not validate Markdown links
 
-`fmt --cross-refs` *emits* a link; it does not *validate* a link. Once the link is on disk it is a normal Markdown link and `lychee` is the right tool to validate it. `gnd check` continues to validate only the underlying citation — the part inside the brackets — same as before. If a contributor hand-edits the URL inside `(...)` to point somewhere wrong, `gnd` will not catch it; that is `lychee`'s job, exactly as [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation) says.
+`fmt --cross-refs` *emits* a link; it does not *validate* a link. Once the link is on disk it is a normal Markdown link and `lychee` is the right tool to validate it. `grund check` continues to validate only the underlying citation — the part inside the brackets — same as before. If a contributor hand-edits the URL inside `(...)` to point somewhere wrong, `grund` will not catch it; that is `lychee`'s job, exactly as [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation) says.
 
-### 3.2 [§FS-non-goals.5](../../functional-spec/FS-non-goals.md#5-documentation-generation) — gnd does not generate rendered documentation
+### 3.2 [§FS-non-goals.5](../../functional-spec/FS-non-goals.md#5-documentation-generation) — grund does not generate rendered documentation
 
-The link emission is a transformation on the source `.md` file (a sibling of the existing trigger→marker rewrite in [§FS-fmt.2.1](../../functional-spec/FS-fmt.md#21-trigger-to-marker)), not a render to a different format. The output is still `.md`; the file tree is unchanged in shape; no HTML, PDF, or static site is produced. A reader who never opens a renderer sees the same citation as before, now wrapped in link syntax. [§FS-non-goals.5](../../functional-spec/FS-non-goals.md#5-documentation-generation) prevents `gnd` from owning the publishing pipeline; this decision keeps `gnd` upstream of any such pipeline.
+The link emission is a transformation on the source `.md` file (a sibling of the existing trigger→marker rewrite in [§FS-fmt.2.1](../../functional-spec/FS-fmt.md#21-trigger-to-marker)), not a render to a different format. The output is still `.md`; the file tree is unchanged in shape; no HTML, PDF, or static site is produced. A reader who never opens a renderer sees the same citation as before, now wrapped in link syntax. [§FS-non-goals.5](../../functional-spec/FS-non-goals.md#5-documentation-generation) prevents `grund` from owning the publishing pipeline; this decision keeps `grund` upstream of any such pipeline.
 
 ## 4. Consequences
 
-- A new `--cross-refs` flag on `gnd fmt` and a `[fmt.cross_refs]` config block in `gnd.toml` ([§FS-fmt.6.7](../../functional-spec/FS-fmt.md#67-configurability)).
-- A new roadmap item [§RM-md-link-emission](../../roadmap.md#rm-md-link-emission-gnd-fmt---cross-refs) carries the implementation.
-- The [§G-polyglot-citation](../../goals/goals.md#g-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) goal explicitly states that the polyglot grammar is the canonical form; this decision is the sanctioned exception that adds a presentation-layer view in `.md` only.
-- Repos that adopt `--cross-refs` should run `gnd fmt --cross-refs --write` as a pre-commit hook so the generated links stay in sync with file moves and citation edits. CI should run `gnd fmt --cross-refs --check` to flag drift.
-- The [§G-no-silent-breakage](../../goals/goals.md#g-no-silent-breakage-changes-ship-through-a-deprecation-path) path: shipping the flag does not change any existing behavior; `--cross-refs` and `[fmt.cross_refs] enabled = true` are both off by default, so a repo that does not opt in sees no diff.
+- A new `--cross-refs` flag on `grund fmt` and a `[fmt.cross_refs]` config block in `grund.toml` ([§FS-fmt.6.7](../../functional-spec/FS-fmt.md#67-configurability)).
+- A new roadmap item [§RM-md-link-emission](../../roadmap.md#rm-md-link-emission-grund-fmt---cross-refs) carries the implementation.
+- The [§GOAL-polyglot-citation](../../goals/goals.md#goal-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) goal explicitly states that the polyglot grammar is the canonical form; this decision is the sanctioned exception that adds a presentation-layer view in `.md` only.
+- Repos that adopt `--cross-refs` should run `grund fmt --cross-refs --write` as a pre-commit hook so the generated links stay in sync with file moves and citation edits. CI should run `grund fmt --cross-refs --check` to flag drift.
+- The [§GOAL-no-silent-breakage](../../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) path: shipping the flag does not change any existing behavior; `--cross-refs` and `[fmt.cross_refs] enabled = true` are both off by default, so a repo that does not opt in sees no diff.
 
 ## 5. Alternatives considered
 
 | Approach | Why rejected |
 |---|---|
-| Markdown links as the source of truth (delete the ID grammar) | Loses the polyglot property entirely — the reason `gnd` exists per [§G-polyglot-citation](../../goals/goals.md#g-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) and the raison-detre. Source comments cannot host clickable Markdown. |
-| Render IDs to links at publish time, in a downstream tool | Pushes the work to every consumer — MkDocs plugin, GitHub Action, IDE preview — and gives each one a chance to disagree on the link target. Doing it once in `gnd fmt` keeps two installs in agreement ([§FS-non-goals.13](../../functional-spec/FS-non-goals.md#13-anything-that-would-let-two-gnd-installs-disagree)). |
-| Always emit links (no opt-in) | Surprises existing repos with a large mechanical diff on first upgrade; couples every `.md` to its current path layout; violates [§G-no-silent-breakage](../../goals/goals.md#g-no-silent-breakage-changes-ship-through-a-deprecation-path). |
+| Markdown links as the source of truth (delete the ID grammar) | Loses the polyglot property entirely — the reason `grund` exists per [§GOAL-polyglot-citation](../../goals/goals.md#goal-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) and [§GND-grund](../../grund.md#gnd-grund-agents-stay-grounded-in-the-spec). Source comments cannot host clickable Markdown. |
+| Render IDs to links at publish time, in a downstream tool | Pushes the work to every consumer — MkDocs plugin, GitHub Action, IDE preview — and gives each one a chance to disagree on the link target. Doing it once in `grund fmt` keeps two installs in agreement ([§FS-non-goals.13](../../functional-spec/FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)). |
+| Always emit links (no opt-in) | Surprises existing repos with a large mechanical diff on first upgrade; couples every `.md` to its current path layout; violates [§GOAL-no-silent-breakage](../../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path). |
 | Heading-text slugs for anchors | Brittle under heading edits; would force `fmt` to rewrite anchors whenever prose changes; runs counter to "IDs survive refactors" — the property this project exists to defend. |

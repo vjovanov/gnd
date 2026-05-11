@@ -1,14 +1,14 @@
-# gnd — Ground Your Agents in the Spec
+# grund — Ground Your Agents in the Spec
 
 > A small, fast Rust CLI that keeps every agent (human or AI) cited as it works — across your docs *and* your code's doc-comments.
 
-`gnd` is built around one workflow:
+`grund` is built around one workflow:
 
 1. **Cite as you write.** Every code unit carries a `§<ID>` back to the spec section it implements.
-2. **Re-read before you edit.** `gnd show <ID>.<section>` pulls just that subsection into context — no full-file reads, no token bloat.
-3. **No dangling pointers.** `gnd check` validates that every cited ID resolves — in `.md`, Rust `///`, Java doc-comments, Python docstrings, Go `//`, JSDoc, every doc-comment form `gnd` knows about.
+2. **Re-read before you edit.** `grund show <ID>.<section>` pulls just that subsection into context — no full-file reads, no token bloat.
+3. **No dangling pointers.** `grund check` validates that every cited ID resolves — in `.md`, Rust `///`, Java doc-comments, Python docstrings, Go `//`, JSDoc, every doc-comment form `grund` knows about.
 
-Off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) only handle `.md` and only validate `[text](url)`. A `§FS-events.4` cited from `src/bus.rs` is invisible to them. That gap is what `gnd` exists to close.
+Off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) only handle `.md` and only validate `[text](url)`. A `§FS-events.4` cited from `src/bus.rs` is invisible to them. That gap is what `grund` exists to close.
 
 > Status: 0.1.0 release-candidate Cargo CLI. The core command surface is implemented and self-hosted on this repo; install from git works today, while registry publication, npm / PyPI bindings, the optional LSP server, and watch mode are tracked in [`docs/roadmap.md`](docs/roadmap.md).
 
@@ -27,37 +27,37 @@ pub struct EventBus {
 }
 ```
 
-`gnd` doesn't invent these citations — that's the contributor's call. What `gnd` does is make sure the ones you wrote *resolve*, and tell you when a diff added a new code unit without one (`[reference] require_grounding = true`).
+`grund` doesn't invent these citations — that's the contributor's call. What `grund` does is make sure the ones you wrote *resolve*, and tell you when a diff added a new code unit without one (`[reference] require_grounding = true`).
 
 ## 2. Re-read before you edit
 
 A citation is a pointer to a fact, not a file path. Resolve it without opening files:
 
 ```bash
-$ gnd show FS-events.4
+$ grund show FS-events.4
 A receiver that falls behind the broadcaster is disconnected, not blocked.
 The sender never waits on a slow consumer.
 ```
 
-`gnd show` returns *just* that subsection — well under 200 lines for the common case — so the agent pulls one fact into context instead of an entire file. Its companions:
+`grund show` returns *just* that subsection — well under 200 lines for the common case — so the agent pulls one fact into context instead of an entire file. Its companions:
 
-- `gnd show <ID>` — the whole declaration body
-- `gnd show <ID> --head` — the lead paragraph only
-- `gnd show <ID> --format json` — for tooling
+- `grund show <ID>` — the whole declaration body
+- `grund show <ID> --head` — the lead paragraph only
+- `grund show <ID> --format json` — for tooling
 
 That's the "cheap grounding" half of the workflow: every agent fetches the same bytes for the same ID, every time.
 
 ## 3. Check for dangling pointers
 
-Rename the heading `FS-events` to `FS-event-stream` and `gnd check` flags both sides of the boundary in one resolver:
+Rename the heading `FS-events` to `FS-event-stream` and `grund check` flags both sides of the boundary in one resolver:
 
 ```
-$ gnd check
+$ grund check
 src/bus.rs:5: unknown reference FS-events
 src/bus.rs:7: unknown reference FS-events.4
 ```
 
-`gnd <path>` scans `<path>`; with no path it scans the canonical layout (`docs/`, `e2e/`, `src/`). In the scanned tree it enforces:
+`grund <path>` scans `<path>`; with no path it scans the canonical layout (`docs/`, `e2e/`, `src/`). In the scanned tree it enforces:
 
 1. Every cited ID resolves to a declaration. *(dangling references)*
 2. Every section coordinate (`.3.1`) resolves to a heading inside the declaration. *(missing sections)*
@@ -67,23 +67,24 @@ src/bus.rs:7: unknown reference FS-events.4
 6. Declared-but-uncited IDs are flagged. *(unused — warning, not error; `E2E-` cases are exempt)*
 7. *(opt-in)* With `[reference] require_grounding = true`: every source file carries at least one citation. *(ungrounded source file)*
 
-A passing text check prints `success` and exits 0. Findings go to stdout as `<path>:<line>: <message>` so editors and agents jump straight to the source, and `gnd check | …` / `gnd check --format=json | jq` work without redirection (the linter convention — only run-level `error:` lines, like an unreadable path, go to stderr). JSON output remains diagnostics-only, so a clean `gnd check --format=json` prints nothing.
+A passing text check prints `success` and exits 0. Findings go to stdout as `<path>:<line>: <message>` so editors and agents jump straight to the source, and `grund check | …` / `grund check --format=json | jq` work without redirection (the linter convention — only run-level `error:` lines, like an unreadable path, go to stderr). JSON output remains diagnostics-only, so a clean `grund check --format=json` prints nothing.
 
-`gnd` does **not** check Markdown links, URLs, spelling, or grammar. Use [`lychee`](https://github.com/lycheeverse/lychee), `vale`, etc. for those.
+`grund` does **not** check Markdown links, URLs, spelling, or grammar. Use [`lychee`](https://github.com/lycheeverse/lychee), `vale`, etc. for those.
 
 ## 4. The structure that gets cited
 
-Every fact in a `gnd` repo has a stable ID. The default kinds (configurable):
+Every fact in a `grund` repo has a stable ID. The default kinds (configurable):
 
-| Kind  | What it is              | Where it lives                                 |
-|-------|-------------------------|------------------------------------------------|
-| `G`   | goal                    | `docs/goals/goals.md` (one file, all goals inline) |
-| `FS`  | functional spec         | `docs/functional-spec/` — external behavior    |
-| `AS`  | architectural spec      | `docs/architectural-spec/` — **or inline in a class / module doc-comment** |
-| `DF`  | functional decision     | `docs/decisions/functional/` (append-only)     |
-| `DA`  | architectural decision  | `docs/decisions/architectural/` (append-only)  |
-| `E2E` | end-to-end test         | `e2e/cases/<id>/` (the test *is* the body)     |
-| `RM`  | roadmap milestone       | `docs/roadmap.md`                              |
+| Kind   | What it is              | Where it lives                                 |
+|--------|-------------------------|------------------------------------------------|
+| `GND`  | the project's reason for being (the *grund*) | `docs/grund.md` (one declaration, all of it inline) |
+| `GOAL` | goal                    | `docs/goals/goals.md` (one file, all goals inline) |
+| `FS`   | functional spec         | `docs/functional-spec/` — external behavior    |
+| `AS`   | architectural spec      | `docs/architectural-spec/` — **or inline in a class / module doc-comment** |
+| `DF`   | functional decision     | `docs/decisions/functional/` (append-only)     |
+| `DA`   | architectural decision  | `docs/decisions/architectural/` (append-only)  |
+| `E2E`  | end-to-end test         | `e2e/cases/<id>/` (the test *is* the body)     |
+| `RM`   | roadmap milestone       | `docs/roadmap.md`                              |
 
 **Architectural specs can live inline in source.** Drop a one-line stub in `docs/architectural-spec/AS-foo.md` whose H1 is `# AS-foo: [src/foo.rs](src/foo.rs)`, then declare the spec in the class doc-comment:
 
@@ -95,9 +96,9 @@ Every fact in a `gnd` repo has a stable ID. The default kinds (configurable):
 pub struct EventBus { /* … */ }
 ```
 
-`gnd show AS-event-bus` follows the stub, strips the `///` markers, and prints the Rustdoc prose. The same goes for Javadoc, JSDoc, Python docstrings, Go doc blocks, KDoc, Doxygen — every comment form enumerated in `gnd`'s scanner spec.
+`grund show AS-event-bus` follows the stub, strips the `///` markers, and prints the Rustdoc prose. The same goes for Javadoc, JSDoc, Python docstrings, Go doc blocks, KDoc, Doxygen — every comment form enumerated in `grund`'s scanner spec.
 
-`gnd` does this itself: `§AS-checker` lives in the doc-comment of `fn check` in [`src/lib.rs`](src/lib.rs), with the one-line stub at [`docs/architectural-spec/AS-checker.md`](docs/architectural-spec/AS-checker.md) — `gnd show AS-checker` prints it.
+`grund` does this itself: `§AS-checker` lives in the doc-comment of `fn check` in [`src/lib.rs`](src/lib.rs), with the one-line stub at [`docs/architectural-spec/AS-checker.md`](docs/architectural-spec/AS-checker.md) — `grund show AS-checker` prints it.
 
 **ID format:**
 
@@ -117,56 +118,56 @@ Three schemes are supported. Pick one per repo and keep it stable — mixing is 
 
 | Scheme                                     | Example             | Benefit                                                                                                          | Trade-off                                                                |
 |--------------------------------------------|---------------------|------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
-| `{kind}-{number}-{slug}` *(default)*       | `FS-014-user-login` | Number is the stable identifier; slug is descriptive and can be **renamed freely** without breaking citations.   | Two tokens to type; needs `gnd id` to allocate the next number.        |
-| `{kind}-{number}` (RFC-style)              | `FS-014`            | Maximally stable — no slug to drift. Familiar from RFCs/PEPs/JEPs/ADRs.                                          | Opaque at the call site: `§FS-014` tells you nothing without `gnd show`. |
-| `{kind}-{slug}` *(`gnd` itself uses this)* | `FS-user-login`     | Self-describing — reads like English in prose and code. No number to allocate.                                   | Renaming a slug rewrites every citation. Slug must be unique per kind.   |
+| `{kind}-{number}-{slug}` *(default)*       | `FS-014-user-login` | Number is the stable identifier; slug is descriptive and can be **renamed freely** without breaking citations.   | Two tokens to type; needs `grund id` to allocate the next number.        |
+| `{kind}-{number}` (RFC-style)              | `FS-014`            | Maximally stable — no slug to drift. Familiar from RFCs/PEPs/JEPs/ADRs.                                          | Opaque at the call site: `§FS-014` tells you nothing without `grund show`. |
+| `{kind}-{slug}` *(`grund` itself uses this)* | `FS-user-login`     | Self-describing — reads like English in prose and code. No number to allocate.                                   | Renaming a slug rewrites every citation. Slug must be unique per kind.   |
 
 Rule of thumb: pick `{kind}-{slug}` until rename churn or ID count starts to hurt; switch to `{kind}-{number}-{slug}` when it does.
 
-Citations use the marker `§`, e.g. `§FS-user-login.3.1`. Type `$$` in a `gnd`-aware editor and it's rewritten to `§` automatically. Both marker and trigger are configurable in `.agents/gnd.toml`.
+Citations use the marker `§`, e.g. `§FS-user-login.3.1`. Type `$$` in a `grund`-aware editor and it's rewritten to `§` automatically. Both marker and trigger are configurable in `.agents/grund.toml`.
 
 ## 5. Reviewing code
 
 Before changing or removing a declaration, see what leans on it:
 
 ```bash
-$ gnd refs FS-events.4
+$ grund refs FS-events.4
 docs/architectural-spec/AS-event-bus.md:6: §FS-events.4
 src/bus.rs:7: §FS-events.4
 ```
 
-(The citation list goes to stdout — pipe it like `gnd list`. Add `--format=json` for NDJSON.)
+(The citation list goes to stdout — pipe it like `grund list`. Add `--format=json` for NDJSON.)
 
 Before reviewing a diff, group the citation graph by file so you can join changed files to the specs they touch:
 
 ```bash
-$ gnd cover --format json | jq -c 'select(.path | startswith("src/bus"))'
+$ grund cover --format json | jq -c 'select(.path | startswith("src/bus"))'
 ```
 
-(`gnd cover --format json` is NDJSON — one `{"path":…,"citations":[…]}` record per scanned file.)
+(`grund cover --format json` is NDJSON — one `{"path":…,"citations":[…]}` record per scanned file.)
 
-For an agent reviewing a code change, the loop is mechanical: list the `§…` citations in the changed files, run `gnd show` on each, and ask "does the code still match what the spec claims?"
+For an agent reviewing a code change, the loop is mechanical: list the `§…` citations in the changed files, run `grund show` on each, and ask "does the code still match what the spec claims?"
 
 ## Install
 
 ```bash
-cargo install --git https://github.com/vjovanov/gnd
+cargo install --git https://github.com/vjovanov/grund
 ```
 
-That puts the `gnd` binary on your `PATH`. npm and PyPI bindings are planned — see [`FS-distribution`](docs/functional-spec/FS-distribution.md).
+That puts the `grund` binary on your `PATH`. npm and PyPI bindings are planned — see [`FS-distribution`](docs/functional-spec/FS-distribution.md).
 
 ## Set up a repo
 
 ```bash
-gnd init           # writes AGENTS.md and .agents/gnd.toml in the cwd
-gnd init --docs    # also scaffolds docs/ and e2e/ trees
+grund init           # writes AGENTS.md and .agents/grund.toml in the cwd
+grund init --docs    # also scaffolds docs/ and e2e/ trees
 ```
 
 `init` is non-interactive and idempotent: re-running never errors on existing files. See [`FS-init`](docs/functional-spec/FS-init.md) for the full state table.
 
 ## Pre-commit
 
-This repo ships a ready-to-install [.pre-commit-config.yaml](.pre-commit-config.yaml) — `gnd check` for citations, `lychee` for Markdown links:
+This repo ships a ready-to-install [.pre-commit-config.yaml](.pre-commit-config.yaml) — `grund check` for citations, `lychee` for Markdown links:
 
 ```bash
 pip install pre-commit && cargo install lychee && pre-commit install
@@ -174,19 +175,19 @@ pip install pre-commit && cargo install lychee && pre-commit install
 
 ## Commands
 
-`gnd --help` is one screen; `gnd <command> --help` is one page with flags, examples, and exit codes.
+`grund --help` is one screen; `grund <command> --help` is one page with flags, examples, and exit codes.
 
-- **`gnd check`** — validate every reference in the tree.
-- **`gnd show <ID>[.<section>]`** — print one declaration body, for pulling spec content into agent prompts.
-- **`gnd list`** — the ID catalog.
-- **`gnd refs <ID>`** — list every citation of a declaration.
-- **`gnd cover`** — group the citation graph by file, for git-diff recipes.
-- **`gnd fmt`** — normalize citation syntax (`$$` → `§`, optional Markdown link wrapping).
-- **`gnd id <KIND> "<title>"`** — emit the next conflict-free ID for a new declaration.
-- **`gnd init`** — scaffold `AGENTS.md` and `.agents/gnd.toml`.
-- **`gnd config`** — validate or print the effective `.agents/gnd.toml`.
-- **`gnd completions`** — print bash, zsh, or fish completion scripts.
-- **`gnd agent-setup-instructions`** — print the guided setup workflow for AI agents.
+- **`grund check`** — validate every reference in the tree.
+- **`grund show <ID>[.<section>]`** — print one declaration body, for pulling spec content into agent prompts.
+- **`grund list`** — the ID catalog.
+- **`grund refs <ID>`** — list every citation of a declaration.
+- **`grund cover`** — group the citation graph by file, for git-diff recipes.
+- **`grund fmt`** — normalize citation syntax (`$$` → `§`, optional Markdown link wrapping).
+- **`grund id <KIND> "<title>"`** — emit the next conflict-free ID for a new declaration.
+- **`grund init`** — scaffold `AGENTS.md` and `.agents/grund.toml`.
+- **`grund config`** — validate or print the effective `.agents/grund.toml`.
+- **`grund completions`** — print bash, zsh, or fish completion scripts.
+- **`grund agent-setup-instructions`** — print the guided setup workflow for AI agents.
 
 Full surface (flags, JSON shapes, exit codes) in [`docs/functional-spec/`](docs/functional-spec/).
 
@@ -194,15 +195,15 @@ Full surface (flags, JSON shapes, exit codes) in [`docs/functional-spec/`](docs/
 
 The grounding loop, distilled to one rule for an AI agent's system prompt:
 
-> When you see `§<ID>` or `§<ID>.<section>` in any file you are reading, run `gnd show <ID>[.<section>]` and treat the output as the authoritative definition. Do not paraphrase or guess — quote what `show` returned, or cite the ID and move on.
+> When you see `§<ID>` or `§<ID>.<section>` in any file you are reading, run `grund show <ID>[.<section>]` and treat the output as the authoritative definition. Do not paraphrase or guess — quote what `show` returned, or cite the ID and move on.
 
-That rule plus a clean `gnd check` is the whole contract: every reference resolves, every agent fetches the same bytes for the same ID.
+That rule plus a clean `grund check` is the whole contract: every reference resolves, every agent fetches the same bytes for the same ID.
 
 ## Project layout
 
-`gnd` follows its own scheme. Start at [`AGENTS.md`](AGENTS.md), then read down through [`docs/`](docs/):
+`grund` follows its own scheme. Start at [`AGENTS.md`](AGENTS.md), then read down through [`docs/`](docs/):
 
-- [`docs/raison-detre.md`](docs/raison-detre.md) — why this exists
+- [`docs/grund.md`](docs/grund.md) — why this exists
 - [`docs/goals/`](docs/goals/) — what we measure ourselves against
 - [`docs/roadmap.md`](docs/roadmap.md) — what's next
 - [`docs/changelog.md`](docs/changelog.md) — what changed

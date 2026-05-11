@@ -1,5 +1,0 @@
-gnd_config_version = 1
-
-[[kinds]]
-prefix = "FS"
-folder = "docs/functional-spec"

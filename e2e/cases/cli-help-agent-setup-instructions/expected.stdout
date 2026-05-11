@@ -1,8 +1,8 @@
-gnd agent-setup-instructions — print the guided setup instructions for AI agents.
+grund agent-setup-instructions — print the guided setup instructions for AI agents.
 
-Usage:  gnd agent-setup-instructions
+Usage:  grund agent-setup-instructions
 
-The output is the same Markdown source shipped as `skills/gnd-init/SKILL.md`,
+The output is the same Markdown source shipped as `skills/grund-init/SKILL.md`,
 embedded in the binary so installed agents can discover the setup workflow
 without access to the source tree.
 

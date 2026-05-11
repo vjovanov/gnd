@@ -1,15 +1,15 @@
-# FS-refs: gnd lists every citation of an ID
+# FS-refs: grund lists every citation of an ID
 
-The `refs` subcommand answers the reverse of `gnd show`: not "what does this ID say?" but "who points at it?". An agent about to change a declaration — or delete one — needs to know what leans on it; `gnd refs FS-check` is that lookup, scheme-aware in the ways a `grep` cannot be. Serves [§G-friendliness-first](../goals/goals.md#g-friendliness-first-as-user--and-agent-friendly-as-possible) and the agent-grounding loop in the raison-detre (an agent verifying a change reads the cited bodies *and* the back-references).
+The `refs` subcommand answers the reverse of `grund show`: not "what does this ID say?" but "who points at it?". An agent about to change a declaration — or delete one — needs to know what leans on it; `grund refs FS-check` is that lookup, scheme-aware in the ways a `grep` cannot be. Serves [§GOAL-friendliness-first](../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) and the agent-grounding loop in [§GND-grund](../grund.md#gnd-grund-agents-stay-grounded-in-the-spec) (an agent verifying a change reads the cited bodies *and* the back-references).
 
 ## 1. Inputs
 
 ```
-gnd refs <ID> [<path>] [--section <s>] [--format text|json]
+grund refs <ID> [<path>] [--section <s>] [--format text|json]
 ```
 
-- `<ID>` — the ID to look up, without the marker. May carry an inline section (`FS-check.3.1`) using the configured `[id] section_separator`; equivalently pass `--section 3.1`. An `<ID>` that does not match the repo's `[id] format` ([§FS-config.3.2](FS-config.md#32-id--id-grammar)) is rejected before the scan with `error: invalid ID \`<arg>\`` followed by `hint: this repo's [id] format is \`<format>\` (run \`gnd config show\`); \`gnd list\` shows the IDs that exist` on stderr, exit `2` (§4) — the same hint `gnd show` gives for the same stumble ([§FS-show.3](FS-show.md#3-outputs)), the common surprise in a repo whose format differs from the `{kind}-{slug}` `gnd` itself uses.
-- `<path>` — directory or file whose tree is scanned. Defaults to `.`. Discovery is the same as every other subcommand (walk up to `.agents/gnd.toml`, else defaults — [§FS-config.1](FS-config.md#1-file-location-and-discovery)).
+- `<ID>` — the ID to look up, without the marker. May carry an inline section (`FS-check.3.1`) using the configured `[id] section_separator`; equivalently pass `--section 3.1`. An `<ID>` that does not match the repo's `[id] format` ([§FS-config.3.2](FS-config.md#32-id--id-grammar)) is rejected before the scan with `error: invalid ID \`<arg>\`` followed by `hint: this repo's [id] format is \`<format>\` (run \`grund config show\`); \`grund list\` shows the IDs that exist` on stderr, exit `2` (§4) — the same hint `grund show` gives for the same stumble ([§FS-show.3](FS-show.md#3-outputs)), the common surprise in a repo whose format differs from the `{kind}-{slug}` `grund` itself uses.
+- `<path>` — directory or file whose tree is scanned. Defaults to `.`. Discovery is the same as every other subcommand (walk up to `.agents/grund.toml`, else defaults — [§FS-config.1](FS-config.md#1-file-location-and-discovery)).
 - `--section <s>` — restrict to citations that reference exactly that section path. Without it, every citation of `<ID>` is listed regardless of section (including bare-ID citations with no section). Mutually exclusive with the dotted inline form.
 - `--format text|json` — output shape (§3). Default `text`.
 
@@ -17,9 +17,9 @@ gnd refs <ID> [<path>] [--section <s>] [--format text|json]
 
 ## 2. Behaviour
 
-`refs` runs the same scan as `check` ([§AS-scanner](../architectural-spec/AS-scanner.md#as-scanner-how-gnd-discovers-declarations-and-citations)) and emits, for the requested `<ID>`, every recognised citation site — the same set of citations `check` would validate, so it honours `[reference] strict` (bare tokens are listed only in non-strict mode), the string-literal carve-out in source files ([§AS-scanner.2.3](../architectural-spec/AS-scanner.md#23-citation-detection)), and citations inside doc-comments. It does **not** list the *declaration* of `<ID>` — that is `gnd show --format=json <ID>` (the README documents that one-liner). A `refs` lookup of an ID that has no declaration still works: the citations are listed (they are exactly the ones `check` flags as dangling), so `refs` is also the "what would break if I never create this ID" tool.
+`refs` runs the same scan as `check` ([§AS-scanner](../architectural-spec/AS-scanner.md#as-scanner-how-grund-discovers-declarations-and-citations)) and emits, for the requested `<ID>`, every recognised citation site — the same set of citations `check` would validate, so it honours `[reference] strict` (bare tokens are listed only in non-strict mode), the string-literal carve-out in source files ([§AS-scanner.2.3](../architectural-spec/AS-scanner.md#23-citation-detection)), and citations inside doc-comments. It does **not** list the *declaration* of `<ID>` — that is `grund show --format=json <ID>` (the README documents that one-liner). A `refs` lookup of an ID that has no declaration still works: the citations are listed (they are exactly the ones `check` flags as dangling), so `refs` is also the "what would break if I never create this ID" tool.
 
-Output is sorted by `(path, line, column)` — deterministic per [§FS-errors.4](FS-errors.md#4-determinism). The citation list is the command's *result*, so it goes to **stdout** — text lines and `--format json` NDJSON alike, the same stream `gnd list` and `gnd cover` use ([§FS-errors.1](FS-errors.md#1-streams)). A `refs` line shares the `path:line: <text>` located-finding shape ([§FS-errors.2.1](FS-errors.md#21-located-finding)) so an editor can jump to it, but it is an *answer*, not a diagnostic; stderr is left for errors and the typo hint below. An ID with zero citations produces empty output and exit `0` (not an error: an as-yet-uncited declaration is normal, and `check` already warns about it — [§FS-check.4.1](FS-check.md#41-unused-declaration)). If the requested ID is *also* not declared anywhere in the scanned tree, the likeliest cause is a typo, so `refs` prints one `note:` line to **stderr** — `note: <ID> is neither declared nor cited — run \`gnd list\` to see every declared ID` — and still exits `0`. The note is a hint, not part of the result: the empty stdout (no text lines, no NDJSON) is unchanged, so machine consumers that only read stdout never see it. This mirrors the `ID not found` hint `gnd show` gives for the same mistake ([§FS-show.3](FS-show.md#3-outputs)) without `show`'s exit `1` — `refs` has no single-result expectation to violate (§4).
+Output is sorted by `(path, line, column)` — deterministic per [§FS-errors.4](FS-errors.md#4-determinism). The citation list is the command's *result*, so it goes to **stdout** — text lines and `--format json` NDJSON alike, the same stream `grund list` and `grund cover` use ([§FS-errors.1](FS-errors.md#1-streams)). A `refs` line shares the `path:line: <text>` located-finding shape ([§FS-errors.2.1](FS-errors.md#21-located-finding)) so an editor can jump to it, but it is an *answer*, not a diagnostic; stderr is left for errors and the typo hint below. An ID with zero citations produces empty output and exit `0` (not an error: an as-yet-uncited declaration is normal, and `check` already warns about it — [§FS-check.4.1](FS-check.md#41-unused-declaration)). If the requested ID is *also* not declared anywhere in the scanned tree, the likeliest cause is a typo, so `refs` prints one `note:` line to **stderr** — `note: <ID> is neither declared nor cited — run \`grund list\` to see every declared ID` — and still exits `0`. The note is a hint, not part of the result: the empty stdout (no text lines, no NDJSON) is unchanged, so machine consumers that only read stdout never see it. This mirrors the `ID not found` hint `grund show` gives for the same mistake ([§FS-show.3](FS-show.md#3-outputs)) without `show`'s exit `1` — `refs` has no single-result expectation to violate (§4).
 
 ## 3. Outputs
 
@@ -28,12 +28,12 @@ Output is sorted by `(path, line, column)` — deterministic per [§FS-errors.4]
 One line per citation site on **stdout**, in the located-finding shape ([§FS-errors.2.1](FS-errors.md#21-located-finding)):
 
 ```
-$ gnd refs FS-check.1
+$ grund refs FS-check.1
 docs/functional-spec/FS-show.md:11: §FS-check.1
 src/scanner.rs:142: FS-check.1
 ```
 
-`<message>` is the citation token exactly as it appears in the source — marker-prefixed or bare, with its section suffix — so the reader sees the form on disk. The lines *are* the result, so `gnd refs <ID> | …` and `gnd refs <ID> > out.txt` work the way they do for `gnd list` — no `2>&1` needed (§2). Exit `0` always when the scan succeeds, regardless of how many citations were found.
+`<message>` is the citation token exactly as it appears in the source — marker-prefixed or bare, with its section suffix — so the reader sees the form on disk. The lines *are* the result, so `grund refs <ID> | …` and `grund refs <ID> > out.txt` work the way they do for `grund list` — no `2>&1` needed (§2). Exit `0` always when the scan succeeds, regardless of how many citations were found.
 
 ### 3.2 `--format json`
 
@@ -55,4 +55,4 @@ There is no `1`: `refs` is a query that always returns *its* answer (a possibly-
 
 ## 5. Why this exists
 
-`grep -oE '§…'` gives a contributor a rough back-reference list but cannot: distinguish a real citation from an ID-shaped substring in a string literal; respect `strict` mode; reach citations inside block doc-comments without language-specific regex; or produce a stable, machine-shaped result for an agent to program against. `refs` is the scheme's own answer, sharing the scanner with `check` so the two never disagree on what counts as a citation. Together with `gnd show` it closes the loop: `show` reads the body an ID promises, `refs` enumerates the code and docs that took the promise.
+`grep -oE '§…'` gives a contributor a rough back-reference list but cannot: distinguish a real citation from an ID-shaped substring in a string literal; respect `strict` mode; reach citations inside block doc-comments without language-specific regex; or produce a stable, machine-shaped result for an agent to program against. `refs` is the scheme's own answer, sharing the scanner with `check` so the two never disagree on what counts as a citation. Together with `grund show` it closes the loop: `show` reads the body an ID promises, `refs` enumerates the code and docs that took the promise.

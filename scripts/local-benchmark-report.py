@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write a local wall-clock benchmark report for gnd vs lychee."""
+"""Write a local wall-clock benchmark report for grund vs lychee."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ MARKUP_EXTENSIONS = {".md", ".markdown", ".html", ".htm"}
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Measure local cold/warm wall-clock timings for gnd and lychee, "
+            "Measure local cold/warm wall-clock timings for grund and lychee, "
             "collect machine/tool/workload details, and write a markdown report."
         )
     )
@@ -40,9 +40,9 @@ def parse_args() -> argparse.Namespace:
         help="Markdown report path (default: docs/benchmarks.md).",
     )
     parser.add_argument(
-        "--gnd",
+        "--grund",
         default=None,
-        help="gnd binary to run (default: target/release/gnd if present, else gnd on PATH).",
+        help="grund binary to run (default: target/release/grund if present, else grund on PATH).",
     )
     parser.add_argument(
         "--lychee",
@@ -103,13 +103,13 @@ def time_command(command: list[str], cwd: Path) -> float:
     return elapsed
 
 
-def resolve_gnd(repo: Path, explicit: str | None) -> str:
+def resolve_grund(repo: Path, explicit: str | None) -> str:
     if explicit:
         return explicit
-    local_release = repo / "target" / "release" / "gnd"
+    local_release = repo / "target" / "release" / "grund"
     if local_release.exists():
         return str(local_release)
-    return "gnd"
+    return "grund"
 
 
 def command_version(command: list[str], cwd: Path) -> str:
@@ -169,11 +169,11 @@ def machine_specs(repo: Path) -> dict[str, str]:
     }
 
 
-def gnd_workload(gnd: str, repo: Path) -> dict[str, int]:
-    listed = run_capture([gnd, "list", str(repo)], repo).stdout
+def grund_workload(grund: str, repo: Path) -> dict[str, int]:
+    listed = run_capture([grund, "list", str(repo)], repo).stdout
     declarations = len([line for line in listed.splitlines() if line.strip()])
 
-    cover = run_capture([gnd, "cover", "--format", "json", str(repo)], repo).stdout
+    cover = run_capture([grund, "cover", "--format", "json", str(repo)], repo).stdout
     files = 0
     citations = 0
     for line in cover.splitlines():
@@ -265,29 +265,29 @@ def command_text(command: list[str], repo: Path) -> str:
 def write_report(
     out: Path,
     repo: Path,
-    gnd: str,
+    grund: str,
     lychee: str,
     lychee_paths: list[str],
     warm_runs: int,
     specs: dict[str, str],
     versions: dict[str, str],
     git: dict[str, str],
-    gnd_load: dict[str, int],
+    grund_load: dict[str, int],
     lychee_load: dict[str, int | str],
     results: list[dict[str, object]],
 ) -> None:
     by_name = {str(result["name"]): result for result in results}
-    gnd_check = by_name["gnd check"]
+    grund_check = by_name["grund check"]
     lychee_check = by_name["lychee"]
-    edge_ratio = gnd_load["edges"] / int(lychee_load["links"])
-    speed_ratio = float(lychee_check["median"]) / float(gnd_check["median"])
-    gnd_per_edge = float(gnd_check["median"]) / gnd_load["edges"]
+    edge_ratio = grund_load["edges"] / int(lychee_load["links"])
+    speed_ratio = float(lychee_check["median"]) / float(grund_check["median"])
+    grund_per_edge = float(grund_check["median"]) / grund_load["edges"]
     lychee_per_link = float(lychee_check["median"]) / int(lychee_load["links"])
 
     lines = [
         "# Local benchmark report",
         "",
-        "This report is a local wall-clock snapshot for the `gnd` repo. It complements "
+        "This report is a local wall-clock snapshot for the `grund` repo. It complements "
         "the instruction-counting CI benchmark in [§AS-benchmarks](architectural-spec/AS-benchmarks.md#as-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands) "
         "and the baseline work tracked by [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-g-fast-feedback-budgets). "
         "It is meant for product-facing comparisons with Lychee; it is not the release-blocking regression meter.",
@@ -303,7 +303,7 @@ def write_report(
         "Useful options:",
         "",
         "- `--warm-runs N` changes the number of warm samples after the cold run.",
-        "- `--gnd PATH` points at a specific `gnd` binary; by default the script uses `target/release/gnd` when present.",
+        "- `--grund PATH` points at a specific `grund` binary; by default the script uses `target/release/grund` when present.",
         "- `--lychee PATH` points at a specific Lychee binary.",
         "- `--lychee-path PATH` may be repeated to replace the default Lychee inputs: `README.md docs examples`.",
         "",
@@ -319,7 +319,7 @@ def write_report(
         f"- Cold time is the first measured invocation of each exact command in this script run. The script does not use `sudo` and does not drop the OS page cache.",
         f"- Warm time is the median of {warm_runs} immediate subsequent invocations with command output suppressed.",
         "- Timings use Python `time.perf_counter()` around the whole subprocess, so process startup and argument parsing are included.",
-        "- Lychee may perform URL work and may benefit from its own cache or network conditions; `gnd` works only over the local scanned tree.",
+        "- Lychee may perform URL work and may benefit from its own cache or network conditions; `grund` works only over the local scanned tree.",
         "",
         "## Machine",
         "",
@@ -345,7 +345,7 @@ def write_report(
             "",
             "| Tool | Version |",
             "|---|---|",
-            f"| `gnd` | `{versions['gnd']}` |",
+            f"| `grund` | `{versions['grund']}` |",
             f"| `lychee` | `{versions['lychee']}` |",
             f"| Git commit | `{git['commit']}` |",
             f"| Git branch | `{git['branch']}` |",
@@ -355,7 +355,7 @@ def write_report(
             "",
             "| Tool | Local work checked |",
             "|---|---:|",
-            f"| `gnd check .` | {gnd_load['declarations']:,} declarations + {gnd_load['citations']:,} citations across {gnd_load['scanned_files']:,} scanned files |",
+            f"| `grund check .` | {grund_load['declarations']:,} declarations + {grund_load['citations']:,} citations across {grund_load['scanned_files']:,} scanned files |",
             f"| `lychee --include-fragments README.md docs examples` | {int(lychee_load['links']):,} links across {int(lychee_load['scanned_files']):,} markup files |",
             "",
             "## Results",
@@ -379,14 +379,14 @@ def write_report(
             "",
             "## Comparison",
             "",
-            f"`gnd check .` checks {ratio(gnd_load['edges'], int(lychee_load['links']))} as many local intent edges as Lychee checks links in this run.",
-            f"Using warm medians, `gnd check .` is {ratio(float(lychee_check['median']), float(gnd_check['median']))} faster than the configured Lychee run.",
-            f"Per checked edge, `gnd` costs about {gnd_per_edge * 1_000_000:.0f} microseconds; Lychee costs about {lychee_per_link * 1_000_000:.0f} microseconds per link.",
+            f"`grund check .` checks {ratio(grund_load['edges'], int(lychee_load['links']))} as many local intent edges as Lychee checks links in this run.",
+            f"Using warm medians, `grund check .` is {ratio(float(lychee_check['median']), float(grund_check['median']))} faster than the configured Lychee run.",
+            f"Per checked edge, `grund` costs about {grund_per_edge * 1_000_000:.0f} microseconds; Lychee costs about {lychee_per_link * 1_000_000:.0f} microseconds per link.",
             "",
             "Product copy:",
             "",
-            "> Lychee checks whether Markdown links still open. `gnd` checks whether the project still knows why the code exists.",
-            "> On this local run, `gnd` checks more than twice as many project-intent edges and finishes several times faster.",
+            "> Lychee checks whether Markdown links still open. `grund` checks whether the project still knows why the code exists.",
+            "> On this local run, `grund` checks more than twice as many project-intent edges and finishes several times faster.",
             "",
             "## Raw Warm Samples",
             "",
@@ -408,23 +408,23 @@ def main() -> int:
 
     repo = Path(args.repo).resolve()
     out = (repo / args.out).resolve() if not Path(args.out).is_absolute() else Path(args.out)
-    gnd = resolve_gnd(repo, args.gnd)
+    grund = resolve_grund(repo, args.grund)
     lychee = args.lychee
     lychee_paths = args.lychee_paths or DEFAULT_LYCHEE_PATHS
 
-    gnd_check_command = [gnd, "check", str(repo)]
-    gnd_fmt_command = [gnd, "fmt", "--check", str(repo)]
+    grund_check_command = [grund, "check", str(repo)]
+    grund_fmt_command = [grund, "fmt", "--check", str(repo)]
     lychee_command = [lychee, "--no-progress", "--include-fragments", *lychee_paths]
 
     results = [
-        measure("gnd check", gnd_check_command, repo, args.warm_runs),
-        measure("gnd fmt --check", gnd_fmt_command, repo, args.warm_runs),
+        measure("grund check", grund_check_command, repo, args.warm_runs),
+        measure("grund fmt --check", grund_fmt_command, repo, args.warm_runs),
         measure("lychee", lychee_command, repo, args.warm_runs),
     ]
 
     specs = machine_specs(repo)
     versions = {
-        "gnd": command_version([gnd, "--version"], repo),
+        "grund": command_version([grund, "--version"], repo),
         "lychee": command_version([lychee, "--version"], repo),
     }
     git = {
@@ -432,20 +432,20 @@ def main() -> int:
         "branch": git_value(["branch", "--show-current"], repo),
         "dirty": git_dirty(repo),
     }
-    gnd_load = gnd_workload(gnd, repo)
+    grund_load = grund_workload(grund, repo)
     lychee_load = lychee_workload(lychee, lychee_paths, repo)
 
     write_report(
         out=out,
         repo=repo,
-        gnd=gnd,
+        grund=grund,
         lychee=lychee,
         lychee_paths=lychee_paths,
         warm_runs=args.warm_runs,
         specs=specs,
         versions=versions,
         git=git,
-        gnd_load=gnd_load,
+        grund_load=grund_load,
         lychee_load=lychee_load,
         results=results,
     )

@@ -1,5 +1,5 @@
 exclude = [
-  # Inline-spec stubs are resolved by gnd from the repo root; Markdown link
+  # Inline-spec stubs are resolved by grund from the repo root; Markdown link
   # checkers resolve them relative to the stub file.
   "docs/architectural-spec/src/lib\\.rs$",
 ]

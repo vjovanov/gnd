@@ -1,7 +1,7 @@
-// Content-and-contract tests for `gnd init`. The e2e harness covers the CLI surface
+// Content-and-contract tests for `grund init`. The e2e harness covers the CLI surface
 // (exit code + stderr listing); these tests cover what the *bytes on disk* look like
-// after init runs: every emitted file exists, the `gnd.toml` location matches the spec,
-// the config validates, and `gnd check` is clean against the freshly-scaffolded tree.
+// after init runs: every emitted file exists, the `grund.toml` location matches the spec,
+// the config validates, and `grund check` is clean against the freshly-scaffolded tree.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,19 +18,19 @@ fn workdir(suffix: &str) -> PathBuf {
     dir
 }
 
-fn run_gnd<P: AsRef<Path>>(args: &[&str], cwd: P) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_gnd"))
+fn run_grund<P: AsRef<Path>>(args: &[&str], cwd: P) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_grund"))
         .args(args)
         .current_dir(cwd)
         .output()
-        .expect("spawn gnd")
+        .expect("spawn grund")
 }
 
 #[test]
 fn init_default_writes_canonical_pair_and_passes_check() {
-    // FS-init.2.1 (default form) + FS-config.1 (.agents/gnd.toml location).
+    // FS-init.2.1 (default form) + FS-config.1 (.agents/grund.toml location).
     let target = workdir("init_default_writes_canonical_pair_and_passes_check");
-    let output = run_gnd(&["init", target.to_str().unwrap()], manifest_dir());
+    let output = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
     assert!(
         output.status.success(),
         "init failed: stderr={}",
@@ -42,31 +42,31 @@ fn init_default_writes_canonical_pair_and_passes_check() {
         "AGENTS.md was not written"
     );
     assert!(
-        target.join(".agents/gnd.toml").is_file(),
-        ".agents/gnd.toml was not written; init must place gnd.toml under .agents/"
+        target.join(".agents/grund.toml").is_file(),
+        ".agents/grund.toml was not written; init must place grund.toml under .agents/"
     );
     assert!(
-        !target.join("gnd.toml").exists(),
-        "init must NOT write gnd.toml at the repo root — it lives under .agents/"
+        !target.join("grund.toml").exists(),
+        "init must NOT write grund.toml at the repo root — it lives under .agents/"
     );
 
-    let validate = run_gnd(
+    let validate = run_grund(
         &["config", "validate", target.to_str().unwrap()],
         manifest_dir(),
     );
     assert!(
         validate.status.success(),
-        "init's gnd.toml does not validate:\n{}",
+        "init's grund.toml does not validate:\n{}",
         String::from_utf8_lossy(&validate.stderr)
     );
 }
 
 #[test]
 fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
-    // FS-init.2.1 (--docs form). The scaffolded tree must satisfy `gnd check` —
-    // i.e. the canonical AGENTS.md + gnd.toml + docs skeleton is internally consistent.
+    // FS-init.2.1 (--docs form). The scaffolded tree must satisfy `grund check` —
+    // i.e. the canonical AGENTS.md + grund.toml + docs skeleton is internally consistent.
     let target = workdir("init_docs_form_emits_full_scaffold_and_check_is_clean");
-    let output = run_gnd(
+    let output = run_grund(
         &[
             "init",
             target.to_str().unwrap(),
@@ -84,8 +84,8 @@ fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
 
     let expected = [
         "AGENTS.md",
-        ".agents/gnd.toml",
-        "docs/raison-detre.md",
+        ".agents/grund.toml",
+        "docs/grund.md",
         "docs/goals/goals.md",
         "docs/roadmap.md",
         "docs/changelog.md",
@@ -106,17 +106,17 @@ fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
         "AGENTS.md must interpolate the --name into the H1 / opening sentence"
     );
 
-    let gnd_toml =
-        fs::read_to_string(target.join(".agents/gnd.toml")).expect("read .agents/gnd.toml");
+    let grund_toml =
+        fs::read_to_string(target.join(".agents/grund.toml")).expect("read .agents/grund.toml");
     assert!(
-        gnd_toml.contains("project_name = \"DemoProject\""),
-        ".agents/gnd.toml must carry project_name from --name"
+        grund_toml.contains("project_name = \"DemoProject\""),
+        ".agents/grund.toml must carry project_name from --name"
     );
 
-    let check = run_gnd(&["check", target.to_str().unwrap()], manifest_dir());
+    let check = run_grund(&["check", target.to_str().unwrap()], manifest_dir());
     assert!(
         check.status.success(),
-        "freshly init'd tree should be gnd-clean but produced:\n{}",
+        "freshly init'd tree should be grund-clean but produced:\n{}",
         String::from_utf8_lossy(&check.stderr)
     );
 }
@@ -126,8 +126,8 @@ fn init_agents_guidance_uses_existing_configured_artifact_homes() {
     let target = workdir("init_agents_guidance_uses_existing_configured_artifact_homes");
     fs::create_dir_all(target.join(".agents")).expect("create .agents");
     fs::write(
-        target.join(".agents/gnd.toml"),
-        r#"gnd_config_version = 1
+        target.join(".agents/grund.toml"),
+        r#"grund_config_version = 1
 
 [scan]
 include = ["specs", "records", "crates"]
@@ -143,9 +143,9 @@ folder = "records/adr"
 title = "Architecture decision"
 "#,
     )
-    .expect("write custom gnd.toml");
+    .expect("write custom grund.toml");
 
-    let output = run_gnd(
+    let output = run_grund(
         &["init", target.to_str().unwrap(), "--name", "Configured"],
         manifest_dir(),
     );
@@ -176,30 +176,30 @@ title = "Architecture decision"
 
 #[test]
 fn init_rerun_on_current_repo_writes_nothing_and_reports_exists() {
-    // FS-init.2.2 / FS-init.2.3: re-running `gnd init` on a repo whose managed
+    // FS-init.2.2 / FS-init.2.3: re-running `grund init` on a repo whose managed
     // AGENTS.md block already matches the current render rewrites nothing — the
     // file's bytes are untouched and it is reported with `exists `, not `updated `.
     let target = workdir("init_rerun_on_current_repo_writes_nothing_and_reports_exists");
-    let first = run_gnd(&["init", target.to_str().unwrap()], manifest_dir());
+    let first = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
     assert!(first.status.success());
 
     let agents_before = fs::read(target.join("AGENTS.md")).unwrap();
-    let toml_before = fs::read(target.join(".agents/gnd.toml")).unwrap();
+    let toml_before = fs::read(target.join(".agents/grund.toml")).unwrap();
 
-    let second = run_gnd(&["init", target.to_str().unwrap()], manifest_dir());
+    let second = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
     assert!(second.status.success());
     let stderr = String::from_utf8_lossy(&second.stderr);
     assert!(
         stderr.contains("exists AGENTS.md"),
-        "second `gnd init` should report `exists AGENTS.md`, got:\n{stderr}"
+        "second `grund init` should report `exists AGENTS.md`, got:\n{stderr}"
     );
     assert!(
         !stderr.contains("updated AGENTS.md") && !stderr.contains("wrote AGENTS.md"),
-        "second `gnd init` must not rewrite an already-current AGENTS.md, got:\n{stderr}"
+        "second `grund init` must not rewrite an already-current AGENTS.md, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("exists .agents/gnd.toml"),
-        "second `gnd init` should report `exists .agents/gnd.toml`, got:\n{stderr}"
+        stderr.contains("exists .agents/grund.toml"),
+        "second `grund init` should report `exists .agents/grund.toml`, got:\n{stderr}"
     );
 
     assert_eq!(
@@ -208,9 +208,48 @@ fn init_rerun_on_current_repo_writes_nothing_and_reports_exists() {
         "AGENTS.md bytes changed on a no-op re-init"
     );
     assert_eq!(
-        fs::read(target.join(".agents/gnd.toml")).unwrap(),
+        fs::read(target.join(".agents/grund.toml")).unwrap(),
         toml_before,
-        ".agents/gnd.toml bytes changed on a no-op re-init"
+        ".agents/grund.toml bytes changed on a no-op re-init"
+    );
+}
+
+#[test]
+fn init_force_never_overwrites_an_existing_config() {
+    // FS-init.2.4 / FS-init.3: `.agents/grund.toml` is the repo's config, not a
+    // scaffold artifact — `grund init --force` regenerates AGENTS.md but leaves an
+    // existing config byte-for-byte intact and reports it with `exists `, never
+    // `wrote `. (Overwriting it with the canonical template was a footgun.)
+    let target = workdir("init_force_never_overwrites_an_existing_config");
+    fs::create_dir_all(target.join(".agents")).expect("create .agents");
+    let custom_config = "grund_config_version = 1\n\
+        project_name = \"Custom\"\n\n\
+        [reference]\nstrict = true\n\n\
+        [[kinds]]\nprefix = \"SPEC\"\nfolder = \"specs\"\ntitle = \"Spec\"\n";
+    fs::write(target.join(".agents/grund.toml"), custom_config).expect("write custom config");
+
+    let output = run_grund(
+        &["init", target.to_str().unwrap(), "--force"],
+        manifest_dir(),
+    );
+    assert!(
+        output.status.success(),
+        "init --force failed: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("exists .agents/grund.toml"),
+        "`grund init --force` must report `exists .agents/grund.toml`, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("wrote .agents/grund.toml"),
+        "`grund init --force` must not overwrite an existing config, got:\n{stderr}"
+    );
+    assert_eq!(
+        fs::read_to_string(target.join(".agents/grund.toml")).unwrap(),
+        custom_config,
+        "`grund init --force` left .agents/grund.toml byte-for-byte? it did not"
     );
 }
 
@@ -220,7 +259,7 @@ fn init_is_byte_deterministic() {
     let a = workdir("init_is_byte_deterministic_a");
     let b = workdir("init_is_byte_deterministic_b");
     for target in [&a, &b] {
-        let out = run_gnd(
+        let out = run_grund(
             &["init", target.to_str().unwrap(), "--name", "Same"],
             manifest_dir(),
         );
@@ -229,7 +268,7 @@ fn init_is_byte_deterministic() {
     let agents_a = fs::read(a.join("AGENTS.md")).unwrap();
     let agents_b = fs::read(b.join("AGENTS.md")).unwrap();
     assert_eq!(agents_a, agents_b, "AGENTS.md must be byte-identical");
-    let toml_a = fs::read(a.join(".agents/gnd.toml")).unwrap();
-    let toml_b = fs::read(b.join(".agents/gnd.toml")).unwrap();
-    assert_eq!(toml_a, toml_b, ".agents/gnd.toml must be byte-identical");
+    let toml_a = fs::read(a.join(".agents/grund.toml")).unwrap();
+    let toml_b = fs::read(b.join(".agents/grund.toml")).unwrap();
+    assert_eq!(toml_a, toml_b, ".agents/grund.toml must be byte-identical");
 }
