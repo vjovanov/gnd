@@ -1623,20 +1623,29 @@ fn check(findings: &Findings, config: &Config) -> Report {
     // a declared ID — or itself declare one inline (a spec home is grounded in the
     // spec it *is*). Pure function of (tree, config): no git, no AST.
     if config.require_grounding {
+        // Collect the files that ground themselves in two linear passes — one over
+        // citations, one over declarations — so the per-file test below is a set
+        // lookup, not a re-scan of every citation and declaration for each file
+        // (§GOAL-fast-feedback: speed is the ordering principle).
+        let mut grounded_files: BTreeSet<&Path> = findings
+            .citations
+            .iter()
+            .filter(|cite| findings.declarations.contains_key(&cite.id))
+            .map(|cite| cite.file.as_path())
+            .collect();
+        grounded_files.extend(
+            findings
+                .declarations
+                .values()
+                .flatten()
+                .filter(|decl| !decl.is_stub && decl.e2e_case.is_none())
+                .map(|decl| decl.file.as_path()),
+        );
         for file in &findings.scanned_files {
             if file.extension().and_then(|ext| ext.to_str()) == Some("md") {
                 continue;
             }
-            let grounded = findings
-                .citations
-                .iter()
-                .any(|cite| &cite.file == file && findings.declarations.contains_key(&cite.id))
-                || findings
-                    .declarations
-                    .values()
-                    .flatten()
-                    .any(|decl| &decl.file == file && !decl.is_stub && decl.e2e_case.is_none());
-            if !grounded {
+            if !grounded_files.contains(file.as_path()) {
                 report.errors.push(Diagnostic {
                     code: "ungrounded",
                     path: Some(file.clone()),
