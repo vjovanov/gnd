@@ -11,9 +11,13 @@ Options:
   --format text|json   text (default) prints `path:line: message`; json emits NDJSON.
   --require-grounding  also require every source file to cite a declared ID ([reference] require_grounding).
 
+Findings go to stdout (the linter convention) — `gnd check | …` and `gnd check
+--format json | jq` need no redirect. Only run-level `error:` / `warning:` lines
+(unreadable path, empty scan) go to stderr; a clean repo is empty on both.
+
 Exit:  0 clean · 1 dangling / duplicate / unknown-section / ungrounded findings · 2 unreadable tree or CLI error.
 
 Examples:
   gnd                    # check the whole repo
   gnd docs/              # check one subtree
-  gnd --format json      # machine-readable diagnostics for CI
+  gnd --format json | jq # machine-readable diagnostics for CI

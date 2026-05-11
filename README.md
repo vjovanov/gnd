@@ -67,7 +67,7 @@ src/bus.rs:7: unknown reference FS-events.4
 6. Declared-but-uncited IDs are flagged. *(unused — warning, not error; `E2E-` cases are exempt)*
 7. *(opt-in)* With `[reference] require_grounding = true`: every source file carries at least one citation. *(ungrounded source file)*
 
-A passing repo prints nothing on stdout and exits 0. Errors go to stderr as `<path>:<line>: <message>` so editors and agents jump straight to the source.
+A passing repo prints nothing and exits 0. Findings go to stdout as `<path>:<line>: <message>` so editors and agents jump straight to the source, and `gnd check | …` / `gnd check --format=json | jq` work without redirection (the linter convention — only run-level `error:` lines, like an unreadable path, go to stderr).
 
 `gnd` does **not** check Markdown links, URLs, spelling, or grammar. Use [`lychee`](https://github.com/lycheeverse/lychee), `vale`, etc. for those.
 
@@ -128,12 +128,12 @@ Citations use the marker `§`, e.g. `§FS-user-login.3.1`. Type `$$` in a `gnd`-
 Before changing or removing a declaration, see what leans on it:
 
 ```bash
-$ gnd refs FS-events.4 2>&1
+$ gnd refs FS-events.4
 docs/architectural-spec/AS-event-bus.md:6: §FS-events.4
 src/bus.rs:7: §FS-events.4
 ```
 
-(Text lines go to stderr — the same diagnostic stream as `gnd check` — so a clean stdout still means "no result". Add `--format=json` for NDJSON on stdout.)
+(The citation list goes to stdout — pipe it like `gnd list`. Add `--format=json` for NDJSON.)
 
 Before reviewing a diff, group the citation graph by file so you can join changed files to the specs they touch:
 

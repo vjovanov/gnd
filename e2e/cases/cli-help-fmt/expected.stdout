@@ -11,5 +11,6 @@ Options:
 
 With neither --check nor --write, fmt prints the would-be changes and exits 1 if any (a dry run).
 --write prints `rewrote N references:` then one `  <path> (count)` line per file touched.
+The report goes to stdout (like `gnd check`); CLI-level `error:` lines go to stderr.
 
 Exit:  0 nothing to do, or --write succeeded · 1 changes pending (dry run / --check) · 2 unreadable tree or CLI error.

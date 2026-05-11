@@ -21,17 +21,17 @@ Citations may appear in markdown prose, in source-file line/block comments, and 
 
 ## 2. Outputs
 
-A report on stderr, plus an exit code:
+A report on **stdout** — `check` is a linter and its findings are its output ([§FS-errors.1](FS-errors.md#1-streams)) — plus an exit code:
 
 - `0` — no errors. Warnings allowed (they do not affect the exit code).
 - `1` — at least one error.
 - `2` — scan failure (I/O, malformed file, invalid `.agents/gnd.toml`).
 
-An invalid `.agents/gnd.toml` aborts before any file is read ([§FS-config.4.3](FS-config.md#43-invalid-config-behavior)): exit `2`, a single `error:` line, no findings. A per-file failure encountered *during* the walk (a file that cannot be read or decoded) is different: the offending file is reported as `error: <path>: <reason>` (the CLI-level shape, [§FS-errors.2.2](FS-errors.md#22-cli-level-error) — the file has no line to point at), the walk continues over the remaining files, every finding collected from the readable files is still printed in the normal `<path>:<line>:` form, and the run exits `2` because the view of the tree was incomplete. A `2` therefore always means "do not trust this report as complete"; the printed findings are still real.
+An invalid `.agents/gnd.toml` aborts before any file is read ([§FS-config.4.3](FS-config.md#43-invalid-config-behavior)): exit `2`, a single `error:` line on stderr, nothing on stdout. A per-file failure encountered *during* the walk (a file that cannot be read or decoded) is different: the offending file is reported as `error: <path>: <reason>` on stderr (the CLI-level shape, [§FS-errors.2.2](FS-errors.md#22-cli-level-message) — the file has no line to point at, and "I could not read this" is about the run, not a finding about the graph), the walk continues over the remaining files, every finding collected from the readable files is still printed to stdout in the normal `<path>:<line>:` form, and the run exits `2` because the view of the tree was incomplete. A `2` therefore always means "do not trust this report as complete"; the printed findings are still real.
 
 ### 2.1 Report format
 
-Findings are written to stderr, one per line, in the form:
+Findings are written to **stdout**, one per line, in the form:
 
 ```
 <path>:<line>: <message>
@@ -43,26 +43,27 @@ Severity is implicit. Per-finding lines carry no `error:`/`warning:` prefix beca
 
 When a finding inherently spans multiple sites (e.g., duplicate declarations, [§FS-check.3.3](FS-check.md#33-duplicate-declaration)), the message is anchored at the lexicographically-first site (sort by `path`, then `line`) and the other sites are listed parenthetically inside the message.
 
-Stdout is always empty for `check`, including `--format=json`; diagnostics are emitted on stderr per [§FS-errors.5](FS-errors.md#5-json-format). Stderr is empty when there are zero errors and zero warnings, satisfying [§G-friendliness-first.1](../goals/goals.md#1-hard-requirements) ("zero noise on success"). There is no summary footer — the exit code is the machine-readable verdict, the per-finding lines are the human-readable detail.
+With `--format=json`, the findings are emitted as NDJSON on stdout instead — same stream, machine shape per [§FS-errors.5](FS-errors.md#5-json-format). Stdout is empty when there are zero errors and zero warnings, satisfying [§G-friendliness-first.1](../goals/goals.md#1-hard-requirements) ("zero noise on success"). There is no summary footer — the exit code is the machine-readable verdict, the per-finding lines are the human-readable detail. (CLI-level `error:` / `warning:` lines, when there are any, go to stderr — §2.1.1 — so a clean run is empty on *both* streams and a `2` always means something on stderr.)
 
-#### 2.1.1 CLI-level errors
+#### 2.1.1 CLI-level messages
 
-Errors that have no source location — unknown subcommand, malformed flag, invalid `gnd.toml` schema (when the config itself parses but a value is wrong) — are emitted on stderr as:
+Lines that have no source location — unknown subcommand, malformed flag, invalid `gnd.toml` schema (when the config itself parses but a value is wrong), a per-file read failure mid-walk (§2), the empty-scan caution (§2.2) — are emitted on **stderr**, never on stdout, as:
 
 ```
 error: <message>
+warning: <message>
 ```
 
-These never carry a `<path>:<line>:` prefix. The `error:` prefix is what distinguishes them from per-finding lines, and CI scripts can grep for the leading `error:` to detect launch-time failures. The same shape with a `warning:` prefix is the CLI-level *warning* form — used by §2.2; like other warnings it does not affect the exit code.
+These never carry a `<path>:<line>:` prefix; the `error:` / `warning:` prefix is what distinguishes them from per-finding lines on stdout. CI scripts grep for the leading `error:` to detect launch-time failures. An `error:` always accompanies a non-zero exit; a `warning:` does not affect the exit code. In `--format=json`, a launch-time `error:` (bad flag, unreadable config) stays as raw text; a mid-walk per-file failure is one of the report's diagnostics and is rendered as JSON like the rest (on stderr, since it is `line`-less and not a graph finding — [§FS-errors.5](FS-errors.md#5-json-format)).
 
 ### 2.2 Empty scan
 
-A walk that read **no scannable files** at all, and turned up no findings (no errors, no warnings — including the agent-entrypoint check of §3.5, which still runs and still reports even when nothing is scanned), is almost always a misconfigured scope rather than a clean repo. Rather than print nothing and exit `0` — which reads as "all clear" — `check` emits one CLI-level `warning:` line to stderr:
+A walk that read **no scannable files** at all, and turned up no findings (no errors, no warnings — including the agent-entrypoint check of §3.5, which still runs and still reports even when nothing is scanned), is almost always a misconfigured scope rather than a clean repo. Rather than print nothing and exit `0` — which reads as "all clear" — `check` emits one CLI-level `warning:` line ([§FS-errors.2.2](FS-errors.md#22-cli-level-message)) to **stderr** — it is a caution about the run, not a finding about the repo, so it does not belong on stdout with the findings:
 
 - when the scope is the repo root (no path argument, or `gnd check .`) and `[scan] include` is set: the message names the `include` list and points at `.agents/gnd.toml` / `gnd init`, since the usual cause is a project whose sources live outside the default `docs/`, `e2e/`, `src/`;
 - when an explicit path was given: the message names that path and the recognized extensions, since the usual cause is pointing `gnd` at a tree with no `.md`/source files.
 
-This is a warning, not an error: the exit code stays `0` (a genuinely empty tree is not a failure), `--format=json` emits the warning as one diagnostic JSON object on stderr, and a repo that *does* have a stale `AGENTS.md` block or any other finding gets that finding and **no** empty-scan notice. This is the friendliness-first counterpart to "zero noise on success" ([§G-friendliness-first.1](../goals/goals.md#1-hard-requirements)): the run that scanned nothing is the one case where silence is the wrong answer.
+This is a warning, not an error: the exit code stays `0` (a genuinely empty tree is not a failure), `--format=json` emits the warning as one diagnostic JSON object on stderr (the same stream as the text `warning:` line — it is not part of the findings on stdout), and a repo that *does* have a stale `AGENTS.md` block or any other finding gets that finding (on stdout) and **no** empty-scan notice. This is the friendliness-first counterpart to "zero noise on success" ([§G-friendliness-first.1](../goals/goals.md#1-hard-requirements)): the run that scanned nothing is the one case where silence is the wrong answer.
 
 ## 3. Errors detected
 

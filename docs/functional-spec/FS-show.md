@@ -86,7 +86,7 @@ Section selection (`AS-<event-bus>.2`) works the same way inside a doc-comment a
 
 #### 2.3.4 Broken stub
 
-If the ID's only home is a stub (`# <ID>: [<text>](<path>)`) whose link is broken — the `<path>` does not exist, or the file at `<path>` contains no inline declaration of `<ID>` (the [§FS-check.3.4](FS-check.md#34-broken-inline-spec-stub) error) — `show` has no body to extract. It exits `1` with a bare query-result line ([§FS-errors.2.3](FS-errors.md#23-bare-query-result)), not a `path:line:` finding:
+If the ID's only home is a stub (`# <ID>: [<text>](<path>)`) whose link is broken — the `<path>` does not exist, or the file at `<path>` contains no inline declaration of `<ID>` (the [§FS-check.3.4](FS-check.md#34-broken-inline-spec-stub) error) — `show` has no body to extract. It exits `1` with a bare query-result line ([§FS-errors.2.3](FS-errors.md#23-bare-query-failure)), not a `path:line:` finding:
 
 ```
 broken stub: <ID> (stub at <path>:<line> points at <target>, which does not exist)

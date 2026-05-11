@@ -35,7 +35,7 @@ For each declared ID never cited, emit one warning. Warnings do not cause non-ze
 
 Every error and warning follows `<path>:<line>: <message>` so that editors and agents can jump to the source. There is no severity prefix, and there is no aggregate summary footer — the exit code is the machine-readable verdict. This is mandated by [§G-friendliness-first](../goals/goals.md#g-friendliness-first-as-user--and-agent-friendly-as-possible) and [§FS-check.2.1](../functional-spec/FS-check.md#21-report-format).
 
-Findings without a single source location (CLI launch errors, malformed configuration that prevents a scan from starting) are emitted on a separate path as `error: <message>` per [§FS-check.2.1.1](../functional-spec/FS-check.md#211-cli-level-errors), distinguishable from per-finding lines by the leading `error:`.
+Findings without a single source location (CLI launch errors, malformed configuration that prevents a scan from starting) are emitted on a separate path as `error: <message>` per [§FS-check.2.1.1](../functional-spec/FS-check.md#211-cli-level-messages), distinguishable from per-finding lines by the leading `error:`.
 
 ## 4. Why a separate stage from the scanner
 

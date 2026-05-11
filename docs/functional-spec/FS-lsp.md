@@ -10,7 +10,7 @@ The minimum viable set — everything the server speaks at version 1.0.
 
 ### 1.1 Diagnostics
 
-`textDocument/publishDiagnostics` pushes `gnd check` results as the user edits. Each unknown reference, missing section, duplicate declaration, and broken stub becomes a diagnostic with the same `path:line: <message>` content the CLI prints to stderr ([§FS-errors](FS-errors.md#fs-errors-gnd-emits-messages-in-one-of-three-fixed-shapes)). Severity follows the engine's severity model ([§FS-non-goals.9](FS-non-goals.md#9-severity-exit-code-or-report-ordering-customization) — not configurable). The diagnostic position is the citation's start column on the line; precise column information is computed once per scan and reused across the open editor session.
+`textDocument/publishDiagnostics` pushes `gnd check` results as the user edits. Each unknown reference, missing section, duplicate declaration, and broken stub becomes a diagnostic with the same `path:line: <message>` content the CLI prints to stdout ([§FS-errors.2.1](FS-errors.md#21-located-finding)). Severity follows the engine's severity model ([§FS-non-goals.9](FS-non-goals.md#9-severity-exit-code-or-report-ordering-customization) — not configurable). The diagnostic position is the citation's start column on the line; precise column information is computed once per scan and reused across the open editor session.
 
 ### 1.2 Hover preview
 

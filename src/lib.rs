@@ -1734,7 +1734,16 @@ fn print_report(config: &Config, report: &Report) {
         .collect::<Vec<_>>();
     diagnostics.sort_by(|(_, a), (_, b)| diagnostic_cmp(a, b));
     for (severity, diagnostic) in diagnostics {
-        eprintln!("{}", render_diagnostic_text(config, severity, diagnostic));
+        let line = render_diagnostic_text(config, severity, diagnostic);
+        // §FS-errors.1 / §FS-check.2.1: a located finding (`<path>:<line>: …`) is
+        // `check`'s output → stdout. A `line`-less diagnostic — a mid-walk read
+        // failure (§FS-check.2) or the empty-scan caution (§FS-check.2.2) — is a
+        // CLI-level message about the run, not a finding → stderr.
+        if diagnostic.line.is_some() {
+            println!("{line}");
+        } else {
+            eprintln!("{line}");
+        }
     }
 }
 
@@ -1770,12 +1779,19 @@ fn sorted_json_diagnostics(report: &Report) -> Vec<(&'static str, &Diagnostic)> 
     diagnostics
 }
 
-/// Print the report as newline-delimited JSON objects on stderr — the `--format
-/// json` / `[output] format = "json"` shape (§FS-errors.5): one object per finding
-/// with `severity`, `path`, `line`, `code`, `message`, `sites`.
+/// Print the report as newline-delimited JSON objects — the `--format json` /
+/// `[output] format = "json"` shape (§FS-errors.5): one object per finding with
+/// `severity`, `path`, `line`, `code`, `message`, `sites`. Located findings go to
+/// stdout (`check`'s output, §FS-errors.1); a `line`-less diagnostic (mid-walk read
+/// failure, empty-scan caution) goes to stderr, mirroring the text form.
 fn print_json_report(config: &Config, report: &Report) {
     for (severity, diagnostic) in sorted_json_diagnostics(report) {
-        eprintln!("{}", render_diagnostic_json(config, severity, diagnostic));
+        let object = render_diagnostic_json(config, severity, diagnostic);
+        if diagnostic.line.is_some() {
+            println!("{object}");
+        } else {
+            eprintln!("{object}");
+        }
     }
 }
 
@@ -2559,11 +2575,14 @@ fn command_fmt(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    // §FS-fmt.3 / §FS-errors.1: the report is `fmt`'s output — on stdout, the
+    // same stream `gnd check`'s findings use, not the stderr transcript shape
+    // `gnd init` uses (§FS-errors.6). Only CLI-level `error:` lines go to stderr.
     if write {
         let mut files: Vec<PathBuf> = changes.iter().map(|(path, _, _)| path.clone()).collect();
         files.sort();
         files.dedup();
-        eprintln!(
+        println!(
             "rewrote {} reference{}{}",
             changes.len(),
             if changes.len() == 1 { "" } else { "s" },
@@ -2571,11 +2590,11 @@ fn command_fmt(args: &[String]) -> ExitCode {
         );
         for path in &files {
             let count = changes.iter().filter(|(p, _, _)| p == path).count();
-            eprintln!("  {} ({})", display_path(&config, path), count);
+            println!("  {} ({})", display_path(&config, path), count);
         }
     } else {
         for (path, line, label) in &changes {
-            eprintln!("{}:{}: {}", display_path(&config, path), line, label);
+            println!("{}:{}: {}", display_path(&config, path), line, label);
         }
     }
     if write || changes.is_empty() {
@@ -3507,13 +3526,17 @@ fn command_refs(args: &[String]) -> ExitCode {
             render_id(&config, &id)
         );
     }
+    // §FS-refs.3: the citation list is the *result* of the query, so it goes to
+    // stdout (text and JSON alike), like `gnd list` / `gnd cover` / `gnd show` —
+    // even though a line shares the `path:line: <text>` shape `check` uses for
+    // diagnostics on stderr. Only the `note:` breadcrumb above stays on stderr.
     if format == "json" {
         for citation in citations {
             println!("{}", render_citation_json(&config, citation));
         }
     } else {
         for citation in citations {
-            eprintln!(
+            println!(
                 "{}:{}: {}",
                 display_path(&config, &citation.file),
                 citation.line,
@@ -4796,13 +4819,21 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!(
+                "Findings go to stdout (the linter convention) — `gnd check | …` and `gnd check"
+            );
+            println!(
+                "--format json | jq` need no redirect. Only run-level `error:` / `warning:` lines"
+            );
+            println!("(unreadable path, empty scan) go to stderr; a clean repo is empty on both.");
+            println!();
+            println!(
                 "Exit:  0 clean · 1 dangling / duplicate / unknown-section / ungrounded findings · 2 unreadable tree or CLI error."
             );
             println!();
             println!("Examples:");
             println!("  gnd                    # check the whole repo");
             println!("  gnd docs/              # check one subtree");
-            println!("  gnd --format json      # machine-readable diagnostics for CI");
+            println!("  gnd --format json | jq # machine-readable diagnostics for CI");
         }
         "show" => {
             println!(
@@ -4898,9 +4929,11 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!(
-                "Text citation lines go to stderr (the `check` diagnostic stream — redirect `2>&1`"
+                "The citation list is the result, so it goes to stdout (text and json alike) —"
             );
-            println!("to pipe them); `--format json` emits NDJSON on stdout instead.");
+            println!(
+                "`gnd refs <ID> | …` works like `gnd list`. Only the typo `note:` goes to stderr."
+            );
             println!();
             println!(
                 "Exit:  0 scan succeeded (with or without hits) · 2 unreadable tree or CLI error."
@@ -4956,6 +4989,9 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!(
                 "--write prints `rewrote N references:` then one `  <path> (count)` line per file touched."
+            );
+            println!(
+                "The report goes to stdout (like `gnd check`); CLI-level `error:` lines go to stderr."
             );
             println!();
             println!(
