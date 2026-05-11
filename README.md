@@ -3,7 +3,7 @@
 [![CI](https://github.com/vjovanov/grund/actions/workflows/ci.yml/badge.svg)](https://github.com/vjovanov/grund/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/grund.svg)](https://crates.io/crates/grund)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![1k files: ~574ms](https://img.shields.io/badge/1k%20files-~574ms-brightgreen.svg)](docs/benchmarks.md)
+[![1k files in GitHub CI: ~574ms](https://img.shields.io/badge/1k%20files%20in%20GitHub%20CI-~574ms-brightgreen.svg)](docs/benchmarks.md)
 
 > Specs, docs, code — one knowledge graph, always in sync.
 
