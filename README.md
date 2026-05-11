@@ -1,11 +1,11 @@
-# grund — Keep Your Agents Grounded
+# grund
 
 [![CI](https://github.com/vjovanov/grund/actions/workflows/ci.yml/badge.svg)](https://github.com/vjovanov/grund/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/grund.svg)](https://crates.io/crates/grund)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![1k files in GitHub CI: ~574ms](https://img.shields.io/badge/1k%20files%20in%20GitHub%20CI-~574ms-brightgreen.svg)](docs/benchmarks.md)
+[![grund check: ~360k LoC/s](https://img.shields.io/badge/grund%20check-~360k%20LoC%2Fs-brightgreen.svg)](docs/benchmarks.md)
 
-> Specs, docs, code — one knowledge graph, always in sync.
+> **Keep your agents grounded** — specs, docs, and code as one knowledge graph, always in sync.
 
 `grund` is built around one workflow:
 

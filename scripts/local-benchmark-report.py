@@ -79,7 +79,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "If set, also write a shields.io endpoint-format JSON file with the "
-            "'ms per 1000 files' figure derived from the grund check warm median."
+            "lines-of-code-per-second throughput derived from the grund check warm median."
         ),
     )
     return parser.parse_args()
@@ -194,15 +194,24 @@ def grund_workload(grund: str, repo: Path) -> dict[str, int]:
     cover = run_capture([grund, "cover", "--format", "json", str(repo)], repo).stdout
     files = 0
     citations = 0
+    scanned_lines = 0
     for line in cover.splitlines():
         if not line.strip():
             continue
         files += 1
-        citations += len(json.loads(line).get("citations", []))
+        record = json.loads(line)
+        citations += len(record.get("citations", []))
+        scanned_path = repo / record["path"]
+        try:
+            with scanned_path.open("rb") as handle:
+                scanned_lines += sum(1 for _ in handle)
+        except OSError:
+            pass
     return {
         "declarations": declarations,
         "citations": citations,
         "scanned_files": files,
+        "scanned_lines": scanned_lines,
         "edges": declarations + citations,
     }
 
@@ -307,8 +316,8 @@ def write_report(
         "# Local benchmark report",
         "",
         "This report is a local wall-clock snapshot for the `grund` repo. It complements "
-        "the instruction-counting CI benchmark in [§AR-benchmarks](architecture/AR-benchmarks.md#as-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands) "
-        "and the baseline work tracked by [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-g-fast-feedback-budgets). "
+        "the instruction-counting CI benchmark in [§AR-benchmarks](architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands) "
+        "and the baseline work tracked by [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets). "
         "It is meant for product-facing comparisons with Lychee; it is not the release-blocking regression meter.",
         "",
         "## Instructions",
@@ -379,7 +388,7 @@ def write_report(
             "",
             "| Tool | Local work checked |",
             "|---|---:|",
-            f"| `grund check .` | {grund_load['declarations']:,} declarations + {grund_load['citations']:,} citations across {grund_load['scanned_files']:,} scanned files |",
+            f"| `grund check .` | {grund_load['declarations']:,} declarations + {grund_load['citations']:,} citations across {grund_load['scanned_files']:,} scanned files ({grund_load['scanned_lines']:,} lines) |",
         ]
     )
     if lychee_load is not None:
@@ -405,6 +414,18 @@ def write_report(
             f"{seconds(float(result['median']))} | "
             f"{seconds(float(result['minimum']))} | "
             f"{seconds(float(result['maximum']))} |"
+        )
+
+    if float(grund_check["median"]) > 0 and int(grund_load["scanned_lines"]) > 0:
+        loc_per_s = int(grund_load["scanned_lines"]) / float(grund_check["median"])
+        lines.extend(
+            [
+                "",
+                "## Throughput",
+                "",
+                f"At the warm median, `grund check .` scans about {round(loc_per_s / 1000):,}k "
+                "lines of source per second — roughly the throughput figure on the README badge.",
+            ]
         )
 
     if lychee_check is not None and lychee_load is not None and lychee_per_link is not None:
@@ -441,15 +462,16 @@ def write_report(
 
 
 def write_badge(out: Path, grund_check: dict[str, object], grund_load: dict[str, int]) -> None:
-    """Emit shields.io endpoint JSON: ms per 1000 scanned files (grund check, warm median)."""
-    scanned = int(grund_load["scanned_files"])
-    if scanned <= 0:
-        raise SystemExit("cannot compute badge: grund scanned 0 files")
-    ms_per_1k = round(float(grund_check["median"]) / scanned * 1_000 * 1_000)
+    """Emit shields.io endpoint JSON: lines of code scanned per second (grund check, warm median)."""
+    scanned_lines = int(grund_load["scanned_lines"])
+    median = float(grund_check["median"])
+    if scanned_lines <= 0 or median <= 0:
+        raise SystemExit("cannot compute badge: grund scanned 0 lines")
+    loc_per_s = scanned_lines / median
     payload = {
         "schemaVersion": 1,
-        "label": "1k files",
-        "message": f"{ms_per_1k} ms",
+        "label": "grund check",
+        "message": f"~{round(loc_per_s / 1000)}k LoC/s",
         "color": "brightgreen",
     }
     out.parent.mkdir(parents=True, exist_ok=True)
