@@ -2654,7 +2654,14 @@ fn command_fmt(args: &[String]) -> ExitCode {
         }
     };
     let cross_refs = cross_refs || (write && config.fmt_cross_refs_enabled);
-    let changes = match fmt_tree(&config, Some(&path), path_provided, marker, cross_refs, write) {
+    let changes = match fmt_tree(
+        &config,
+        Some(&path),
+        path_provided,
+        marker,
+        cross_refs,
+        write,
+    ) {
         Ok(changes) => changes,
         Err(err) => {
             eprintln!("error: {err:#}");
@@ -3012,9 +3019,11 @@ fn markdown_link_target(
         return Some(rel);
     }
     let heading = match section {
-        Some(sec) => home_decl.sections.get(sec).cloned().or_else(|| {
-            section_heading_text(&home, id, sec, config).ok().flatten()
-        })?,
+        Some(sec) => home_decl
+            .sections
+            .get(sec)
+            .cloned()
+            .or_else(|| section_heading_text(&home, id, sec, config).ok().flatten())?,
         // §DF-declaration-anchor: a bare-ID citation to a Markdown home links to
         // that declaration's own heading anchor, not just the file.
         None => declaration_heading_text(home_decl, config),
@@ -3086,9 +3095,13 @@ fn section_anchor_text(line: &str, section: &str) -> String {
         .trim_start_matches(section)
         .trim_start_matches('.')
         .trim_start();
-    format!("{} {}", section.replace('.', ""), reduce_heading_text(heading))
-        .trim()
-        .to_string()
+    format!(
+        "{} {}",
+        section.replace('.', ""),
+        reduce_heading_text(heading)
+    )
+    .trim()
+    .to_string()
 }
 
 /// Re-read a home file to find the heading text of a cited section — the fallback
@@ -5586,8 +5599,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
     #[test]
     fn section_anchor_uses_visible_markdown_link_text() {
-        let heading =
-            "### 2.2 Dangling citations ([§FS-check.3.1](../functional-spec/FS-check.md#31-dangling-citation))";
+        let heading = "### 2.2 Dangling citations ([§FS-check.3.1](../functional-spec/FS-check.md#31-dangling-citation))";
         let text = section_anchor_text(heading, "2.2");
 
         assert_eq!(text, "22 Dangling citations (§FS-check.3.1)");

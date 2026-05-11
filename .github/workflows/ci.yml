@@ -64,11 +64,11 @@ jobs:
       - name: gnd self-check
         run: |
           stdout_file="$(mktemp)"
-          # `timeout 30` is the interim performance guard (§AS-ci.4 / §G-fast-feedback):
+          # `timeout 30` is the catastrophic-regression guard (§AS-ci.4 / §G-fast-feedback):
           # `gnd .` on this repo runs in tens of milliseconds, so a 30s ceiling never
-          # flakes but still trips on a catastrophic regression (a quadratic walk, a
-          # second read pass). The criterion harness that tracks the real number is
-          # §RM-benchmarks.
+          # flakes but still trips on a quadratic walk or a second read pass. The precise
+          # per-commit meter is the `bench` job (§AS-benchmarks / §AS-ci.5); this timeout
+          # is its backstop.
           timeout 30 cargo run --locked -- . > "$stdout_file"
           if [ -s "$stdout_file" ]; then
             echo "gnd self-check wrote unexpected stdout:" >&2
@@ -82,3 +82,41 @@ jobs:
       # `cargo test` runs the full e2e suite plus the unit tests in src/main.rs.
       - name: cargo test
         run: cargo test --all-targets --locked
+
+  # Instruction-counting benchmarks for the hot CLI commands (§AS-benchmarks /
+  # §AS-ci.5). Kept out of the `test` matrix because the harness runs `gnd` under
+  # Callgrind — only this job needs Valgrind, and the `bench` Cargo feature gate
+  # keeps the matrix above from building or running it. One platform: it measures
+  # instruction counts, not cross-platform behavior. Records the numbers per
+  # commit; the build-failing regression threshold on a committed baseline is the
+  # remaining §RM-benchmarks work.
+  bench:
+    name: cargo bench (instruction counts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-bench-
+            ${{ runner.os }}-cargo-
+
+      - name: Install Valgrind and iai-callgrind-runner
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y valgrind
+          # The runner version must match the `iai-callgrind` dev-dependency in Cargo.toml.
+          cargo install iai-callgrind-runner --version 0.16.1 --locked
+
+      - name: cargo bench
+        run: cargo bench --features bench --locked

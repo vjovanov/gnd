@@ -11,5 +11,6 @@ An architectural spec may live inline in the class- or module-level doc-comment 
 | [§AS-bindings](AS-bindings.md#as-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms) | how the same Rust engine is exposed on three platforms |
 | [§AS-lsp](AS-lsp.md#as-lsp-how-the-lsp-server-is-built) | how the optional LSP server is built |
 | [§AS-ci](AS-ci.md#as-ci-ci-mirrors-the-local-pre-commit-gate) | how CI mirrors the local pre-commit gate |
+| [§AS-benchmarks](AS-benchmarks.md#as-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands) | the instruction-counting benchmark harness for the [§G-fast-feedback](../goals/goals.md#g-fast-feedback-gnd-must-be-as-fast-as-possible) budgets |
 
 This index is navigational — citations should target the spec ID directly, never this file.

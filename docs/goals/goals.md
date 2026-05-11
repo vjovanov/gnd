@@ -106,7 +106,7 @@ Speed is not a target — it is an **ordering principle**. When a design choice 
 
 ### 1. Performance targets
 
-These are the targets the implementation is designed around. As of 0.1.0 they are met by a wide margin in practice (`gnd .` on this repo runs in tens of milliseconds), but they are not yet a release-blocking measured contract: the criterion harness that records baselines and fails CI on regression is tracked under [§RM-benchmarks](../roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-g-fast-feedback-budgets). Until that lands, CI carries only the cheap guard in §3.
+These are the targets the implementation is designed around. As of 0.1.0 they are met by a wide margin in practice (`gnd .` on this repo runs in tens of milliseconds). The instruction-counting benchmark harness that turns the targets into a number CI records — `cargo bench` over the hot commands, run under Callgrind so the figure does not flake on a loaded runner — is [§AS-benchmarks](../architectural-spec/AS-benchmarks.md#as-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands); the committed baseline and the build-failing regression threshold on top of it are the remaining work under [§RM-benchmarks](../roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-g-fast-feedback-budgets). Until that threshold lands, CI runs the harness for the numbers and carries the cheap catastrophic-regression guard in §3.
 
 - Under **100 ms** on the `gnd` repo itself. The self-host loop must be invisible.
 - Under **1 s** on a 10k-file repo.
@@ -122,7 +122,7 @@ These are the targets the implementation is designed around. As of 0.1.0 they ar
 
 ### 3. Measurable
 
-Manual timing on this repo and on a synthetic 10k-file fixture should stay within the targets above. The full criterion harness that turns those targets into recorded, release-blocking CI checks is [§RM-benchmarks](../roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-g-fast-feedback-budgets); until then CI runs the built `gnd .` under a generous timeout ([§AS-ci.4](../architectural-spec/AS-ci.md#4-performance-smoke-guard)) so a catastrophic regression — an accidental quadratic walk, a re-read pass — still fails the build.
+Manual timing on this repo and on a synthetic 10k-file fixture should stay within the targets above. The `cargo bench` instruction-counting harness over the commands agents and CI run most ([§AS-benchmarks](../architectural-spec/AS-benchmarks.md#as-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands), run in CI by the [§AS-ci.5](../architectural-spec/AS-ci.md#5-benchmark-job) job) is what records the per-commit number; turning a committed baseline into a release-blocking regression threshold is the remaining work in [§RM-benchmarks](../roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-g-fast-feedback-budgets). Alongside it CI runs the built `gnd .` under a generous timeout ([§AS-ci.4](../architectural-spec/AS-ci.md#4-performance-smoke-guard)) so a catastrophic regression — an accidental quadratic walk, a re-read pass — still fails the build outright.
 
 ## G-zero-config: works on any conformant tree
 
