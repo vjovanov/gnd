@@ -2401,6 +2401,7 @@ fn extract_declaration_body(
                         found_section = true;
                         target_depth = depth;
                         output_line = lineno;
+                        lines.push(clean_body_line(scan_line, is_md || in_py_docstring));
                         continue;
                     }
                     // Inside the target section: a sibling-or-shallower heading

@@ -28,11 +28,11 @@ gnd show <ID> [<path>] [--section <s>] [--head | --full] [--format <text|md|json
 
 If a declaration has no lead paragraph (its body opens directly with `## 1. ...`), `--head` prints **nothing** and exits `0`. This is not an error: the declaration simply has no head. Callers (IDE hovers, agents) can detect this case by the empty output and decide whether to fall back to the full body. We do not auto-fall-back; the caller knows what it wants.
 
-`gnd show --head FS-check.3.1` applies the same rule one level down: it prints the prose between section heading `### 3.1 ...` and the first numbered heading nested under it (`#### 3.1.1 ...`), or nothing when that section opens directly with a sub-subsection. A section that does not exist is still a `section not found` error regardless of `--head`.
+`gnd show --head FS-check.3.1` applies the same rule one level down, but keeps the selected section heading so the slice is self-labeled: it prints section heading `### 3.1 ...` and the prose up to the first numbered heading nested under it (`#### 3.1.1 ...`). If the section opens directly with a sub-subsection, the output is just the selected section heading. A section that does not exist is still a `section not found` error regardless of `--head`.
 
 ### 2.2 Section
 
-`gnd show FS-check.3.1` prints just the contents under section heading `### 3.1 ...` within the declaration body, stopping at the next sibling-or-shallower heading. Nested deeper headings (e.g., `#### 3.1.2`) are included in the output — they end at the next `### 3.x` (sibling) or `## N.` (shallower) heading. Arbitrary nesting depth is supported per §FS-config.3.3.
+`gnd show FS-check.3.1` prints the selected section heading (`### 3.1 ...`) and its contents within the declaration body, stopping at the next sibling-or-shallower heading. Nested deeper headings (e.g., `#### 3.1.2`) are included in the output — they end at the next `### 3.x` (sibling) or `## N.` (shallower) heading. Arbitrary nesting depth is supported per §FS-config.3.3.
 
 ### 2.2.1 Ambiguous ID
 
@@ -128,7 +128,7 @@ A failed query (`1`) prints the bare result line and, where the next step is obv
 
 ### 3.1 Format variants
 
-- `text` (default) — the body only: for a markdown declaration, the lines after the heading line through the end of the body; for an inline-source declaration, the comment-stripped prose (§2.3.2); for an E2E case, the manifest (§2.4). The opening heading line is **omitted**.
+- `text` (default) — the body only: for a whole markdown declaration, the lines after the declaration heading line through the end of the body; for a selected section, the selected section heading and its body (§2.2); for an inline-source declaration, the comment-stripped prose (§2.3.2); for an E2E case, the manifest (§2.4). The whole-declaration opening heading line is **omitted**.
 - `md` — same as `text` but the opening heading line is **included** verbatim, so the output is a self-contained markdown fragment. The kind's `[[kinds]] title` (§FS-config.3.4) is *not* injected — it is metadata exposed only in `json`. For an inline-source declaration the included heading is the one written in the doc-comment (`# AS-<event-bus>: In-process event broadcaster`), comment-markers stripped.
 - `json` — a single object on stdout: `{"id":<ID>,"section":<section-path or null>,"body":<string>,"path":<declaring file or case dir>,"line":<1-indexed>}`. `section` is `null` when the whole declaration was requested. For E2E cases the object is the §2.4 shape instead. The wire form is stable per §G-no-silent-breakage.1.
 
