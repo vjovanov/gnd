@@ -1,6 +1,6 @@
 # FS-distribution: gnd distribution targets
 
-Status: planned beyond the Cargo CLI. `gnd` is written in Rust; the target distribution is **all three** major language ecosystems, with idiomatic API bindings on each. The check engine remains a single shared library; the surfaces differ. Serves §G-multi-language and §G-friendliness-first.
+`gnd` is written in Rust; the target distribution is **all three** major language ecosystems — cargo, npm, and PyPI — with idiomatic API bindings on each. The check engine stays a single shared library; only the surfaces differ. Today the Cargo CLI ships; the npm and PyPI bindings and the optional `gnd-lsp` server are tracked in `docs/roadmap.md`. Serves §G-multi-language and §G-friendliness-first.
 
 ## 1. Targets
 

@@ -1,8 +1,6 @@
 # FS-lsp: gnd will ship an optional LSP server
 
-Status: planned. The current shipped surface is the `gnd` CLI; this file is the contract for the optional Language Server Protocol server when `gnd-lsp` lands.
-
-`gnd` will ship an optional Language Server Protocol server, `gnd-lsp`, as a separate binary that any LSP-aware editor can talk to: VSCode, Neovim, Emacs (eglot or lsp-mode), Helix, Zed, Sublime Text, and the IntelliJ family via LSP4IJ. Users who want editor integration install `gnd-lsp` and configure their editor once; users who do not — CI pipelines, pre-commit hooks, contributors who only run `gnd check` — install nothing extra and pay no dependency cost. The architectural choice (separate binary rather than a Cargo feature or a bundled library) is decided in §DA-lsp-optional.
+`gnd` will ship an optional Language Server Protocol server, `gnd-lsp`, as a separate binary that any LSP-aware editor can talk to: VSCode, Neovim, Emacs (eglot or lsp-mode), Helix, Zed, Sublime Text, and the IntelliJ family via LSP4IJ. Users who want editor integration install `gnd-lsp` and configure their editor once; users who do not — CI pipelines, pre-commit hooks, contributors who only run `gnd check` — install nothing extra and pay no dependency cost. The architectural choice (separate binary rather than a Cargo feature or a bundled library) is decided in §DA-lsp-optional; the build is tracked as a roadmap milestone in `docs/roadmap.md`. The current shipped surface is the `gnd` CLI alone; this file is the contract `gnd-lsp` will meet when it lands.
 
 `gnd` does not ship per-editor wrappers. The only first-party editor surface is the LSP server; per-editor configuration is one-time work the user does, with example snippets in the README. See §FS-non-goals for the non-goal that pins this.
 

@@ -1,7 +1,5 @@
 # FS-cli: gnd's command-line surface conventions
 
-Status: the default-subcommand routing, the global `--help`/`-h` and `--version`/`-V`, the cross-subcommand `--format` flag, and the per-subcommand help pages (`gnd <subcommand> --help` / `gnd help <subcommand>`) are all implemented today.
-
 The behaviour that is not owned by any one subcommand — how `gnd` is invoked with no subcommand, the two global flags that short-circuit before any work, and the cross-subcommand flags. Serves §G-friendliness-first (one screen of help, no surprises) and §G-no-silent-breakage (the CLI surface — subcommands, flags, exit-code mapping — is user-visible and frozen).
 
 ## 1. The default subcommand

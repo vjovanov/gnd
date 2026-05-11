@@ -123,7 +123,7 @@ Commands with machine-readable result modes document `--format text|json` in the
 | `gnd init [path] [--docs] [--name N] [--force\|--append]` | Scaffold `agents.md` and `.agents/gnd.toml`; idempotent by default — appends/updates the managed block in an existing `agents.md`, reports `exists` for other files. `--docs` also seeds `docs/` and `e2e/`; `--name` sets the project name; `--force` overwrites. |
 | `gnd show <ID>[.<section>] [path] [--section S] [--head\|--full] [--format text\|md\|json]` | Print just the body of a declaration (or one of its sections), for pulling spec content into agent prompts. `--head` is the lead paragraph only; `--full` (default) is the whole body; `md` keeps the heading line. |
 | `gnd list [path] [--kind K] [--unused] [--format text\|json]` | The ID catalog — every declared ID, `<ID>  path:line  title`, sorted by ID. `--kind` filters by prefix; `--unused` shows declarations nothing cites yet; `json` adds a `refs` count. The thing `gnd show` reads from. |
-| `gnd refs <ID>[.<section>] [path] [--section S] [--format text\|json]` | List every citation of an ID — `path:line: <citation>` — so you know what leans on a declaration before you change it. `--section` narrows to citations of one section. |
+| `gnd refs <ID>[.<section>] [path] [--section S] [--format text\|json]` | List every citation of an ID — `path:line: <citation>` — so you know what leans on a declaration before you change it. `--section` narrows to citations of one section. Text lines go to **stderr** (the `check` diagnostic stream — add `2>&1` to pipe them); `--format=json` puts NDJSON on stdout instead. |
 | `gnd cover [path] [--format text\|json]` | Group the citation graph by scanned file. JSON emits one record per file, including files with no citations, so git-diff recipes can join changed files to the specs they cite. |
 | `gnd fmt [path] [--check\|--write] [--marker] [--md-links]` | Normalize citation syntax: rewrite the `$$` trigger to `§`. `--marker` also upgrades bare `<ID>` tokens to `§<ID>`; `--md-links` also wraps citations in `.md` files as clickable links to the declaration. Default is a dry run (`--check`); `--write` applies the changes. |
 | `gnd name <KIND> "<title>" [path] [--width N] [--explain] [--format text\|json]` | Emit the next conflict-free ID for a new declaration (e.g. `FS-008-user-login`, or `FS-user-login` under a number-less `[id] format`). Pure function from `(kind, title, tree)` to `id`; no files are written. `--explain` adds a one-line "where to put the file" hint on stderr (stdout stays the bare ID). |
@@ -327,12 +327,16 @@ If a stub at `docs/architectural-spec/AS-event-bus.md` reads `# AS-event-bus: [s
 
 ### Find every file that cites a declaration
 
-The other reverse direction — *who depends on this ID?*, the question to ask before changing or removing a declaration — is `gnd refs`. It shares the scanner with `gnd check`, so it sees exactly the citations the checker validates (respects `strict` mode, skips ID-shaped substrings inside string literals, reaches into block doc-comments) — things a bare `grep` cannot:
+The other reverse direction — *who depends on this ID?*, the question to ask before changing or removing a declaration — is `gnd refs`. It shares the scanner with `gnd check`, so it sees exactly the citations the checker validates (respects `strict` mode, skips ID-shaped substrings inside string literals, reaches into block doc-comments) — things a bare `grep` cannot. Like `gnd check`, the text form writes the located lines to **stderr** (so a clean stdout still means "no result"); `--format=json` emits NDJSON on stdout for tooling:
 
 ```bash
-$ gnd refs FS-events.4
+$ gnd refs FS-events.4 2>&1
 docs/architectural-spec/AS-event-bus.md:6: §FS-events.4
 src/bus.rs:14: §FS-events.4
+
+$ gnd refs FS-events.4 --format json
+{"path":"docs/architectural-spec/AS-event-bus.md","line":6,"column":42,"id":"FS-events","section":"4","marker":true,"text":"§FS-events.4"}
+{"path":"src/bus.rs","line":14,"column":12,"id":"FS-events","section":"4","marker":false,"text":"FS-events.4"}
 ```
 
 Empty output, exit 0 means nothing cites it yet (`gnd check` will also warn about that). See [`FS-refs`](docs/functional-spec/FS-refs.md).
