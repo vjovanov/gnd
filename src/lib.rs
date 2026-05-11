@@ -32,6 +32,20 @@ static STUB_LINK_HEADING: Lazy<Regex> =
 /// anchor stays correct even when a citation in a section heading has been wrapped
 /// by `gnd fmt --md-links` (§DF-github-anchor-fidelity, §FS-fmt.6.2).
 static MD_INLINE_LINK: Lazy<Regex> = Lazy::new(|| Regex::new(r"\[([^\]]*)\]\([^)]*\)").unwrap());
+/// An HTML-tag-shaped span `<…>` — a renderer drops it from a heading's text
+/// (`## RM-show: gnd show <ID>` slugs as `rm-show-gnd-show`), so it must be removed
+/// before slugging the heading (§DF-github-anchor-fidelity, §FS-fmt.6.2).
+static HTML_TAG: Lazy<Regex> = Lazy::new(|| Regex::new(r"<[^>]*>").unwrap());
+
+/// Reduce a heading's source text to the text content a Markdown renderer would
+/// slugify: an inline link `[text](url)` shows as `text`, an HTML-tag span `<…>`
+/// is dropped. Used by both the section-anchor and declaration-anchor paths
+/// (§DF-github-anchor-fidelity, §DF-declaration-anchor).
+fn reduce_heading_text(text: &str) -> String {
+    HTML_TAG
+        .replace_all(&MD_INLINE_LINK.replace_all(text, "$1"), "")
+        .into_owned()
+}
 static AGENTS_BLOCK_BEGIN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"<!--\s*gnd:init:agents:v(?P<version>\d+)\s+begin\s*-->").unwrap());
 static AGENTS_BLOCK_END: Lazy<Regex> =
@@ -2859,8 +2873,11 @@ fn wrap_markdown_links(line: &str, path: &Path, config: &Config, findings: &Find
 
 /// Compute the link URL for a citation: a repo-relative path to the declaration's
 /// home file — following an inline-spec stub to its real source file — plus a
-/// heading anchor when a section is cited and the home is Markdown (§FS-fmt.6.2,
-/// §DF-md-link-anchor-strategy). `None` if the ID does not resolve (§FS-fmt.6.3).
+/// heading anchor whenever the home is Markdown: the cited section's heading for a
+/// `.<section>` citation, the declaration's own heading for a bare-ID citation
+/// (§FS-fmt.6.2, §DF-md-link-anchor-strategy, §DF-declaration-anchor). A source-file
+/// home (a stub's target) and the `none` profile both get a bare file link.
+/// `None` if the ID does not resolve (§FS-fmt.6.3).
 fn markdown_link_target(
     from_file: &Path,
     id: &Id,
@@ -2886,16 +2903,32 @@ fn markdown_link_target(
     };
     let rel = relative_url(from_file, &home, config);
     let is_md = home.extension().and_then(|e| e.to_str()) == Some("md");
-    if !is_md || section.is_none() || config.md_link_anchor_format == "none" {
+    if !is_md || config.md_link_anchor_format == "none" {
         return Some(rel);
     }
-    let heading = home_decl.sections.get(section?).cloned().or_else(|| {
-        section_heading_text(&home, id, section?, config)
-            .ok()
-            .flatten()
-    })?;
+    let heading = match section {
+        Some(sec) => home_decl.sections.get(sec).cloned().or_else(|| {
+            section_heading_text(&home, id, sec, config).ok().flatten()
+        })?,
+        // §DF-declaration-anchor: a bare-ID citation to a Markdown home links to
+        // that declaration's own heading anchor, not just the file.
+        None => declaration_heading_text(home_decl, config),
+    };
     let anchor = anchor_slug(&heading, &config.md_link_anchor_format);
     Some(format!("{}#{}", rel, anchor))
+}
+
+/// The text content of a declaration's `# <ID>: <title>` heading — the `<ID>`
+/// rendered per `[id] format`, then `: <title>` if the heading carries one — i.e.
+/// what a renderer slugifies for the declaration's own anchor. The title is reduced
+/// to its rendered form (`reduce_heading_text`), matching `section_anchor_text`
+/// (§DF-declaration-anchor, §DF-github-anchor-fidelity).
+fn declaration_heading_text(decl: &Declaration, config: &Config) -> String {
+    let id = render_id(config, &decl.id);
+    match &decl.title {
+        Some(title) => format!("{id}: {}", reduce_heading_text(title)),
+        None => id,
+    }
 }
 
 /// `../`-style relative path from one repo file to another — the link form
@@ -2936,10 +2969,10 @@ fn path_components(path: &Path) -> Vec<String> {
 
 /// The heading text a section anchor is built from — `<number> <title>` taken
 /// straight off the heading line, since anchors are derived from heading text, not
-/// stored (§DF-md-link-anchor-strategy). Inline links in the title are reduced to
-/// their visible text (`[§FS-<x>.1](path)` → `§FS-<x>.1`), matching what a renderer
-/// slugifies — so the anchor is stable whether or not a citation in this heading
-/// has been wrapped by `gnd fmt --md-links` (§DF-github-anchor-fidelity).
+/// stored (§DF-md-link-anchor-strategy). The title is reduced to its rendered form
+/// (`reduce_heading_text`: `[§FS-<x>.1](path)` → `§FS-<x>.1`, `<ID>` dropped) so
+/// the anchor is stable whether or not a citation in this heading has been wrapped
+/// by `gnd fmt --md-links` (§DF-github-anchor-fidelity).
 fn section_anchor_text(line: &str, section: &str) -> String {
     let trimmed = line.trim_start();
     let heading = trimmed
@@ -2948,8 +2981,7 @@ fn section_anchor_text(line: &str, section: &str) -> String {
         .trim_start_matches(section)
         .trim_start_matches('.')
         .trim_start();
-    let heading = MD_INLINE_LINK.replace_all(heading, "$1");
-    format!("{} {}", section.replace('.', ""), heading)
+    format!("{} {}", section.replace('.', ""), reduce_heading_text(heading))
         .trim()
         .to_string()
 }
@@ -3030,6 +3062,10 @@ fn anchor_slug_gitlab(text: &str) -> String {
     anchor_slug_github(text)
 }
 
+// Python-Markdown's TOC slugger: lowercase, drop everything that isn't a word
+// char, whitespace, or `-`, then collapse each run of whitespace-and-`-` to one
+// `-` (`re.sub(r'[-\s]+', sep, value)`). The keep-set includes `-`, unlike a naive
+// "alnum + `_`" filter — `# FS-1-x: Y` slugs to `#fs-1-x-y`, not `#fs1x-y`.
 fn anchor_slug_mkdocs(text: &str) -> String {
     let mut out = String::new();
     let mut last_dash = false;
@@ -3038,7 +3074,7 @@ fn anchor_slug_mkdocs(text: &str) -> String {
         if lower.is_ascii_alphanumeric() || lower == '_' {
             out.push(lower);
             last_dash = false;
-        } else if lower.is_ascii_whitespace() && !last_dash && !out.is_empty() {
+        } else if (lower.is_ascii_whitespace() || lower == '-') && !last_dash && !out.is_empty() {
             out.push('-');
             last_dash = true;
         }

@@ -1,8 +1,8 @@
 # FS-lsp: gnd will ship an optional LSP server
 
-`gnd` will ship an optional Language Server Protocol server, `gnd-lsp`, as a separate binary that any LSP-aware editor can talk to: VSCode, Neovim, Emacs (eglot or lsp-mode), Helix, Zed, Sublime Text, and the IntelliJ family via LSP4IJ. Users who want editor integration install `gnd-lsp` and configure their editor once; users who do not — CI pipelines, pre-commit hooks, contributors who only run `gnd check` — install nothing extra and pay no dependency cost. The architectural choice (separate binary rather than a Cargo feature or a bundled library) is decided in [§DA-lsp-optional](../decisions/architectural/DA-lsp-optional.md); the build is tracked as a roadmap milestone in `docs/roadmap.md`. The current shipped surface is the `gnd` CLI alone; this file is the contract `gnd-lsp` will meet when it lands.
+`gnd` will ship an optional Language Server Protocol server, `gnd-lsp`, as a separate binary that any LSP-aware editor can talk to: VSCode, Neovim, Emacs (eglot or lsp-mode), Helix, Zed, Sublime Text, and the IntelliJ family via LSP4IJ. Users who want editor integration install `gnd-lsp` and configure their editor once; users who do not — CI pipelines, pre-commit hooks, contributors who only run `gnd check` — install nothing extra and pay no dependency cost. The architectural choice (separate binary rather than a Cargo feature or a bundled library) is decided in [§DA-lsp-optional](../decisions/architectural/DA-lsp-optional.md#da-lsp-optional-lsp-server-ships-as-a-separate-optional-binary); the build is tracked as a roadmap milestone in `docs/roadmap.md`. The current shipped surface is the `gnd` CLI alone; this file is the contract `gnd-lsp` will meet when it lands.
 
-`gnd` does not ship per-editor wrappers. The only first-party editor surface is the LSP server; per-editor configuration is one-time work the user does, with example snippets in the README. See [§FS-non-goals](FS-non-goals.md) for the non-goal that pins this.
+`gnd` does not ship per-editor wrappers. The only first-party editor surface is the LSP server; per-editor configuration is one-time work the user does, with example snippets in the README. See [§FS-non-goals](FS-non-goals.md#fs-non-goals-what-gnd-will-deliberately-not-do) for the non-goal that pins this.
 
 ## 1. Capabilities
 
@@ -10,7 +10,7 @@ The minimum viable set — everything the server speaks at version 1.0.
 
 ### 1.1 Diagnostics
 
-`textDocument/publishDiagnostics` pushes `gnd check` results as the user edits. Each unknown reference, missing section, duplicate declaration, and broken stub becomes a diagnostic with the same `path:line: <message>` content the CLI prints to stderr ([§FS-errors](FS-errors.md)). Severity follows the engine's severity model ([§FS-non-goals.9](FS-non-goals.md#9-severity-exit-code-or-report-ordering-customization) — not configurable). The diagnostic position is the citation's start column on the line; precise column information is computed once per scan and reused across the open editor session.
+`textDocument/publishDiagnostics` pushes `gnd check` results as the user edits. Each unknown reference, missing section, duplicate declaration, and broken stub becomes a diagnostic with the same `path:line: <message>` content the CLI prints to stderr ([§FS-errors](FS-errors.md#fs-errors-gnd-emits-messages-in-one-of-three-fixed-shapes)). Severity follows the engine's severity model ([§FS-non-goals.9](FS-non-goals.md#9-severity-exit-code-or-report-ordering-customization) — not configurable). The diagnostic position is the citation's start column on the line; precise column information is computed once per scan and reused across the open editor session.
 
 ### 1.2 Hover preview
 
@@ -24,7 +24,7 @@ The minimum viable set — everything the server speaks at version 1.0.
 
 `textDocument/onTypeFormatting` watches the configured trigger sequence (default `$$`, per [§DF-reference-marker.2.2](../decisions/functional/DF-reference-marker.md#22-trigger)) and replaces it with the marker (default `§`) the moment the trigger is followed by a token matching the repo's `[id] format` ([§FS-config.3.2](FS-config.md#32-id--id-grammar) — `FS-007` under a numbered format, `FS-login` under the slug-only form). This is the live counterpart to `gnd fmt`'s bulk trigger pass ([§FS-fmt.2.1](FS-fmt.md#21-trigger-to-marker)) and is what makes the marker practical to type without leaving the keyboard.
 
-The trigger, marker, and recognized `KIND` set are read from `.agents/gnd.toml` so the editor experience matches the project's choices. If no config is present, the defaults from [§DF-reference-marker](../decisions/functional/DF-reference-marker.md) and [§FS-config](FS-config.md) apply.
+The trigger, marker, and recognized `KIND` set are read from `.agents/gnd.toml` so the editor experience matches the project's choices. If no config is present, the defaults from [§DF-reference-marker](../decisions/functional/DF-reference-marker.md#df-reference-marker-use--as-the-reference-marker-with--as-the-typing-trigger) and [§FS-config](FS-config.md#fs-config-gnd-reads-a-toml-config-file-under-agents) apply.
 
 ### 1.5 Capabilities reserved for later
 
@@ -40,7 +40,7 @@ Each addition is a separate roadmap item if and when it is taken on.
 
 ### 2.1 Install
 
-`gnd-lsp` is a separate package on each registry per [§FS-distribution](FS-distribution.md): `cargo install gnd-lsp`, `npm install -g gnd-lsp`, `pipx install gnd-lsp`. None of these are pulled in by the corresponding CLI install (`cargo install gnd` and friends do not transitively install `gnd-lsp`). A user with no editor integration installs the CLI alone.
+`gnd-lsp` is a separate package on each registry per [§FS-distribution](FS-distribution.md#fs-distribution-gnd-distribution-targets): `cargo install gnd-lsp`, `npm install -g gnd-lsp`, `pipx install gnd-lsp`. None of these are pulled in by the corresponding CLI install (`cargo install gnd` and friends do not transitively install `gnd-lsp`). A user with no editor integration installs the CLI alone.
 
 ### 2.2 Lifecycle
 
@@ -54,14 +54,14 @@ The README ships example LSP-client snippets for the editors most contributors u
 - **Neovim** — `nvim-lspconfig` snippet (or zero local config once the server is upstreamed there).
 - **Zed** — central LSP registry entry; one config block locally if not yet upstreamed.
 - **Emacs** — `eglot-server-programs` or `lsp-mode` registration (~5 lines).
-- **VSCode** — install a generic LSP client extension and point it at `gnd-lsp`. A first-party VSCode extension is **not** shipped ([§FS-non-goals](FS-non-goals.md)).
+- **VSCode** — install a generic LSP client extension and point it at `gnd-lsp`. A first-party VSCode extension is **not** shipped ([§FS-non-goals](FS-non-goals.md#fs-non-goals-what-gnd-will-deliberately-not-do)).
 - **IntelliJ family** — LSP4IJ plugin with a `gnd-lsp` server registration.
 
 Adding a new editor's snippet to the README is a small contribution; it does not require a release.
 
 ## 3. Configuration
 
-The server reads `.agents/gnd.toml` via the same discovery logic as `gnd check` ([§FS-config](FS-config.md)), walking up from the workspace root supplied by the editor's LSP `initialize` request. There is no separate LSP config; one source of truth drives both the CLI and the LSP. A workspace without `.agents/gnd.toml` falls back to the canonical defaults ([§G-zero-config](../goals/goals.md)).
+The server reads `.agents/gnd.toml` via the same discovery logic as `gnd check` ([§FS-config](FS-config.md#fs-config-gnd-reads-a-toml-config-file-under-agents)), walking up from the workspace root supplied by the editor's LSP `initialize` request. There is no separate LSP config; one source of truth drives both the CLI and the LSP. A workspace without `.agents/gnd.toml` falls back to the canonical defaults ([§G-zero-config](../goals/goals.md#g-zero-config-works-on-any-conformant-tree)).
 
 Editor-side LSP configuration (server arguments, workspace folders) is the user's responsibility per §2.3 and is not part of `gnd.toml`.
 
@@ -73,7 +73,7 @@ The LSP server does not have an "interactive" mode, a confirmation prompt, or an
 
 ## 5. Out of scope
 
-- **Per-editor wrappers**: VSCode/IntelliJ/Vim/Emacs first-party plugins are not shipped ([§FS-non-goals](FS-non-goals.md)). The LSP server is the surface; editor configuration is the user's.
+- **Per-editor wrappers**: VSCode/IntelliJ/Vim/Emacs first-party plugins are not shipped ([§FS-non-goals](FS-non-goals.md#fs-non-goals-what-gnd-will-deliberately-not-do)). The LSP server is the surface; editor configuration is the user's.
 - **Refactoring (rename ID)**: `gnd` does not rename IDs; the scheme says IDs are forever ([§FS-non-goals.4](FS-non-goals.md#4-cross-workspace-id-renaming)).
 - **Inline editing of declaration bodies from the hover popup**: editors already do this well; `gnd-lsp` does not implement it.
 - **Network access**: the server performs no network I/O ([§FS-non-goals.11](FS-non-goals.md#11-network-access-during-a-check)). All scanning is local.

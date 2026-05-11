@@ -2,7 +2,7 @@
 
 ## Status
 
-Resolved by [§DF-md-link-emission](../../decisions/functional/DF-md-link-emission.md) and [§DF-md-link-anchor-strategy](../../decisions/functional/DF-md-link-anchor-strategy.md). Implementation tracked under [§RM-md-link-emission](../../roadmap.md). The "Open questions" section below is preserved as-is for historical context; the answers live in the two DFs above.
+Resolved by [§DF-md-link-emission](../../decisions/functional/DF-md-link-emission.md#df-md-link-emission-gnd-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations) and [§DF-md-link-anchor-strategy](../../decisions/functional/DF-md-link-anchor-strategy.md#df-md-link-anchor-strategy-heading-text-slugs-re-derived-on-every-fmt-pass). Implementation tracked under [§RM-md-link-emission](../../roadmap.md#rm-md-link-emission-gnd-fmt---md-links). The "Open questions" section below is preserved as-is for historical context; the answers live in the two DFs above.
 
 ## Context
 
@@ -11,7 +11,7 @@ model is based on stable ID citations. A Markdown link is useful for a human in 
 browser or IDE preview, but it is path-coupled and anchor-coupled. An ID citation
 is location-independent and works across Markdown and source doc-comments.
 
-The current direction in [§DF-md-link-emission](../../decisions/functional/DF-md-link-emission.md) and [§FS-fmt.6](../../functional-spec/FS-fmt.md#6-markdown-link-emission-with---md-links) is to keep IDs as the
+The current direction in [§DF-md-link-emission](../../decisions/functional/DF-md-link-emission.md#df-md-link-emission-gnd-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations) and [§FS-fmt.6](../../functional-spec/FS-fmt.md#6-markdown-link-emission-with---md-links) is to keep IDs as the
 source of truth and let `gnd fmt --md-links` generate Markdown links around
 marker-prefixed citations in `.md` files.
 

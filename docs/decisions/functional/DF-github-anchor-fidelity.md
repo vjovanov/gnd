@@ -14,7 +14,7 @@ GitHub's `github-slugger` does not collapse anything. It lowercases the heading'
 - `` ## 6. Watch mode (`--watch`) `` → `#6-watch-mode---watch` — `(`, the back-ticks, and `)` are deleted; the space before `(` becomes `-` and the literal `--` of `--watch` survives, so the join is `-` + `--`.
 - `## 3.2 [id] — ID grammar` → `#32-id--id-grammar`.
 
-gnd was emitting `#a-b`, `#6-watch-mode-watch`, `#32-id-id-grammar` — anchors that resolve nowhere on GitHub. For a feature whose entire purpose is "clickable in the rendered doc" ([§FS-fmt.6.1](../../functional-spec/FS-fmt.md#61-scope)), shipping a `#fragment` that GitHub does not render is exactly the silent breakage the project promises not to ship ([§G-no-silent-breakage](../../goals/goals.md)). It went unnoticed because `gnd check` validates the *citation inside the brackets*, never the `#fragment` after the path ([§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation)); only a renderer — or `lychee --include-fragments` — exercises the anchor.
+gnd was emitting `#a-b`, `#6-watch-mode-watch`, `#32-id-id-grammar` — anchors that resolve nowhere on GitHub. For a feature whose entire purpose is "clickable in the rendered doc" ([§FS-fmt.6.1](../../functional-spec/FS-fmt.md#61-scope)), shipping a `#fragment` that GitHub does not render is exactly the silent breakage the project promises not to ship ([§G-no-silent-breakage](../../goals/goals.md#g-no-silent-breakage-changes-ship-through-a-deprecation-path)). It went unnoticed because `gnd check` validates the *citation inside the brackets*, never the `#fragment` after the path ([§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation)); only a renderer — or `lychee --include-fragments` — exercises the anchor.
 
 ## 2. Decision
 
@@ -26,7 +26,7 @@ Fidelity is held by two checks: the curated-heading e2e fixture [§FS-fmt.6.8](.
 
 ## 3. Why this fits gnd's goals
 
-- [§G-no-silent-breakage](../../goals/goals.md) — the point of the change: the emitted anchor now resolves where the feature says it does.
+- [§G-no-silent-breakage](../../goals/goals.md#g-no-silent-breakage-changes-ship-through-a-deprecation-path) — the point of the change: the emitted anchor now resolves where the feature says it does.
 - [§FS-non-goals.13](../../functional-spec/FS-non-goals.md#13-anything-that-would-let-two-gnd-installs-disagree) (two installs agree) — still byte-deterministic on `(tree, config)`; the change is which bytes, not whether they are fixed.
 - [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation) (no link validation) — `gnd check` still does not validate `#fragment`s. The fix is in *emission*, where gnd computes the URL and so owns its correctness; the pre-commit `lychee --include-fragments` step is a repo-local belt-and-braces, not a new `gnd check` rule.
 

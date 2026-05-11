@@ -38,7 +38,7 @@ Wrap-the-citation keeps one artifact per citation, keeps the cite human-readable
 
 ### 2.2 Anchor format
 
-**Superseded by [§DF-md-link-anchor-strategy](DF-md-link-anchor-strategy.md).** This DR's first draft proposed a section-coordinate anchor (`.3.1` → `#3-1`) on a "stability under heading edits" argument. On review the proposed format proved factually wrong about renderer behavior — GitHub's slugger strips punctuation rather than converting it, so `### 3.1 Inputs` produces `#31-inputs`, not `#3-1`. [§DF-md-link-anchor-strategy](DF-md-link-anchor-strategy.md) picks the actual strategy: heading-text slugs per a configurable renderer profile, re-derived on every `gnd fmt` pass. The "stability" framing is retracted there in favor of a normalize-on-each-run rule that matches the existing trigger→marker pass.
+**Superseded by [§DF-md-link-anchor-strategy](DF-md-link-anchor-strategy.md#df-md-link-anchor-strategy-heading-text-slugs-re-derived-on-every-fmt-pass).** This DR's first draft proposed a section-coordinate anchor (`.3.1` → `#3-1`) on a "stability under heading edits" argument. On review the proposed format proved factually wrong about renderer behavior — GitHub's slugger strips punctuation rather than converting it, so `### 3.1 Inputs` produces `#31-inputs`, not `#3-1`. [§DF-md-link-anchor-strategy](DF-md-link-anchor-strategy.md#df-md-link-anchor-strategy-heading-text-slugs-re-derived-on-every-fmt-pass) picks the actual strategy: heading-text slugs per a configurable renderer profile, re-derived on every `gnd fmt` pass. The "stability" framing is retracted there in favor of a normalize-on-each-run rule that matches the existing trigger→marker pass.
 
 ### 2.3 Source-file links
 
@@ -50,7 +50,7 @@ When the citation's declaration lives in source code (a stub of the form `# <ID>
 
 ## 3. Reconciliation with non-goals
 
-This decision sits close to two [§FS-non-goals](../../functional-spec/FS-non-goals.md) entries; both stand and this is consistent with them.
+This decision sits close to two [§FS-non-goals](../../functional-spec/FS-non-goals.md#fs-non-goals-what-gnd-will-deliberately-not-do) entries; both stand and this is consistent with them.
 
 ### 3.1 [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation) — gnd does not validate Markdown links
 
@@ -63,16 +63,16 @@ The link emission is a transformation on the source `.md` file (a sibling of the
 ## 4. Consequences
 
 - A new `--md-links` flag on `gnd fmt` and a `[fmt.md_links]` config block in `gnd.toml` ([§FS-fmt.6.7](../../functional-spec/FS-fmt.md#67-configurability)).
-- A new roadmap item [§RM-md-link-emission](../../roadmap.md) carries the implementation.
-- The [§G-polyglot-citation](../../goals/goals.md) goal explicitly states that the polyglot grammar is the canonical form; this decision is the sanctioned exception that adds a presentation-layer view in `.md` only.
+- A new roadmap item [§RM-md-link-emission](../../roadmap.md#rm-md-link-emission-gnd-fmt---md-links) carries the implementation.
+- The [§G-polyglot-citation](../../goals/goals.md#g-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) goal explicitly states that the polyglot grammar is the canonical form; this decision is the sanctioned exception that adds a presentation-layer view in `.md` only.
 - Repos that adopt `--md-links` should run `gnd fmt --md-links --write` as a pre-commit hook so the generated links stay in sync with file moves and citation edits. CI should run `gnd fmt --md-links --check` to flag drift.
-- The [§G-no-silent-breakage](../../goals/goals.md) path: shipping the flag does not change any existing behavior; `--md-links` and `[fmt.md_links] enabled = true` are both off by default, so a repo that does not opt in sees no diff.
+- The [§G-no-silent-breakage](../../goals/goals.md#g-no-silent-breakage-changes-ship-through-a-deprecation-path) path: shipping the flag does not change any existing behavior; `--md-links` and `[fmt.md_links] enabled = true` are both off by default, so a repo that does not opt in sees no diff.
 
 ## 5. Alternatives considered
 
 | Approach | Why rejected |
 |---|---|
-| Markdown links as the source of truth (delete the ID grammar) | Loses the polyglot property entirely — the reason `gnd` exists per [§G-polyglot-citation](../../goals/goals.md) and the raison-detre. Source comments cannot host clickable Markdown. |
+| Markdown links as the source of truth (delete the ID grammar) | Loses the polyglot property entirely — the reason `gnd` exists per [§G-polyglot-citation](../../goals/goals.md#g-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) and the raison-detre. Source comments cannot host clickable Markdown. |
 | Render IDs to links at publish time, in a downstream tool | Pushes the work to every consumer — MkDocs plugin, GitHub Action, IDE preview — and gives each one a chance to disagree on the link target. Doing it once in `gnd fmt` keeps two installs in agreement ([§FS-non-goals.13](../../functional-spec/FS-non-goals.md#13-anything-that-would-let-two-gnd-installs-disagree)). |
-| Always emit links (no opt-in) | Surprises existing repos with a large mechanical diff on first upgrade; couples every `.md` to its current path layout; violates [§G-no-silent-breakage](../../goals/goals.md). |
+| Always emit links (no opt-in) | Surprises existing repos with a large mechanical diff on first upgrade; couples every `.md` to its current path layout; violates [§G-no-silent-breakage](../../goals/goals.md#g-no-silent-breakage-changes-ship-through-a-deprecation-path). |
 | Heading-text slugs for anchors | Brittle under heading edits; would force `fmt` to rewrite anchors whenever prose changes; runs counter to "IDs survive refactors" — the property this project exists to defend. |

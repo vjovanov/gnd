@@ -1,6 +1,6 @@
 # FS-errors: gnd emits messages in one of three fixed shapes
 
-This spec defines the style every `gnd` subcommand uses when it speaks to a user or to a downstream tool. It is cross-cutting: [§FS-check](FS-check.md), [§FS-show](FS-show.md), [§FS-list](FS-list.md), [§FS-refs](FS-refs.md), [§FS-cover](FS-cover.md), [§FS-fmt](FS-fmt.md), [§FS-init](FS-init.md), [§FS-id](FS-id.md), [§FS-config](FS-config.md), and [§FS-completions](FS-completions.md) all conform to it, and the global-flag behaviour in [§FS-cli](FS-cli.md) routes its errors through §2.2 here. Serves [§G-friendliness-first.1](../goals/goals.md#1-hard-requirements) ("errors point at the line", "no surprises") and [§G-no-silent-breakage.1](../goals/goals.md#1-what-counts-as-user-visible) (the message shapes are user-visible output).
+This spec defines the style every `gnd` subcommand uses when it speaks to a user or to a downstream tool. It is cross-cutting: [§FS-check](FS-check.md#fs-check-gnd-validates-every-reference-in-a-repo), [§FS-show](FS-show.md#fs-show-gnd-reads-a-single-declaration-body-by-id), [§FS-list](FS-list.md#fs-list-gnd-lists-every-declared-id), [§FS-refs](FS-refs.md#fs-refs-gnd-lists-every-citation-of-an-id), [§FS-cover](FS-cover.md#fs-cover-gnd-groups-citations-by-scanned-file), [§FS-fmt](FS-fmt.md#fs-fmt-gnd-normalizes-references-in-bulk), [§FS-init](FS-init.md#fs-init-gnd-bootstraps-a-new-gnd-conformant-repo), [§FS-id](FS-id.md#fs-id-gnd-proposes-ids-for-new-declarations), [§FS-config](FS-config.md#fs-config-gnd-reads-a-toml-config-file-under-agents), and [§FS-completions](FS-completions.md#fs-completions-gnd-completes-declared-ids-in-shells) all conform to it, and the global-flag behaviour in [§FS-cli](FS-cli.md#fs-cli-gnds-command-line-surface-conventions) routes its errors through §2.2 here. Serves [§G-friendliness-first.1](../goals/goals.md#1-hard-requirements) ("errors point at the line", "no surprises") and [§G-no-silent-breakage.1](../goals/goals.md#1-what-counts-as-user-visible) (the message shapes are user-visible output).
 
 The shapes are **frozen** by the same logic as [§FS-non-goals.9](FS-non-goals.md#9-severity-exit-code-or-report-ordering-customization): two correctly-configured installs must agree on what they print. A subcommand that needs to say something new picks one of the shapes below; it does not invent a fourth.
 
@@ -59,7 +59,7 @@ The shape is structural; the text is human-readable. Style rules apply to every 
 
 - **Lowercase first letter.** `unknown reference <ID>` — not `Unknown reference <ID>`.
 - **No terminal period.** Messages do not end in `.` or `!`.
-- **No ANSI colors by default.** A future `--color=auto` may add them ([§G-no-silent-breakage](../goals/goals.md) applies); plain bytes are the contract.
+- **No ANSI colors by default.** A future `--color=auto` may add them ([§G-no-silent-breakage](../goals/goals.md#g-no-silent-breakage-changes-ship-through-a-deprecation-path) applies); plain bytes are the contract.
 - **Stable phrasing.** The exact text of each message is part of the user-visible output covered by [§G-no-silent-breakage.1](../goals/goals.md#1-what-counts-as-user-visible): changing it goes through a deprecation path. Tools grep on it.
 - **Quoted user input** appears in double quotes when the input could be confused with surrounding prose: `"<original title>"`, not `<original title>`.
 
@@ -80,7 +80,7 @@ A message that would otherwise be non-deterministic (e.g. the order of duplicate
 The subcommands with a machine-readable result or diagnostic surface accept `--format=json`: `check`, `show`, `list`, `refs`, `cover`, and `id` ([§G-friendliness-first.1](../goals/goals.md#1-hard-requirements), [§FS-cli.3](FS-cli.md#3-cross-subcommand-flags)). Operational commands whose output is human text or generated files (`fmt`, `init`, `config`, `agent-setup-instructions`, `completions`) do not accept `--format` unless their own spec adds a JSON surface later. Two streams are distinguished, matching §1:
 
 - **Diagnostic JSON (stderr).** Located findings, CLI-level errors, and bare query results all serialize into the binding-level shape from [§FS-distribution.2](FS-distribution.md#2-cli-parity) (`{ severity, path, line, code, message }`); the wire form is one JSON object per line (NDJSON). `path` and `line` are `null` for the latter two shapes.
-- **Result JSON (stdout).** Query subcommands that produce a *result* (e.g. `gnd show --format=json`) emit a single JSON object on stdout, with the per-subcommand schema defined in that subcommand's spec (e.g. [§FS-show](FS-show.md)). Stdout is never NDJSON for results — one command, one object.
+- **Result JSON (stdout).** Query subcommands that produce a *result* (e.g. `gnd show --format=json`) emit a single JSON object on stdout, with the per-subcommand schema defined in that subcommand's spec (e.g. [§FS-show](FS-show.md#fs-show-gnd-reads-a-single-declaration-body-by-id)). Stdout is never NDJSON for results — one command, one object.
 
 The two streams keep `gnd show <ID> --format=json | jq …` and `gnd check … --format=json 2>&1 >/dev/null | jq …` both working without a stream-classifier in front of `jq`.
 

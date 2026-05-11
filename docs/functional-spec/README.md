@@ -6,39 +6,39 @@ This is the external behavior of `gnd` — *what* it does, not how it's built. E
 
 The subcommands a user runs on the command line.
 
-- [§FS-check](FS-check.md) — validates every reference in a repo
-- [§FS-show](FS-show.md) — reads a single declaration body by ID
-- [§FS-list](FS-list.md) — lists every declared ID (the ID catalog)
-- [§FS-refs](FS-refs.md) — lists every citation of an ID
-- [§FS-cover](FS-cover.md) — groups citations by scanned file
-- [§FS-fmt](FS-fmt.md) — normalizes references in bulk
-- [§FS-init](FS-init.md) — bootstraps a new `gnd`-conformant repo
-- [§FS-id](FS-id.md) — proposes IDs for new declarations
-- [§FS-completions](FS-completions.md) — shell completion for declared IDs
+- [§FS-check](FS-check.md#fs-check-gnd-validates-every-reference-in-a-repo) — validates every reference in a repo
+- [§FS-show](FS-show.md#fs-show-gnd-reads-a-single-declaration-body-by-id) — reads a single declaration body by ID
+- [§FS-list](FS-list.md#fs-list-gnd-lists-every-declared-id) — lists every declared ID (the ID catalog)
+- [§FS-refs](FS-refs.md#fs-refs-gnd-lists-every-citation-of-an-id) — lists every citation of an ID
+- [§FS-cover](FS-cover.md#fs-cover-gnd-groups-citations-by-scanned-file) — groups citations by scanned file
+- [§FS-fmt](FS-fmt.md#fs-fmt-gnd-normalizes-references-in-bulk) — normalizes references in bulk
+- [§FS-init](FS-init.md#fs-init-gnd-bootstraps-a-new-gnd-conformant-repo) — bootstraps a new `gnd`-conformant repo
+- [§FS-id](FS-id.md#fs-id-gnd-proposes-ids-for-new-declarations) — proposes IDs for new declarations
+- [§FS-completions](FS-completions.md#fs-completions-gnd-completes-declared-ids-in-shells) — shell completion for declared IDs
 
 ## Editor integration
 
 The editor surface — an optional LSP server that any LSP-aware editor can talk to. No first-party per-editor plugins ship; configuration is the user's one-time work.
 
-- [§FS-lsp](FS-lsp.md) — optional LSP server (`gnd-lsp`)
+- [§FS-lsp](FS-lsp.md#fs-lsp-gnd-will-ship-an-optional-lsp-server) — optional LSP server (`gnd-lsp`)
 
 ## Packaging
 
 How `gnd` is shipped.
 
-- [§FS-distribution](FS-distribution.md) — ships on cargo, npm, and PyPI with a native API on each
+- [§FS-distribution](FS-distribution.md#fs-distribution-gnd-distribution-targets) — ships on cargo, npm, and PyPI with a native API on each
 
 ## Cross-cutting
 
 Behavior every subcommand inherits.
 
-- [§FS-cli](FS-cli.md) — the command-line surface: default subcommand, `--version`/`--help`, exit-code mapping
-- [§FS-errors](FS-errors.md) — the shape and style of every message `gnd` prints
+- [§FS-cli](FS-cli.md#fs-cli-gnds-command-line-surface-conventions) — the command-line surface: default subcommand, `--version`/`--help`, exit-code mapping
+- [§FS-errors](FS-errors.md#fs-errors-gnd-emits-messages-in-one-of-three-fixed-shapes) — the shape and style of every message `gnd` prints
 
 ## Configuration and scope
 
-- [§FS-config](FS-config.md) — reads a TOML config file under `.agents/`
-- [§FS-non-goals](FS-non-goals.md) — what `gnd` will deliberately not do
+- [§FS-config](FS-config.md#fs-config-gnd-reads-a-toml-config-file-under-agents) — reads a TOML config file under `.agents/`
+- [§FS-non-goals](FS-non-goals.md#fs-non-goals-what-gnd-will-deliberately-not-do) — what `gnd` will deliberately not do
 
 ---
 

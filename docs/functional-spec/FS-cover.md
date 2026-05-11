@@ -1,6 +1,6 @@
 # FS-cover: gnd groups citations by scanned file
 
-The `cover` subcommand exposes the citation graph as data: for each scanned file, which spec IDs does it cite, and where? This is the plumbing surface for the diff-aware co-change recipe ([§RM-cochange-gate](../roadmap.md)): git decides what changed, `cover` says which IDs the changed files lean on. Serves [§RM-cover](../roadmap.md) and keeps the policy layer out of `gnd-core`.
+The `cover` subcommand exposes the citation graph as data: for each scanned file, which spec IDs does it cite, and where? This is the plumbing surface for the diff-aware co-change recipe ([§RM-cochange-gate](../roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test)): git decides what changed, `cover` says which IDs the changed files lean on. Serves [§RM-cover](../roadmap.md#rm-cover-gnd-cover) and keeps the policy layer out of `gnd-core`.
 
 ## 1. Inputs
 
@@ -15,7 +15,7 @@ gnd cover [<path>] [--format text|json]
 
 ## 2. Behaviour
 
-`cover` runs the same scan as `check`, `list`, and `refs` ([§AS-scanner](../architectural-spec/AS-scanner.md)). It does not decide whether a file is sufficiently covered, whether a hunk is behavioral, or whether a spec/test co-change is required; those are recipe concerns ([§RM-cochange-gate](../roadmap.md)). The command only renders the `Findings` the scanner already collected.
+`cover` runs the same scan as `check`, `list`, and `refs` ([§AS-scanner](../architectural-spec/AS-scanner.md#as-scanner-how-gnd-discovers-declarations-and-citations)). It does not decide whether a file is sufficiently covered, whether a hunk is behavioral, or whether a spec/test co-change is required; those are recipe concerns ([§RM-cochange-gate](../roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test)). The command only renders the `Findings` the scanner already collected.
 
 Output is grouped by scanned file, sorted by path. Within a file, citations are sorted by `(line, column)`. Files with no recognised citations are still included, so a caller can distinguish "the file was scanned and cites nothing" from "the file was outside the scan scope." A citation object is the same shape `gnd refs --format=json` emits: path, line, column, rendered ID, optional section, marker boolean, and the verbatim token text.
 

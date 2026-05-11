@@ -14,11 +14,11 @@ A non-goal is not the same as "we'll do it later." Non-goals are commitments. To
 
 ## 3. Code AST parsing
 
-`gnd` does not parse code. It does line-oriented regex over comments and doc-comments (per [§AS-scanner](../architectural-spec/AS-scanner.md)). It does not understand classes, methods, types, scopes, or call graphs. The stub-heading link is a file path, not a symbol reference. Reasoning: [§G-fast-feedback](../goals/goals.md) rules out per-language parsers, and IDs are syntactic by design.
+`gnd` does not parse code. It does line-oriented regex over comments and doc-comments (per [§AS-scanner](../architectural-spec/AS-scanner.md#as-scanner-how-gnd-discovers-declarations-and-citations)). It does not understand classes, methods, types, scopes, or call graphs. The stub-heading link is a file path, not a symbol reference. Reasoning: [§G-fast-feedback](../goals/goals.md#g-fast-feedback-gnd-must-be-as-fast-as-possible) rules out per-language parsers, and IDs are syntactic by design.
 
 ## 4. Cross-workspace ID renaming
 
-`gnd` does not provide a "rename ID" refactoring. The reference scheme says IDs are forever; renaming an ID is a deliberate edit (`Supersedes:` chain), not an automated operation. The optional LSP server ([§FS-lsp](FS-lsp.md)) intentionally omits this affordance, and no first-party editor wrapper would add it ([§FS-non-goals.12.1](FS-non-goals.md#121-plugins-or-scripting-hooks-inside-the-engine)).
+`gnd` does not provide a "rename ID" refactoring. The reference scheme says IDs are forever; renaming an ID is a deliberate edit (`Supersedes:` chain), not an automated operation. The optional LSP server ([§FS-lsp](FS-lsp.md#fs-lsp-gnd-will-ship-an-optional-lsp-server)) intentionally omits this affordance, and no first-party editor wrapper would add it ([§FS-non-goals.12.1](FS-non-goals.md#121-plugins-or-scripting-hooks-inside-the-engine)).
 
 ## 5. Documentation generation
 
@@ -26,7 +26,7 @@ A non-goal is not the same as "we'll do it later." Non-goals are commitments. To
 
 ## 6. Decision database, audit log, history tracking
 
-`gnd` does not store decisions in a database, render decision graphs over time, track who changed what when, or visualize the ID graph. Git is the audit log; `git log` is the time machine. The reverse-lookup the project does ship — `gnd refs <ID>` ([§FS-refs](FS-refs.md)) — answers "who cites this ID *now*" from a single scan; it is a query over the current tree, not a stored graph or a history view.
+`gnd` does not store decisions in a database, render decision graphs over time, track who changed what when, or visualize the ID graph. Git is the audit log; `git log` is the time machine. The reverse-lookup the project does ship — `gnd refs <ID>` ([§FS-refs](FS-refs.md#fs-refs-gnd-lists-every-citation-of-an-id)) — answers "who cites this ID *now*" from a single scan; it is a query over the current tree, not a stored graph or a history view.
 
 ## 7. Inter-agent messaging or workflow
 
@@ -42,7 +42,7 @@ Per [§G-friendliness-first.2](../goals/goals.md#2-what-this-rules-out) and [§F
 
 ## 10. Interactive mode
 
-`gnd` does not have a TUI, an interactive prompt, or a confirmation step. Every subcommand is non-interactive and CI-friendly. Reasoning: [§G-friendliness-first](../goals/goals.md) — interactive flows block CI and complicate scripting.
+`gnd` does not have a TUI, an interactive prompt, or a confirmation step. Every subcommand is non-interactive and CI-friendly. Reasoning: [§G-friendliness-first](../goals/goals.md#g-friendliness-first-as-user--and-agent-friendly-as-possible) — interactive flows block CI and complicate scripting.
 
 ## 11. Network access during a check
 
@@ -50,15 +50,15 @@ Per [§G-friendliness-first.2](../goals/goals.md#2-what-this-rules-out) and [§F
 
 ## 12. Surfaces outside `gnd-core` and the LSP transport
 
-`gnd` ships exactly two kinds of surface over the engine: the bindings enumerated in [§FS-distribution](FS-distribution.md) (cargo CLI, Node API, Python API, LSP server) and nothing else. Anything that would add a third — in-engine scripting, per-editor wrappers, marketplace plugins — is out of scope.
+`gnd` ships exactly two kinds of surface over the engine: the bindings enumerated in [§FS-distribution](FS-distribution.md#fs-distribution-gnd-distribution-targets) (cargo CLI, Node API, Python API, LSP server) and nothing else. Anything that would add a third — in-engine scripting, per-editor wrappers, marketplace plugins — is out of scope.
 
 ### 12.1 Plugins or scripting hooks inside the engine
 
-`gnd-core` is a library. Bindings ([§FS-distribution](FS-distribution.md)) are first-party. There is no plugin system, no Lua hook, no JavaScript user script that runs during a check. Custom behavior is achieved by calling the API from your own code; the core stays small. Reasoning: a plugin surface multiplies attack surface, breaks reproducibility, and undermines "two installs agree."
+`gnd-core` is a library. Bindings ([§FS-distribution](FS-distribution.md#fs-distribution-gnd-distribution-targets)) are first-party. There is no plugin system, no Lua hook, no JavaScript user script that runs during a check. Custom behavior is achieved by calling the API from your own code; the core stays small. Reasoning: a plugin surface multiplies attack surface, breaks reproducibility, and undermines "two installs agree."
 
 ### 12.2 First-party per-editor plugins
 
-`gnd` does not ship and does not maintain VSCode extensions, IntelliJ plugins, Vim/Neovim plugins, Emacs packages, or any other editor-specific wrapper. The optional LSP server ([§FS-lsp](FS-lsp.md)) is the only first-party editor surface; configuring an editor to talk to it is the user's one-time work, with example snippets in the README. Reasoning: per-editor plugins multiply maintenance surface across release cadences we do not control (marketplace review, extension manifests, native UI APIs), and the LSP protocol already gives every modern editor the four capabilities `gnd-lsp` exposes ([§FS-lsp.1](FS-lsp.md#1-capabilities)) for free. Decided in [§DA-lsp-optional](../decisions/architectural/DA-lsp-optional.md). Reconsidering this entry would require an architectural decision record overturning [§DA-lsp-optional](../decisions/architectural/DA-lsp-optional.md).
+`gnd` does not ship and does not maintain VSCode extensions, IntelliJ plugins, Vim/Neovim plugins, Emacs packages, or any other editor-specific wrapper. The optional LSP server ([§FS-lsp](FS-lsp.md#fs-lsp-gnd-will-ship-an-optional-lsp-server)) is the only first-party editor surface; configuring an editor to talk to it is the user's one-time work, with example snippets in the README. Reasoning: per-editor plugins multiply maintenance surface across release cadences we do not control (marketplace review, extension manifests, native UI APIs), and the LSP protocol already gives every modern editor the four capabilities `gnd-lsp` exposes ([§FS-lsp.1](FS-lsp.md#1-capabilities)) for free. Decided in [§DA-lsp-optional](../decisions/architectural/DA-lsp-optional.md#da-lsp-optional-lsp-server-ships-as-a-separate-optional-binary). Reconsidering this entry would require an architectural decision record overturning [§DA-lsp-optional](../decisions/architectural/DA-lsp-optional.md#da-lsp-optional-lsp-server-ships-as-a-separate-optional-binary).
 
 ## 13. Anything that would let two `gnd` installs disagree
 

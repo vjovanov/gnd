@@ -1,6 +1,6 @@
 # FS-config: gnd reads a TOML config file under .agents/
 
-`gnd` is zero-config out of the box ([§G-zero-config](../goals/goals.md)) and fully configurable when a project's conventions diverge ([§G-configurable](../goals/goals.md)). This spec defines the contract: where the config lives, what it contains, what it overrides, and how malformed configs are reported.
+`gnd` is zero-config out of the box ([§G-zero-config](../goals/goals.md#g-zero-config-works-on-any-conformant-tree)) and fully configurable when a project's conventions diverge ([§G-configurable](../goals/goals.md#g-configurable-every-default-is-overridable)). This spec defines the contract: where the config lives, what it contains, what it overrides, and how malformed configs are reported.
 
 ## 1. File location and discovery
 
@@ -16,7 +16,7 @@ CLI flags > `gnd.toml` > built-in defaults. Layering is shallow: a value present
 
 ## 3. Schema
 
-The config file is TOML. Every key is optional; omitted keys take the default value. Unknown keys are an **error**, not a warning, per [§G-friendliness-first](../goals/goals.md) — typos in config files are bugs and gnd surfaces them loudly.
+The config file is TOML. Every key is optional; omitted keys take the default value. Unknown keys are an **error**, not a warning, per [§G-friendliness-first](../goals/goals.md#g-friendliness-first-as-user--and-agent-friendly-as-possible) — typos in config files are bugs and gnd surfaces them loudly.
 
 The recognized surface is the line-oriented subset that the schema below uses: one `key = value` per line, basic (double-quoted) strings, booleans, integers, and single-line `["…", "…"]` arrays of basic strings; `#` comments; `[table]` and `[[array.of.tables]]` headers. Multi-line arrays, inline `{ … }` tables, and other TOML constructs are not parsed — keep each value on one line. A line that does not fit this shape is reported as an error pointing at the offending line, per §4.3.
 
@@ -39,9 +39,9 @@ strict            = false    # default; if true, bare citations are NOT recogniz
 require_grounding = false    # default; if true, `check` flags source files that cite no declared ID
 ```
 
-Per [§DF-reference-marker](../decisions/functional/DF-reference-marker.md). `strict = true` requires a non-empty `marker`.
+Per [§DF-reference-marker](../decisions/functional/DF-reference-marker.md#df-reference-marker-use--as-the-reference-marker-with--as-the-typing-trigger). `strict = true` requires a non-empty `marker`.
 
-`require_grounding = true` adds the ungrounded-source-file error ([§FS-check.3.6](FS-check.md#36-ungrounded-source-file-opt-in)): every scanned non-Markdown file must carry at least one resolving citation, or declare an ID inline. `gnd check --require-grounding` forces it on for one run. Per [§DF-require-grounding](../decisions/functional/DF-require-grounding.md); off by default so adopting the discipline is a deliberate step, like `strict`.
+`require_grounding = true` adds the ungrounded-source-file error ([§FS-check.3.6](FS-check.md#36-ungrounded-source-file-opt-in)): every scanned non-Markdown file must carry at least one resolving citation, or declare an ID inline. `gnd check --require-grounding` forces it on for one run. Per [§DF-require-grounding](../decisions/functional/DF-require-grounding.md#df-require-grounding-an-opt-in-check-that-every-source-file-cites-a-spec); off by default so adopting the discipline is a deliberate step, like `strict`.
 
 ### 3.2 `[id]` — ID grammar
 
@@ -164,7 +164,7 @@ color          = "auto"   # auto | always | never
 relative_paths = true     # show paths relative to config root in reports
 ```
 
-`relative_paths = true` (default) renders every `<path>` in a report relative to the config root (§1). `relative_paths = false` renders them relative to the path argument passed on the command line — or to the current working directory when no path is given — i.e. the same base `gnd` uses when no `.agents/gnd.toml` is discovered. Either way `gnd` **never** emits an absolute path or a path that escapes above the chosen base; this is what keeps the report deterministic per [§FS-errors.4](FS-errors.md#4-determinism). `color` controls ANSI styling once the colored-output feature lands ([§FS-errors.3](FS-errors.md#3-message-text)); until then output is plain bytes regardless of this value, and a change to that default goes through the [§G-no-silent-breakage](../goals/goals.md) path.
+`relative_paths = true` (default) renders every `<path>` in a report relative to the config root (§1). `relative_paths = false` renders them relative to the path argument passed on the command line — or to the current working directory when no path is given — i.e. the same base `gnd` uses when no `.agents/gnd.toml` is discovered. Either way `gnd` **never** emits an absolute path or a path that escapes above the chosen base; this is what keeps the report deterministic per [§FS-errors.4](FS-errors.md#4-determinism). `color` controls ANSI styling once the colored-output feature lands ([§FS-errors.3](FS-errors.md#3-message-text)); until then output is plain bytes regardless of this value, and a change to that default goes through the [§G-no-silent-breakage](../goals/goals.md#g-no-silent-breakage-changes-ship-through-a-deprecation-path) path.
 
 ### 3.7 `[fmt.md_links]` — Markdown link emission
 
@@ -174,7 +174,7 @@ enabled       = false      # default; --md-links overrides per-invocation
 anchor_format = "github"   # default; one of github | gitlab | mkdocs | pandoc | none
 ```
 
-The full contract for this block — what `enabled` does, the named `anchor_format` profiles, and when the link pass runs — lives in [§FS-fmt.6.7](FS-fmt.md#67-configurability) and [§DF-md-link-anchor-strategy](../decisions/functional/DF-md-link-anchor-strategy.md). It is part of the schema here because the generated `.agents/gnd.toml` ([§FS-init.2.4](FS-init.md#24-generated-agentsgndtoml)) writes every key in this section explicitly.
+The full contract for this block — what `enabled` does, the named `anchor_format` profiles, and when the link pass runs — lives in [§FS-fmt.6.7](FS-fmt.md#67-configurability) and [§DF-md-link-anchor-strategy](../decisions/functional/DF-md-link-anchor-strategy.md#df-md-link-anchor-strategy-heading-text-slugs-re-derived-on-every-fmt-pass). It is part of the schema here because the generated `.agents/gnd.toml` ([§FS-init.2.4](FS-init.md#24-generated-agentsgndtoml)) writes every key in this section explicitly.
 
 ## 4. Validation and inspection
 
@@ -196,7 +196,7 @@ The TOML file may include a top-level `gnd_config_version = N`. The current vers
 
 ## 6. What is NOT configured here
 
-Per [§G-friendliness-first](../goals/goals.md), the following are deliberately **not** configurable, to avoid the trap of every gnd repo behaving differently in surprising ways:
+Per [§G-friendliness-first](../goals/goals.md#g-friendliness-first-as-user--and-agent-friendly-as-possible), the following are deliberately **not** configurable, to avoid the trap of every gnd repo behaving differently in surprising ways:
 
 - The set of severity levels (only `error` and `warning` exist).
 - The exit code mapping (`0`/`1`/`2` per [§FS-check.2](FS-check.md#2-outputs)).

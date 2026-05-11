@@ -14,7 +14,7 @@ Citations live wherever they are useful — including inside Java doc-comments, 
 2. **Citations survive refactors.** IDs are location-independent: `§FS-<user-login>.3.1` keeps resolving when files move or headings reword. Markdown anchors break; gnd citations don't.
 3. **Grounding is cheap.** `gnd show FS-<user-login>.3.1` returns just that subsection — under 200 lines per [§G-friendliness-first.1](goals/goals.md#1-hard-requirements) — so a human or LLM pulls one fact into context instead of a whole file.
 
-This serves [§G-agent-grounding](goals/goals.md) — the headline goal that every other goal exists in service of — and the mechanisms that make it viable: [§G-no-dangling-refs](goals/goals.md), [§G-fast-feedback](goals/goals.md), [§G-friendliness-first](goals/goals.md), and [§G-polyglot-citation](goals/goals.md).
+This serves [§G-agent-grounding](goals/goals.md#g-agent-grounding-agents-stay-cited-as-they-work) — the headline goal that every other goal exists in service of — and the mechanisms that make it viable: [§G-no-dangling-refs](goals/goals.md#g-no-dangling-refs-every-cited-id-resolves-to-a-declaration), [§G-fast-feedback](goals/goals.md#g-fast-feedback-gnd-must-be-as-fast-as-possible), [§G-friendliness-first](goals/goals.md#g-friendliness-first-as-user--and-agent-friendly-as-possible), and [§G-polyglot-citation](goals/goals.md#g-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful).
 
 ## 2. Who it is for
 

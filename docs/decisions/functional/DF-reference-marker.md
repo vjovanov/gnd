@@ -46,7 +46,7 @@ Why `$$`:
 
 `gnd` owns the trigger transformation. It runs in two places:
 
-- **Bulk, via `gnd fmt` ([§FS-fmt](../../functional-spec/FS-fmt.md)).** Walk files and rewrite `<trigger><ID>` to `<marker><ID>`. Idempotent. Used as a pre-commit hook and a CI safety net. This is the canonical, always-available path — every install of `gnd` has it.
+- **Bulk, via `gnd fmt` ([§FS-fmt](../../functional-spec/FS-fmt.md#fs-fmt-gnd-normalizes-references-in-bulk)).** Walk files and rewrite `<trigger><ID>` to `<marker><ID>`. Idempotent. Used as a pre-commit hook and a CI safety net. This is the canonical, always-available path — every install of `gnd` has it.
 - **Live, in the optional LSP server ([§FS-lsp.1.4](../../functional-spec/FS-lsp.md#14-live-trigger-transform)).** When `gnd-lsp` is installed and configured in the user's editor, typing the trigger before `<KIND>-<digit>` rewrites it to the marker on the fly via `textDocument/onTypeFormatting`. This is the editor-friendly path; users without the LSP rely on the bulk pass.
 
 Editor-native input methods (snippets, Compose, OS Unicode entry) remain available for power users — they bypass the trigger and write `§` directly.
@@ -59,7 +59,7 @@ Editor-native input methods (snippets, Compose, OS Unicode entry) remain availab
 
 ### 2.5 Configurability
 
-Both marker and trigger are configurable per [§G-configurable](../../goals/goals.md):
+Both marker and trigger are configurable per [§G-configurable](../../goals/goals.md#g-configurable-every-default-is-overridable):
 
 ```toml
 [reference]
@@ -72,9 +72,9 @@ Other valid markers we considered: `※` (U+203B, Japanese reference mark), `‡
 
 ## 3. Consequences
 
-- The scanner ([§AS-scanner](../../architectural-spec/AS-scanner.md)) recognizes both bare and marker-prefixed citations by default, and only marker-prefixed citations under `strict = true`.
+- The scanner ([§AS-scanner](../../architectural-spec/AS-scanner.md#as-scanner-how-gnd-discovers-declarations-and-citations)) recognizes both bare and marker-prefixed citations by default, and only marker-prefixed citations under `strict = true`.
 - The optional LSP server ([§FS-lsp.1.4](../../functional-spec/FS-lsp.md#14-live-trigger-transform)) transforms `$$<KIND>-<digit>` to `§<KIND>-<digit>` on the fly when installed and wired into the user's editor.
-- A new functional spec, [§FS-fmt](../../functional-spec/FS-fmt.md), defines `gnd fmt` for bulk transformation.
+- A new functional spec, [§FS-fmt](../../functional-spec/FS-fmt.md#fs-fmt-gnd-normalizes-references-in-bulk), defines `gnd fmt` for bulk transformation.
 - Existing repos that use bare citations continue to work unchanged. Migration to marker-prefixed citations is mechanical: `gnd fmt --marker --check` reports unconverted citations; `gnd fmt --marker` rewrites them.
 - The marker becomes the visible signal of a gnd citation. A reader scanning a file sees `§FS-...` and immediately knows: this is a reference, follow it.
 

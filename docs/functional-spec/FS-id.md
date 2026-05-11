@@ -1,6 +1,6 @@
 # FS-id: gnd proposes IDs for new declarations
 
-The `id` subcommand emits a single, conflict-free `<KIND>-<NNN>-<slug>` ID for a new declaration. Authors writing a new spec, agents drafting a new doc, and IDE plugins offering a "new declaration" action all call the same primitive — so the next number for a kind, and the canonical slug for a title, are computed in exactly one place. Serves [§G-friendliness-first](../goals/goals.md) (no human picks the next number by reading a directory listing) and [§G-no-dangling-refs](../goals/goals.md) (proposed IDs cannot collide with existing declarations).
+The `id` subcommand emits a single, conflict-free `<KIND>-<NNN>-<slug>` ID for a new declaration. Authors writing a new spec, agents drafting a new doc, and IDE plugins offering a "new declaration" action all call the same primitive — so the next number for a kind, and the canonical slug for a title, are computed in exactly one place. Serves [§G-friendliness-first](../goals/goals.md#g-friendliness-first-as-user--and-agent-friendly-as-possible) (no human picks the next number by reading a directory listing) and [§G-no-dangling-refs](../goals/goals.md#g-no-dangling-refs-every-cited-id-resolves-to-a-declaration) (proposed IDs cannot collide with existing declarations).
 
 ## 1. Inputs
 
@@ -82,7 +82,7 @@ The author is expected to provide a title that contains at least one slug-charac
 
 ## 4. Next-number derivation
 
-The scan from [§FS-check](FS-check.md) runs across the tree (or the configured `[scan] include` paths from [§FS-config.3.5](FS-config.md#35-scan--what-gets-walked)) and collects every declaration of the requested `<KIND>`. The proposed number is `max(existing numbers) + 1`, or `1` if the kind has no existing declarations.
+The scan from [§FS-check](FS-check.md#fs-check-gnd-validates-every-reference-in-a-repo) runs across the tree (or the configured `[scan] include` paths from [§FS-config.3.5](FS-config.md#35-scan--what-gets-walked)) and collects every declaration of the requested `<KIND>`. The proposed number is `max(existing numbers) + 1`, or `1` if the kind has no existing declarations.
 
 Holes in the numbering (e.g., `FS-001`, `FS-002`, `FS-004` exists but `FS-003` does not) are **not** filled. Numbers are issued strictly above the maximum, never reused, never recycled. Reasoning: an ID that once existed and was removed may still be cited from external systems (PRs, chat, mirrored repos); reusing the number would silently change what those references point at. This is the same principle as [§FS-non-goals.4](FS-non-goals.md#4-cross-workspace-id-renaming) (no rename) applied to allocation.
 
@@ -125,4 +125,4 @@ Three callers, one source of truth:
 
 1. **Authors.** Picking the next free number means listing a directory and squinting; one typo creates a duplicate that `gnd check` will catch hours later. `id` removes the typo class.
 2. **Agents.** An LLM proposing a new declaration cannot reliably read a directory listing and increment the right number — and even if it can, the answer drifts with the next file added. Calling `gnd id` is cheap, deterministic, and committed to the same regex grammar as the checker.
-3. **The optional LSP server.** A "new declaration" code action in [§FS-lsp](FS-lsp.md) would need the same number `gnd id` would compute; sharing the engine through `gnd-core` means there is exactly one allocator, not three subtly different ones.
+3. **The optional LSP server.** A "new declaration" code action in [§FS-lsp](FS-lsp.md#fs-lsp-gnd-will-ship-an-optional-lsp-server) would need the same number `gnd id` would compute; sharing the engine through `gnd-core` means there is exactly one allocator, not three subtly different ones.

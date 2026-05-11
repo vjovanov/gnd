@@ -9,5 +9,5 @@ Body.
 ## 3. Beta: v2.0 / final
 Body.
 
-## 4. Refining [§FS-001-alpha](FS-001-alpha.md)
+## 4. Refining [§FS-001-alpha](FS-001-alpha.md#fs-001-alpha-alpha)
 Body.

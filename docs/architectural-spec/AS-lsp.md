@@ -1,6 +1,6 @@
 # AS-lsp: how the LSP server is built
 
-Implements [§FS-lsp](../functional-spec/FS-lsp.md). The LSP server is a separate crate (`gnd-lsp`) in the workspace defined by [§AS-bindings.1](AS-bindings.md#1-target-workspace-layout), depending only on `gnd-core`. It has no shared runtime with `gnd-cli`, no shared state with the bindings, and no own engine logic — everything it does delegates to `gnd-core`.
+Implements [§FS-lsp](../functional-spec/FS-lsp.md#fs-lsp-gnd-will-ship-an-optional-lsp-server). The LSP server is a separate crate (`gnd-lsp`) in the workspace defined by [§AS-bindings.1](AS-bindings.md#1-target-workspace-layout), depending only on `gnd-core`. It has no shared runtime with `gnd-cli`, no shared state with the bindings, and no own engine logic — everything it does delegates to `gnd-core`.
 
 ## 1. Crate boundary
 
@@ -10,7 +10,7 @@ Implements [§FS-lsp](../functional-spec/FS-lsp.md). The LSP server is a separat
 - No `tokio`/`tower-lsp`/`lsp-types` references in `gnd-core`. The async runtime and the LSP machinery live entirely in `gnd-lsp`. `gnd-cli` continues to be synchronous and pulls none of this in.
 - No filesystem walking outside what `gnd-core::scan` already does. The LSP server does not invent its own walker.
 
-This is the architectural shape that lets the LSP be optional ([§DA-lsp-optional](../decisions/architectural/DA-lsp-optional.md)): the dependency cost stays in `gnd-lsp`, and a user installing only `gnd` (the CLI) pays none of it.
+This is the architectural shape that lets the LSP be optional ([§DA-lsp-optional](../decisions/architectural/DA-lsp-optional.md#da-lsp-optional-lsp-server-ships-as-a-separate-optional-binary)): the dependency cost stays in `gnd-lsp`, and a user installing only `gnd` (the CLI) pays none of it.
 
 ## 2. State
 
@@ -52,6 +52,6 @@ This is what makes the LSP "the same engine with a different transport" rather t
 
 ## 6. What this does not contain
 
-- No editor-specific code. Per [§FS-lsp](../functional-spec/FS-lsp.md) and [§FS-non-goals](../functional-spec/FS-non-goals.md), no first-party VSCode/IntelliJ/Vim/Emacs wrappers ship; this crate is the only editor-facing surface.
+- No editor-specific code. Per [§FS-lsp](../functional-spec/FS-lsp.md#fs-lsp-gnd-will-ship-an-optional-lsp-server) and [§FS-non-goals](../functional-spec/FS-non-goals.md#fs-non-goals-what-gnd-will-deliberately-not-do), no first-party VSCode/IntelliJ/Vim/Emacs wrappers ship; this crate is the only editor-facing surface.
 - No process supervision. The editor owns the lifecycle ([§FS-lsp.2.2](../functional-spec/FS-lsp.md#22-lifecycle)); `gnd-lsp` does not respawn itself, does not background, does not write a PID file.
 - No telemetry, no auto-update, no crash reporter ([§FS-non-goals.11](../functional-spec/FS-non-goals.md#11-network-access-during-a-check) — no network I/O).

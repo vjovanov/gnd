@@ -1,6 +1,6 @@
 # FS-show: gnd reads a single declaration body by ID
 
-The `show` subcommand prints just the body of a declaration, given an ID. It exists so an agent — human or AI — can pull a single grounded fact into context without loading the whole file. Serves [§G-friendliness-first](../goals/goals.md).
+The `show` subcommand prints just the body of a declaration, given an ID. It exists so an agent — human or AI — can pull a single grounded fact into context without loading the whole file. Serves [§G-friendliness-first](../goals/goals.md#g-friendliness-first-as-user--and-agent-friendly-as-possible).
 
 ## 1. Inputs
 

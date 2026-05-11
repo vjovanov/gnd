@@ -13,7 +13,7 @@ The stronger discipline we want — "implementation cannot change without the sp
 2. **A `gnd cover` plumbing surface** — the scan exposed as data: for each file, the IDs it cites and their line ranges; for each test / `§E2E-` case, the IDs it cites. Still static.
 3. **A co-change gate** — diff-aware: a changed source file must be grounded, and the diff must also touch the cited spec *or* a test of it, with an explicit, greppable escape hatch for refactors.
 
-Tier 1 is most of the value and the only part that fits inside `gnd-core` without bending a bright line. This record covers Tier 1; Tiers 2–3 are tracked under [§RM-cover](../../roadmap.md) and [§RM-cochange-gate](../../roadmap.md).
+Tier 1 is most of the value and the only part that fits inside `gnd-core` without bending a bright line. This record covers Tier 1; Tiers 2–3 are tracked under [§RM-cover](../../roadmap.md#rm-cover-gnd-cover) and [§RM-cochange-gate](../../roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test).
 
 ## 2. Decision
 
@@ -32,7 +32,7 @@ A file whose only citation is dangling is not grounded; it earns both the `dangl
 
 ### 2.3 File granularity, not hunk granularity
 
-The check is per file: one resolving citation anywhere in the file satisfies it. A finer "every doc-comment block must cite something" rule is conceivable from the same scan data, but file granularity is the cheap, sound floor and is what the diff-aware gate ([§RM-cochange-gate](../../roadmap.md)) refines against — there is no need to bake the finer rule into `gnd-core` first.
+The check is per file: one resolving citation anywhere in the file satisfies it. A finer "every doc-comment block must cite something" rule is conceivable from the same scan data, but file granularity is the cheap, sound floor and is what the diff-aware gate ([§RM-cochange-gate](../../roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test)) refines against — there is no need to bake the finer rule into `gnd-core` first.
 
 ### 2.4 Off by default
 
@@ -43,7 +43,7 @@ Like `strict`, grounding is a discipline a repo opts into once it is ready (and 
 - `Config` gains a `require_grounding: bool`; `check` gains the [§FS-check.3.6](../../functional-spec/FS-check.md#36-ungrounded-source-file-opt-in) loop over the scanner's file list (a new `Findings.scanned_files`); `gnd config show` prints the key; `gnd check --help` lists the flag; `templates/gnd.toml` carries `require_grounding = false` so the generated config still documents every key ([§FS-init.2.4](../../functional-spec/FS-init.md#24-generated-agentsgndtoml)).
 - No `gnd_config_version` bump: a v1 config without the key keeps working, and a v1 config that sets it is only understood by a `gnd` new enough to have this record — an additive change, like `[fmt.md_links]`.
 - The reverse-lookup story tightens: in a `require_grounding` repo, `gnd refs <ID>` over the source tree is complete by construction, because an ungrounded file cannot land.
-- Tiers 2 and 3 ([§RM-cover](../../roadmap.md), [§RM-cochange-gate](../../roadmap.md)) build on this; the co-change gate in particular lives in the pre-commit / CI recipe layer, not in `gnd-core` — a third first-party surface is out of scope ([§FS-non-goals.12](../../functional-spec/FS-non-goals.md#12-surfaces-outside-gnd-core-and-the-lsp-transport)).
+- Tiers 2 and 3 ([§RM-cover](../../roadmap.md#rm-cover-gnd-cover), [§RM-cochange-gate](../../roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test)) build on this; the co-change gate in particular lives in the pre-commit / CI recipe layer, not in `gnd-core` — a third first-party surface is out of scope ([§FS-non-goals.12](../../functional-spec/FS-non-goals.md#12-surfaces-outside-gnd-core-and-the-lsp-transport)).
 
 ## 4. Alternatives considered
 
@@ -53,4 +53,4 @@ Like `strict`, grounding is a discipline a repo opts into once it is ready (and 
 | Fold it into `[reference] strict` | `strict` is about whether bare tokens are citations; grounding is about whether files cite at all. Two independent axes; a repo may want one without the other. |
 | Diff-aware from the start (Tier 3 only) | Needs a base revision and a git diff — a different contract than `gnd check` and a dependency the engine avoids ([§FS-non-goals.6](../../functional-spec/FS-non-goals.md#6-decision-database-audit-log-history-tracking)). The static floor is useful on its own and is the substrate the gate refines. |
 | Hunk-level grounding ("every doc-comment block cites something") | More precise but more machinery; the diff-aware gate is the right place to get hunk precision, against an actual change set. File level is the sound, cheap floor. |
-| Require a *test* co-change too (in `gnd-core`) | Cannot be done soundly without diffing and without distinguishing behavioral from cosmetic changes (no AST) — belongs in the [§RM-cochange-gate](../../roadmap.md) recipe with its escape hatch, not in the engine. |
+| Require a *test* co-change too (in `gnd-core`) | Cannot be done soundly without diffing and without distinguishing behavioral from cosmetic changes (no AST) — belongs in the [§RM-cochange-gate](../../roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test) recipe with its escape hatch, not in the engine. |

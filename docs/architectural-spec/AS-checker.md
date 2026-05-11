@@ -1,11 +1,11 @@
 # AS-checker: how gnd validates the scanner's findings
 
-The checker takes the `Findings` produced by [§AS-scanner](AS-scanner.md) and produces a `Report`. It implements the rules in [§FS-check](../functional-spec/FS-check.md).
+The checker takes the `Findings` produced by [§AS-scanner](AS-scanner.md#as-scanner-how-gnd-discovers-declarations-and-citations) and produces a `Report`. It implements the rules in [§FS-check](../functional-spec/FS-check.md#fs-check-gnd-validates-every-reference-in-a-repo).
 
 ## 1. Inputs and outputs
 
 - Input: `Findings` from the scanner, plus the repo root (needed to resolve stub-link paths).
-- Output: a `Report` containing two ordered lists: `errors` and `warnings`. Order is deterministic for [§G-friendliness-first](../goals/goals.md).
+- Output: a `Report` containing two ordered lists: `errors` and `warnings`. Order is deterministic for [§G-friendliness-first](../goals/goals.md#g-friendliness-first-as-user--and-agent-friendly-as-possible).
 
 ## 2. Rules
 
@@ -33,7 +33,7 @@ For each declared ID never cited, emit one warning. Warnings do not cause non-ze
 
 ## 3. Error format
 
-Every error and warning follows `<path>:<line>: <message>` so that editors and agents can jump to the source. There is no severity prefix, and there is no aggregate summary footer — the exit code is the machine-readable verdict. This is mandated by [§G-friendliness-first](../goals/goals.md) and [§FS-check.2.1](../functional-spec/FS-check.md#21-report-format).
+Every error and warning follows `<path>:<line>: <message>` so that editors and agents can jump to the source. There is no severity prefix, and there is no aggregate summary footer — the exit code is the machine-readable verdict. This is mandated by [§G-friendliness-first](../goals/goals.md#g-friendliness-first-as-user--and-agent-friendly-as-possible) and [§FS-check.2.1](../functional-spec/FS-check.md#21-report-format).
 
 Findings without a single source location (CLI launch errors, malformed configuration that prevents a scan from starting) are emitted on a separate path as `error: <message>` per [§FS-check.2.1.1](../functional-spec/FS-check.md#211-cli-level-errors), distinguishable from per-finding lines by the leading `error:`.
 
@@ -42,5 +42,5 @@ Findings without a single source location (CLI launch errors, malformed configur
 The scanner produces a complete view of the world; the checker enforces rules on that view. Keeping them separate means:
 
 - New rules can be added without touching the scanner.
-- The optional LSP server ([§AS-lsp](AS-lsp.md)) can run a subset of checks (e.g., only dangling references on the active file's citations) against a cached scan.
+- The optional LSP server ([§AS-lsp](AS-lsp.md#as-lsp-how-the-lsp-server-is-built)) can run a subset of checks (e.g., only dangling references on the active file's citations) against a cached scan.
 - Tests can feed synthetic `Findings` directly to the checker without disk I/O.

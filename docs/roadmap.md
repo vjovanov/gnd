@@ -2,7 +2,7 @@
 
 What `gnd` plans to ship next, in priority order. Each item has a stable ID — `RM-<slug>` under this repo's `[id] format` ([§FS-config.3.2](functional-spec/FS-config.md#32-id--id-grammar)); `RM` is a configured `[[kinds]]` prefix ([§FS-config.3.4](functional-spec/FS-config.md#34-kinds--recognized-prefixes)), so `gnd check` validates `§RM-…` citations like any other. Items may be cited from anywhere — commits, PRs, the changelog, other specs. Shipped items move their detail to `docs/changelog.md` and keep a one-line pointer in §"Shipped milestones" below so the citation does not dangle; cancelled items stay in place with a `~~strikethrough~~` title and a one-line reason.
 
-The check engine, the retrieval surface (`gnd show`, `gnd refs`, including E2E case manifests), the coverage index (`gnd cover`), bulk normalization (`gnd fmt`, including `--marker` and `--md-links`), config loading (`.agents/gnd.toml` plus `gnd config show` / `gnd config validate`), `gnd init`, `gnd id`, the opt-in grounding floor ([§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in)), and the e2e corpus are all shipped — see `docs/changelog.md`. Two arcs remain. The **distribution arc**: split the single binary into a `gnd-core` library plus thin frontends, verify the package names, publish on npm and PyPI alongside cargo, ship the optional LSP server, and add `gnd check --watch`. And the **grounding arc** (the third layer of [§G-agent-grounding.1](goals/goals.md#1-the-three-layers), diff-gated enforcement): build on [§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in) and [§FS-cover](functional-spec/FS-cover.md) toward a diff-aware co-change gate — implementation cannot change without the spec it grounds in and without a test of it — via a pre-commit / CI recipe that consumes `gnd cover` ([§RM-cochange-gate](roadmap.md)). One standalone item ([§RM-benchmarks](roadmap.md)) captures a performance baseline against today's single-binary build before the distribution arc starts moving the engine around. The IDed milestones below project both arcs onto reviewable units of work.
+The check engine, the retrieval surface (`gnd show`, `gnd refs`, including E2E case manifests), the coverage index (`gnd cover`), bulk normalization (`gnd fmt`, including `--marker` and `--md-links`), config loading (`.agents/gnd.toml` plus `gnd config show` / `gnd config validate`), `gnd init`, `gnd id`, the opt-in grounding floor ([§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in)), and the e2e corpus are all shipped — see `docs/changelog.md`. Two arcs remain. The **distribution arc**: split the single binary into a `gnd-core` library plus thin frontends, verify the package names, publish on npm and PyPI alongside cargo, ship the optional LSP server, and add `gnd check --watch`. And the **grounding arc** (the third layer of [§G-agent-grounding.1](goals/goals.md#1-the-three-layers), diff-gated enforcement): build on [§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in) and [§FS-cover](functional-spec/FS-cover.md#fs-cover-gnd-groups-citations-by-scanned-file) toward a diff-aware co-change gate — implementation cannot change without the spec it grounds in and without a test of it — via a pre-commit / CI recipe that consumes `gnd cover` ([§RM-cochange-gate](roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test)). One standalone item ([§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-g-fast-feedback-budgets)) captures a performance baseline against today's single-binary build before the distribution arc starts moving the engine around. The IDed milestones below project both arcs onto reviewable units of work.
 
 ## RM-self-host: guard the self-host loop in CI
 
@@ -14,7 +14,7 @@ One remaining piece: an e2e fixture exercising a tree with nested fixture direct
 
 ### 2. Why now
 
-Self-host is the load-bearing demonstration of [§G-no-dangling-refs](goals/goals.md) and [§G-fast-feedback](goals/goals.md). The CI guard catches future regressions in this repo; the remaining fixture closes the gap for default-config fixture trees, where the pass should not lean on this repo's slug-only ID format.
+Self-host is the load-bearing demonstration of [§G-no-dangling-refs](goals/goals.md#g-no-dangling-refs-every-cited-id-resolves-to-a-declaration) and [§G-fast-feedback](goals/goals.md#g-fast-feedback-gnd-must-be-as-fast-as-possible). The CI guard catches future regressions in this repo; the remaining fixture closes the gap for default-config fixture trees, where the pass should not lean on this repo's slug-only ID format.
 
 ### 3. Measurable
 
@@ -22,7 +22,7 @@ A new e2e fixture proves nested fixture directories are not scanned under the de
 
 ## RM-benchmarks: a benchmark harness for the §G-fast-feedback budgets
 
-Per [§G-fast-feedback.1](goals/goals.md#1-performance-targets) and [§G-fast-feedback.3](goals/goals.md#3-measurable). The budgets are written down — under 100 ms on this repo, under 1 s on a 10k-file repo — but nothing measures them yet, so "CI fails on regression" is currently a promise without a meter. Capture a baseline against the current 0.1.0 single-binary build before [§RM-core-cli-split](roadmap.md) moves the engine into a library and [§RM-distribution](roadmap.md) adds two more frontends.
+Per [§G-fast-feedback.1](goals/goals.md#1-performance-targets) and [§G-fast-feedback.3](goals/goals.md#3-measurable). The budgets are written down — under 100 ms on this repo, under 1 s on a 10k-file repo — but nothing measures them yet, so "CI fails on regression" is currently a promise without a meter. Capture a baseline against the current 0.1.0 single-binary build before [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-gnd-core-from-gnd-cli) moves the engine into a library and [§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine) adds two more frontends.
 
 ### 1. What
 
@@ -30,7 +30,7 @@ A `cargo bench` harness (criterion) over `gnd check` on two inputs: this repo, a
 
 ### 2. Why now
 
-[§G-fast-feedback](goals/goals.md) is one of the two ordering principles, and [§G-fast-feedback.1](goals/goals.md#1-performance-targets) says CI must fail on regression — but there is no harness, so the budget is unenforced. Establishing the baseline against today's code, before [§RM-core-cli-split](roadmap.md) splits the engine out and [§RM-distribution](roadmap.md) wraps it in napi-rs and PyO3 bindings, means any slowdown those refactors introduce shows up as a diff against a known-good number rather than going unnoticed. It also shares the synthetic-large-repo fixture with [§RM-self-host](roadmap.md)'s remaining nested-fixture-tree case and with [§G-small-and-large](goals/goals.md), so the generator is written once.
+[§G-fast-feedback](goals/goals.md#g-fast-feedback-gnd-must-be-as-fast-as-possible) is one of the two ordering principles, and [§G-fast-feedback.1](goals/goals.md#1-performance-targets) says CI must fail on regression — but there is no harness, so the budget is unenforced. Establishing the baseline against today's code, before [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-gnd-core-from-gnd-cli) splits the engine out and [§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine) wraps it in napi-rs and PyO3 bindings, means any slowdown those refactors introduce shows up as a diff against a known-good number rather than going unnoticed. It also shares the synthetic-large-repo fixture with [§RM-self-host](roadmap.md#rm-self-host-guard-the-self-host-loop-in-ci)'s remaining nested-fixture-tree case and with [§G-small-and-large](goals/goals.md#g-small-and-large-start-small-configure-for-big), so the generator is written once.
 
 ### 3. Measurable
 
@@ -46,7 +46,7 @@ Workspace split before bindings ship. `src/lib.rs` is currently a single module 
 
 ### 2. Why now
 
-[§RM-distribution](roadmap.md) publishes three bindings from one engine; bindings need a library, not a binary. Splitting first also makes the e2e harness call into the engine directly and keeps CLI concerns (exit codes, rendering) from leaking into scanner internals.
+[§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine) publishes three bindings from one engine; bindings need a library, not a binary. Splitting first also makes the e2e harness call into the engine directly and keeps CLI concerns (exit codes, rendering) from leaking into scanner internals.
 
 ### 3. Measurable
 
@@ -54,11 +54,11 @@ Workspace split before bindings ship. `src/lib.rs` is currently a single module 
 
 ## RM-distribution-naming: verify package names before first publish
 
-Pre-release sanity check: the registry names claimed across the docs may not still be available, and the future LSP slots have not been reserved. [§FS-distribution](functional-spec/FS-distribution.md) and [§DA-reference-checker-name](decisions/architectural/DA-reference-checker-name.md) must stay aligned before publishing plans harden.
+Pre-release sanity check: the registry names claimed across the docs may not still be available, and the future LSP slots have not been reserved. [§FS-distribution](functional-spec/FS-distribution.md#fs-distribution-gnd-distribution-targets) and [§DA-reference-checker-name](decisions/architectural/DA-reference-checker-name.md#da-reference-checker-name-name-for-the-spec-reference-checker-tool) must stay aligned before publishing plans harden.
 
 ### 1. What
 
-The `scripts/check-registry-names.sh` pre-release guard and the manual **Release registry names** workflow query crates.io, npm, and PyPI for each claimed package name and fail if any claimed-available name is in fact taken or owned by another project. Docs are corrected so they no longer claim a name is free unless the project owns it. Where a registry name is unavailable, an explicit alternate package name is chosen and recorded in [§FS-distribution](functional-spec/FS-distribution.md).
+The `scripts/check-registry-names.sh` pre-release guard and the manual **Release registry names** workflow query crates.io, npm, and PyPI for each claimed package name and fail if any claimed-available name is in fact taken or owned by another project. Docs are corrected so they no longer claim a name is free unless the project owns it. Where a registry name is unavailable, an explicit alternate package name is chosen and recorded in [§FS-distribution](functional-spec/FS-distribution.md#fs-distribution-gnd-distribution-targets).
 
 ### 2. Why now
 
@@ -66,11 +66,11 @@ A doc contradiction at release time is a release blocker. The check is cheap to 
 
 ### 3. Measurable
 
-The release workflow queries each registry and proceeds only if every claimed name resolves to either "available" or "owned by this project." [§FS-distribution](functional-spec/FS-distribution.md) and [§DA-reference-checker-name](decisions/architectural/DA-reference-checker-name.md) agree on every package name they mention.
+The release workflow queries each registry and proceeds only if every claimed name resolves to either "available" or "owned by this project." [§FS-distribution](functional-spec/FS-distribution.md#fs-distribution-gnd-distribution-targets) and [§DA-reference-checker-name](decisions/architectural/DA-reference-checker-name.md#da-reference-checker-name-name-for-the-spec-reference-checker-tool) agree on every package name they mention.
 
 ## RM-distribution: cargo + npm + pypi from one engine
 
-Per [§FS-distribution](functional-spec/FS-distribution.md) and [§AS-bindings](architectural-spec/AS-bindings.md). Builds on the workspace split ([§RM-core-cli-split](roadmap.md)) and the name verification ([§RM-distribution-naming](roadmap.md)).
+Per [§FS-distribution](functional-spec/FS-distribution.md#fs-distribution-gnd-distribution-targets) and [§AS-bindings](architectural-spec/AS-bindings.md#as-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms). Builds on the workspace split ([§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-gnd-core-from-gnd-cli)) and the name verification ([§RM-distribution-naming](roadmap.md#rm-distribution-naming-verify-package-names-before-first-publish)).
 
 ### 1. What
 
@@ -78,7 +78,7 @@ napi-rs binding for npm; PyO3 binding for PyPI; CI publish jobs for all three re
 
 ### 2. Why now
 
-`gnd` is only viable as a CI dependency for non-Rust projects once it ships on their native package manager ([§G-multi-language](goals/goals.md)).
+`gnd` is only viable as a CI dependency for non-Rust projects once it ships on their native package manager ([§G-multi-language](goals/goals.md#g-multi-language-same-engine-three-platforms)).
 
 ### 3. Measurable
 
@@ -86,7 +86,7 @@ Integration test runs the same spec corpus through all three bindings and assert
 
 ## RM-lsp: ship the optional LSP server
 
-Per [§FS-lsp](functional-spec/FS-lsp.md), [§AS-lsp](architectural-spec/AS-lsp.md), and [§DA-lsp-optional](decisions/architectural/DA-lsp-optional.md). Adds `crates/gnd-lsp/` to the workspace and publishes it as a separate package on cargo, npm, and PyPI. No first-party per-editor wrappers ship; editor configuration is the user's one-time work, with example snippets in the README.
+Per [§FS-lsp](functional-spec/FS-lsp.md#fs-lsp-gnd-will-ship-an-optional-lsp-server), [§AS-lsp](architectural-spec/AS-lsp.md#as-lsp-how-the-lsp-server-is-built), and [§DA-lsp-optional](decisions/architectural/DA-lsp-optional.md#da-lsp-optional-lsp-server-ships-as-a-separate-optional-binary). Adds `crates/gnd-lsp/` to the workspace and publishes it as a separate package on cargo, npm, and PyPI. No first-party per-editor wrappers ship; editor configuration is the user's one-time work, with example snippets in the README.
 
 ### 1. What
 
@@ -96,11 +96,11 @@ Distribution: separate package on each registry ([§FS-distribution.1](functiona
 
 ### 2. Why now
 
-The reframed §raison-detre.2 keeps Markdown links peripheral and centers verify/refactor-safe/extract — three pillars all satisfied by CLI-shaped surfaces. Editor integration is then a UX layer over those, and the cheapest non-zero answer is one LSP server every editor can talk to. Shipping this after [§RM-distribution](roadmap.md) (bindings) and [§RM-core-cli-split](roadmap.md) (workspace split) means the engine is already factored as a library and the registries are already wired.
+The reframed §raison-detre.2 keeps Markdown links peripheral and centers verify/refactor-safe/extract — three pillars all satisfied by CLI-shaped surfaces. Editor integration is then a UX layer over those, and the cheapest non-zero answer is one LSP server every editor can talk to. Shipping this after [§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine) (bindings) and [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-gnd-core-from-gnd-cli) (workspace split) means the engine is already factored as a library and the registries are already wired.
 
 ### 3. Depends on
 
-- [§RM-core-cli-split](roadmap.md) must land first; without `gnd-core` as a library, `gnd-lsp` has nothing to depend on.
+- [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-gnd-core-from-gnd-cli) must land first; without `gnd-core` as a library, `gnd-lsp` has nothing to depend on.
 
 ### 4. Measurable
 
@@ -108,7 +108,7 @@ The reframed §raison-detre.2 keeps Markdown links peripheral and centers verify
 
 ## RM-watch: implement gnd check --watch
 
-Per [§FS-check.6](functional-spec/FS-check.md#6-watch-mode---watch). The editor-less "every save" loop [§G-fast-feedback](goals/goals.md) exists for — re-run `gnd check` on every change under the scanned tree, clearing prior output each run.
+Per [§FS-check.6](functional-spec/FS-check.md#6-watch-mode---watch). The editor-less "every save" loop [§G-fast-feedback](goals/goals.md#g-fast-feedback-gnd-must-be-as-fast-as-possible) exists for — re-run `gnd check` on every change under the scanned tree, clearing prior output each run.
 
 ### 1. What
 
@@ -116,7 +116,7 @@ Per [§FS-check.6](functional-spec/FS-check.md#6-watch-mode---watch). The editor
 
 ### 2. Why now
 
-`gnd-lsp` ([§RM-lsp](roadmap.md)) covers editor users; `--watch` covers everyone else with zero editor configuration, and it is small once the engine is a library ([§RM-core-cli-split](roadmap.md)). Sequenced after [§RM-core-cli-split](roadmap.md) so the watcher calls `gnd-core::scan`/`check` rather than re-implementing the walk.
+`gnd-lsp` ([§RM-lsp](roadmap.md#rm-lsp-ship-the-optional-lsp-server)) covers editor users; `--watch` covers everyone else with zero editor configuration, and it is small once the engine is a library ([§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-gnd-core-from-gnd-cli)). Sequenced after [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-gnd-core-from-gnd-cli) so the watcher calls `gnd-core::scan`/`check` rather than re-implementing the walk.
 
 ### 3. Measurable
 
@@ -124,7 +124,7 @@ An e2e fixture starts `gnd check --watch` on a clean fixture (asserts silent fir
 
 ## RM-cochange-gate: a pre-commit / CI recipe — no impl change without spec and test
 
-The strong form of the discipline ([§G-agent-grounding.1](goals/goals.md#1-the-three-layers), diff-gated enforcement): a changed source file must be grounded ([§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in)), and the change must also touch the spec it cites *or* a test of it, with an explicit escape hatch for refactors. This is diff-aware — a function of `(tree, base ref, config)`, not `(tree, config)` — and it leans on `gnd cover` ([§FS-cover](functional-spec/FS-cover.md)) plus a git diff, so it lives in the recipe layer, **not** in `gnd-core` (a third first-party surface is out of scope, [§FS-non-goals.12](functional-spec/FS-non-goals.md#12-surfaces-outside-gnd-core-and-the-lsp-transport); the engine reads no history, [§FS-non-goals.6](functional-spec/FS-non-goals.md#6-decision-database-audit-log-history-tracking)). Tiering rationale in [§DF-require-grounding](decisions/functional/DF-require-grounding.md).
+The strong form of the discipline ([§G-agent-grounding.1](goals/goals.md#1-the-three-layers), diff-gated enforcement): a changed source file must be grounded ([§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in)), and the change must also touch the spec it cites *or* a test of it, with an explicit escape hatch for refactors. This is diff-aware — a function of `(tree, base ref, config)`, not `(tree, config)` — and it leans on `gnd cover` ([§FS-cover](functional-spec/FS-cover.md#fs-cover-gnd-groups-citations-by-scanned-file)) plus a git diff, so it lives in the recipe layer, **not** in `gnd-core` (a third first-party surface is out of scope, [§FS-non-goals.12](functional-spec/FS-non-goals.md#12-surfaces-outside-gnd-core-and-the-lsp-transport); the engine reads no history, [§FS-non-goals.6](functional-spec/FS-non-goals.md#6-decision-database-audit-log-history-tracking)). Tiering rationale in [§DF-require-grounding](decisions/functional/DF-require-grounding.md#df-require-grounding-an-opt-in-check-that-every-source-file-cites-a-spec).
 
 ### 1. What
 
@@ -144,7 +144,7 @@ Done milestones leave their full record in `docs/changelog.md` (the `Implemented
 
 ## RM-require-grounding: the opt-in grounding floor
 
-Shipped. `[reference] require_grounding` (and `gnd check --require-grounding`), the `ungrounded source file` error class, the inline-declaration exemption, Markdown skipped — see `docs/changelog.md`, [§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in), [§FS-config.3.1](functional-spec/FS-config.md#31-reference--citation-form), and [§DF-require-grounding](decisions/functional/DF-require-grounding.md). The diff-aware co-change recipe is [§RM-cochange-gate](roadmap.md).
+Shipped. `[reference] require_grounding` (and `gnd check --require-grounding`), the `ungrounded source file` error class, the inline-declaration exemption, Markdown skipped — see `docs/changelog.md`, [§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in), [§FS-config.3.1](functional-spec/FS-config.md#31-reference--citation-form), and [§DF-require-grounding](decisions/functional/DF-require-grounding.md#df-require-grounding-an-opt-in-check-that-every-source-file-cites-a-spec). The diff-aware co-change recipe is [§RM-cochange-gate](roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test).
 
 ## RM-e2e-corpus: the e2e/cases/* corpus and CI harness
 
@@ -152,24 +152,24 @@ Shipped. The `e2e/cases/*` corpus, `tests/e2e.rs`, `tests/init.rs`, the per-erro
 
 ## RM-show: gnd show <ID>
 
-Shipped. Whole declaration, `--head`, `--section` and dotted-inline section paths, `--full`, `--format text|md|json`, inline-source extraction, ambiguous-ID / broken-stub query forms — see `docs/changelog.md` and [§FS-show](functional-spec/FS-show.md).
+Shipped. Whole declaration, `--head`, `--section` and dotted-inline section paths, `--full`, `--format text|md|json`, inline-source extraction, ambiguous-ID / broken-stub query forms — see `docs/changelog.md` and [§FS-show](functional-spec/FS-show.md#fs-show-gnd-reads-a-single-declaration-body-by-id).
 
 ## RM-config: .agents/gnd.toml discovery, parsing, and inspection
 
-Shipped. The line-oriented TOML subset, unknown-key errors with `path:line:` pointers, `gnd_config_version` gating, every documented block, plus `gnd config validate` / `gnd config show` — see `docs/changelog.md` and [§FS-config](functional-spec/FS-config.md).
+Shipped. The line-oriented TOML subset, unknown-key errors with `path:line:` pointers, `gnd_config_version` gating, every documented block, plus `gnd config validate` / `gnd config show` — see `docs/changelog.md` and [§FS-config](functional-spec/FS-config.md#fs-config-gnd-reads-a-toml-config-file-under-agents).
 
 ## RM-marker-fmt: the § marker, the $$ trigger, and gnd fmt
 
-Shipped. `gnd fmt` with `--check` / `--write` / `--marker`, the deterministic string-literal carve-out, declaration-heading and fenced-block exemptions, and `[reference] strict = true` — see `docs/changelog.md`, [§FS-fmt](functional-spec/FS-fmt.md), and [§DF-reference-marker](decisions/functional/DF-reference-marker.md).
+Shipped. `gnd fmt` with `--check` / `--write` / `--marker`, the deterministic string-literal carve-out, declaration-heading and fenced-block exemptions, and `[reference] strict = true` — see `docs/changelog.md`, [§FS-fmt](functional-spec/FS-fmt.md#fs-fmt-gnd-normalizes-references-in-bulk), and [§DF-reference-marker](decisions/functional/DF-reference-marker.md#df-reference-marker-use--as-the-reference-marker-with--as-the-typing-trigger).
 
 ## RM-md-link-emission: gnd fmt --md-links
 
-Shipped. Wraps marker-prefixed citations in `.md` files only, heading-text anchor slugs per the `github` / `gitlab` / `mkdocs` / `pandoc` / `none` profiles, re-derived each pass, fenced/inline-code-span and dangling-citation skips, idempotent — see `docs/changelog.md`, [§FS-fmt.6](functional-spec/FS-fmt.md#6-markdown-link-emission-with---md-links), and [§DF-md-link-anchor-strategy](decisions/functional/DF-md-link-anchor-strategy.md).
+Shipped. Wraps marker-prefixed citations in `.md` files only, heading-text anchor slugs per the `github` / `gitlab` / `mkdocs` / `pandoc` / `none` profiles, re-derived each pass, fenced/inline-code-span and dangling-citation skips, idempotent — see `docs/changelog.md`, [§FS-fmt.6](functional-spec/FS-fmt.md#6-markdown-link-emission-with---md-links), and [§DF-md-link-anchor-strategy](decisions/functional/DF-md-link-anchor-strategy.md#df-md-link-anchor-strategy-heading-text-slugs-re-derived-on-every-fmt-pass).
 
 ## RM-refs: gnd refs <ID>
 
-Shipped. Over the same scan as `check`, sorted by `(path, line, column)`, honouring strict mode and the string-literal carve-out, NDJSON on stdout for `--format=json` — see `docs/changelog.md` and [§FS-refs](functional-spec/FS-refs.md).
+Shipped. Over the same scan as `check`, sorted by `(path, line, column)`, honouring strict mode and the string-literal carve-out, NDJSON on stdout for `--format=json` — see `docs/changelog.md` and [§FS-refs](functional-spec/FS-refs.md#fs-refs-gnd-lists-every-citation-of-an-id).
 
 ## RM-cover: gnd cover
 
-Shipped. Groups the scanner's citation graph by file, emits text on stdout or one JSON record per scanned file, includes files with zero citations, and stays git/policy-free for the co-change recipe — see `docs/changelog.md` and [§FS-cover](functional-spec/FS-cover.md).
+Shipped. Groups the scanner's citation graph by file, emits text on stdout or one JSON record per scanned file, includes files with zero citations, and stays git/policy-free for the co-change recipe — see `docs/changelog.md` and [§FS-cover](functional-spec/FS-cover.md#fs-cover-gnd-groups-citations-by-scanned-file).
