@@ -1,6 +1,6 @@
-# grund — Ground Your Agents in the Spec
+# grund — Keep Your Agents Grounded
 
-> A small, fast Rust CLI that keeps every agent (human or AI) cited as it works — across your docs *and* your code's doc-comments.
+> A fast Rust CLI that keeps every agent (human or AI) cited as it works — across your docs *and* your code's doc-comments.
 
 `grund` is built around one workflow:
 
