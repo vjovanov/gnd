@@ -1797,11 +1797,13 @@ fn file_declares_inline_home(path: &Path, id: &Id, grammar: &Grammar) -> Result<
     Ok(false)
 }
 
-/// Print the report to stderr in the located-finding shape (§FS-errors.1,
-/// §FS-errors.2.1) — `path:line: message`, one per line, in the fixed order
-/// (§FS-errors.4). A clean run prints nothing (§FS-check.2.1).
+/// Print the text report in the fixed output shapes (§FS-errors.1,
+/// §FS-errors.2.1, §FS-errors.2.4): `path:line: message` for located findings,
+/// run-level diagnostics on stderr, and `success` for a clean text check
+/// (§FS-check.2.1). Diagnostic lines stay in the fixed order (§FS-errors.4).
 fn print_report(config: &Config, report: &Report) {
     if report.errors.is_empty() && report.warnings.is_empty() {
+        println!("success");
         return;
     }
     let mut diagnostics = report
@@ -4937,7 +4939,7 @@ fn print_subcommand_help(cmd: &str) {
             println!();
             println!("Options:");
             println!(
-                "  --format text|json   text (default) prints `path:line: message`; json emits NDJSON."
+                "  --format text|json   text (default) prints `success` or `path:line: message`; json emits NDJSON."
             );
             println!(
                 "  --require-grounding  also require every source file to cite a declared ID ([reference] require_grounding)."
@@ -4949,7 +4951,7 @@ fn print_subcommand_help(cmd: &str) {
             println!(
                 "--format json | jq` need no redirect. Only run-level `error:` / `warning:` lines"
             );
-            println!("(unreadable path, empty scan) go to stderr; a clean repo is empty on both.");
+            println!("(unreadable path, empty scan) go to stderr; a clean text run prints `success`.");
             println!();
             println!(
                 "Exit:  0 clean · 1 dangling / duplicate / unknown-section / ungrounded findings · 2 unreadable tree or CLI error."

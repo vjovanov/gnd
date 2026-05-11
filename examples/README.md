@@ -29,4 +29,4 @@ gnd examples/scheme-slug/repo
 echo $?    # 0
 ```
 
-A passing scheme prints nothing on stdout and exits 0.
+A passing scheme prints `success` on stdout and exits 0.

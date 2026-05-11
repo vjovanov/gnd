@@ -43,7 +43,9 @@ Severity is implicit. Per-finding lines carry no `error:`/`warning:` prefix beca
 
 When a finding inherently spans multiple sites (e.g., duplicate declarations, [§FS-check.3.3](FS-check.md#33-duplicate-declaration)), the message is anchored at the lexicographically-first site (sort by `path`, then `line`) and the other sites are listed parenthetically inside the message.
 
-With `--format=json`, the findings are emitted as NDJSON on stdout instead — same stream, machine shape per [§FS-errors.5](FS-errors.md#5-json-format). Stdout is empty when there are zero errors and zero warnings, satisfying [§G-friendliness-first.1](../goals/goals.md#1-hard-requirements) ("zero noise on success"). There is no summary footer — the exit code is the machine-readable verdict, the per-finding lines are the human-readable detail. (CLI-level `error:` / `warning:` lines, when there are any, go to stderr — §2.1.1 — so a clean run is empty on *both* streams and a `2` always means something on stderr.)
+When there are zero errors and zero warnings, the default text form writes exactly `success` plus a trailing newline to stdout. The explicit success marker is only emitted for a diagnostic-free run; a run that has warnings prints the warning lines instead. There is no summary footer — the exit code is still the machine-readable verdict, and the per-finding lines are the human-readable detail.
+
+With `--format=json`, the findings are emitted as NDJSON on stdout instead — same stream, machine shape per [§FS-errors.5](FS-errors.md#5-json-format). JSON remains diagnostics-only: stdout is empty when there are zero errors and zero warnings, so `gnd check --format=json | jq …` sees only diagnostic objects. (CLI-level `error:` / `warning:` lines, when there are any, go to stderr — §2.1.1 — so a clean JSON run is empty on *both* streams and a `2` always means something on stderr.)
 
 #### 2.1.1 CLI-level messages
 
@@ -63,7 +65,7 @@ A walk that read **no scannable files** at all, and turned up no findings (no er
 - when the scope is the repo root (no path argument, or `gnd check .`) and `[scan] include` is set: the message names the `include` list and points at `.agents/gnd.toml` / `gnd init`, since the usual cause is a project whose sources live outside the default `docs/`, `e2e/`, `src/`;
 - when an explicit path was given: the message names that path and the recognized extensions, since the usual cause is pointing `gnd` at a tree with no `.md`/source files.
 
-This is a warning, not an error: the exit code stays `0` (a genuinely empty tree is not a failure), `--format=json` emits the warning as one diagnostic JSON object on stderr (the same stream as the text `warning:` line — it is not part of the findings on stdout), and a repo that *does* have a stale `AGENTS.md` block or any other finding gets that finding (on stdout) and **no** empty-scan notice. This is the friendliness-first counterpart to "zero noise on success" ([§G-friendliness-first.1](../goals/goals.md#1-hard-requirements)): the run that scanned nothing is the one case where silence is the wrong answer.
+This is a warning, not an error: the exit code stays `0` (a genuinely empty tree is not a failure), `--format=json` emits the warning as one diagnostic JSON object on stderr (the same stream as the text `warning:` line — it is not part of the findings on stdout), and a repo that *does* have a stale `AGENTS.md` block or any other finding gets that finding (on stdout) and **no** empty-scan notice. This is the friendliness-first counterpart to the explicit success marker ([§G-friendliness-first.1](../goals/goals.md#1-hard-requirements)): the run that scanned nothing is the one case where `success` would be the wrong answer.
 
 ## 3. Errors detected
 

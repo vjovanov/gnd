@@ -67,7 +67,7 @@ src/bus.rs:7: unknown reference FS-events.4
 6. Declared-but-uncited IDs are flagged. *(unused — warning, not error; `E2E-` cases are exempt)*
 7. *(opt-in)* With `[reference] require_grounding = true`: every source file carries at least one citation. *(ungrounded source file)*
 
-A passing repo prints nothing and exits 0. Findings go to stdout as `<path>:<line>: <message>` so editors and agents jump straight to the source, and `gnd check | …` / `gnd check --format=json | jq` work without redirection (the linter convention — only run-level `error:` lines, like an unreadable path, go to stderr).
+A passing text check prints `success` and exits 0. Findings go to stdout as `<path>:<line>: <message>` so editors and agents jump straight to the source, and `gnd check | …` / `gnd check --format=json | jq` work without redirection (the linter convention — only run-level `error:` lines, like an unreadable path, go to stderr). JSON output remains diagnostics-only, so a clean `gnd check --format=json` prints nothing.
 
 `gnd` does **not** check Markdown links, URLs, spelling, or grammar. Use [`lychee`](https://github.com/lycheeverse/lychee), `vale`, etc. for those.
 

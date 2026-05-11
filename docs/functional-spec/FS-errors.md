@@ -1,8 +1,8 @@
-# FS-errors: gnd emits messages in one of three fixed shapes
+# FS-errors: gnd emits messages in fixed shapes
 
 This spec defines the style every `gnd` subcommand uses when it speaks to a user or to a downstream tool. It is cross-cutting: [§FS-check](FS-check.md#fs-check-gnd-validates-every-reference-in-a-repo), [§FS-show](FS-show.md#fs-show-gnd-reads-a-single-declaration-body-by-id), [§FS-list](FS-list.md#fs-list-gnd-lists-every-declared-id), [§FS-refs](FS-refs.md#fs-refs-gnd-lists-every-citation-of-an-id), [§FS-cover](FS-cover.md#fs-cover-gnd-groups-citations-by-scanned-file), [§FS-fmt](FS-fmt.md#fs-fmt-gnd-normalizes-references-in-bulk), [§FS-init](FS-init.md#fs-init-gnd-bootstraps-a-new-gnd-conformant-repo), [§FS-id](FS-id.md#fs-id-gnd-proposes-ids-for-new-declarations), [§FS-config](FS-config.md#fs-config-gnd-reads-a-toml-config-file-under-agents), and [§FS-completions](FS-completions.md#fs-completions-gnd-completes-declared-ids-in-shells) all conform to it, and the global-flag behaviour in [§FS-cli](FS-cli.md#fs-cli-gnds-command-line-surface-conventions) routes its errors through §2.2 here. Serves [§G-friendliness-first.1](../goals/goals.md#1-hard-requirements) ("errors point at the line", "no surprises") and [§G-no-silent-breakage.1](../goals/goals.md#1-what-counts-as-user-visible) (the message shapes are user-visible output).
 
-The shapes are **frozen** by the same logic as [§FS-non-goals.9](FS-non-goals.md#9-severity-exit-code-or-report-ordering-customization): two correctly-configured installs must agree on what they print. A subcommand that needs to say something new picks one of the shapes below; it does not invent a fourth.
+The shapes are **frozen** by the same logic as [§FS-non-goals.9](FS-non-goals.md#9-severity-exit-code-or-report-ordering-customization): two correctly-configured installs must agree on what they print. A subcommand that needs to say something new picks one of the shapes below; it does not invent an ad hoc one.
 
 ## 1. Streams
 
@@ -10,8 +10,8 @@ The shapes are **frozen** by the same logic as [§FS-non-goals.9](FS-non-goals.m
 
 - **stdout** carries the command's output:
   - a query result — the body printed by `gnd show`, the catalog from `gnd list`, the citations from `gnd refs`, the file graph from `gnd cover`, the ID from `gnd id`, the config from `gnd config show`;
-  - a checker report — every located finding from `gnd check` ([§FS-check.2.1](FS-check.md#21-report-format)), and the would-change / did-change report from `gnd fmt` ([§FS-fmt.3](FS-fmt.md#3-outputs)).
-  - On success with nothing to report, stdout is empty (`gnd check` on a clean repo) per [§G-friendliness-first.1](../goals/goals.md#1-hard-requirements).
+  - a checker report — every located finding from `gnd check` ([§FS-check.2.1](FS-check.md#21-report-format)), the text-mode `success` marker from a clean `gnd check`, and the would-change / did-change report from `gnd fmt` ([§FS-fmt.3](FS-fmt.md#3-outputs)).
+  - `gnd check --format=json` is diagnostics-only: on success with nothing to report, stdout is empty.
 - **stderr** carries everything else:
   - `error:` lines — a launch-time failure or an I/O failure that means the run could not do its job (§2.2), always with a non-zero exit;
   - `warning:` lines about the run itself, not its content — e.g. an empty scan ([§FS-check.2.2](FS-check.md#22-empty-scan)) — exit unchanged;
@@ -20,7 +20,7 @@ The shapes are **frozen** by the same logic as [§FS-non-goals.9](FS-non-goals.m
   - `gnd init`'s file-by-file transcript (§6 — `init`'s real output is the scaffold on disk; the transcript is progress).
 - The two are never mixed: `gnd check 2>/dev/null` shows you the findings and only the findings; `gnd check >/dev/null` shows you only the run-level errors; `gnd show <ID> | …` is the body and nothing else.
 
-## 2. The three shapes
+## 2. The Fixed Shapes
 
 ### 2.1 Located finding
 
@@ -67,6 +67,16 @@ When a *query* (a subcommand whose job is to return one body) finds something ot
 
 Used only by query commands (currently `gnd show`). `check` does not use this shape — every line it prints is a located finding (stdout) or a CLI-level message (stderr).
 
+### 2.4 Text success marker
+
+A text-mode `gnd check` run with zero errors and zero warnings prints exactly:
+
+```
+success
+```
+
+One trailing newline follows the line. The marker is on **stdout** because it is the command's output (§1), exits `0`, and appears only when the report has no diagnostics ([§FS-check.2.1](FS-check.md#21-report-format)). It is not emitted in `--format=json`, where stdout remains diagnostics-only.
+
 ## 3. Message text
 
 The shape is structural; the text is human-readable. Style rules apply to every shape:
@@ -93,7 +103,7 @@ A message that would otherwise be non-deterministic (e.g. the order of duplicate
 
 The subcommands with a machine-readable result or finding surface accept `--format=json`: `check`, `show`, `list`, `refs`, `cover`, and `id` ([§G-friendliness-first.1](../goals/goals.md#1-hard-requirements), [§FS-cli.3](FS-cli.md#3-cross-subcommand-flags)). Operational commands whose output is human text or generated files (`fmt`, `init`, `config`, `agent-setup-instructions`, `completions`) do not accept `--format` unless their own spec adds a JSON surface later. JSON follows the same stream split as the text form (§1):
 
-- **On stdout — the command's output.** `gnd check --format=json` emits its findings as NDJSON, one object per line, in the binding-level shape from [§FS-distribution.3.0](FS-distribution.md#30-language-neutral-data-shapes) (`{ severity, path, line, code, message, sites }`); `severity` carries the `error`/`warning` distinction the text form leaves implicit (§3), and `sites` is `null` for an ordinary single-site finding, a `[{ path, line }]` list naming every site for a multi-site finding (a duplicate declaration, [§FS-check.3.3](FS-check.md#33-duplicate-declaration)). Query subcommands emit their result on stdout too: one JSON object for a single-result command (`gnd show --format=json` — [§FS-show](FS-show.md#fs-show-gnd-reads-a-single-declaration-body-by-id); `gnd id --format=json` — [§FS-id](FS-id.md#fs-id-gnd-proposes-ids-for-new-declarations)), NDJSON — one object per row — for a list command (`gnd list` per declaration, `gnd refs` per citation, `gnd cover` per scanned file).
+- **On stdout — the command's output.** `gnd check --format=json` emits its findings as NDJSON, one object per line, in the binding-level shape from [§FS-distribution.3.0](FS-distribution.md#30-language-neutral-data-shapes) (`{ severity, path, line, code, message, sites }`); `severity` carries the `error`/`warning` distinction the text form leaves implicit (§3), and `sites` is `null` for an ordinary single-site finding, a `[{ path, line }]` list naming every site for a multi-site finding (a duplicate declaration, [§FS-check.3.3](FS-check.md#33-duplicate-declaration)). A clean JSON check emits no `success` object. Query subcommands emit their result on stdout too: one JSON object for a single-result command (`gnd show --format=json` — [§FS-show](FS-show.md#fs-show-gnd-reads-a-single-declaration-body-by-id); `gnd id --format=json` — [§FS-id](FS-id.md#fs-id-gnd-proposes-ids-for-new-declarations)), NDJSON — one object per row — for a list command (`gnd list` per declaration, `gnd refs` per citation, `gnd cover` per scanned file).
 - **On stderr — what is not output.** A *failed query* (`gnd show`'s `ID not found` / `ambiguous` / `broken stub` / `section not found` / `invalid ID`, exit `1`) emits its one diagnostic object on stderr in the same `{ severity, path, line, code, message, sites }` shape, with `path` and `line` `null` — there is no single site, and there is no result, so nothing goes to stdout. For an ambiguous ID, `sites` carries the `[{ path, line }]` list of the competing declarations ([§FS-show.2.2.1](FS-show.md#221-ambiguous-id)); for the other query failures it is `null`. A *launch-time* CLI-level error (§2.2 — bad flag, unknown kind, unreadable config or path; exit `2`) stays as the `error: <message>` text line on stderr regardless of `--format` — it is a launch failure, not data. The empty-scan `warning:` ([§FS-check.2.2](FS-check.md#22-empty-scan)) and a per-file read failure collected mid-walk (a `line`-less diagnostic in `gnd check`'s report) are likewise on stderr in both forms — about the run, not findings about the graph.
 
 So `gnd check --format=json | jq …`, `gnd show <ID> --format=json | jq …`, `gnd list --format=json | jq …` all work with no stream juggling, and `gnd show <missing> --format=json | jq …` does not choke because the diagnostic is on stderr where the pipe does not see it.
@@ -102,7 +112,7 @@ The text-form messages defined above remain the default. JSON is opt-in.
 
 ## 6. The `gnd init` transcript
 
-`gnd init` ([§FS-init.2.2](FS-init.md#22-stdout--stderr)) writes status lines to **stderr** — `wrote AGENTS.md`, `appended .agents/gnd.toml`, `exists docs/...`, etc. — followed by the `next:` block. These are **not** the command's output: `init`'s output is the scaffold it wrote to disk; the transcript is progress, and nobody pipes `gnd init`. They use a fourth, init-specific shape (`<verb> <path>`) and are scoped to that command. This is the one carve-out from §1 — every other subcommand puts its output on stdout. In particular `gnd fmt --write` ([§FS-fmt.3](FS-fmt.md#3-outputs)) does **not** use this shape: its `rewrote N reference(s):` report is `fmt`'s output and goes to stdout, the same stream as its `--check` dry-run report. A subcommand with no output and no transcript stays silent and lets the exit code carry the verdict ([§G-friendliness-first.1](../goals/goals.md#1-hard-requirements)).
+`gnd init` ([§FS-init.2.2](FS-init.md#22-stdout--stderr)) writes status lines to **stderr** — `wrote AGENTS.md`, `appended .agents/gnd.toml`, `exists docs/...`, etc. — followed by the `next:` block. These are **not** the command's output: `init`'s output is the scaffold it wrote to disk; the transcript is progress, and nobody pipes `gnd init`. They use an init-specific shape (`<verb> <path>`) and are scoped to that command. This is the one carve-out from §1 — every other subcommand puts its output on stdout. In particular `gnd fmt --write` ([§FS-fmt.3](FS-fmt.md#3-outputs)) does **not** use this shape: its `rewrote N reference(s):` report is `fmt`'s output and goes to stdout, the same stream as its `--check` dry-run report. A subcommand with no output and no transcript stays silent and lets the exit code carry the verdict.
 
 ## 7. What this rules out
 

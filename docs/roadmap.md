@@ -6,7 +6,7 @@ The check engine, the retrieval surface (`gnd show`, `gnd refs`, including E2E c
 
 ## RM-self-host: guard the self-host loop in CI
 
-`cargo run -- .` against this repository exits zero with empty stdout, and CI now enforces that self-host loop on every push and pull request. The fenced-block skip in the scanner and this repo's slug-only `[id] format` keep the `e2e/cases/*` fixture trees and the illustrative IDs out of the host report. What is still missing is an explicit fixture for the fixture-tree case.
+`cargo run -- .` against this repository exits zero with the clean text `success` marker, and CI now enforces that self-host loop on every push and pull request. The fenced-block skip in the scanner and this repo's slug-only `[id] format` keep the `e2e/cases/*` fixture trees and the illustrative IDs out of the host report. What is still missing is an explicit fixture for the fixture-tree case.
 
 ### 1. What
 

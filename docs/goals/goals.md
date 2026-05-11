@@ -57,7 +57,7 @@ The diff-gated mode reports the absences; it does not invent citations.
 
 - `gnd init` writes the managed `AGENTS.md` block on a fresh repo; re-running with `--force` refreshes it to the current `gnd` version without clobbering surrounding prose. E2E fixtures cover both paths (some already exist under `e2e/cases/init-*`).
 - A diff-gated mode of `gnd check` exists, runs within the [§G-fast-feedback](goals.md#g-fast-feedback-gnd-must-be-as-fast-as-possible) budget on the working tree, and reports uncited new declarations / code / decisions / e2e cases on the lines they were introduced. An e2e fixture stages a deliberately ungrounded diff and asserts that the mode catches each missing citation.
-- A "happy path" fixture stages a fully grounded diff and asserts the mode exits clean with the [§G-friendliness-first.1](goals.md#1-hard-requirements) "zero noise on success" property.
+- A "happy path" fixture stages a fully grounded diff and asserts the mode exits clean with the [§G-friendliness-first.1](goals.md#1-hard-requirements) fixed success marker.
 
 ## G-no-dangling-refs: every cited ID resolves to a declaration
 
@@ -167,7 +167,7 @@ Friendliness is the second **ordering principle** (alongside speed, [§G-fast-fe
 - **Show is grounded.** `gnd show <ID>` returns just the declaration body — no surrounding context, no scrolling, no token waste — under 200 lines for the common case.
 - **Help is actionable.** `gnd --help` is one screen; every flag has a one-line example.
 - **No surprises.** Same input → same output, byte-for-byte. Order of files in the report is deterministic.
-- **Zero noise on success.** A passing repo prints nothing on stdout.
+- **Explicit success.** A passing text `gnd check` prints exactly `success` on stdout; machine-readable `--format=json` stays diagnostics-only.
 
 ### 2. What this rules out
 
