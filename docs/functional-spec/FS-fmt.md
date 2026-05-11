@@ -1,6 +1,6 @@
 # FS-fmt: gnd normalizes references in bulk
 
-The `fmt` subcommand rewrites a tree to canonical form: trigger sequences become markers, and (optionally) bare citations become marker-prefixed. It is the batch counterpart to the optional LSP server's live trigger transform (§FS-lsp.1.4) and the always-available path: every install of `gnd` ships `fmt`, while the LSP server is opt-in. Implements §DF-reference-marker.
+The `fmt` subcommand rewrites a tree to canonical form: trigger sequences become markers, and (optionally) bare citations become marker-prefixed. It is the batch counterpart to the optional LSP server's live trigger transform ([§FS-lsp.1.4](FS-lsp.md#14-live-trigger-transform)) and the always-available path: every install of `gnd` ships `fmt`, while the LSP server is opt-in. Implements [§DF-reference-marker](../decisions/functional/DF-reference-marker.md).
 
 ## 1. Inputs
 
@@ -11,7 +11,7 @@ gnd fmt [<path>] [--check] [--marker] [--md-links] [--write]
 - `<path>` — directory or file. Defaults to the current directory.
 - `--check` — explicit form of the default behavior: report what would change; exit non-zero if any change would be made; do not write. Provided as a flag for CI clarity (a script that says `gnd fmt --check` is unambiguous about intent).
 - `--marker` — also rewrite bare citations (`FS-check`) to marker-prefixed (`§FS-check`). Off by default to preserve existing repos that have not opted in.
-- `--md-links` — in `.md` files only, also wrap each marker-prefixed citation in a clickable Markdown link to the declaration body. Per §6. Off by default; opt-in because the link target is path-relative and not every repo wants the rewrite. Implements §DF-md-link-emission.
+- `--md-links` — in `.md` files only, also wrap each marker-prefixed citation in a clickable Markdown link to the declaration body. Per §6. Off by default; opt-in because the link target is path-relative and not every repo wants the rewrite. Implements [§DF-md-link-emission](../decisions/functional/DF-md-link-emission.md).
 - `--write` — write the transformed contents back to disk. Exit 0 even when changes were made (the changes were the requested operation, not a failure).
 
 `--check` and `--write` are mutually exclusive. Without either, the default is `--check`.
@@ -20,7 +20,7 @@ gnd fmt [<path>] [--check] [--marker] [--md-links] [--write]
 
 ### 2.1 Trigger-to-marker
 
-Wherever the configured trigger (default `$$`) is immediately followed by a token that matches the repo's `[id] format` (§FS-config.3.2) — `FS-007` under a numbered format, `FS-login` under the slug-only form `gnd` itself uses — replace the trigger with the configured marker (default `§`). The trigger is only consumed when a real ID-shaped token follows it, so a bare `$$` (LaTeX display math, a shell variable) is left alone. Idempotent: running `gnd fmt` twice produces no further change.
+Wherever the configured trigger (default `$$`) is immediately followed by a token that matches the repo's `[id] format` ([§FS-config.3.2](FS-config.md#32-id--id-grammar)) — `FS-007` under a numbered format, `FS-login` under the slug-only form `gnd` itself uses — replace the trigger with the configured marker (default `§`). The trigger is only consumed when a real ID-shaped token follows it, so a bare `$$` (LaTeX display math, a shell variable) is left alone. Idempotent: running `gnd fmt` twice produces no further change.
 
 ### 2.2 Bare-to-marker (with `--marker`)
 
@@ -44,7 +44,7 @@ The string-literal exclusion is deterministic, not heuristic. For every candidat
 
 Markdown files (`.md`) are not subject to this rule — they have no string literals. The rule applies only to files matched by the `extensions` list excluding `md`.
 
-This gives two correctly-configured installs identical output on identical input (§FS-non-goals.13).
+This gives two correctly-configured installs identical output on identical input ([§FS-non-goals.13](FS-non-goals.md#13-anything-that-would-let-two-gnd-installs-disagree)).
 
 ## 3. Outputs
 
@@ -64,11 +64,11 @@ Three reasons:
 
 ## 5. Configurability
 
-Marker, trigger, and the recognized `KIND` set are read from `gnd.toml` per §G-configurable. The defaults are `§` and `$$` as decided in §DF-reference-marker.
+Marker, trigger, and the recognized `KIND` set are read from `gnd.toml` per [§G-configurable](../goals/goals.md). The defaults are `§` and `$$` as decided in [§DF-reference-marker](../decisions/functional/DF-reference-marker.md).
 
 ## 6. Markdown link emission (with `--md-links`)
 
-A free convenience layer on top of the ID system: in rendered Markdown (GitHub, MkDocs, an IDE preview), wrap each citation in a clickable link to the declaration body — without giving up any of the polyglot, refactor-safe properties IDs already provide. Decided in §DF-md-link-emission.
+A free convenience layer on top of the ID system: in rendered Markdown (GitHub, MkDocs, an IDE preview), wrap each citation in a clickable link to the declaration body — without giving up any of the polyglot, refactor-safe properties IDs already provide. Decided in [§DF-md-link-emission](../decisions/functional/DF-md-link-emission.md).
 
 ### 6.1 Scope
 
@@ -83,13 +83,13 @@ Wrap the citation. A bare or marker-prefixed citation (illustrated as `§FS-<foo
 ```
 
 - `<relative-path>` — path from the file containing the citation to the file containing the declaration, in POSIX form (`../functional-spec/FS-<foo>.md`). When the declaration's home is in source code (a stub points at `src/foo.rs`), the link targets the source file directly with no anchor — the host renderer will not jump inside a doc-comment, but the link still leads to the right file.
-- `#<anchor>` — section anchor when the citation has a `.<section>` part. The anchor is the heading text slugified per the configured renderer profile (§6.7) — for the default `github` profile, `### 6.2 Form` produces `#62-form`. The full strategy and profile list is decided in §DF-md-link-anchor-strategy. When the citation has no section, the `#…` part is omitted. When the active profile is `none`, the anchor is omitted regardless.
+- `#<anchor>` — section anchor when the citation has a `.<section>` part. The anchor is the heading text slugified per the configured renderer profile (§6.7) — for the default `github` profile, `### 6.2 Form` produces `#62-form`. The `github` (and `gitlab`) profile reproduces `github-slugger` byte-for-byte: disallowed characters are deleted in place and each remaining space becomes one `-`, with no run-collapsing and no trailing-`-` trim — `## A — B` → `#a--b`, `` ## 6. Watch mode (`--watch`) `` → `#6-watch-mode---watch` ([§DF-github-anchor-fidelity](../decisions/functional/DF-github-anchor-fidelity.md)). The full strategy and profile list is decided in [§DF-md-link-anchor-strategy](../decisions/functional/DF-md-link-anchor-strategy.md). When the citation has no section, the `#…` part is omitted. When the active profile is `none`, the anchor is omitted regardless.
 
 The citation text inside the brackets is preserved verbatim, including the marker. A reader scanning the rendered Markdown sees the citation exactly as before; only now it is clickable.
 
 ### 6.3 Idempotency and re-derive
 
-Per §DF-md-link-anchor-strategy.2.2, every `gnd fmt --md-links` pass recomputes the canonical URL inside each existing wrap and rewrites if it differs. This makes `fmt` a normalizer, not a preserver: a heading rename or a file move that invalidates a wrap produces a one-line `fmt` diff on the next pass, instead of a silently-broken link.
+Per [§DF-md-link-anchor-strategy.2.2](../decisions/functional/DF-md-link-anchor-strategy.md#22-re-derive-on-every-pass-supersede-fs-fmt63), every `gnd fmt --md-links` pass recomputes the canonical URL inside each existing wrap and rewrites if it differs. This makes `fmt` a normalizer, not a preserver: a heading rename or a file move that invalidates a wrap produces a one-line `fmt` diff on the next pass, instead of a silently-broken link.
 
 Idempotency holds: a second run with no intervening edits is a no-op, because the URL on disk is now equal to the canonical URL.
 
@@ -110,7 +110,7 @@ In addition to the never-rewrite rules in §2.3:
 
 ### 6.6 Why `--md-links` is opt-in
 
-Three reasons, all about preserving §G-no-silent-breakage:
+Three reasons, all about preserving [§G-no-silent-breakage](../goals/goals.md):
 
 1. The path inside the link is computed from the current location of citation and declaration. Repos that move files frequently (without running `gnd fmt`) would see noisy diffs as paths rebase.
 2. Some projects render their Markdown through tools that produce different anchor slugs than `#3-1` (e.g., Pandoc). For those projects, the configurable anchor format (§6.7) is the right answer; until then, opting in is the conservative default.
@@ -124,7 +124,7 @@ enabled       = false      # default; --md-links overrides per-invocation
 anchor_format = "github"   # default; named renderer profile per §DF-md-link-anchor-strategy.2.3
 ```
 
-`anchor_format` accepts one of the named profiles defined in §DF-md-link-anchor-strategy.2.3:
+`anchor_format` accepts one of the named profiles defined in [§DF-md-link-anchor-strategy.2.3](../decisions/functional/DF-md-link-anchor-strategy.md#23-renderer-profiles):
 
 - `github` (default) — GitHub's slugger; covers the most common host.
 - `gitlab` — GitLab's slugger.
@@ -136,4 +136,4 @@ When `enabled = true`, the link pass runs on every `gnd fmt --write` invocation 
 
 ### 6.8 Measurable
 
-E2E fixtures cover: wrap-on-first-run, no-op on second-run (idempotency), re-derive on heading rename (a wrap pointing at the old slug is rewritten to the new one in a single `fmt` pass), re-derive on file move, correct relative path across `docs/` subdirectories, source-file declaration link with no anchor, `anchor_format = "none"` produces file-only links, each named renderer profile (`github`, `gitlab`, `mkdocs`, `pandoc`) produces its expected slug for a curated heading set, fenced-block exemption, dangling-citation skipped, declaration-line skipped, `--md-links` without `--marker` on a tree containing both forms.
+E2E fixtures cover: wrap-on-first-run, no-op on second-run (idempotency), re-derive on heading rename (a wrap pointing at the old slug is rewritten to the new one in a single `fmt` pass), re-derive on file move, correct relative path across `docs/` subdirectories, source-file declaration link with no anchor, `anchor_format = "none"` produces file-only links, each named renderer profile (`github`, `gitlab`, `mkdocs`, `pandoc`) produces its expected slug for a curated heading set — for `github`, that set includes headings whose punctuation closes up into runs of `-` that GitHub keeps and a naive collapser would not (`## A — B` → `#a--b`; [§DF-github-anchor-fidelity](../decisions/functional/DF-github-anchor-fidelity.md)) — fenced-block exemption, dangling-citation skipped, declaration-line skipped, `--md-links` without `--marker` on a tree containing both forms.

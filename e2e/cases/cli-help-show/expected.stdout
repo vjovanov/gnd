@@ -16,4 +16,4 @@ Examples:
   gnd show FS-login              # the whole declaration body
   gnd show FS-login.3.1          # just that nested section
 
-ID not found? `gnd list` shows every declared ID; `gnd name <KIND> "…"` proposes a new one.
+ID not found? `gnd list` shows every declared ID; `gnd id <KIND> "…"` proposes a new one.

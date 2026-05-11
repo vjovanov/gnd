@@ -19,7 +19,7 @@ AS-014
 
 - **Shortest possible ID.** Citations stay tight in prose: `§RFC-001`, `§FS-002.1`.
 - **Title-edit safe.** A spec's heading can be reworded indefinitely without disturbing any existing citation — the ID has no descriptive payload to drift.
-- **Easy to allocate.** `gnd name FS "..."` just emits the next free number; no slug derivation, no collision check on the descriptive part.
+- **Easy to allocate.** `gnd id FS "..."` just emits the next free number; no slug derivation, no collision check on the descriptive part.
 - **Familiar.** Reviewers already trained on RFC-/JEP-/PEP-style identifiers feel at home.
 
 ## Cons

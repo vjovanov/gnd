@@ -1,6 +1,6 @@
 # FS-show: gnd reads a single declaration body by ID
 
-The `show` subcommand prints just the body of a declaration, given an ID. It exists so an agent — human or AI — can pull a single grounded fact into context without loading the whole file. Serves §G-friendliness-first.
+The `show` subcommand prints just the body of a declaration, given an ID. It exists so an agent — human or AI — can pull a single grounded fact into context without loading the whole file. Serves [§G-friendliness-first](../goals/goals.md).
 
 ## 1. Inputs
 
@@ -8,8 +8,8 @@ The `show` subcommand prints just the body of a declaration, given an ID. It exi
 gnd show <ID> [<path>] [--section <s>] [--head | --full] [--format <text|md|json>]
 ```
 
-- `<ID>` — the full ID without the marker (e.g. `FS-check`). May include an inline section (`FS-check.3.1`). The dotted form uses the configured `[id] section_separator` (§FS-config.3.2). When the separator is non-default (e.g., `:` or `#`) the inline form may collide with the slug grammar; use `--section` instead.
-- `<path>` — directory or file whose tree is scanned to resolve the ID. Defaults to `.`. Discovery is the same as every other subcommand (walk up to `.agents/gnd.toml`, else defaults — §FS-config.1). `--path <path>` is an accepted alias for scripts that prefer to pass it as a flag; the two forms are equivalent.
+- `<ID>` — the full ID without the marker (e.g. `FS-check`). May include an inline section (`FS-check.3.1`). The dotted form uses the configured `[id] section_separator` ([§FS-config.3.2](FS-config.md#32-id--id-grammar)). When the separator is non-default (e.g., `:` or `#`) the inline form may collide with the slug grammar; use `--section` instead.
+- `<path>` — directory or file whose tree is scanned to resolve the ID. Defaults to `.`. Discovery is the same as every other subcommand (walk up to `.agents/gnd.toml`, else defaults — [§FS-config.1](FS-config.md#1-file-location-and-discovery)). `--path <path>` is an accepted alias for scripts that prefer to pass it as a flag; the two forms are equivalent.
 - `--section <s>` — alternative way to specify a section path (`3.1`). Mutually exclusive with the dotted form. Required when `[id] section_separator` makes the dotted form ambiguous. Combined with `--head` it prints only the lead prose of that section (§2.1.1).
 - `--head` — print only the top of the context: the heading line and the prose up to the first numbered subsection. Useful for skimming.
 - `--full` — print the entire body (default).
@@ -32,29 +32,29 @@ If a declaration has no lead paragraph (its body opens directly with `## 1. ...`
 
 ### 2.2 Section
 
-`gnd show FS-check.3.1` prints the selected section heading (`### 3.1 ...`) and its contents within the declaration body, stopping at the next sibling-or-shallower heading. Nested deeper headings (e.g., `#### 3.1.2`) are included in the output — they end at the next `### 3.x` (sibling) or `## N.` (shallower) heading. Arbitrary nesting depth is supported per §FS-config.3.3.
+`gnd show FS-check.3.1` prints the selected section heading (`### 3.1 ...`) and its contents within the declaration body, stopping at the next sibling-or-shallower heading. Nested deeper headings (e.g., `#### 3.1.2`) are included in the output — they end at the next `### 3.x` (sibling) or `## N.` (shallower) heading. Arbitrary nesting depth is supported per [§FS-config.3.3](FS-config.md#33-section-paths--arbitrary-nesting-depth).
 
 ### 2.2.1 Ambiguous ID
 
-If an ID has more than one home — the duplicate-declaration error from §FS-check.3.3 — `show` does not pick one. A stub paired with the inline declaration it points at is *one* home, not two; ambiguity means two or more independent declarations remain after that pairing collapses. When ambiguous, `show` exits 1 with a single bare stderr line (no `<path>:<line>:` prefix, since there is no single site to point at):
+If an ID has more than one home — the duplicate-declaration error from [§FS-check.3.3](FS-check.md#33-duplicate-declaration) — `show` does not pick one. A stub paired with the inline declaration it points at is *one* home, not two; ambiguity means two or more independent declarations remain after that pairing collapses. When ambiguous, `show` exits 1 with a single bare stderr line (no `<path>:<line>:` prefix, since there is no single site to point at):
 
 ```
 ambiguous ID: <ID> (declared at <path>:<line>, <path>:<line>[, ...])
 ```
 
-Sites are listed in lexicographic `path:line` order so the message is stable across runs. The repo must be fixed (run `gnd check` first) before `show` will return a body. This shape matches the bare-message form used for `ID not found` and `section not found` (§FS-show.3): all three are queries that found something other than exactly one body.
+Sites are listed in lexicographic `path:line` order so the message is stable across runs. The repo must be fixed (run `gnd check` first) before `show` will return a body. This shape matches the bare-message form used for `ID not found` and `section not found` ([§FS-show.3](FS-show.md#3-outputs)): all three are queries that found something other than exactly one body.
 
 ### 2.3 Inline declarations in code and doc-comments
 
-When the ID's home is in code (per §FS-check.3.4 stub semantics), `show` extracts the comment block surrounding the inline declaration, strips comment markers, and prints the resulting prose. The same section logic applies.
+When the ID's home is in code (per [§FS-check.3.4](FS-check.md#34-broken-inline-spec-stub) stub semantics), `show` extracts the comment block surrounding the inline declaration, strips comment markers, and prints the resulting prose. The same section logic applies.
 
-The scanner recognizes the same doc-comment forms enumerated in §AS-scanner.4 — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, PHPDoc, Rustdoc (`///`, `//!`, `/** … */`), C# XML doc comments, Go's `// …` doc blocks, Ruby `#` comments, and Python `""" … """` docstrings. This means an architectural spec can live directly in the class-level Javadoc, and `gnd show AS-<event-bus>` returns the rendered Javadoc body — same content the optional LSP server shows on hover (§FS-lsp.1.2). The stub at `docs/architectural-spec/AS-<event-bus>.md` is a single-line H1 — `# AS-<event-bus>: [<path>](<path>)` — pointing at the file.
+The scanner recognizes the same doc-comment forms enumerated in [§AS-scanner.4](../architectural-spec/AS-scanner.md#4-inline-declarations-in-language-doc-comments) — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, PHPDoc, Rustdoc (`///`, `//!`, `/** … */`), C# XML doc comments, Go's `// …` doc blocks, Ruby `#` comments, and Python `""" … """` docstrings. This means an architectural spec can live directly in the class-level Javadoc, and `gnd show AS-<event-bus>` returns the rendered Javadoc body — same content the optional LSP server shows on hover ([§FS-lsp.1.2](FS-lsp.md#12-hover-preview)). The stub at `docs/architectural-spec/AS-<event-bus>.md` is a single-line H1 — `# AS-<event-bus>: [<path>](<path>)` — pointing at the file.
 
 #### 2.3.1 What counts as the "comment block"
 
 Extraction is precisely defined so that the implementation has no freedom and the same input produces the same output across editor, CLI, and binding callers.
 
-A declaration is found on a "declaration line" — a line that matches the declaration regex from §AS-scanner.2.1 *and* sits inside a comment or docstring. The block surrounding it is computed as follows:
+A declaration is found on a "declaration line" — a line that matches the declaration regex from [§AS-scanner.2.1](../architectural-spec/AS-scanner.md#21-declaration-detection) *and* sits inside a comment or docstring. The block surrounding it is computed as follows:
 
 1. **Find the open boundary.** Walk **backwards** from the declaration line over consecutive lines that are part of the same comment construct:
    - For line-style comments (`//`, `///`, `//!`, `#`, `;`, `--`): consecutive lines whose first non-whitespace character matches the same comment prefix family. A blank line ends the block. A line whose first non-whitespace character is not a comment marker ends the block.
@@ -78,15 +78,15 @@ After the block is selected, comment markers are removed line-by-line so the out
 - Trailing comment-close markers (`*/`) on their own line are dropped entirely.
 - Blank lines inside the block are preserved.
 
-The result is the markdown that the declaration's author wrote, identical to what would have lived in a `.md` file had the spec been doc-resident instead of inline. This is the property that makes §FS-show.2.3 round-trip-stable across the in-docs and in-code homes.
+The result is the markdown that the declaration's author wrote, identical to what would have lived in a `.md` file had the spec been doc-resident instead of inline. This is the property that makes [§FS-show.2.3](FS-show.md#23-inline-declarations-in-code-and-doc-comments) round-trip-stable across the in-docs and in-code homes.
 
 #### 2.3.3 Section selection inside a doc-comment
 
-Section selection (`AS-<event-bus>.2`) works the same way inside a doc-comment as inside a markdown file: the scanner records the numbered subsection headings declared within the doc-comment block and `show` slices to the requested section. Section depth is measured relative to the declaration's heading level exactly as in markdown (§AS-scanner.2.2) — a `# AS-<event-bus>` heading inside a `///` block is "level 1", so `## 1.` is a depth-1 section. The comment-stripping pass leaves these headings intact.
+Section selection (`AS-<event-bus>.2`) works the same way inside a doc-comment as inside a markdown file: the scanner records the numbered subsection headings declared within the doc-comment block and `show` slices to the requested section. Section depth is measured relative to the declaration's heading level exactly as in markdown ([§AS-scanner.2.2](../architectural-spec/AS-scanner.md#22-section-detection)) — a `# AS-<event-bus>` heading inside a `///` block is "level 1", so `## 1.` is a depth-1 section. The comment-stripping pass leaves these headings intact.
 
 #### 2.3.4 Broken stub
 
-If the ID's only home is a stub (`# <ID>: [<text>](<path>)`) whose link is broken — the `<path>` does not exist, or the file at `<path>` contains no inline declaration of `<ID>` (the §FS-check.3.4 error) — `show` has no body to extract. It exits `1` with a bare query-result line (§FS-errors.2.3), not a `path:line:` finding:
+If the ID's only home is a stub (`# <ID>: [<text>](<path>)`) whose link is broken — the `<path>` does not exist, or the file at `<path>` contains no inline declaration of `<ID>` (the [§FS-check.3.4](FS-check.md#34-broken-inline-spec-stub) error) — `show` has no body to extract. It exits `1` with a bare query-result line ([§FS-errors.2.3](FS-errors.md#23-bare-query-result)), not a `path:line:` finding:
 
 ```
 broken stub: <ID> (stub at <path>:<line> points at <target>, which does not exist)
@@ -97,7 +97,7 @@ This is the same "found something other than exactly one body" family as `ID not
 
 ### 2.4 E2E cases
 
-`gnd show E2E-<name>` returns the case's manifest (§AS-scanner.6) in three parts:
+`gnd show E2E-<name>` returns the case's manifest ([§AS-scanner.6](../architectural-spec/AS-scanner.md#6-e2e-case-declarations)) in three parts:
 
 ```
 gnd <args…>
@@ -113,24 +113,24 @@ The first line is the invocation (`gnd check` when the case has no `command.args
 ## 3. Outputs
 
 - `0` — printed successfully.
-- `1` — ID not found, ambiguous ID (multiple homes — §FS-show.2.2.1), broken stub (§FS-show.2.3.4), or section not found in declaration.
+- `1` — ID not found, ambiguous ID (multiple homes — [§FS-show.2.2.1](FS-show.md#221-ambiguous-id)), broken stub ([§FS-show.2.3.4](FS-show.md#234-broken-stub)), or section not found in declaration.
 - `2` — I/O error.
 
-Stdout carries the body (or, with `--format=json`, the result object — one JSON object, never NDJSON, per §FS-errors.5). Stderr carries errors. Stdout is empty on error.
+Stdout carries the body (or, with `--format=json`, the result object — one JSON object, never NDJSON, per [§FS-errors.5](FS-errors.md#5-json-format)). Stderr carries errors. Stdout is empty on error.
 
-A failed query (`1`) prints the bare result line and, where the next step is obvious, one extra `hint:` line on stderr below it — never on stdout. With `--format=json`, stderr instead carries one diagnostic JSON object per §FS-errors.5, with `path` and `line` set to `null` because the failure has no single source location:
+A failed query (`1`) prints the bare result line and, where the next step is obvious, one extra `hint:` line on stderr below it — never on stdout. With `--format=json`, stderr instead carries one diagnostic JSON object per [§FS-errors.5](FS-errors.md#5-json-format), with `path` and `line` set to `null` because the failure has no single source location:
 
-- `ID not found: <ID>` → `hint: run \`gnd list\` to see every declared ID, or \`gnd name <KIND> "<title>"\` to propose a new one`
+- `ID not found: <ID>` → `hint: run \`gnd list\` to see every declared ID, or \`gnd id <KIND> "<title>"\` to propose a new one`
 - `section not found: <ID>.<s>` → `hint: run \`gnd show <ID>\` to print the whole declaration with its section numbers`
-- a `<ID>` argument that does not match the configured `[id] format` (§FS-config.3.2) is rejected before the scan with `invalid ID \`<arg>\``, followed by `hint: this repo's [id] format is \`<format>\` (run \`gnd config show\`); \`gnd list\` shows the IDs that exist` — this is the common surprise in a repo whose format differs from the `{kind}-{slug}` `gnd` itself uses.
+- a `<ID>` argument that does not match the configured `[id] format` ([§FS-config.3.2](FS-config.md#32-id--id-grammar)) is rejected before the scan with `invalid ID \`<arg>\``, followed by `hint: this repo's [id] format is \`<format>\` (run \`gnd config show\`); \`gnd list\` shows the IDs that exist` — this is the common surprise in a repo whose format differs from the `{kind}-{slug}` `gnd` itself uses.
 
 `ambiguous ID` and `broken stub` get no hint: the fix (run `gnd check`, then edit the duplicate or the stub) is already stated in §2.2.1 / §2.3.4 and the message names the sites.
 
 ### 3.1 Format variants
 
 - `text` (default) — the body only: for a whole markdown declaration, the lines after the declaration heading line through the end of the body; for a selected section, the selected section heading and its body (§2.2); for an inline-source declaration, the comment-stripped prose (§2.3.2); for an E2E case, the manifest (§2.4). The whole-declaration opening heading line is **omitted**.
-- `md` — same as `text` but the opening heading line is **included** verbatim, so the output is a self-contained markdown fragment. The kind's `[[kinds]] title` (§FS-config.3.4) is *not* injected — it is metadata exposed only in `json`. For an inline-source declaration the included heading is the one written in the doc-comment (`# AS-<event-bus>: In-process event broadcaster`), comment-markers stripped.
-- `json` — a single object on stdout: `{"id":<ID>,"section":<section-path or null>,"body":<string>,"path":<declaring file or case dir>,"line":<1-indexed>}`. `section` is `null` when the whole declaration was requested. For E2E cases the object is the §2.4 shape instead. The wire form is stable per §G-no-silent-breakage.1.
+- `md` — same as `text` but the opening heading line is **included** verbatim, so the output is a self-contained markdown fragment. The kind's `[[kinds]] title` ([§FS-config.3.4](FS-config.md#34-kinds--recognized-prefixes)) is *not* injected — it is metadata exposed only in `json`. For an inline-source declaration the included heading is the one written in the doc-comment (`# AS-<event-bus>: In-process event broadcaster`), comment-markers stripped.
+- `json` — a single object on stdout: `{"id":<ID>,"section":<section-path or null>,"body":<string>,"path":<declaring file or case dir>,"line":<1-indexed>}`. `section` is `null` when the whole declaration was requested. For E2E cases the object is the §2.4 shape instead. The wire form is stable per [§G-no-silent-breakage.1](../goals/goals.md#1-what-counts-as-user-visible).
 
 ## 4. Why this matters
 

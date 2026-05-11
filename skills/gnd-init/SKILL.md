@@ -1,6 +1,6 @@
 ---
 name: gnd-init
-description: Use when bootstrapping or adopting gnd in a repository, especially when the user wants an interactive guided setup for gnd init, .agents/gnd.toml, agents.md, docs scaffolding, citation format, scan scope, output format, or Markdown link settings.
+description: Use when bootstrapping or adopting gnd in a repository, especially when the user wants an interactive guided setup for gnd init, .agents/gnd.toml, AGENTS.md, docs scaffolding, citation format, scan scope, output format, or Markdown link settings.
 ---
 
 # gnd init
@@ -23,7 +23,7 @@ Use `rg` and `rg --files` first. Prefer evidence from existing files over generi
 
 Analyze:
 
-- Existing `agents.md`, `.agents/gnd.toml`, root `gnd.toml`, and gnd-style citations.
+- Existing `AGENTS.md`, `.agents/gnd.toml`, root `gnd.toml`, and gnd-style citations.
 - Documentation layout: `docs/`, `e2e/`, `spec/`, `rfcs/`, `adr/`, `decisions/`, `roadmap`, `changelog`.
 - Existing artifact types and their homes: specifications, requirements, RFCs, ADRs/decisions, roadmaps, changelogs, plans, end-to-end fixtures, examples, package READMEs, generated reports, and runtime logs. Use these to choose `[[kinds]]`, `[scan].include`, and `[scan].exclude`; do not add generic folders when the repo already has project-specific artifact homes.
 - Source layout: `src/`, `lib/`, `crates/`, `packages/`, `apps/`, `services/`, `cmd/`, `internal/`, `pkg/`, `test/`, `tests/`.
@@ -126,7 +126,7 @@ Pick one per repo and keep it stable — mixing is unsupported because citations
 
 | Scheme                                     | Example             | Benefit                                                                                                          | Trade-off                                                                |
 |--------------------------------------------|---------------------|------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
-| `{kind}-{number}-{slug}` *(default)*       | `FS-014-user-login` | Number is the stable identifier; slug is descriptive and can be **renamed freely** without breaking citations.   | Two tokens to type; needs `gnd name` to allocate the next number.        |
+| `{kind}-{number}-{slug}` *(default)*       | `FS-014-user-login` | Number is the stable identifier; slug is descriptive and can be **renamed freely** without breaking citations.   | Two tokens to type; needs `gnd id` to allocate the next number.        |
 | `{kind}-{number}` (RFC-style)              | `FS-014`            | Maximally stable — no slug to drift. Familiar from RFCs/PEPs/JEPs/ADRs.                                          | Opaque at the call site: `§FS-014` tells you nothing without `gnd show`. |
 | `{kind}-{slug}` *(`gnd` itself uses this)* | `FS-user-login`     | Self-describing — reads like English in prose and code. No number to allocate.                                   | Renaming a slug rewrites every citation. Slug must be unique per kind.   |
 
@@ -508,4 +508,4 @@ gnd init .
 gnd check .
 ```
 
-If custom config affects `agents.md`, ensure `.agents/gnd.toml` exists before `gnd init` so the generated managed block reflects the selected ID grammar, marker, strict mode, kinds, and existing artifact layout.
+If custom config affects `AGENTS.md`, ensure `.agents/gnd.toml` exists before `gnd init` so the generated managed block reflects the selected ID grammar, marker, strict mode, kinds, and existing artifact layout.

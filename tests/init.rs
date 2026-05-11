@@ -38,8 +38,8 @@ fn init_default_writes_canonical_pair_and_passes_check() {
     );
 
     assert!(
-        target.join("agents.md").is_file(),
-        "agents.md was not written"
+        target.join("AGENTS.md").is_file(),
+        "AGENTS.md was not written"
     );
     assert!(
         target.join(".agents/gnd.toml").is_file(),
@@ -64,7 +64,7 @@ fn init_default_writes_canonical_pair_and_passes_check() {
 #[test]
 fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
     // FS-init.2.1 (--docs form). The scaffolded tree must satisfy `gnd check` —
-    // i.e. the canonical agents.md + gnd.toml + docs skeleton is internally consistent.
+    // i.e. the canonical AGENTS.md + gnd.toml + docs skeleton is internally consistent.
     let target = workdir("init_docs_form_emits_full_scaffold_and_check_is_clean");
     let output = run_gnd(
         &[
@@ -83,7 +83,7 @@ fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
     );
 
     let expected = [
-        "agents.md",
+        "AGENTS.md",
         ".agents/gnd.toml",
         "docs/raison-detre.md",
         "docs/goals/goals.md",
@@ -100,10 +100,10 @@ fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
         assert!(target.join(rel).exists(), "init --docs did not write {rel}");
     }
 
-    let agents = fs::read_to_string(target.join("agents.md")).expect("read agents.md");
+    let agents = fs::read_to_string(target.join("AGENTS.md")).expect("read AGENTS.md");
     assert!(
         agents.contains("DemoProject"),
-        "agents.md must interpolate the --name into the H1 / opening sentence"
+        "AGENTS.md must interpolate the --name into the H1 / opening sentence"
     );
 
     let gnd_toml =
@@ -155,22 +155,22 @@ title = "Architecture decision"
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let agents = fs::read_to_string(target.join("agents.md")).expect("read agents.md");
+    let agents = fs::read_to_string(target.join("AGENTS.md")).expect("read AGENTS.md");
     assert!(
         agents.contains("| `FS` | `specs` | Product spec |"),
-        "agents.md should describe configured spec homes:\n{agents}"
+        "AGENTS.md should describe configured spec homes:\n{agents}"
     );
     assert!(
         agents.contains("| `ADR` | `records/adr` | Architecture decision |"),
-        "agents.md should describe configured decision homes:\n{agents}"
+        "AGENTS.md should describe configured decision homes:\n{agents}"
     );
     assert!(
         agents.contains("`specs`, `records`, `crates`"),
-        "agents.md should describe configured scan scope:\n{agents}"
+        "AGENTS.md should describe configured scan scope:\n{agents}"
     );
     assert!(
         !agents.contains("docs/architectural-spec/") && !agents.contains("docs/decisions/"),
-        "agents.md must not introduce canonical docs folders when specs are configured elsewhere"
+        "AGENTS.md must not introduce canonical docs folders when specs are configured elsewhere"
     );
 }
 
@@ -186,9 +186,9 @@ fn init_is_byte_deterministic() {
         );
         assert!(out.status.success());
     }
-    let agents_a = fs::read(a.join("agents.md")).unwrap();
-    let agents_b = fs::read(b.join("agents.md")).unwrap();
-    assert_eq!(agents_a, agents_b, "agents.md must be byte-identical");
+    let agents_a = fs::read(a.join("AGENTS.md")).unwrap();
+    let agents_b = fs::read(b.join("AGENTS.md")).unwrap();
+    assert_eq!(agents_a, agents_b, "AGENTS.md must be byte-identical");
     let toml_a = fs::read(a.join(".agents/gnd.toml")).unwrap();
     let toml_b = fs::read(b.join(".agents/gnd.toml")).unwrap();
     assert_eq!(toml_a, toml_b, ".agents/gnd.toml must be byte-identical");

@@ -5,20 +5,20 @@
 
 ## 1. Context
 
-`gnd`'s editor-integration story (§FS-lsp) is delivered through the Language Server Protocol. There are several plausible ways to package the LSP capability into the project:
+`gnd`'s editor-integration story ([§FS-lsp](../../functional-spec/FS-lsp.md)) is delivered through the Language Server Protocol. There are several plausible ways to package the LSP capability into the project:
 
 1. **Bundle into `gnd-cli`.** A single `gnd lsp` subcommand on the existing CLI; one binary, one install.
 2. **Cargo feature flag on `gnd-cli`.** `cargo install gnd --features lsp` opts in; default install excludes it.
 3. **Separate binary in the same crate.** `gnd-cli` produces both `gnd` and `gnd-lsp` from one Cargo manifest.
 4. **Separate crate, separate binary, separate published package.** `gnd-lsp` is its own crate in the workspace; `cargo install gnd-lsp` is the only way to get it.
 
-This decision picks among the four and pins the consequences for §FS-distribution and §AS-bindings.
+This decision picks among the four and pins the consequences for [§FS-distribution](../../functional-spec/FS-distribution.md) and [§AS-bindings](../../architectural-spec/AS-bindings.md).
 
 ## 2. Decision
 
 **Option (4): separate crate, separate binary, separate published package on every registry.**
 
-`gnd-lsp` lives at `crates/gnd-lsp/` in the workspace defined by §AS-bindings.1, depends only on `gnd-core`, and is published as a standalone package on cargo (`gnd-lsp`), npm (`gnd-lsp`), and PyPI (`gnd-lsp`). The CLI install path (`cargo install gnd`, `npm install gnd-cli`, `pipx install gnd`) does not transitively pull in the LSP server; users who want editor integration install it explicitly.
+`gnd-lsp` lives at `crates/gnd-lsp/` in the workspace defined by [§AS-bindings.1](../../architectural-spec/AS-bindings.md#1-target-workspace-layout), depends only on `gnd-core`, and is published as a standalone package on cargo (`gnd-lsp`), npm (`gnd-lsp`), and PyPI (`gnd-lsp`). The CLI install path (`cargo install gnd`, `npm install gnd-cli`, `pipx install gnd`) does not transitively pull in the LSP server; users who want editor integration install it explicitly.
 
 ## 3. Why this shape
 
@@ -28,27 +28,27 @@ This decision picks among the four and pins the consequences for §FS-distributi
 
 ### 3.2 CI binary size and start-up
 
-CI pipelines and pre-commit hooks call `gnd check` thousands of times more often than any editor opens `gnd-lsp`. Keeping the CLI binary small and synchronous matters for both raw start-up cost (every invocation pays binary-load overhead) and download size (every CI cache pull moves the binary across the network). A bundled binary that includes a LSP server most users will never invoke is a tax on the common case. §G-fast-feedback explicitly endorses paying engineering cost to keep the CLI fast; this is part of that pattern.
+CI pipelines and pre-commit hooks call `gnd check` thousands of times more often than any editor opens `gnd-lsp`. Keeping the CLI binary small and synchronous matters for both raw start-up cost (every invocation pays binary-load overhead) and download size (every CI cache pull moves the binary across the network). A bundled binary that includes a LSP server most users will never invoke is a tax on the common case. [§G-fast-feedback](../../goals/goals.md) explicitly endorses paying engineering cost to keep the CLI fast; this is part of that pattern.
 
 ### 3.3 Distribution parallel to industry practice
 
 `rust-analyzer`, `gopls`, `pyright`, and `typescript-language-server` are all distributed as separate binaries, not subcommands of the language toolchain. This is the established expectation: editors point their LSP client at a binary named by convention, not at a subcommand of a CLI. Following the convention means contributors who already know how to wire up `rust-analyzer` know how to wire up `gnd-lsp` — no new mental model.
 
-### 3.4 Composition with §FS-non-goals.12.1
+### 3.4 Composition with [§FS-non-goals.12.1](../../functional-spec/FS-non-goals.md#121-plugins-or-scripting-hooks-inside-the-engine)
 
-§FS-non-goals.12.1 forbids a plugin system inside the engine. Keeping `gnd-lsp` as a separate process that talks to the engine through a defined transport (LSP over stdio) — rather than as a feature flag that links against the engine in-process — preserves the "no plugins inside" property at the architectural level. The LSP is a *consumer* of `gnd-core`, on equal footing with `gnd-cli`, `gnd-node`, and `gnd-py`.
+[§FS-non-goals.12.1](../../functional-spec/FS-non-goals.md#121-plugins-or-scripting-hooks-inside-the-engine) forbids a plugin system inside the engine. Keeping `gnd-lsp` as a separate process that talks to the engine through a defined transport (LSP over stdio) — rather than as a feature flag that links against the engine in-process — preserves the "no plugins inside" property at the architectural level. The LSP is a *consumer* of `gnd-core`, on equal footing with `gnd-cli`, `gnd-node`, and `gnd-py`.
 
-### 3.5 Composition with §G-no-silent-breakage
+### 3.5 Composition with [§G-no-silent-breakage](../../goals/goals.md)
 
 A separate package on every registry means the LSP's release cadence can decouple from the CLI's when needed. A bug fix to the LSP (say, a hover formatting change) does not require a CLI version bump. Conversely, a CLI surface change that breaks the LSP's assumptions surfaces as a build break in the LSP crate before release, not as a runtime mismatch in editors. The compile-time link from `gnd-lsp` to a pinned `gnd-core` version is what enforces this.
 
 ## 4. Consequences
 
-- The workspace gains a third crate: `crates/gnd-lsp/`. §AS-bindings.1 is updated to list it alongside `gnd-core`, `gnd-cli`, `gnd-node`, and `gnd-py`.
-- Three new packages are published, one per registry: `gnd-lsp` on cargo, npm, and PyPI. §FS-distribution.1 is updated to list them.
-- §FS-lsp.2.1 ("Install") states that the CLI install does not pull in `gnd-lsp` transitively; the inverse is also true (`gnd-lsp` does not pull in the CLI binary).
-- The roadmap item §RM-lsp owns shipping the crate and the published packages. It depends on §RM-core-cli-split (the workspace split) — that prerequisite must land first so `gnd-lsp` has a `gnd-core` to depend on.
-- §FS-non-goals adds an explicit entry: first-party per-editor plugins (VSCode/IntelliJ/Vim/Emacs wrappers) are out of scope. The LSP server is the only editor surface; editor configuration is the user's one-time work.
+- The workspace gains a third crate: `crates/gnd-lsp/`. [§AS-bindings.1](../../architectural-spec/AS-bindings.md#1-target-workspace-layout) is updated to list it alongside `gnd-core`, `gnd-cli`, `gnd-node`, and `gnd-py`.
+- Three new packages are published, one per registry: `gnd-lsp` on cargo, npm, and PyPI. [§FS-distribution.1](../../functional-spec/FS-distribution.md#1-targets) is updated to list them.
+- [§FS-lsp.2.1](../../functional-spec/FS-lsp.md#21-install) ("Install") states that the CLI install does not pull in `gnd-lsp` transitively; the inverse is also true (`gnd-lsp` does not pull in the CLI binary).
+- The roadmap item [§RM-lsp](../../roadmap.md) owns shipping the crate and the published packages. It depends on [§RM-core-cli-split](../../roadmap.md) (the workspace split) — that prerequisite must land first so `gnd-lsp` has a `gnd-core` to depend on.
+- [§FS-non-goals](../../functional-spec/FS-non-goals.md) adds an explicit entry: first-party per-editor plugins (VSCode/IntelliJ/Vim/Emacs wrappers) are out of scope. The LSP server is the only editor surface; editor configuration is the user's one-time work.
 
 ## 5. Alternatives considered
 

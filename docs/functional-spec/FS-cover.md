@@ -1,6 +1,6 @@
 # FS-cover: gnd groups citations by scanned file
 
-The `cover` subcommand exposes the citation graph as data: for each scanned file, which spec IDs does it cite, and where? This is the plumbing surface for the diff-aware co-change recipe (§RM-cochange-gate): git decides what changed, `cover` says which IDs the changed files lean on. Serves §RM-cover and keeps the policy layer out of `gnd-core`.
+The `cover` subcommand exposes the citation graph as data: for each scanned file, which spec IDs does it cite, and where? This is the plumbing surface for the diff-aware co-change recipe ([§RM-cochange-gate](../roadmap.md)): git decides what changed, `cover` says which IDs the changed files lean on. Serves [§RM-cover](../roadmap.md) and keeps the policy layer out of `gnd-core`.
 
 ## 1. Inputs
 
@@ -8,14 +8,14 @@ The `cover` subcommand exposes the citation graph as data: for each scanned file
 gnd cover [<path>] [--format text|json]
 ```
 
-- `<path>` — directory or file whose tree is scanned. Defaults to `.`. Discovery is the same as every other subcommand (walk up to `.agents/gnd.toml`, else defaults — §FS-config.1).
+- `<path>` — directory or file whose tree is scanned. Defaults to `.`. Discovery is the same as every other subcommand (walk up to `.agents/gnd.toml`, else defaults — [§FS-config.1](FS-config.md#1-file-location-and-discovery)).
 - `--format text|json` — output shape (§3). Default `text`.
 
-`cover` is a query, like `list` and `refs` — non-interactive, no prompts (§FS-non-goals.10). It reads no git history (§FS-non-goals.6) and parses no AST (§FS-non-goals.3).
+`cover` is a query, like `list` and `refs` — non-interactive, no prompts ([§FS-non-goals.10](FS-non-goals.md#10-interactive-mode)). It reads no git history ([§FS-non-goals.6](FS-non-goals.md#6-decision-database-audit-log-history-tracking)) and parses no AST ([§FS-non-goals.3](FS-non-goals.md#3-code-ast-parsing)).
 
 ## 2. Behaviour
 
-`cover` runs the same scan as `check`, `list`, and `refs` (§AS-scanner). It does not decide whether a file is sufficiently covered, whether a hunk is behavioral, or whether a spec/test co-change is required; those are recipe concerns (§RM-cochange-gate). The command only renders the `Findings` the scanner already collected.
+`cover` runs the same scan as `check`, `list`, and `refs` ([§AS-scanner](../architectural-spec/AS-scanner.md)). It does not decide whether a file is sufficiently covered, whether a hunk is behavioral, or whether a spec/test co-change is required; those are recipe concerns ([§RM-cochange-gate](../roadmap.md)). The command only renders the `Findings` the scanner already collected.
 
 Output is grouped by scanned file, sorted by path. Within a file, citations are sorted by `(line, column)`. Files with no recognised citations are still included, so a caller can distinguish "the file was scanned and cites nothing" from "the file was outside the scan scope." A citation object is the same shape `gnd refs --format=json` emits: path, line, column, rendered ID, optional section, marker boolean, and the verbatim token text.
 
@@ -48,7 +48,7 @@ The nested citation objects intentionally carry `path` too, matching `refs` JSON
 ## 4. Exit codes
 
 - `0` — scan succeeded; the emitted file records are the result.
-- `2` — scan / I/O error (§FS-check.2 partial-scan semantics apply: records found before or after the unreadable file may print, but the result is not trustworthy as complete).
+- `2` — scan / I/O error ([§FS-check.2](FS-check.md#2-outputs) partial-scan semantics apply: records found before or after the unreadable file may print, but the result is not trustworthy as complete).
 
 There is no `1`: `cover` is a query over the current tree and has no finding class of its own.
 

@@ -1,6 +1,6 @@
 # AS-bindings: target shape for exposing the Rust engine on three platforms
 
-Implements the planned distribution shape in §FS-distribution. Target state: the repo is a Cargo workspace with one core library and four frontends — three for batch use (CLI, Node, Python) and one for editor use (LSP). The current implementation is still a single Rust crate; this architectural spec describes the split that must happen before the LSP and language bindings ship.
+Implements the planned distribution shape in [§FS-distribution](../functional-spec/FS-distribution.md). Target state: the repo is a Cargo workspace with one core library and four frontends — three for batch use (CLI, Node, Python) and one for editor use (LSP). The current implementation is still a single Rust crate; this architectural spec describes the split that must happen before the LSP and language bindings ship.
 
 ## 1. Target workspace layout
 
@@ -16,7 +16,7 @@ gnd/
 └── e2e/
 ```
 
-All four frontend crates depend on `gnd-core` and only on `gnd-core` for engine logic. None depend on each other. This is the property that lets §DA-lsp-optional hold: `gnd-cli`'s dependency tree contains no async runtime, no JSON-RPC machinery, and no LSP types, because none of those reach `gnd-core`.
+All four frontend crates depend on `gnd-core` and only on `gnd-core` for engine logic. None depend on each other. This is the property that lets [§DA-lsp-optional](../decisions/architectural/DA-lsp-optional.md) hold: `gnd-cli`'s dependency tree contains no async runtime, no JSON-RPC machinery, and no LSP types, because none of those reach `gnd-core`.
 
 ## 2. gnd-core: the only place logic lives
 
@@ -25,7 +25,7 @@ Every check, every show, every regex, every walker invocation lives in `gnd-core
 - `gnd::scan(root: &Path) -> Findings`
 - `gnd::check(findings: &Findings, root: &Path) -> Report`
 - `gnd::show(id: &str, opts: ShowOpts) -> Result<String>`
-- `gnd::refs(findings: &Findings, id: &str, section: Option<&str>) -> Vec<Citation>` (§FS-refs)
+- `gnd::refs(findings: &Findings, id: &str, section: Option<&str>) -> Vec<Citation>` ([§FS-refs](../functional-spec/FS-refs.md))
 - The `Findings`, `Declaration`, `Citation`, `Report` data types.
 
 The crate has no `println!`, no `eprintln!`, no `process::exit`. It returns data; callers decide what to do with it.
@@ -36,7 +36,7 @@ Argument parsing (likely `clap`), terminal formatting, exit-code mapping. Import
 
 ## 4. gnd-lsp: the LSP server binary
 
-Speaks LSP over stdio (per §AS-lsp.4). Imports `gnd-core` for scan/check/show/fmt; imports `tower-lsp` (or equivalent) plus `tokio` for the protocol surface. Publishes as `gnd-lsp` on every registry per §FS-distribution.1 and §DA-lsp-optional. Independent of `gnd-cli` — neither pulls the other in. The full architecture lives in §AS-lsp.
+Speaks LSP over stdio (per [§AS-lsp.4](AS-lsp.md#4-transport)). Imports `gnd-core` for scan/check/show/fmt; imports `tower-lsp` (or equivalent) plus `tokio` for the protocol surface. Publishes as `gnd-lsp` on every registry per [§FS-distribution.1](../functional-spec/FS-distribution.md#1-targets) and [§DA-lsp-optional](../decisions/architectural/DA-lsp-optional.md). Independent of `gnd-cli` — neither pulls the other in. The full architecture lives in [§AS-lsp](AS-lsp.md).
 
 ## 5. gnd-node: the napi-rs binding
 

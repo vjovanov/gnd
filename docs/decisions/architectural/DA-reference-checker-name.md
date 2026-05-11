@@ -5,7 +5,7 @@
 
 ## 1. Context
 
-We need a name for the tool that verifies the ID-based reference scheme defined in `agents.md` (e.g. `§FS-<user-login>.3.1`). Working title is `spec-checker`. We want something memorable, available on every registry we plan to publish to, and free of confusing brand collisions.
+We need a name for the tool that verifies the ID-based reference scheme defined in `AGENTS.md` (e.g. `§FS-<user-login>.3.1`). Working title is `spec-checker`. We want something memorable, available on every registry we plan to publish to, and free of confusing brand collisions.
 
 The tool is written in Rust, but it will be distributed on **all three** registries — cargo, npm, and PyPI — with native API bindings on each (Node via napi-rs or similar; Python via PyO3/maturin). Cargo, npm, and PyPI availability are therefore **all required**.
 
@@ -68,4 +68,4 @@ When publishing to npm in future, the package will be named `gnd-cli` (also free
 - The chosen name applies to the cargo crate, the binary, and (eventually) the GitHub repo.
 - If we pick `gnd`, the npm package — when published — will be `gnd-cli` (also free on cargo and PyPI for consistency).
 - `refcheck` is **eliminated** from consideration: not because the existing PyPI tool does the same thing (it doesn't — it's a markdown link checker, scope-disjoint from us), but because it occupies the same naming territory and would create persistent SEO and mental-model confusion.
-- This decision affects only the tool. The reference scheme itself is decided in `agents.md` and is independent.
+- This decision affects only the tool. The reference scheme itself is decided in `AGENTS.md` and is independent.

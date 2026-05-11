@@ -1,6 +1,6 @@
 # FS-refs: gnd lists every citation of an ID
 
-The `refs` subcommand answers the reverse of `gnd show`: not "what does this ID say?" but "who points at it?". An agent about to change a declaration — or delete one — needs to know what leans on it; `gnd refs FS-check` is that lookup, scheme-aware in the ways a `grep` cannot be. Serves §G-friendliness-first and the agent-grounding loop in the raison-detre (an agent verifying a change reads the cited bodies *and* the back-references).
+The `refs` subcommand answers the reverse of `gnd show`: not "what does this ID say?" but "who points at it?". An agent about to change a declaration — or delete one — needs to know what leans on it; `gnd refs FS-check` is that lookup, scheme-aware in the ways a `grep` cannot be. Serves [§G-friendliness-first](../goals/goals.md) and the agent-grounding loop in the raison-detre (an agent verifying a change reads the cited bodies *and* the back-references).
 
 ## 1. Inputs
 
@@ -9,23 +9,23 @@ gnd refs <ID> [<path>] [--section <s>] [--format text|json]
 ```
 
 - `<ID>` — the ID to look up, without the marker. May carry an inline section (`FS-check.3.1`) using the configured `[id] section_separator`; equivalently pass `--section 3.1`.
-- `<path>` — directory or file whose tree is scanned. Defaults to `.`. Discovery is the same as every other subcommand (walk up to `.agents/gnd.toml`, else defaults — §FS-config.1).
+- `<path>` — directory or file whose tree is scanned. Defaults to `.`. Discovery is the same as every other subcommand (walk up to `.agents/gnd.toml`, else defaults — [§FS-config.1](FS-config.md#1-file-location-and-discovery)).
 - `--section <s>` — restrict to citations that reference exactly that section path. Without it, every citation of `<ID>` is listed regardless of section (including bare-ID citations with no section). Mutually exclusive with the dotted inline form.
 - `--format text|json` — output shape (§3). Default `text`.
 
-`refs` is a query, like `show` — non-interactive, no prompts (§FS-non-goals.10).
+`refs` is a query, like `show` — non-interactive, no prompts ([§FS-non-goals.10](FS-non-goals.md#10-interactive-mode)).
 
 ## 2. Behaviour
 
-`refs` runs the same scan as `check` (§AS-scanner) and emits, for the requested `<ID>`, every recognised citation site — the same set of citations `check` would validate, so it honours `[reference] strict` (bare tokens are listed only in non-strict mode), the string-literal carve-out in source files (§AS-scanner.2.3), and citations inside doc-comments. It does **not** list the *declaration* of `<ID>` — that is `gnd show --format=json <ID>` (the README documents that one-liner). A `refs` lookup of an ID that has no declaration still works: the citations are listed (they are exactly the ones `check` flags as dangling), so `refs` is also the "what would break if I never create this ID" tool.
+`refs` runs the same scan as `check` ([§AS-scanner](../architectural-spec/AS-scanner.md)) and emits, for the requested `<ID>`, every recognised citation site — the same set of citations `check` would validate, so it honours `[reference] strict` (bare tokens are listed only in non-strict mode), the string-literal carve-out in source files ([§AS-scanner.2.3](../architectural-spec/AS-scanner.md#23-citation-detection)), and citations inside doc-comments. It does **not** list the *declaration* of `<ID>` — that is `gnd show --format=json <ID>` (the README documents that one-liner). A `refs` lookup of an ID that has no declaration still works: the citations are listed (they are exactly the ones `check` flags as dangling), so `refs` is also the "what would break if I never create this ID" tool.
 
-Output is sorted by `(path, line, column)` — deterministic per §FS-errors.4. An ID with zero citations produces empty output and exit `0` (not an error: an as-yet-uncited declaration is normal, and `check` already warns about it — §FS-check.4.1). If the requested ID is *also* not declared anywhere in the scanned tree, the likeliest cause is a typo, so `refs` prints one `note:` line to stderr — `note: <ID> is neither declared nor cited — run \`gnd list\` to see every declared ID` — and still exits `0`. It is a hint, not a diagnostic: the empty result (NDJSON on stdout, or the absent text lines on stderr) is unchanged, and machine consumers that only read stdout never see it. This mirrors the `ID not found` hint `gnd show` gives for the same mistake (§FS-show.3) without `show`'s exit `1` — `refs` has no single-result expectation to violate (§4).
+Output is sorted by `(path, line, column)` — deterministic per [§FS-errors.4](FS-errors.md#4-determinism). An ID with zero citations produces empty output and exit `0` (not an error: an as-yet-uncited declaration is normal, and `check` already warns about it — [§FS-check.4.1](FS-check.md#41-unused-declaration)). If the requested ID is *also* not declared anywhere in the scanned tree, the likeliest cause is a typo, so `refs` prints one `note:` line to stderr — `note: <ID> is neither declared nor cited — run \`gnd list\` to see every declared ID` — and still exits `0`. It is a hint, not a diagnostic: the empty result (NDJSON on stdout, or the absent text lines on stderr) is unchanged, and machine consumers that only read stdout never see it. This mirrors the `ID not found` hint `gnd show` gives for the same mistake ([§FS-show.3](FS-show.md#3-outputs)) without `show`'s exit `1` — `refs` has no single-result expectation to violate (§4).
 
 ## 3. Outputs
 
 ### 3.1 `--format text` (default)
 
-One line per citation site, in the located-finding shape (§FS-errors.2.1):
+One line per citation site, in the located-finding shape ([§FS-errors.2.1](FS-errors.md#21-located-finding)):
 
 ```
 $ gnd refs FS-check.1
@@ -37,7 +37,7 @@ src/scanner.rs:142: FS-check.1
 
 ### 3.2 `--format json`
 
-NDJSON on stdout — one object per citation, matching the `Citation` shape (§AS-scanner.3) plus the verbatim token:
+NDJSON on stdout — one object per citation, matching the `Citation` shape ([§AS-scanner.3](../architectural-spec/AS-scanner.md#3-output)) plus the verbatim token:
 
 ```json
 {"path":"docs/functional-spec/FS-show.md","line":11,"column":42,"id":"FS-check","section":"1","marker":true,"text":"§FS-check.1"}
@@ -49,7 +49,7 @@ NDJSON on stdout — one object per citation, matching the `Citation` shape (§A
 ## 4. Exit codes
 
 - `0` — scan succeeded; the listed citations (possibly none) are the result.
-- `2` — scan / I/O error (§FS-check.2 partial-scan semantics apply: an incomplete scan exits `2` and the lookup is not trustworthy as complete).
+- `2` — scan / I/O error ([§FS-check.2](FS-check.md#2-outputs) partial-scan semantics apply: an incomplete scan exits `2` and the lookup is not trustworthy as complete).
 
 There is no `1`: `refs` is a query that always returns *its* answer (a possibly-empty list), never "found something other than one body" — unlike `show`, it has no single-result expectation to violate.
 

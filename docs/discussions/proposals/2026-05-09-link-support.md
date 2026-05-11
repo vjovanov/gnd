@@ -2,7 +2,7 @@
 
 ## Status
 
-Resolved by §DF-md-link-emission and §DF-md-link-anchor-strategy. Implementation tracked under §RM-md-link-emission. The "Open questions" section below is preserved as-is for historical context; the answers live in the two DFs above.
+Resolved by [§DF-md-link-emission](../../decisions/functional/DF-md-link-emission.md) and [§DF-md-link-anchor-strategy](../../decisions/functional/DF-md-link-anchor-strategy.md). Implementation tracked under [§RM-md-link-emission](../../roadmap.md). The "Open questions" section below is preserved as-is for historical context; the answers live in the two DFs above.
 
 ## Context
 
@@ -11,7 +11,7 @@ model is based on stable ID citations. A Markdown link is useful for a human in 
 browser or IDE preview, but it is path-coupled and anchor-coupled. An ID citation
 is location-independent and works across Markdown and source doc-comments.
 
-The current direction in §DF-md-link-emission and §FS-fmt.6 is to keep IDs as the
+The current direction in [§DF-md-link-emission](../../decisions/functional/DF-md-link-emission.md) and [§FS-fmt.6](../../functional-spec/FS-fmt.md#6-markdown-link-emission-with---md-links) is to keep IDs as the
 source of truth and let `gnd fmt --md-links` generate Markdown links around
 marker-prefixed citations in `.md` files.
 
@@ -38,7 +38,7 @@ the authoritative reference. If a file moves or a heading changes, a later
 - `gnd check` should continue to validate the underlying ID citation, not general
   Markdown links.
 - General Markdown link validation remains out of scope for `gnd` per
-  §FS-non-goals.1; tools such as lychee remain better suited to `[text](url)`
+  [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation); tools such as lychee remain better suited to `[text](url)`
   and HTTP validation.
 - Source files should not be rewritten with Markdown link syntax. The universal
   form in source comments remains the marker-prefixed ID citation.

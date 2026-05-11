@@ -1,3 +1,3 @@
 error: unknown command or missing path: bogus
-known commands: check, show, list, refs, cover, fmt, name, init, config, agent-setup-instructions, completions
+known commands: check, show, list, refs, cover, fmt, id, init, config, agent-setup-instructions, completions
 (a bare path is shorthand for `gnd check <path>`; run `gnd --help` for commands)

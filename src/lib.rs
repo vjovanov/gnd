@@ -18,7 +18,7 @@ const SUBCOMMANDS: &[&str] = &[
     "refs",
     "cover",
     "fmt",
-    "name",
+    "id",
     "init",
     "config",
     "agent-setup-instructions",
@@ -27,6 +27,11 @@ const SUBCOMMANDS: &[&str] = &[
 
 static STUB_LINK_HEADING: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^\s*:\s*\[[^\]]*\]\(\s*(?P<path>[^)\s]+)\s*\)\s*$").unwrap());
+/// An inline Markdown link `[text](url)` — used to reduce a heading to the text a
+/// renderer would slugify (the destination URL is not part of that text), so an
+/// anchor stays correct even when a citation in a section heading has been wrapped
+/// by `gnd fmt --md-links` (§DF-github-anchor-fidelity, §FS-fmt.6.2).
+static MD_INLINE_LINK: Lazy<Regex> = Lazy::new(|| Regex::new(r"\[([^\]]*)\]\([^)]*\)").unwrap());
 static AGENTS_BLOCK_BEGIN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"<!--\s*gnd:init:agents:v(?P<version>\d+)\s+begin\s*-->").unwrap());
 static AGENTS_BLOCK_END: Lazy<Regex> =
@@ -295,7 +300,7 @@ struct Findings {
 }
 
 /// One `[[kinds]]` entry: prefix plus the folder its declarations live in and the
-/// human title `gnd name` prints (§FS-config.3.4).
+/// human title `gnd id` prints (§FS-config.3.4).
 #[derive(Clone)]
 struct KindConfig {
     prefix: String,
@@ -450,7 +455,7 @@ fn kind_prefixes(kinds: &[KindConfig]) -> Vec<String> {
     kinds.iter().map(|kind| kind.prefix.clone()).collect()
 }
 
-/// Default home folder for each built-in kind — the directory `gnd name` proposes
+/// Default home folder for each built-in kind — the directory `gnd id` proposes
 /// a path under and `gnd check` expects the declaration to live in (§FS-config.3.4).
 fn default_kind_folder(prefix: &str) -> Option<&'static str> {
     match prefix {
@@ -465,8 +470,8 @@ fn default_kind_folder(prefix: &str) -> Option<&'static str> {
     }
 }
 
-/// Default human title for each built-in kind, printed by `gnd name` (§FS-config.3.4,
-/// §FS-name.2).
+/// Default human title for each built-in kind, printed by `gnd id` (§FS-config.3.4,
+/// §FS-id.2).
 fn default_kind_title(prefix: &str) -> Option<&'static str> {
     match prefix {
         "G" => Some("Goal"),
@@ -1147,8 +1152,8 @@ fn literal_after_kind_placeholder(format: &str) -> Option<&str> {
 }
 
 /// Inverse of `e2e_id_from_case_dir_name`: strip the `E2E` prefix off a rendered ID
-/// to get the `e2e/cases/<name>/` directory `gnd name` tells the author to create
-/// (§FS-name.2, §AS-scanner.6).
+/// to get the `e2e/cases/<name>/` directory `gnd id` tells the author to create
+/// (§FS-id.2, §AS-scanner.6).
 fn e2e_case_dir_name(config: &Config, rendered: &str) -> String {
     let prefix = format!(
         "E2E{}",
@@ -1330,9 +1335,9 @@ fn scan_tree(
     Ok((findings, errors))
 }
 
-/// Scan helper for point-query subcommands (`show`, `name`): any unreadable file
+/// Scan helper for point-query subcommands (`show`, `id`): any unreadable file
 /// is fatal — a partial view of the tree could miss the declaration entirely or
-/// allocate a colliding number (§FS-show.3, §FS-name.4).
+/// allocate a colliding number (§FS-show.3, §FS-id.4).
 fn scan_tree_strict(
     config: &Config,
     scope: Option<&Path>,
@@ -1348,7 +1353,7 @@ fn scan_tree_strict(
 /// The checker (§AS-checker): turn the scanner's `Findings` into a `Report` of
 /// errors and warnings — duplicate declarations (§FS-check.3.3), dangling
 /// citations (§FS-check.3.1), missing sections (§FS-check.3.2), broken inline-spec
-/// stubs (§FS-check.3.4), an invalid `agents.md` init block (§FS-check.3.5),
+/// stubs (§FS-check.3.4), an invalid `AGENTS.md` init block (§FS-check.3.5),
 /// ungrounded source files when `[reference] require_grounding` is set
 /// (§FS-check.3.6, §DF-require-grounding), and the unused-declaration warning
 /// (§FS-check.4.1) — then sort everything into the fixed report order
@@ -1356,7 +1361,7 @@ fn scan_tree_strict(
 /// (§AS-checker.4); everything else comes from `findings`.
 fn check(findings: &Findings, config: &Config) -> Report {
     let mut report = Report::default();
-    // §FS-check.3.5: an `agents.md` whose managed block is out of date (or newer
+    // §FS-check.3.5: an `AGENTS.md` whose managed block is out of date (or newer
     // than this binary) is a check error.
     check_agents_block_version(&config.root, &mut report);
 
@@ -1558,10 +1563,10 @@ fn diagnostic_cmp(a: &Diagnostic, b: &Diagnostic) -> std::cmp::Ordering {
 /// Validate the managed agent-entrypoint blocks (§FS-check.3.5): the begin/end
 /// marker pair must be present and intact, and the `vN` version must match this
 /// binary — an older `vN` is "run `gnd init`" (§FS-init.2.3), a newer one is
-/// fatal. `agents.md` is canonical; known companion entrypoints are checked only
-/// when present and not symlinked to `agents.md`.
+/// fatal. `AGENTS.md` is canonical; known companion entrypoints are checked only
+/// when present and not symlinked to `AGENTS.md`.
 fn check_agents_block_version(root: &Path, report: &mut Report) {
-    let canonical = root.join("agents.md");
+    let canonical = root.join("AGENTS.md");
     if !canonical.exists() {
         return;
     }
@@ -1979,7 +1984,7 @@ fn command_check(args: &[String]) -> ExitCode {
     // almost always a misconfigured scope, not a clean repo — say so on stderr
     // instead of printing nothing and exiting 0. This is a warning: it never
     // changes the exit code. (The agent-entrypoint check, §FS-check.3.5, runs even
-    // when no source file is scanned, so a missing/stale `agents.md` block still
+    // when no source file is scanned, so a missing/stale `AGENTS.md` block still
     // reports normally and suppresses this notice.)
     if findings.scanned_files.is_empty() && report.errors.is_empty() && report.warnings.is_empty() {
         report
@@ -2163,7 +2168,7 @@ fn command_show(args: &[String]) -> ExitCode {
                 eprintln!("{message}");
                 if message.starts_with("ID not found:") {
                     eprintln!(
-                        "hint: run `gnd list` to see every declared ID, or `gnd name <KIND> \"<title>\"` to propose a new one"
+                        "hint: run `gnd list` to see every declared ID, or `gnd id <KIND> \"<title>\"` to propose a new one"
                     );
                 } else if message.starts_with("section not found:") {
                     eprintln!(
@@ -2931,7 +2936,10 @@ fn path_components(path: &Path) -> Vec<String> {
 
 /// The heading text a section anchor is built from — `<number> <title>` taken
 /// straight off the heading line, since anchors are derived from heading text, not
-/// stored (§DF-md-link-anchor-strategy).
+/// stored (§DF-md-link-anchor-strategy). Inline links in the title are reduced to
+/// their visible text (`[§FS-<x>.1](path)` → `§FS-<x>.1`), matching what a renderer
+/// slugifies — so the anchor is stable whether or not a citation in this heading
+/// has been wrapped by `gnd fmt --md-links` (§DF-github-anchor-fidelity).
 fn section_anchor_text(line: &str, section: &str) -> String {
     let trimmed = line.trim_start();
     let heading = trimmed
@@ -2939,8 +2947,8 @@ fn section_anchor_text(line: &str, section: &str) -> String {
         .trim_start()
         .trim_start_matches(section)
         .trim_start_matches('.')
-        .trim_start()
-        .to_string();
+        .trim_start();
+    let heading = MD_INLINE_LINK.replace_all(heading, "$1");
     format!("{} {}", section.replace('.', ""), heading)
         .trim()
         .to_string()
@@ -2993,27 +3001,32 @@ fn anchor_slug(text: &str, profile: &str) -> String {
     }
 }
 
+/// Reproduce GitHub's `github-slugger` byte-for-byte: lowercase the text, delete
+/// every character that is not a letter, digit, `_`, or `-` (each deletion in
+/// place, so the neighbours close up), then turn each remaining space into one
+/// `-`. It does **not** collapse runs of `-` and does **not** trim trailing ones —
+/// `## A — B` → `#a--b`, `` ## 6. Watch mode (`--watch`) `` → `#6-watch-mode---watch`.
+/// Matching that exactly is the whole point of the `github` profile: the emitted
+/// `#fragment` navigates only if it is the slug GitHub itself renders
+/// (§DF-github-anchor-fidelity, correcting the "collapse consecutive `-`" wording
+/// in §DF-md-link-anchor-strategy.2.3).
 fn anchor_slug_github(text: &str) -> String {
     let mut out = String::new();
-    let mut last_dash = false;
-    for ch in text.nfkd() {
-        let lower = ch.to_ascii_lowercase();
-        if lower.is_ascii_alphanumeric() {
-            out.push(lower);
-            last_dash = false;
-        } else if (lower.is_ascii_whitespace() || lower == '-') && !last_dash && !out.is_empty() {
+    for ch in text.chars().flat_map(char::to_lowercase) {
+        if ch.is_alphanumeric() || ch == '_' || ch == '-' {
+            out.push(ch);
+        } else if ch == ' ' {
             out.push('-');
-            last_dash = true;
         }
-    }
-    while out.ends_with('-') {
-        out.pop();
+        // anything else (`.`, brackets, backticks, em dash, tabs, …) is dropped
     }
     out
 }
 
 fn anchor_slug_gitlab(text: &str) -> String {
-    // Close to GitHub for the ASCII headings gnd emits in its own specs.
+    // "Similar to GitHub with minor Unicode-handling differences"
+    // (§DF-md-link-anchor-strategy.2.3); identical for the ASCII headings gnd's own
+    // specs use, so it rides the github slugger (§DF-github-anchor-fidelity).
     anchor_slug_github(text)
 }
 
@@ -3058,7 +3071,7 @@ fn anchor_slug_pandoc(text: &str) -> String {
 /// `gnd config validate|show [path]` — `validate` loads the discovered config and
 /// exits `1` if it is malformed (§FS-config.4.1, §FS-config.4.3); `show` prints the
 /// *effective* config (file merged over defaults) as TOML (§FS-config.4.2), which
-/// is also what `agents.md` and `gnd name` read for the repo's grammar.
+/// is also what `AGENTS.md` and `gnd id` read for the repo's grammar.
 fn command_config(args: &[String]) -> ExitCode {
     let Some(action) = args.first().map(|arg| arg.as_str()) else {
         eprintln!("error: expected `config validate` or `config show`");
@@ -3183,13 +3196,13 @@ fn format_toml_string_list(values: &[String]) -> String {
     )
 }
 
-/// `gnd name <KIND> "<title>" [--width N] [--explain] [--format text|json]` —
-/// propose an ID for a new declaration (§FS-name.1): derive a slug from the title
-/// (§FS-name.3), the next free number for number-bearing formats (§FS-name.4),
-/// check it doesn't collide with an existing declaration (§FS-name.5), and print
+/// `gnd id <KIND> "<title>" [--width N] [--explain] [--format text|json]` —
+/// propose an ID for a new declaration (§FS-id.1): derive a slug from the title
+/// (§FS-id.3), the next free number for number-bearing formats (§FS-id.4),
+/// check it doesn't collide with an existing declaration (§FS-id.5), and print
 /// the rendered ID plus where to put it; `--explain` shows the derivation
-/// (§FS-name.2.3).
-fn command_name(args: &[String]) -> ExitCode {
+/// (§FS-id.2.3).
+fn command_id(args: &[String]) -> ExitCode {
     let mut positional = Vec::new();
     let mut width = 3usize;
     let mut format = "text".to_string();
@@ -3231,15 +3244,15 @@ fn command_name(args: &[String]) -> ExitCode {
         idx += 1;
     }
     if positional.len() < 2 {
-        eprintln!("error: name requires <KIND> and <title>");
+        eprintln!("error: id requires <KIND> and <title>");
         return ExitCode::from(2);
     }
     if positional.len() > 3 {
-        eprintln!("error: name takes <KIND>, <title>, and at most one path argument");
+        eprintln!("error: id takes <KIND>, <title>, and at most one path argument");
         return ExitCode::from(2);
     }
     if !matches!(format.as_str(), "text" | "json") {
-        eprintln!("error: unsupported name format `{format}`");
+        eprintln!("error: unsupported id format `{format}`");
         return ExitCode::from(2);
     }
     let kind = &positional[0];
@@ -3955,7 +3968,7 @@ _gnd() {{
     COMPREPLY=()
 
     if [[ $COMP_CWORD -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "check show list refs cover fmt name init config agent-setup-instructions completions" -- "$cur") )
+        COMPREPLY=( $(compgen -W "check show list refs cover fmt id init config agent-setup-instructions completions" -- "$cur") )
         return 0
     fi
 
@@ -3993,8 +4006,8 @@ _gnd() {{
     'refs:list citations of an ID'
     'cover:group citations by file'
     'fmt:normalize citation syntax'
-    'name:emit the next conflict-free ID'
-    'init:scaffold agents.md and config'
+    'id:emit the next conflict-free ID'
+    'init:scaffold AGENTS.md and config'
     'config:inspect the effective config'
     'agent-setup-instructions:print the guided setup instructions for AI agents'
     'completions:print shell completion script'
@@ -4026,7 +4039,7 @@ function __gnd_complete_ids
     gnd complete ids --prefix "$token" 2>/dev/null
 end
 
-complete -c gnd -f -n "__fish_use_subcommand" -a "check show list refs cover fmt name init config agent-setup-instructions completions"
+complete -c gnd -f -n "__fish_use_subcommand" -a "check show list refs cover fmt id init config agent-setup-instructions completions"
 complete -c gnd -f -n "__fish_seen_subcommand_from show refs" -a "(__gnd_complete_ids)"
 "#
     );
@@ -4034,8 +4047,8 @@ complete -c gnd -f -n "__fish_seen_subcommand_from show refs" -a "(__gnd_complet
 
 /// The repeating character class of a slug pattern — the last `[...]` bracket
 /// expression in `slug_pattern` (e.g. `[a-z0-9-]` from `[a-z0-9][a-z0-9-]*`) —
-/// used when slugifying a `gnd name` title so the result fits the configured
-/// `[id] slug_pattern` (§FS-name.3, §FS-config.3.2). Falls back to the canonical
+/// used when slugifying a `gnd id` title so the result fits the configured
+/// `[id] slug_pattern` (§FS-id.3, §FS-config.3.2). Falls back to the canonical
 /// default if the pattern has no bracket expression.
 fn slug_char_class(slug_pattern: &str) -> String {
     if let Some(end) = slug_pattern.rfind(']')
@@ -4046,9 +4059,9 @@ fn slug_char_class(slug_pattern: &str) -> String {
     "[a-z0-9-]".to_string()
 }
 
-/// Derive a slug from a `gnd name` title (§FS-name.3).
+/// Derive a slug from a `gnd id` title (§FS-id.3).
 fn slugify_title(title: &str, slug_pattern: &str) -> String {
-    // §FS-name.3: NFKD-normalize, drop combining marks, lower-case to ASCII, then
+    // §FS-id.3: NFKD-normalize, drop combining marks, lower-case to ASCII, then
     // replace every run of characters outside the configured slug character class
     // with a single `-`; trim, collapse, truncate to 60 at a `-` boundary.
     let class = slug_char_class(slug_pattern);
@@ -4084,7 +4097,7 @@ fn slugify_title(title: &str, slug_pattern: &str) -> String {
 }
 
 /// Render an `Id` back to text under the repo's `[id] format`, zero-padding the
-/// number to `width` (§FS-config.3.2, §FS-name.2 — the form `gnd name` prints and
+/// number to `width` (§FS-config.3.2, §FS-id.2 — the form `gnd id` prints and
 /// every report uses).
 fn format_id(id: &Id, config: &Config, width: usize) -> String {
     let mut rendered = config.id_format.clone();
@@ -4106,7 +4119,7 @@ fn render_id(config: &Config, id: &Id) -> String {
 
 // The scaffold templates `gnd init` writes are embedded in the binary; the
 // reference copies live under `templates/` in the source tree (§FS-init.2.1).
-const AGENTS_TEMPLATE: &str = include_str!("../templates/agents.md");
+const AGENTS_TEMPLATE: &str = include_str!("../templates/AGENTS.md");
 const GND_TOML_TEMPLATE: &str = include_str!("../templates/gnd.toml");
 const RAISON_DETRE_TEMPLATE: &str = include_str!("../templates/raison-detre.md");
 const GOALS_TEMPLATE: &str = include_str!("../templates/goals.md");
@@ -4118,9 +4131,8 @@ const AGENT_SETUP_INSTRUCTIONS: &str = include_str!("../skills/gnd-init/SKILL.md
 const AGENTS_BLOCK_VERSION: u32 = 1;
 const AGENTS_APPEND_BEGIN: &str = "<!-- gnd:init:agents:v1 begin -->";
 const AGENTS_APPEND_END: &str = "<!-- gnd:init:agents:v1 end -->";
-const CANONICAL_AGENT_ENTRYPOINT: &str = "agents.md";
+const CANONICAL_AGENT_ENTRYPOINT: &str = "AGENTS.md";
 const COMPANION_AGENT_ENTRYPOINTS: &[&str] = &[
-    "AGENTS.md",
     "AGENTS.override.md",
     "CLAUDE.md",
     ".claude/CLAUDE.md",
@@ -4128,7 +4140,7 @@ const COMPANION_AGENT_ENTRYPOINTS: &[&str] = &[
     ".github/copilot-instructions.md",
 ];
 
-/// The substitutions that turn `templates/agents.md` into a concrete `agents.md`
+/// The substitutions that turn `templates/AGENTS.md` into a concrete `AGENTS.md`
 /// for a repo (§FS-init.2.3): the project name, plus the ID/marker shape taken
 /// from the config `gnd init` leaves in place — so a `{kind}-{slug}` repo gets a
 /// `<KIND>-<slug>` description, a strict repo gets the strict-mode note, custom
@@ -4230,7 +4242,7 @@ fn declaration_table(config: &Config) -> String {
     lines.join("\n")
 }
 
-/// The full generated `agents.md` for a fresh repo — the template with all
+/// The full generated `AGENTS.md` for a fresh repo — the template with all
 /// substitutions applied (§FS-init.2.3). Deterministic: same `gnd` version, same
 /// `--name`, same effective config ⇒ byte-identical output (§FS-non-goals.13).
 fn render_agents_md(name: &str, config: &Config) -> String {
@@ -4242,7 +4254,7 @@ fn render_agents_md(name: &str, config: &Config) -> String {
 }
 
 /// Just the `<!-- gnd:init:agents:vN begin -->`…`end` managed block — what `init`
-/// appends to, or replaces inside, an existing `agents.md` (§FS-init.2.3).
+/// appends to, or replaces inside, an existing `AGENTS.md` (§FS-init.2.3).
 fn render_agents_append_block(name: &str, config: &Config) -> String {
     let rendered = render_agents_md(name, config);
     let start = rendered
@@ -4256,7 +4268,7 @@ fn render_agents_append_block(name: &str, config: &Config) -> String {
 }
 
 /// Existing companion agent entrypoints that should carry the same managed gnd
-/// block as `agents.md` (§FS-init.2.1). A symlink to `agents.md` is already
+/// block as `AGENTS.md` (§FS-init.2.1). A symlink to `AGENTS.md` is already
 /// covered by the canonical file and is intentionally skipped.
 fn companion_agent_entrypoints(root: &Path) -> Result<Vec<PathBuf>, (PathBuf, String)> {
     let mut paths = Vec::new();
@@ -4307,7 +4319,7 @@ fn normalize_path_lexically(path: &Path) -> PathBuf {
 }
 
 /// The config that `gnd init` will leave governing `target`, which the generated
-/// `agents.md` must describe (§FS-init.2.3): an existing `target/.agents/gnd.toml`
+/// `AGENTS.md` must describe (§FS-init.2.3): an existing `target/.agents/gnd.toml`
 /// if there is one, otherwise the defaults (exactly what `init` is about to write
 /// into `target/.agents/gnd.toml`). We do **not** walk up to an ancestor's config
 /// here — `init` always writes a config *in* `target`.
@@ -4331,9 +4343,9 @@ fn escape_toml_basic(raw: &str) -> String {
 }
 
 /// `gnd init [path] [--name N] [--docs] [--force|--append]` — scaffold a repo for
-/// `gnd` (§FS-init.1): write `agents.md` and `.agents/gnd.toml` (and, with
+/// `gnd` (§FS-init.1): write `AGENTS.md` and `.agents/gnd.toml` (and, with
 /// `--docs`, the `docs/`+`e2e/` tree, §FS-init.2.1), append/update the managed
-/// `agents.md` block when the file already exists (§FS-init.2.3), refuse to clobber
+/// `AGENTS.md` block when the file already exists (§FS-init.2.3), refuse to clobber
 /// other existing files without `--force` (§FS-init.3), print a `next:` block, and
 /// exit `2` on a missing target / CLI error / unsupported block version
 /// (§FS-init.4). Non-interactive — every choice is a flag (§FS-non-goals.10).
@@ -4404,7 +4416,7 @@ fn command_init(args: &[String]) -> ExitCode {
         },
     };
 
-    // §FS-init.2.3: render `agents.md` against the config `init` leaves in place,
+    // §FS-init.2.3: render `AGENTS.md` against the config `init` leaves in place,
     // so the ID-shape / kind / marker prose in it matches `.agents/gnd.toml`.
     let init_config = init_effective_config(&target);
 
@@ -4437,7 +4449,6 @@ fn command_init(args: &[String]) -> ExitCode {
         match update_agents_block(&path, &agents_block, &rel) {
             Ok(AgentsUpdateResult::Appended) => eprintln!("appended {rel}"),
             Ok(AgentsUpdateResult::Updated) => eprintln!("updated {rel}"),
-            Ok(AgentsUpdateResult::AlreadyCurrent) => eprintln!("exists {rel}"),
             Err(err) => {
                 eprintln!("error: update {}: {err}", path.display());
                 return ExitCode::from(2);
@@ -4475,7 +4486,7 @@ fn command_init(args: &[String]) -> ExitCode {
     if docs {
         eprintln!("  1. run `gnd check` — a freshly scaffolded tree is clean");
         eprintln!(
-            "  2. allocate an ID:  ID=$(gnd name FS \"…\")  then write  docs/functional-spec/$ID.md"
+            "  2. allocate an ID:  ID=$(gnd id FS \"…\")  then write  docs/functional-spec/$ID.md"
         );
         eprintln!("     (H1: `# <ID>: <one-line statement of the behavior>`)");
         eprintln!(
@@ -4487,22 +4498,21 @@ fn command_init(args: &[String]) -> ExitCode {
         );
         eprintln!("  2. run `gnd check` — a scaffolded tree is clean");
         eprintln!(
-            "  3. allocate an ID:  ID=$(gnd name FS \"…\")  then write  docs/functional-spec/$ID.md"
+            "  3. allocate an ID:  ID=$(gnd id FS \"…\")  then write  docs/functional-spec/$ID.md"
         );
     }
-    eprintln!("see agents.md for the full workflow.");
+    eprintln!("see AGENTS.md for the full workflow.");
 
     ExitCode::SUCCESS
 }
 
-/// What `init` did to an existing `agents.md`'s managed block — `appended ` (no
-/// block before), `updated ` (older block replaced in place), or `exists ` (block
-/// already current) — the three stderr prefixes of §FS-init.2.2 / §FS-init.2.3.
+/// What `init` did to an existing `AGENTS.md`'s managed block — `appended ` (no
+/// block before) or `updated ` (supported block replaced in place) — the
+/// agent-entrypoint stderr prefixes of §FS-init.2.2 / §FS-init.2.3.
 #[derive(Debug, Eq, PartialEq)]
 enum AgentsUpdateResult {
     Appended,
     Updated,
-    AlreadyCurrent,
 }
 
 fn write_or_update_canonical_agent_entrypoint(
@@ -4517,7 +4527,6 @@ fn write_or_update_canonical_agent_entrypoint(
         match update_agents_block(&dest, block, rel) {
             Ok(AgentsUpdateResult::Appended) => eprintln!("appended {rel}"),
             Ok(AgentsUpdateResult::Updated) => eprintln!("updated {rel}"),
-            Ok(AgentsUpdateResult::AlreadyCurrent) => eprintln!("exists {rel}"),
             Err(err) => {
                 eprintln!("error: update {}: {err}", dest.display());
                 return false;
@@ -4540,13 +4549,11 @@ fn write_or_update_canonical_agent_entrypoint(
 }
 
 /// Append or update the managed block in an existing agent entrypoint on disk
-/// (§FS-init.2.3) — leaves the file untouched when the block is already current.
+/// (§FS-init.2.3). Existing supported blocks are always re-rendered from the
+/// current template/config, even when the schema version already matches.
 fn update_agents_block(dest: &Path, block: &str, label: &str) -> Result<AgentsUpdateResult> {
     let existing = fs::read_to_string(dest)?;
     let (updated, result) = update_agents_text(&existing, block, label)?;
-    if result == AgentsUpdateResult::AlreadyCurrent {
-        return Ok(result);
-    }
     fs::write(dest, updated)?;
     Ok(result)
 }
@@ -4561,9 +4568,6 @@ fn update_agents_text(
     label: &str,
 ) -> Result<(String, AgentsUpdateResult)> {
     if let Some(existing_block) = find_agents_block(existing) {
-        if existing_block.version == AGENTS_BLOCK_VERSION {
-            return Ok((existing.to_string(), AgentsUpdateResult::AlreadyCurrent));
-        }
         if existing_block.version > AGENTS_BLOCK_VERSION {
             return Err(anyhow!(
                 "{label} contains newer gnd init block v{}; this binary supports v{}",
@@ -4598,7 +4602,7 @@ fn update_agents_text(
     Ok((updated, AgentsUpdateResult::Appended))
 }
 
-/// The byte span and `vN` version of the managed block inside an `agents.md`
+/// The byte span and `vN` version of the managed block inside an `AGENTS.md`
 /// (§FS-init.2.3) — what both `gnd init`'s update and `gnd check`'s validation
 /// (§FS-check.3.5) key off.
 struct AgentsBlock {
@@ -4607,7 +4611,7 @@ struct AgentsBlock {
     version: u32,
 }
 
-/// Locate the `<!-- gnd:init:agents:vN begin -->`…`end` block in `agents.md`,
+/// Locate the `<!-- gnd:init:agents:vN begin -->`…`end` block in `AGENTS.md`,
 /// tolerating any whitespace (including `\r`) between marker tokens so a CRLF file
 /// is still recognized (§FS-init.2.3.2, §FS-check.3.5).
 fn find_agents_block(text: &str) -> Option<AgentsBlock> {
@@ -4704,10 +4708,10 @@ fn print_help() {
         "  fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. gnd fmt --check"
     );
     println!(
-        "  name     Next conflict-free ID for a new KIND declaration.        e.g. gnd name FS \"user login\""
+        "  id       Next conflict-free ID for a new declaration.             e.g. gnd id FS \"user login\""
     );
     println!(
-        "  init     Scaffold agents.md + .agents/gnd.toml; idempotent.       e.g. gnd init --docs"
+        "  init     Scaffold AGENTS.md + .agents/gnd.toml; idempotent.       e.g. gnd init --docs"
     );
     println!(
         "  config   Validate or show the effective .agents/gnd.toml.         e.g. gnd config show"
@@ -4796,7 +4800,7 @@ fn print_subcommand_help(cmd: &str) {
             println!("  gnd show FS-login.3.1          # just that nested section");
             println!();
             println!(
-                "ID not found? `gnd list` shows every declared ID; `gnd name <KIND> \"…\"` proposes a new one."
+                "ID not found? `gnd list` shows every declared ID; `gnd id <KIND> \"…\"` proposes a new one."
             );
         }
         "list" => {
@@ -4922,11 +4926,11 @@ fn print_subcommand_help(cmd: &str) {
                 "Exit:  0 nothing to do, or --write succeeded · 1 changes pending (dry run / --check) · 2 unreadable tree or CLI error."
             );
         }
-        "name" => {
-            println!("gnd name — emit the next conflict-free ID for a new declaration of a kind.");
+        "id" => {
+            println!("gnd id — emit the next conflict-free ID for a new declaration of a kind.");
             println!();
             println!(
-                "Usage:  gnd name <KIND> \"<title>\" [PATH] [--width N] [--explain] [--format text|json]"
+                "Usage:  gnd id <KIND> \"<title>\" [PATH] [--width N] [--explain] [--format text|json]"
             );
             println!();
             println!(
@@ -4938,10 +4942,10 @@ fn print_subcommand_help(cmd: &str) {
             println!();
             println!("Options:");
             println!(
-                "  --width N      minimum digit width for the number (default 3)   e.g. gnd name FS \"x\" --width 4"
+                "  --width N      minimum digit width for the number (default 3)   e.g. gnd id FS \"x\" --width 4"
             );
             println!(
-                "  --explain      also print where to put the declaration file     e.g. gnd name FS \"x\" --explain"
+                "  --explain      also print where to put the declaration file     e.g. gnd id FS \"x\" --explain"
             );
             println!(
                 "  --format text|json   text (default) is the bare ID on stdout; json adds kind/number/slug/folder."
@@ -4953,18 +4957,18 @@ fn print_subcommand_help(cmd: &str) {
             println!();
             println!("Examples:");
             println!(
-                "  gnd name FS \"User can log in\"          # -> FS-007-user-can-log-in (or FS-user-can-log-in)"
+                "  gnd id FS \"User can log in\"          # -> FS-007-user-can-log-in (or FS-user-can-log-in)"
             );
             println!(
-                "  ID=$(gnd name FS \"User can log in\"); $EDITOR \"docs/functional-spec/$ID.md\""
+                "  ID=$(gnd id FS \"User can log in\"); $EDITOR \"docs/functional-spec/$ID.md\""
             );
         }
         "init" => {
             println!(
-                "gnd init — scaffold `agents.md` + `.agents/gnd.toml` (and, with --docs, the docs/ and e2e/ layout)."
+                "gnd init — scaffold `AGENTS.md` + `.agents/gnd.toml` (and, with --docs, the docs/ and e2e/ layout)."
             );
             println!(
-                "Idempotent: re-running updates the managed `agents.md` block in place and leaves your edits alone."
+                "Idempotent: re-running updates the managed `AGENTS.md` block in place and leaves your edits alone."
             );
             println!();
             println!("Usage:  gnd init [PATH] [--docs] [--name NAME] [--force | --append]");
@@ -4978,7 +4982,7 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!("  --force        overwrite existing files with the canonical version");
             println!(
-                "  --append       append the managed agents.md block instead of replacing an older one"
+                "  --append       append the managed AGENTS.md block instead of replacing an older one"
             );
             println!();
             println!(
@@ -4987,7 +4991,7 @@ fn print_subcommand_help(cmd: &str) {
             println!();
             println!("Examples:");
             println!("  gnd init --docs                  # full first-time scaffold");
-            println!("  gnd init --name \"My Service\"      # just agents.md + .agents/gnd.toml");
+            println!("  gnd init --name \"My Service\"      # just AGENTS.md + .agents/gnd.toml");
         }
         "config" => {
             println!(
@@ -5127,7 +5131,7 @@ pub fn main_entry() -> ExitCode {
         Some("refs") => command_refs(&args[1..]),
         Some("cover") => command_cover(&args[1..]),
         Some("fmt") => command_fmt(&args[1..]),
-        Some("name") => command_name(&args[1..]),
+        Some("id") => command_id(&args[1..]),
         Some("init") => command_init(&args[1..]),
         Some("config") => command_config(&args[1..]),
         Some("agent-setup-instructions") => command_agent_setup_instructions(&args[1..]),
@@ -5394,9 +5398,22 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     }
 
     #[test]
+    fn section_anchor_uses_visible_markdown_link_text() {
+        let heading =
+            "### 2.2 Dangling citations ([§FS-check.3.1](../functional-spec/FS-check.md#31-dangling-citation))";
+        let text = section_anchor_text(heading, "2.2");
+
+        assert_eq!(text, "22 Dangling citations (§FS-check.3.1)");
+        assert_eq!(
+            anchor_slug_github(&text),
+            "22-dangling-citations-fs-check31"
+        );
+    }
+
+    #[test]
     fn agents_update_appends_managed_block_when_missing() {
         let (updated, result) =
-            update_agents_text("# Existing agents\n", &current_block(), "agents.md")
+            update_agents_text("# Existing agents\n", &current_block(), "AGENTS.md")
                 .expect("append block");
 
         assert_eq!(result, AgentsUpdateResult::Appended);
@@ -5408,10 +5425,27 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     fn agents_update_does_not_append_current_block_twice() {
         let existing = current_block();
         let (updated, result) =
-            update_agents_text(&existing, &current_block(), "agents.md").expect("current block");
+            update_agents_text(&existing, &current_block(), "AGENTS.md").expect("current block");
 
-        assert_eq!(result, AgentsUpdateResult::AlreadyCurrent);
+        assert_eq!(result, AgentsUpdateResult::Updated);
         assert_eq!(updated, existing);
+        assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
+    }
+
+    #[test]
+    fn agents_update_rewrites_current_block_from_rendered_template() {
+        let existing_block = current_block();
+        let replacement_block =
+            render_agents_append_block("renamed", &Config::default_for(PathBuf::from(".")));
+        let existing = format!("# Local notes\n\n{existing_block}\n");
+
+        let (updated, result) = update_agents_text(&existing, &replacement_block, "AGENTS.md")
+            .expect("rewrite current block");
+
+        assert_eq!(result, AgentsUpdateResult::Updated);
+        assert!(updated.starts_with("# Local notes\n\n"));
+        assert!(updated.contains("# renamed — agent instructions"));
+        assert!(!updated.contains("# demo — agent instructions"));
         assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
     }
 
@@ -5422,7 +5456,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
             .replace("gnd:init:agents:v1 end", "gnd:init:agents:v0 end");
         let existing = format!("# Existing agents\n\n{old_block}\n\n# Local notes\n");
         let (updated, result) =
-            update_agents_text(&existing, &current_block(), "agents.md").expect("update old block");
+            update_agents_text(&existing, &current_block(), "AGENTS.md").expect("update old block");
 
         assert_eq!(result, AgentsUpdateResult::Updated);
         assert!(updated.starts_with("# Existing agents\n\n"));
@@ -5434,19 +5468,19 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     #[test]
     fn agents_update_keeps_current_block_in_middle_position() {
         // §FS-init.2.3.1: a v1 block that already sits between user-authored
-        // sections must be recognized as `AlreadyCurrent` and the file must not be
-        // rewritten — the position of the block within the file is preserved.
+        // sections is re-rendered in place, preserving the block's position and
+        // all user-authored content around it.
         let existing = format!(
             "# Existing agents\n\n{}\n\n# Local notes\n",
             current_block()
         );
-        let (updated, result) = update_agents_text(&existing, &current_block(), "agents.md")
+        let (updated, result) = update_agents_text(&existing, &current_block(), "AGENTS.md")
             .expect("non-EOF current block");
 
-        assert_eq!(result, AgentsUpdateResult::AlreadyCurrent);
+        assert_eq!(result, AgentsUpdateResult::Updated);
         assert_eq!(
             updated, existing,
-            "file must be byte-identical when current"
+            "same rendered block still preserves bytes around the managed block"
         );
         assert!(updated.starts_with("# Existing agents\n\n"));
         assert!(updated.ends_with("\n\n# Local notes\n"));
@@ -5455,7 +5489,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
     #[test]
     fn agents_update_handles_crlf_line_endings() {
-        // §FS-init.2.3.2: a CRLF-encoded agents.md with a v0 block sandwiched
+        // §FS-init.2.3.2: a CRLF-encoded AGENTS.md with a v0 block sandwiched
         // between user-authored sections must still be detected and updated, with
         // CRLF preserved outside the managed block.
         let v0_lf = current_block()
@@ -5463,7 +5497,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
             .replace("gnd:init:agents:v1 end", "gnd:init:agents:v0 end");
         let v0_crlf = v0_lf.replace('\n', "\r\n");
         let existing = format!("# Existing agents\r\n\r\n{v0_crlf}\r\n\r\n# Local notes\r\n");
-        let (updated, result) = update_agents_text(&existing, &current_block(), "agents.md")
+        let (updated, result) = update_agents_text(&existing, &current_block(), "AGENTS.md")
             .expect("update CRLF v0 block");
 
         assert_eq!(result, AgentsUpdateResult::Updated);
@@ -5482,7 +5516,6 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     #[test]
     fn discovers_known_companion_agent_entrypoints() {
         let root = test_root("discovers_known_companion_agent_entrypoints");
-        write(&root.join("AGENTS.md"), "# Codex notes\n");
         write(&root.join("AGENTS.override.md"), "# Codex override notes\n");
         write(&root.join("CLAUDE.md"), "# Claude notes\n");
         write(&root.join(".claude/CLAUDE.md"), "# Claude project notes\n");
@@ -5506,7 +5539,6 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         assert_eq!(
             rels,
             vec![
-                "AGENTS.md",
                 "AGENTS.override.md",
                 "CLAUDE.md",
                 ".claude/CLAUDE.md",
@@ -5520,7 +5552,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     fn check_ignores_companion_agent_entrypoints_without_canonical_agents_md() {
         let root =
             test_root("check_ignores_companion_agent_entrypoints_without_canonical_agents_md");
-        write(&root.join("AGENTS.md"), "# Project agent notes\n");
+        write(&root.join("CLAUDE.md"), "# Project agent notes\n");
         write(
             &root.join("docs/functional-spec/FS-001-alpha.md"),
             "# FS-001-alpha: Alpha\n",
@@ -5535,7 +5567,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
                 .errors
                 .iter()
                 .all(|error| error.code != "agents-init"),
-            "project-owned AGENTS.md should not require a managed block without canonical agents.md"
+            "project-owned AGENTS.md should not require a managed block without canonical AGENTS.md"
         );
     }
 
@@ -5543,15 +5575,15 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     #[test]
     fn claude_symlink_to_agents_is_not_a_companion_entrypoint() {
         let root = test_root("claude_symlink_to_agents_is_not_a_companion_entrypoint");
-        write(&root.join("agents.md"), &current_block());
-        std::os::unix::fs::symlink("agents.md", root.join("CLAUDE.md"))
+        write(&root.join("AGENTS.md"), &current_block());
+        std::os::unix::fs::symlink("AGENTS.md", root.join("CLAUDE.md"))
             .expect("create CLAUDE.md symlink");
 
         let companions = companion_agent_entrypoints(&root).expect("discover companions");
 
         assert!(
             companions.is_empty(),
-            "CLAUDE.md symlinked to agents.md should be covered by agents.md"
+            "CLAUDE.md symlinked to AGENTS.md should be covered by AGENTS.md"
         );
     }
 }

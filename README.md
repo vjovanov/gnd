@@ -63,7 +63,7 @@ src/bus.rs:7: unknown reference FS-events.4
 2. Every section coordinate (`.3.1`) resolves to a heading inside the declaration. *(missing sections)*
 3. No ID is declared in two places. *(duplicates)*
 4. Every stub heading `# <ID>: [<text>](<path>)` points at a file containing the inline declaration. *(broken stubs)*
-5. The `agents.md` / `CLAUDE.md` / `AGENTS.md` entry-point block is up to date. *(stale init)*
+5. The `AGENTS.md` / `CLAUDE.md` entry-point block is up to date. *(stale init)*
 6. Declared-but-uncited IDs are flagged. *(unused — warning, not error; `E2E-` cases are exempt)*
 7. *(opt-in)* With `[reference] require_grounding = true`: every source file carries at least one citation. *(ungrounded source file)*
 
@@ -115,7 +115,7 @@ Three schemes are supported. Pick one per repo and keep it stable — mixing is 
 
 | Scheme                                     | Example             | Benefit                                                                                                          | Trade-off                                                                |
 |--------------------------------------------|---------------------|------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
-| `{kind}-{number}-{slug}` *(default)*       | `FS-014-user-login` | Number is the stable identifier; slug is descriptive and can be **renamed freely** without breaking citations.   | Two tokens to type; needs `gnd name` to allocate the next number.        |
+| `{kind}-{number}-{slug}` *(default)*       | `FS-014-user-login` | Number is the stable identifier; slug is descriptive and can be **renamed freely** without breaking citations.   | Two tokens to type; needs `gnd id` to allocate the next number.        |
 | `{kind}-{number}` (RFC-style)              | `FS-014`            | Maximally stable — no slug to drift. Familiar from RFCs/PEPs/JEPs/ADRs.                                          | Opaque at the call site: `§FS-014` tells you nothing without `gnd show`. |
 | `{kind}-{slug}` *(`gnd` itself uses this)* | `FS-user-login`     | Self-describing — reads like English in prose and code. No number to allocate.                                   | Renaming a slug rewrites every citation. Slug must be unique per kind.   |
 
@@ -156,7 +156,7 @@ That puts the `gnd` binary on your `PATH`. npm and PyPI bindings are planned —
 ## Set up a repo
 
 ```bash
-gnd init           # writes agents.md and .agents/gnd.toml in the cwd
+gnd init           # writes AGENTS.md and .agents/gnd.toml in the cwd
 gnd init --docs    # also scaffolds docs/ and e2e/ trees
 ```
 
@@ -180,8 +180,8 @@ pip install pre-commit && cargo install lychee && pre-commit install
 - **`gnd refs <ID>`** — list every citation of a declaration.
 - **`gnd cover`** — group the citation graph by file, for git-diff recipes.
 - **`gnd fmt`** — normalize citation syntax (`$$` → `§`, optional Markdown link wrapping).
-- **`gnd name <KIND> "<title>"`** — emit the next conflict-free ID for a new declaration.
-- **`gnd init`** — scaffold `agents.md` and `.agents/gnd.toml`.
+- **`gnd id <KIND> "<title>"`** — emit the next conflict-free ID for a new declaration.
+- **`gnd init`** — scaffold `AGENTS.md` and `.agents/gnd.toml`.
 - **`gnd config`** — validate or print the effective `.agents/gnd.toml`.
 - **`gnd completions`** — print bash, zsh, or fish completion scripts.
 - **`gnd agent-setup-instructions`** — print the guided setup workflow for AI agents.
@@ -198,7 +198,7 @@ That rule plus a clean `gnd check` is the whole contract: every reference resolv
 
 ## Project layout
 
-`gnd` follows its own scheme. Start at [`agents.md`](agents.md), then read down through [`docs/`](docs/):
+`gnd` follows its own scheme. Start at [`AGENTS.md`](AGENTS.md), then read down through [`docs/`](docs/):
 
 - [`docs/raison-detre.md`](docs/raison-detre.md) — why this exists
 - [`docs/goals/`](docs/goals/) — what we measure ourselves against

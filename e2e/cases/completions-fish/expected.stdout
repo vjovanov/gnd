@@ -4,6 +4,6 @@ function __gnd_complete_ids
     gnd complete ids --prefix "$token" 2>/dev/null
 end
 
-complete -c gnd -f -n "__fish_use_subcommand" -a "check show list refs cover fmt name init config agent-setup-instructions completions"
+complete -c gnd -f -n "__fish_use_subcommand" -a "check show list refs cover fmt id init config agent-setup-instructions completions"
 complete -c gnd -f -n "__fish_seen_subcommand_from show refs" -a "(__gnd_complete_ids)"
 

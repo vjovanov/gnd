@@ -2,21 +2,21 @@
 
 What `gnd` measures itself against. If a change does not advance one of these, it is not worth doing. Goals are declared inline below so a human can read the whole picture top-to-bottom; each declaration is a stable ID and may be cited from anywhere in the repo.
 
-Current goals: §G-agent-grounding, §G-no-dangling-refs, §G-polyglot-citation, §G-fast-feedback, §G-zero-config, §G-multi-language, §G-friendliness-first, §G-configurable, §G-no-silent-breakage, and §G-small-and-large.
+Current goals: [§G-agent-grounding](goals.md), [§G-no-dangling-refs](goals.md), [§G-polyglot-citation](goals.md), [§G-fast-feedback](goals.md), [§G-zero-config](goals.md), [§G-multi-language](goals.md), [§G-friendliness-first](goals.md), [§G-configurable](goals.md), [§G-no-silent-breakage](goals.md), and [§G-small-and-large](goals.md).
 
 ## G-agent-grounding: agents stay cited as they work
 
 The point of citations is to keep specs, decisions, and code coupled while the project evolves. That coupling only holds if every contributor — human or AI — leaves the tree cited *as they go*, not in a retro-fit pass at the end. `gnd` must make grounded work the path of least resistance: an agent should learn the rules without reading source, feel the rules while editing, and be stopped by the rules before a bad diff lands.
 
-This is the **headline** goal — every other goal in this file exists in service of it. §G-no-dangling-refs guarantees the resolver is right; §G-fast-feedback keeps it cheap enough to run in the agent loop; §G-friendliness-first shapes the output so an agent can act on it; §G-polyglot-citation lets a citation live wherever the agent edits. Grounding is the *outcome*; the rest is mechanism.
+This is the **headline** goal — every other goal in this file exists in service of it. [§G-no-dangling-refs](goals.md) guarantees the resolver is right; [§G-fast-feedback](goals.md) keeps it cheap enough to run in the agent loop; [§G-friendliness-first](goals.md) shapes the output so an agent can act on it; [§G-polyglot-citation](goals.md) lets a citation live wherever the agent edits. Grounding is the *outcome*; the rest is mechanism.
 
 ### 1. The three layers
 
 Grounding is enforced at three escalating layers; each catches what the one above it lets through.
 
-- **Instruction.** `gnd init` writes a managed block into `agents.md` (and the language-specific aliases — `CLAUDE.md`, etc.) that names the citation grammar, the `gnd show` / `gnd refs` workflow, the rule that an agent re-reads cited specs (via `gnd show <ID>`) before editing the code that realizes them, and the rule that every new behavior carries an ID. An agent that reads its entry-point file at session start arrives already taught — the "faster onboarding, cheaper LLM context" promise of the raison d'être, paid in a few hundred tokens at session open instead of a discovery walk through every spec. Per §G-no-silent-breakage, the block is versioned and refreshed by `gnd init --force`.
-- **Verification at rest.** `gnd check` over the whole tree is the steady-state guarantee — every cited ID resolves, every declaration is reachable, nothing dangles. This is the property §G-no-dangling-refs already locks in; this goal commits to keeping it cheap enough (§G-fast-feedback) that an agent can run it between edits, not just in CI.
-- **Diff-gated enforcement.** A `--since <ref>` mode (or equivalent) reports only what *changed* in the working tree relative to a base — new declarations missing from the index, new code without a citation to the spec it realizes, new specs without an e2e test under §G-no-dangling-refs's contract. This is the layer that closes the agent loop: a coding agent runs it before claiming a task is done and gets a punch list back, in the same shape as `gnd check`'s normal output.
+- **Instruction.** `gnd init` writes a managed block into `AGENTS.md` (and the language-specific aliases — `CLAUDE.md`, etc.) that names the citation grammar, the `gnd show` / `gnd refs` workflow, the rule that an agent re-reads cited specs (via `gnd show <ID>`) before editing the code that realizes them, and the rule that every new behavior carries an ID. An agent that reads its entry-point file at session start arrives already taught — the "faster onboarding, cheaper LLM context" promise of the raison d'être, paid in a few hundred tokens at session open instead of a discovery walk through every spec. Per [§G-no-silent-breakage](goals.md), the block is versioned and refreshed by `gnd init --force`.
+- **Verification at rest.** `gnd check` over the whole tree is the steady-state guarantee — every cited ID resolves, every declaration is reachable, nothing dangles. This is the property [§G-no-dangling-refs](goals.md) already locks in; this goal commits to keeping it cheap enough ([§G-fast-feedback](goals.md)) that an agent can run it between edits, not just in CI.
+- **Diff-gated enforcement.** A `--since <ref>` mode (or equivalent) reports only what *changed* in the working tree relative to a base — new declarations missing from the index, new code without a citation to the spec it realizes, new specs without an e2e test under [§G-no-dangling-refs](goals.md)'s contract. This is the layer that closes the agent loop: a coding agent runs it before claiming a task is done and gets a punch list back, in the same shape as `gnd check`'s normal output.
 
 ### 2. What "grounded" requires of a diff
 
@@ -31,22 +31,22 @@ The diff-gated mode reports the absences; it does not invent citations.
 
 ### 3. What this rules out
 
-- Heuristic "you probably meant to cite X" suggestions in `gnd check`. The tool reports facts about the tree; choosing the right `<ID>` is the contributor's call. (Composition with §G-friendliness-first.2: no severity knobs, no auto-fix, no guessing.)
-- A separate "lint" command parallel to `check`. Diff-gated reporting is a *mode* of `check`, sharing one resolver, one output schema, one exit-code mapping (§G-no-silent-breakage.1).
-- Hard-coding what "a code unit that realizes a behavior" means. The detector is a configurable scan rule (§G-configurable), not a built-in heuristic that two repos cannot agree on.
+- Heuristic "you probably meant to cite X" suggestions in `gnd check`. The tool reports facts about the tree; choosing the right `<ID>` is the contributor's call. (Composition with [§G-friendliness-first.2](goals.md#2-what-this-rules-out): no severity knobs, no auto-fix, no guessing.)
+- A separate "lint" command parallel to `check`. Diff-gated reporting is a *mode* of `check`, sharing one resolver, one output schema, one exit-code mapping ([§G-no-silent-breakage.1](goals.md#1-what-counts-as-user-visible)).
+- Hard-coding what "a code unit that realizes a behavior" means. The detector is a configurable scan rule ([§G-configurable](goals.md)), not a built-in heuristic that two repos cannot agree on.
 
 ### 4. Composition with other goals
 
-- §G-no-dangling-refs is the *correctness* contract for citations at rest; §G-agent-grounding is the *adoption* contract for citations as work proceeds. Together they say: the tree is always cited, and stays cited under change.
-- §G-friendliness-first.1 ("errors point at the line") applies unchanged — a diff-mode finding reports `path:line: <message>` so an agent or editor jumps straight to the source.
-- §G-fast-feedback is what makes layer 3 viable. A diff-gated check that takes longer than a save-cycle is one an agent will route around.
-- §G-zero-config holds: the instruction block (`gnd init`) and diff-mode default both assume the canonical layout; projects that diverge configure per §G-configurable.
+- [§G-no-dangling-refs](goals.md) is the *correctness* contract for citations at rest; [§G-agent-grounding](goals.md) is the *adoption* contract for citations as work proceeds. Together they say: the tree is always cited, and stays cited under change.
+- [§G-friendliness-first.1](goals.md#1-hard-requirements) ("errors point at the line") applies unchanged — a diff-mode finding reports `path:line: <message>` so an agent or editor jumps straight to the source.
+- [§G-fast-feedback](goals.md) is what makes layer 3 viable. A diff-gated check that takes longer than a save-cycle is one an agent will route around.
+- [§G-zero-config](goals.md) holds: the instruction block (`gnd init`) and diff-mode default both assume the canonical layout; projects that diverge configure per [§G-configurable](goals.md).
 
 ### 5. Measurable
 
-- `gnd init` writes the managed `agents.md` block on a fresh repo; re-running with `--force` refreshes it to the current `gnd` version without clobbering surrounding prose. E2E fixtures cover both paths (some already exist under `e2e/cases/init-*`).
-- A diff-gated mode of `gnd check` exists, runs within the §G-fast-feedback budget on the working tree, and reports uncited new declarations / code / decisions / e2e cases on the lines they were introduced. An e2e fixture stages a deliberately ungrounded diff and asserts that the mode catches each missing citation.
-- A "happy path" fixture stages a fully grounded diff and asserts the mode exits clean with the §G-friendliness-first.1 "zero noise on success" property.
+- `gnd init` writes the managed `AGENTS.md` block on a fresh repo; re-running with `--force` refreshes it to the current `gnd` version without clobbering surrounding prose. E2E fixtures cover both paths (some already exist under `e2e/cases/init-*`).
+- A diff-gated mode of `gnd check` exists, runs within the [§G-fast-feedback](goals.md) budget on the working tree, and reports uncited new declarations / code / decisions / e2e cases on the lines they were introduced. An e2e fixture stages a deliberately ungrounded diff and asserts that the mode catches each missing citation.
+- A "happy path" fixture stages a fully grounded diff and asserts the mode exits clean with the [§G-friendliness-first.1](goals.md#1-hard-requirements) "zero noise on success" property.
 
 ## G-no-dangling-refs: every cited ID resolves to a declaration
 
@@ -57,7 +57,7 @@ A repo that passes `gnd` has zero dangling references and zero broken section co
 A citation `§FS-<user-login>.3.1` resolves when:
 
 - A declaration of `FS-<user-login>` exists somewhere in the scanned tree.
-- The declaration body contains a numbered section `3.1` (recursively, at any depth — see §FS-config.3.3).
+- The declaration body contains a numbered section `3.1` (recursively, at any depth — see [§FS-config.3.3](../functional-spec/FS-config.md#33-section-paths--arbitrary-nesting-depth)).
 - If the declaration is a stub (H1 of the form `# <ID>: [<text>](<path>)`), the pointed-at file contains an inline declaration of the same ID.
 
 ### 2. Measurable
@@ -66,12 +66,12 @@ The e2e suite includes deliberately broken inputs (missing declarations, missing
 
 ## G-polyglot-citation: IDs cite cleanly from anywhere they are useful
 
-A `gnd` citation is valid in a Markdown file, a Java doc-comment, a Rust `///` line, a Python docstring, a Go doc block, a TypeScript JSDoc, or any other source-comment form enumerated in §AS-scanner.4 — and `gnd` verifies it the same way in every one. This is the property that off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) cannot offer, and it is the load-bearing reason `gnd` exists alongside them rather than competing with them.
+A `gnd` citation is valid in a Markdown file, a Java doc-comment, a Rust `///` line, a Python docstring, a Go doc block, a TypeScript JSDoc, or any other source-comment form enumerated in [§AS-scanner.4](../architectural-spec/AS-scanner.md#4-inline-declarations-in-language-doc-comments) — and `gnd` verifies it the same way in every one. This is the property that off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) cannot offer, and it is the load-bearing reason `gnd` exists alongside them rather than competing with them.
 
 ### 1. What "cleanly" means
 
 - One citation grammar across all hosts. A citation like `§FS-<user-login>.3.1` reads, parses, and resolves identically whether the file is `.md`, `.rs`, `.java`, `.py`, `.go`, `.ts`, or any other extension on the configured scan list.
-- One marker. The same `§` (or whatever §DF-reference-marker resolves to in the project's config) is recognized in every file type; no per-language escape rules.
+- One marker. The same `§` (or whatever [§DF-reference-marker](../decisions/functional/DF-reference-marker.md) resolves to in the project's config) is recognized in every file type; no per-language escape rules.
 - One section grammar. The trailing `.3.1` resolves to a heading inside the declaration body the same way regardless of which file type the *declaration* lives in (`.md` page, inline Rustdoc, Javadoc, Python docstring).
 - One resolver. Citations cross the docs/code boundary in both directions: a Markdown spec under `docs/` may cite an architectural ID whose home is a Java class doc-comment, and the Java class doc-comment may cite a functional ID back. Both are validated by the same `gnd check` walk.
 
@@ -81,13 +81,13 @@ Markdown links degrade the moment a citation crosses the docs/code boundary: sou
 
 ### 3. Composition with other goals
 
-- §G-no-dangling-refs is the *correctness* contract; §G-polyglot-citation is the *coverage* contract. Together they say: every cited ID resolves, no matter where the citation lives.
-- §G-multi-language is about the *engine* shipping on three registries (cargo / npm / PyPI). §G-polyglot-citation is about the *citations themselves* spanning languages. The two are independent — one is about distribution, the other about the reference grammar.
-- §G-friendliness-first.1 ("errors point at the line") applies in every host: a dangling cite in a Javadoc reports `<path>:<line>` exactly the way a dangling cite in a Markdown file does.
+- [§G-no-dangling-refs](goals.md) is the *correctness* contract; [§G-polyglot-citation](goals.md) is the *coverage* contract. Together they say: every cited ID resolves, no matter where the citation lives.
+- [§G-multi-language](goals.md) is about the *engine* shipping on three registries (cargo / npm / PyPI). [§G-polyglot-citation](goals.md) is about the *citations themselves* spanning languages. The two are independent — one is about distribution, the other about the reference grammar.
+- [§G-friendliness-first.1](goals.md#1-hard-requirements) ("errors point at the line") applies in every host: a dangling cite in a Javadoc reports `<path>:<line>` exactly the way a dangling cite in a Markdown file does.
 
 ### 4. Measurable
 
-The e2e suite includes positive and negative fixtures for every supported doc-comment form in §AS-scanner.4 — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, Rustdoc (`///`, `//!`, `/** … */`), Go `//` blocks, Python `""" … """` docstrings, C# XML doc, Ruby `#` lines. Each fixture exercises a citation crossing the docs/code boundary in both directions. A regression in any host is a release blocker.
+The e2e suite includes positive and negative fixtures for every supported doc-comment form in [§AS-scanner.4](../architectural-spec/AS-scanner.md#4-inline-declarations-in-language-doc-comments) — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, Rustdoc (`///`, `//!`, `/** … */`), Go `//` blocks, Python `""" … """` docstrings, C# XML doc, Ruby `#` lines. Each fixture exercises a citation crossing the docs/code boundary in both directions. A regression in any host is a release blocker.
 
 ## G-fast-feedback: gnd must be as fast as possible
 
@@ -95,7 +95,7 @@ Speed is not a target — it is an **ordering principle**. When a design choice 
 
 ### 1. Performance targets
 
-These are the targets the implementation is designed around. As of 0.1.0 they are met by a wide margin in practice (`gnd .` on this repo runs in tens of milliseconds), but they are not yet a release-blocking measured contract: the criterion harness that records baselines and fails CI on regression is tracked under §RM-benchmarks. Until that lands, CI carries only the cheap guard in §3.
+These are the targets the implementation is designed around. As of 0.1.0 they are met by a wide margin in practice (`gnd .` on this repo runs in tens of milliseconds), but they are not yet a release-blocking measured contract: the criterion harness that records baselines and fails CI on regression is tracked under [§RM-benchmarks](../roadmap.md). Until that lands, CI carries only the cheap guard in §3.
 
 - Under **100 ms** on the `gnd` repo itself. The self-host loop must be invisible.
 - Under **1 s** on a 10k-file repo.
@@ -107,11 +107,11 @@ These are the targets the implementation is designed around. As of 0.1.0 they ar
 - Streaming line scan, not full-file buffering, on large files.
 - Parallel walk using `rayon` once the single-thread version stops winning.
 - Compiled regexes shared across all files via `once_cell`.
-- Skip directories that obviously cannot contain specs — see §FS-config.3.5.
+- Skip directories that obviously cannot contain specs — see [§FS-config.3.5](../functional-spec/FS-config.md#35-scan--what-gets-walked).
 
 ### 3. Measurable
 
-Manual timing on this repo and on a synthetic 10k-file fixture should stay within the targets above. The full criterion harness that turns those targets into recorded, release-blocking CI checks is §RM-benchmarks; until then CI runs the built `gnd .` under a generous timeout (§AS-ci.4) so a catastrophic regression — an accidental quadratic walk, a re-read pass — still fails the build.
+Manual timing on this repo and on a synthetic 10k-file fixture should stay within the targets above. The full criterion harness that turns those targets into recorded, release-blocking CI checks is [§RM-benchmarks](../roadmap.md); until then CI runs the built `gnd .` under a generous timeout ([§AS-ci.4](../architectural-spec/AS-ci.md#4-performance-smoke-guard)) so a catastrophic regression — an accidental quadratic walk, a re-read pass — still fails the build.
 
 ## G-zero-config: works on any conformant tree
 
@@ -119,15 +119,15 @@ No config file, no flags required for the canonical layout. Discovery is by walk
 
 ### 1. What "canonical layout" means
 
-A repo whose layout follows the canonical `gnd` conventions: `agents.md` at the root; `docs/` containing `functional-spec/`, `architectural-spec/`, `decisions/{architectural,functional}/`, `goals/`; `e2e/` for end-to-end tests; sources under `src/`; IDs in the canonical grammar. For such a repo, `gnd .` Just Works — with no config, the walk covers `docs/`, `e2e/`, and `src/` (the default `[scan] include`, §FS-config.3.5). A project whose sources or specs live elsewhere is one `[scan] include` line away from the same experience (`gnd init` writes the file for editing), and `gnd check <path>` always scans exactly the path it is handed regardless of the default scope. A walk that ends up reading nothing says so rather than exiting `0` silently (§FS-check.2.2) — the "any conformant tree" promise fails loud, never quiet.
+A repo whose layout follows the canonical `gnd` conventions: `AGENTS.md` at the root; `docs/` containing `functional-spec/`, `architectural-spec/`, `decisions/{architectural,functional}/`, `goals/`; `e2e/` for end-to-end tests; sources under `src/`; IDs in the canonical grammar. For such a repo, `gnd .` Just Works — with no config, the walk covers `docs/`, `e2e/`, and `src/` (the default `[scan] include`, [§FS-config.3.5](../functional-spec/FS-config.md#35-scan--what-gets-walked)). A project whose sources or specs live elsewhere is one `[scan] include` line away from the same experience (`gnd init` writes the file for editing), and `gnd check <path>` always scans exactly the path it is handed regardless of the default scope. A walk that ends up reading nothing says so rather than exiting `0` silently ([§FS-check.2.2](../functional-spec/FS-check.md#22-empty-scan)) — the "any conformant tree" promise fails loud, never quiet.
 
 ### 2. Measurable
 
-`gnd <repo>` works on any canonical-layout repo without additional setup. The e2e suite includes a "minimal conformant repo" fixture; `gnd` must report zero errors with no flags and no `gnd.toml`. A repo whose content sits outside the default scope and carries no config gets the empty-scan notice of §FS-check.2.2, not a misleading clean exit.
+`gnd <repo>` works on any canonical-layout repo without additional setup. The e2e suite includes a "minimal conformant repo" fixture; `gnd` must report zero errors with no flags and no `gnd.toml`. A repo whose content sits outside the default scope and carries no config gets the empty-scan notice of [§FS-check.2.2](../functional-spec/FS-check.md#22-empty-scan), not a misleading clean exit.
 
-### 3. Composition with §G-configurable
+### 3. Composition with [§G-configurable](goals.md)
 
-Zero-config and configurable are not in tension — they compose. Out-of-the-box, `gnd` matches the canonical defaults; for projects that diverge, every assumption is overridable per §FS-config. There is no middle ground where defaults are weird.
+Zero-config and configurable are not in tension — they compose. Out-of-the-box, `gnd` matches the canonical defaults; for projects that diverge, every assumption is overridable per [§FS-config](../functional-spec/FS-config.md). There is no middle ground where defaults are weird.
 
 ## G-multi-language: same engine, three platforms
 
@@ -139,7 +139,7 @@ The same input — a tree plus an optional `gnd.toml` — produces a byte-identi
 
 ### 2. Idiomatic surfaces
 
-Each binding fits its host. Rust returns `Result<T, E>`; Node returns Promises; Python returns values and raises exceptions. Names follow each ecosystem's conventions. Behavior is identical; surface fits each. See §FS-distribution and §AS-bindings for the implementation.
+Each binding fits its host. Rust returns `Result<T, E>`; Node returns Promises; Python returns values and raises exceptions. Names follow each ecosystem's conventions. Behavior is identical; surface fits each. See [§FS-distribution](../functional-spec/FS-distribution.md) and [§AS-bindings](../architectural-spec/AS-bindings.md) for the implementation.
 
 ### 3. Measurable
 
@@ -147,7 +147,7 @@ An integration test runs the same spec corpus through each binding and asserts b
 
 ## G-friendliness-first: as user- and agent-friendly as possible
 
-Friendliness is the second **ordering principle** (alongside speed, §G-fast-feedback). When a design choice trades raw capability or terseness for legibility, legibility wins. `gnd` is used by humans in terminals and IDEs *and* by AI agents through stdout pipelines — both audiences must be served.
+Friendliness is the second **ordering principle** (alongside speed, [§G-fast-feedback](goals.md)). When a design choice trades raw capability or terseness for legibility, legibility wins. `gnd` is used by humans in terminals and IDEs *and* by AI agents through stdout pipelines — both audiences must be served.
 
 ### 1. Hard requirements
 
@@ -168,15 +168,15 @@ Typical `gnd show` output under 200 lines; `gnd --format=json` validates against
 
 ## G-configurable: every default is overridable
 
-Zero-config by default (§G-zero-config); configurable when a project's conventions diverge. Users must be able to write references **the way they like**.
+Zero-config by default ([§G-zero-config](goals.md)); configurable when a project's conventions diverge. Users must be able to write references **the way they like**.
 
 ### 1. What is configurable
 
-Per §FS-config, a `gnd.toml` at the repo root can override the set of `KIND` prefixes, the ID format itself, the reference marker and typing trigger, strict vs optional marker mode, the set of folders that are scanned and skipped, the supported comment prefixes for inline specs, and the output format defaults.
+Per [§FS-config](../functional-spec/FS-config.md), a `gnd.toml` at the repo root can override the set of `KIND` prefixes, the ID format itself, the reference marker and typing trigger, strict vs optional marker mode, the set of folders that are scanned and skipped, the supported comment prefixes for inline specs, and the output format defaults.
 
 ### 2. What is NOT configurable
 
-Per §G-friendliness-first.2, the severity model, exit-code mapping, report ordering, and other invariants that would let two correctly-configured installs disagree on a repo's well-formedness are deliberately **not** configurable.
+Per [§G-friendliness-first.2](goals.md#2-what-this-rules-out), the severity model, exit-code mapping, report ordering, and other invariants that would let two correctly-configured installs disagree on a repo's well-formedness are deliberately **not** configurable.
 
 ### 3. Measurable
 
@@ -184,15 +184,15 @@ An e2e fixture with a non-default `gnd.toml` (custom kinds, alternate section de
 
 ## G-no-silent-breakage: changes ship through a deprecation path
 
-A repo that worked yesterday must work today. Every user-visible change to `gnd` either stays backwards-compatible or ships through a deprecation path that names the removal horizon. Silent semantic changes — output shape, exit codes, config schema, grammar — are release blockers, not features. This goal extends §G-friendliness-first.1's "no surprises" from within-run determinism to cross-version stability.
+A repo that worked yesterday must work today. Every user-visible change to `gnd` either stays backwards-compatible or ships through a deprecation path that names the removal horizon. Silent semantic changes — output shape, exit codes, config schema, grammar — are release blockers, not features. This goal extends [§G-friendliness-first.1](goals.md#1-hard-requirements)'s "no surprises" from within-run determinism to cross-version stability.
 
 ### 1. What counts as user-visible
 
-- CLI surface: subcommands, flags, and the exit-code mapping (frozen per §G-friendliness-first.2 and §FS-non-goals.9).
-- Output bytes: stdout and stderr shapes that tools, editors, and agents pipe — including the `--format=json` schema (§G-friendliness-first.1).
-- `gnd.toml` schema (§FS-config.3) and the `gnd_config_version` (§FS-config.5).
-- Reference grammar: KIND set, ID format, marker, trigger (§DF-reference-marker).
-- The `agents.md` init block content and its version markers (§FS-init.2.3).
+- CLI surface: subcommands, flags, and the exit-code mapping (frozen per [§G-friendliness-first.2](goals.md#2-what-this-rules-out) and [§FS-non-goals.9](../functional-spec/FS-non-goals.md#9-severity-exit-code-or-report-ordering-customization)).
+- Output bytes: stdout and stderr shapes that tools, editors, and agents pipe — including the `--format=json` schema ([§G-friendliness-first.1](goals.md#1-hard-requirements)).
+- `gnd.toml` schema ([§FS-config.3](../functional-spec/FS-config.md#3-schema)) and the `gnd_config_version` ([§FS-config.5](../functional-spec/FS-config.md#5-schema-versioning)).
+- Reference grammar: KIND set, ID format, marker, trigger ([§DF-reference-marker](../decisions/functional/DF-reference-marker.md)).
+- The `AGENTS.md` init block content and its version markers ([§FS-init.2.3](../functional-spec/FS-init.md#23-generated-agent-entrypoints)).
 
 Internal refactors that leave every item above byte-identical are out of scope — they are not "changes" in the sense this goal covers.
 
@@ -201,7 +201,7 @@ Internal refactors that leave every item above byte-identical are out of scope �
 A change crosses at least two releases:
 
 1. **Release N** introduces the new form. The old form continues to work and emits a one-line warning to stderr that names the change, the new form, and the release in which the old form will stop working. The changelog entry (FS — see `docs/changelog.md` §1) links the warning to its specification.
-2. **Release ≥ N+1**, after the named horizon, removes the old form. A schema-version bump (`gnd_config_version`, `agents.md` block) **is** the horizon for that surface — `gnd` refuses to load the old version with a message that points at the migration.
+2. **Release ≥ N+1**, after the named horizon, removes the old form. A schema-version bump (`gnd_config_version`, `AGENTS.md` block) **is** the horizon for that surface — `gnd` refuses to load the old version with a message that points at the migration.
 
 A change that cannot be expressed as a deprecation path (e.g. a security fix that requires immediate semantic change) is documented in `docs/decisions/architectural/` with the reason the goal is being broken, in advance of the release.
 
@@ -225,14 +225,14 @@ A repo with hundreds of specs across many components organizes them into a compo
 
 ### 3. Layout knobs live in config
 
-Per §FS-config, the layout differences between small and large repos are exposed as keys in `gnd.toml`, defaulting to small. Repos opt in to component-required mode (and any other layout commitments needed for scale) when flat stops working for them. Both modes are first-class; neither is a degraded form of the other.
+Per [§FS-config](../functional-spec/FS-config.md), the layout differences between small and large repos are exposed as keys in `gnd.toml`, defaulting to small. Repos opt in to component-required mode (and any other layout commitments needed for scale) when flat stops working for them. Both modes are first-class; neither is a degraded form of the other.
 
-### 4. Composition with §G-zero-config and §G-configurable
+### 4. Composition with [§G-zero-config](goals.md) and [§G-configurable](goals.md)
 
-The default — flat, component-optional — keeps zero-config intact for the small case (§G-zero-config). Configurability picks up where flat stops scaling (§G-configurable). The two ordering principles compose: out-of-the-box behavior is canonical small-repo `gnd`; scale is opted into, not bolted on.
+The default — flat, component-optional — keeps zero-config intact for the small case ([§G-zero-config](goals.md)). Configurability picks up where flat stops scaling ([§G-configurable](goals.md)). The two ordering principles compose: out-of-the-box behavior is canonical small-repo `gnd`; scale is opted into, not bolted on.
 
 ### 5. Measurable
 
 - An e2e fixture for a "tiny conformant repo" (handful of specs, flat, no `gnd.toml`) passes.
-- An e2e fixture for a "large conformant repo" (synthetic, sized to fit CI budget, with components, sub-components, and tree-form specs) passes with the appropriate `gnd.toml` and meets the §G-fast-feedback budget for a 10k-file repo.
+- An e2e fixture for a "large conformant repo" (synthetic, sized to fit CI budget, with components, sub-components, and tree-form specs) passes with the appropriate `gnd.toml` and meets the [§G-fast-feedback](goals.md) budget for a 10k-file repo.
 - The large fixture, with its `gnd.toml` removed, fails — proving that scale features are opt-in, not implicit.

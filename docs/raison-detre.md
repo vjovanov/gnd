@@ -8,13 +8,13 @@ Citations live wherever they are useful — including inside Java doc-comments, 
 
 ## 1. What gnd does about it
 
-`gnd` owns the scheme end to end. It defines the IDs and citation grammar, ships the config in `.agents/gnd.toml`, and scans every `.md` file and every source file in the repo (§AS-scanner.4) to guarantee three things:
+`gnd` owns the scheme end to end. It defines the IDs and citation grammar, ships the config in `.agents/gnd.toml`, and scans every `.md` file and every source file in the repo ([§AS-scanner.4](architectural-spec/AS-scanner.md#4-inline-declarations-in-language-doc-comments)) to guarantee three things:
 
 1. **No dangling reference ships.** Every cited ID is checked across prose and code alike — Javadoc, Rustdoc, Python docstrings, Go blocks, JSDoc. Dangling refs, broken section coordinates, duplicate declarations, and broken stub links all fail the build.
 2. **Citations survive refactors.** IDs are location-independent: `§FS-<user-login>.3.1` keeps resolving when files move or headings reword. Markdown anchors break; gnd citations don't.
-3. **Grounding is cheap.** `gnd show FS-<user-login>.3.1` returns just that subsection — under 200 lines per §G-friendliness-first.1 — so a human or LLM pulls one fact into context instead of a whole file.
+3. **Grounding is cheap.** `gnd show FS-<user-login>.3.1` returns just that subsection — under 200 lines per [§G-friendliness-first.1](goals/goals.md#1-hard-requirements) — so a human or LLM pulls one fact into context instead of a whole file.
 
-This serves §G-agent-grounding — the headline goal that every other goal exists in service of — and the mechanisms that make it viable: §G-no-dangling-refs, §G-fast-feedback, §G-friendliness-first, and §G-polyglot-citation.
+This serves [§G-agent-grounding](goals/goals.md) — the headline goal that every other goal exists in service of — and the mechanisms that make it viable: [§G-no-dangling-refs](goals/goals.md), [§G-fast-feedback](goals/goals.md), [§G-friendliness-first](goals/goals.md), and [§G-polyglot-citation](goals/goals.md).
 
 ## 2. Who it is for
 

@@ -1,6 +1,6 @@
 # FS-completions: gnd completes declared IDs in shells
 
-Shell completion makes the read loop cheap: after `gnd list` tells a user what exists and `gnd show <ID>` reads one body, the shell should complete `<ID>` without making the user copy it. This spec covers shell completion only; editor completion remains the LSP surface in §FS-lsp.1.5.
+Shell completion makes the read loop cheap: after `gnd list` tells a user what exists and `gnd show <ID>` reads one body, the shell should complete `<ID>` without making the user copy it. This spec covers shell completion only; editor completion remains the LSP surface in [§FS-lsp.1.5](FS-lsp.md#15-capabilities-reserved-for-later).
 
 ## 1. User-facing command
 
@@ -10,7 +10,7 @@ gnd completions <bash|zsh|fish>
 
 Prints a completion script for the requested shell on stdout, empty stderr, exit `0`. Unsupported shells are CLI-level errors: `error: unsupported shell \`<shell>\`` plus `known shells: bash, zsh, fish` on stderr, empty stdout, exit `2`.
 
-The generated scripts complete top-level subcommands (`check`, `show`, `list`, `refs`, `cover`, `fmt`, `name`, `init`, `config`, `agent-setup-instructions`, `completions`) and complete declared IDs in the first ID position of:
+The generated scripts complete top-level subcommands (`check`, `show`, `list`, `refs`, `cover`, `fmt`, `id`, `init`, `config`, `agent-setup-instructions`, `completions`) and complete declared IDs in the first ID position of:
 
 - `gnd show <ID>`
 - `gnd refs <ID>`
@@ -29,9 +29,9 @@ It prints one candidate per line on stdout, sorted lexicographically and dedupli
 
 - `<path>` / `--path <path>` choose the repo or subtree used for config discovery and scanning. Both default to `.`.
 - `--prefix <prefix>` filters candidates by byte prefix. Without it, every candidate for the selected mode is printed.
-- Without `--sections`, candidates are declared IDs, rendered in the repo's configured `[id].format` (§FS-config.3.2).
+- Without `--sections`, candidates are declared IDs, rendered in the repo's configured `[id].format` ([§FS-config.3.2](FS-config.md#32-id--id-grammar)).
 - When `--prefix` already contains the configured `[id].section_separator`, section candidates are printed instead of bare IDs. `--sections` forces section-candidate mode even when the prefix has no separator.
-- Section candidates have the shape `<ID><section_separator><section>`, e.g. `FS-cli.1`, and come from the same section table `gnd show` uses (§FS-show.2.2).
+- Section candidates have the shape `<ID><section_separator><section>`, e.g. `FS-cli.1`, and come from the same section table `gnd show` uses ([§FS-show.2.2](FS-show.md#22-section)).
 
 Completion is invoked on every tab press, so config and scan failures are quiet: if config cannot be loaded or the tree cannot be scanned, the helper prints nothing and exits `0`. Invalid helper flags are still CLI errors (`2`) because they indicate a broken installed completion script.
 

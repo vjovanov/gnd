@@ -1,21 +1,21 @@
 # FS-distribution: gnd distribution targets
 
-`gnd` is written in Rust; the target distribution is **all three** major language ecosystems — cargo, npm, and PyPI — with idiomatic API bindings on each. The check engine stays a single shared library; only the surfaces differ. Today the Cargo CLI is implemented and installable from git; registry publication, the npm and PyPI bindings, and the optional `gnd-lsp` server are tracked in `docs/roadmap.md` and gated by §RM-distribution-naming. Serves §G-multi-language and §G-friendliness-first.
+`gnd` is written in Rust; the target distribution is **all three** major language ecosystems — cargo, npm, and PyPI — with idiomatic API bindings on each. The check engine stays a single shared library; only the surfaces differ. Today the Cargo CLI is implemented and installable from git; registry publication, the npm and PyPI bindings, and the optional `gnd-lsp` server are tracked in `docs/roadmap.md` and gated by [§RM-distribution-naming](../roadmap.md). Serves [§G-multi-language](../goals/goals.md) and [§G-friendliness-first](../goals/goals.md).
 
 ## 1. Targets
 
 | Registry | Package name        | Contents                                                                  |
 |----------|---------------------|---------------------------------------------------------------------------|
 | cargo    | `gnd`               | Library crate (`gnd-core`) + binary (`gnd`).                              |
-| cargo    | `gnd-lsp`           | Optional LSP server binary (§FS-lsp). Depends on `gnd-core`.              |
+| cargo    | `gnd-lsp`           | Optional LSP server binary ([§FS-lsp](FS-lsp.md)). Depends on `gnd-core`.              |
 | npm      | `gnd-cli`           | Prebuilt CLI binary + thin Node API surface (via `napi-rs`).              |
 | npm      | `gnd-lsp`           | Optional LSP server binary, prebuilt per platform.                        |
 | PyPI     | `gnd-cli`           | Prebuilt CLI wheel + Python API surface (via `PyO3` / `maturin`).         |
 | PyPI     | `gnd-lsp`           | Optional LSP server, distributed via wheel (`pipx install gnd-lsp`).      |
 
-The PyPI name `gnd` is held by an unrelated package, so PyPI uses the explicit alternate `gnd-cli` per §DA-pypi-package-name. The installed binary is still `gnd`, and the Python import module is still intended to be `gnd`. The npm package also uses `gnd-cli` because the unscoped `gnd` is likewise held by an unrelated dormant package (see §DA-reference-checker-name). The remaining registry slots — including `gnd-lsp` — are re-verified by §RM-distribution-naming before first publish.
+The PyPI name `gnd` is held by an unrelated package, so PyPI uses the explicit alternate `gnd-cli` per [§DA-pypi-package-name](../decisions/architectural/DA-pypi-package-name.md). The installed binary is still `gnd`, and the Python import module is still intended to be `gnd`. The npm package also uses `gnd-cli` because the unscoped `gnd` is likewise held by an unrelated dormant package (see [§DA-reference-checker-name](../decisions/architectural/DA-reference-checker-name.md)). The remaining registry slots — including `gnd-lsp` — are re-verified by [§RM-distribution-naming](../roadmap.md) before first publish.
 
-The CLI install on each registry does **not** transitively pull in `gnd-lsp` — they are independent published packages, per §DA-lsp-optional. A user who only runs `gnd check` in CI installs the CLI alone; a user who wants editor integration installs `gnd-lsp` separately and configures their editor to launch it (§FS-lsp.2).
+The CLI install on each registry does **not** transitively pull in `gnd-lsp` — they are independent published packages, per [§DA-lsp-optional](../decisions/architectural/DA-lsp-optional.md). A user who only runs `gnd check` in CI installs the CLI alone; a user who wants editor integration installs `gnd-lsp` separately and configures their editor to launch it ([§FS-lsp.2](FS-lsp.md#2-installation-and-lifecycle)).
 
 ## 2. CLI parity
 
@@ -52,7 +52,7 @@ ShowOpts {
 }
 ```
 
-These fields are normative. The byte-for-byte JSON form emitted by `gnd --format=json` and consumed by IDE/agent integrations follows the same shape and is the cross-binding equivalence test (§G-multi-language.3).
+These fields are normative. The byte-for-byte JSON form emitted by `gnd --format=json` and consumed by IDE/agent integrations follows the same shape and is the cross-binding equivalence test ([§G-multi-language.3](../goals/goals.md#3-measurable)).
 
 ### 3.1 Rust (`gnd-core` crate)
 
@@ -83,7 +83,7 @@ report = check("./repo")
 body = show("FS-check", head=True)
 ```
 
-The Python binding is built with `PyO3` and packaged with `maturin`. Wheels are built for CPython 3.10+ across the platforms covered by `cibuildwheel`. The distribution package is named `gnd-cli`; the import module is `gnd` (§DA-pypi-package-name).
+The Python binding is built with `PyO3` and packaged with `maturin`. Wheels are built for CPython 3.10+ across the platforms covered by `cibuildwheel`. The distribution package is named `gnd-cli`; the import module is `gnd` ([§DA-pypi-package-name](../decisions/architectural/DA-pypi-package-name.md)).
 
 ## 4. Release process
 

@@ -13,7 +13,7 @@ The subcommands a user runs on the command line.
 - [§FS-cover](FS-cover.md) — groups citations by scanned file
 - [§FS-fmt](FS-fmt.md) — normalizes references in bulk
 - [§FS-init](FS-init.md) — bootstraps a new `gnd`-conformant repo
-- [§FS-name](FS-name.md) — proposes IDs for new declarations
+- [§FS-id](FS-id.md) — proposes IDs for new declarations
 - [§FS-completions](FS-completions.md) — shell completion for declared IDs
 
 ## Editor integration

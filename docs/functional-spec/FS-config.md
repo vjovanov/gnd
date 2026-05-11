@@ -1,6 +1,6 @@
 # FS-config: gnd reads a TOML config file under .agents/
 
-`gnd` is zero-config out of the box (§G-zero-config) and fully configurable when a project's conventions diverge (§G-configurable). This spec defines the contract: where the config lives, what it contains, what it overrides, and how malformed configs are reported.
+`gnd` is zero-config out of the box ([§G-zero-config](../goals/goals.md)) and fully configurable when a project's conventions diverge ([§G-configurable](../goals/goals.md)). This spec defines the contract: where the config lives, what it contains, what it overrides, and how malformed configs are reported.
 
 ## 1. File location and discovery
 
@@ -16,7 +16,7 @@ CLI flags > `gnd.toml` > built-in defaults. Layering is shallow: a value present
 
 ## 3. Schema
 
-The config file is TOML. Every key is optional; omitted keys take the default value. Unknown keys are an **error**, not a warning, per §G-friendliness-first — typos in config files are bugs and gnd surfaces them loudly.
+The config file is TOML. Every key is optional; omitted keys take the default value. Unknown keys are an **error**, not a warning, per [§G-friendliness-first](../goals/goals.md) — typos in config files are bugs and gnd surfaces them loudly.
 
 The recognized surface is the line-oriented subset that the schema below uses: one `key = value` per line, basic (double-quoted) strings, booleans, integers, and single-line `["…", "…"]` arrays of basic strings; `#` comments; `[table]` and `[[array.of.tables]]` headers. Multi-line arrays, inline `{ … }` tables, and other TOML constructs are not parsed — keep each value on one line. A line that does not fit this shape is reported as an error pointing at the offending line, per §4.3.
 
@@ -39,9 +39,9 @@ strict            = false    # default; if true, bare citations are NOT recogniz
 require_grounding = false    # default; if true, `check` flags source files that cite no declared ID
 ```
 
-Per §DF-reference-marker. `strict = true` requires a non-empty `marker`.
+Per [§DF-reference-marker](../decisions/functional/DF-reference-marker.md). `strict = true` requires a non-empty `marker`.
 
-`require_grounding = true` adds the ungrounded-source-file error (§FS-check.3.6): every scanned non-Markdown file must carry at least one resolving citation, or declare an ID inline. `gnd check --require-grounding` forces it on for one run. Per §DF-require-grounding; off by default so adopting the discipline is a deliberate step, like `strict`.
+`require_grounding = true` adds the ungrounded-source-file error ([§FS-check.3.6](FS-check.md#36-ungrounded-source-file-opt-in)): every scanned non-Markdown file must carry at least one resolving citation, or declare an ID inline. `gnd check --require-grounding` forces it on for one run. Per [§DF-require-grounding](../decisions/functional/DF-require-grounding.md); off by default so adopting the discipline is a deliberate step, like `strict`.
 
 ### 3.2 `[id]` — ID grammar
 
@@ -63,7 +63,7 @@ The three canonical shapes:
 | `"{kind}-{number}"`            | `FS-NNN`              | number                       |
 | `"{kind}-{slug}"`              | `FS-<slug>`           | slug must be unique per kind |
 
-When `{number}` is omitted, slugs must be unique within each kind — two declarations sharing a kind and slug collide on the same ID and are reported as duplicate declarations (per §FS-check.3). When `{number}` is present, slugs are descriptive only and may repeat across declarations with different numbers.
+When `{number}` is omitted, slugs must be unique within each kind — two declarations sharing a kind and slug collide on the same ID and are reported as duplicate declarations (per [§FS-check.3](FS-check.md#3-errors-detected)). When `{number}` is present, slugs are descriptive only and may repeat across declarations with different numbers.
 
 `section_separator` must not collide lexically with any literal in `format` or with `slug_pattern`. gnd validates this on load and refuses ambiguous configs.
 
@@ -92,7 +92,7 @@ This split keeps the section grammar regular at any depth.
 
 ### 3.4 `[[kinds]]` — recognized prefixes
 
-One `[[kinds]]` table per allowed prefix. `folder` is the conventional home for declarations of this kind — used by `gnd name` (§FS-name.2.2 emits it as the `folder` field) and by editor "create new declaration" / "go to home folder" actions; it is **not** enforced by the checker — declarations are recognized wherever they appear. `title` is human-readable metadata: it surfaces in `gnd show --format=json`, `gnd refs --format=json`, and IDE hover previews, and is **not** injected into `gnd show --format=md` text (which is the declaration verbatim — §FS-show.3).
+One `[[kinds]]` table per allowed prefix. `folder` is the conventional home for declarations of this kind — used by `gnd id` ([§FS-id.2.2](FS-id.md#22---format-json) emits it as the `folder` field) and by editor "create new declaration" / "go to home folder" actions; it is **not** enforced by the checker — declarations are recognized wherever they appear. `title` is human-readable metadata: it surfaces in `gnd show --format=json`, `gnd refs --format=json`, and IDE hover previews, and is **not** injected into `gnd show --format=md` text (which is the declaration verbatim — [§FS-show.3](FS-show.md#3-outputs)).
 
 The defaults declare the canonical seven, in this order:
 
@@ -133,7 +133,7 @@ folder = "docs"
 title  = "Roadmap milestone"
 ```
 
-`G` declarations are H2 headings inside the single file `docs/goals/goals.md` (one file, all goals inline); `RM` declarations are likewise H2 headings inside the single file `docs/roadmap.md` (one file, all milestones inline) — `folder` is `docs` because that file lives at the top of `docs/`; `FS`, `AS`, `DF`, and `DA` declarations are the H1 of a file in their `folder` (an `AS` declaration may instead live inline in a source doc-comment with an optional stub in `folder` — §AS-scanner.4); `E2E` declarations are case directories under `folder` rather than heading lines — §AS-scanner.6. A project that overrides this list replaces the defaults entirely — there is no merge. To extend rather than replace, copy the defaults and add to them.
+`G` declarations are H2 headings inside the single file `docs/goals/goals.md` (one file, all goals inline); `RM` declarations are likewise H2 headings inside the single file `docs/roadmap.md` (one file, all milestones inline) — `folder` is `docs` because that file lives at the top of `docs/`; `FS`, `AS`, `DF`, and `DA` declarations are the H1 of a file in their `folder` (an `AS` declaration may instead live inline in a source doc-comment with an optional stub in `folder` — [§AS-scanner.4](../architectural-spec/AS-scanner.md#4-inline-declarations-in-language-doc-comments)); `E2E` declarations are case directories under `folder` rather than heading lines — [§AS-scanner.6](../architectural-spec/AS-scanner.md#6-e2e-case-declarations). A project that overrides this list replaces the defaults entirely — there is no merge. To extend rather than replace, copy the defaults and add to them.
 
 Prefix sets must be unambiguous: no kind's `prefix` may itself be a prefix of another kind's `prefix`. For example, `prefix = "DA"` and `prefix = "DAT"` together are invalid because a token starting with `DAT-` would parse as either kind. gnd validates this on load and refuses ambiguous configs with a single error pointing at the offending pair (per §4.3).
 
@@ -149,11 +149,11 @@ docstring_python   = true
 respect_gitignore  = true
 ```
 
-`include` is the set of paths walked **from the config root** — the directory containing `.agents/`, or, when no `.agents/gnd.toml` was discovered, the current working directory (never a subdirectory that merely happened to be passed as `gnd`'s path argument). So in a config-less repo `gnd` (no path) and `gnd check .` both walk `docs/`, `e2e/`, `src/` relative to the cwd, while `gnd check src/foo` or `gnd check lib/` scans exactly the file or directory it is handed — an explicit path argument overrides `include` rather than being filtered by it. A walk that ends up reading no files at all is reported, not silently passed (§FS-check.2.2). `exclude` is the set of directory names skipped at any depth. `extensions` filters which files are read. `comment_prefixes` are the markers recognized when looking for inline declarations and citations in source files. `docstring_python` enables Python triple-quoted-string scanning in addition to `#` comments.
+`include` is the set of paths walked **from the config root** — the directory containing `.agents/`, or, when no `.agents/gnd.toml` was discovered, the current working directory (never a subdirectory that merely happened to be passed as `gnd`'s path argument). So in a config-less repo `gnd` (no path) and `gnd check .` both walk `docs/`, `e2e/`, `src/` relative to the cwd, while `gnd check src/foo` or `gnd check lib/` scans exactly the file or directory it is handed — an explicit path argument overrides `include` rather than being filtered by it. A walk that ends up reading no files at all is reported, not silently passed ([§FS-check.2.2](FS-check.md#22-empty-scan)). `exclude` is the set of directory names skipped at any depth. `extensions` filters which files are read. `comment_prefixes` are the markers recognized when looking for inline declarations and citations in source files. `docstring_python` enables Python triple-quoted-string scanning in addition to `#` comments.
 
-The default `comment_prefixes` set is broader than the languages tabulated in §AS-scanner.4: it also covers `;` (Lisp / Scheme / Clojure), `--` (SQL / Haskell / Lua / Ada), and `*` / `/*` (block-comment continuation and opener). Any line whose first non-whitespace run is a configured prefix is eligible to host a declaration heading or a citation; the §AS-scanner.4 table documents the doc-comment *conventions* for the major languages, not the full set of recognized prefixes.
+The default `comment_prefixes` set is broader than the languages tabulated in [§AS-scanner.4](../architectural-spec/AS-scanner.md#4-inline-declarations-in-language-doc-comments): it also covers `;` (Lisp / Scheme / Clojure), `--` (SQL / Haskell / Lua / Ada), and `*` / `/*` (block-comment continuation and opener). Any line whose first non-whitespace run is a configured prefix is eligible to host a declaration heading or a citation; the [§AS-scanner.4](../architectural-spec/AS-scanner.md#4-inline-declarations-in-language-doc-comments) table documents the doc-comment *conventions* for the major languages, not the full set of recognized prefixes.
 
-`respect_gitignore` (default `true`) makes the scanner honor every form of ignore file the `ignore` crate recognizes — `.gitignore` at any depth, `.git/info/exclude`, the global `core.excludesFile`, and `.ignore` files. Set to `false` only when you genuinely need to scan ignored paths. The directory-level `exclude` list above is applied **in addition** to ignore-file rules, never instead of them. See §AS-scanner.1.1.
+`respect_gitignore` (default `true`) makes the scanner honor every form of ignore file the `ignore` crate recognizes — `.gitignore` at any depth, `.git/info/exclude`, the global `core.excludesFile`, and `.ignore` files. Set to `false` only when you genuinely need to scan ignored paths. The directory-level `exclude` list above is applied **in addition** to ignore-file rules, never instead of them. See [§AS-scanner.1.1](../architectural-spec/AS-scanner.md#11-respecting-gitignore-and-friends).
 
 ### 3.6 `[output]` — report format
 
@@ -164,7 +164,7 @@ color          = "auto"   # auto | always | never
 relative_paths = true     # show paths relative to config root in reports
 ```
 
-`relative_paths = true` (default) renders every `<path>` in a report relative to the config root (§1). `relative_paths = false` renders them relative to the path argument passed on the command line — or to the current working directory when no path is given — i.e. the same base `gnd` uses when no `.agents/gnd.toml` is discovered. Either way `gnd` **never** emits an absolute path or a path that escapes above the chosen base; this is what keeps the report deterministic per §FS-errors.4. `color` controls ANSI styling once the colored-output feature lands (§FS-errors.3); until then output is plain bytes regardless of this value, and a change to that default goes through the §G-no-silent-breakage path.
+`relative_paths = true` (default) renders every `<path>` in a report relative to the config root (§1). `relative_paths = false` renders them relative to the path argument passed on the command line — or to the current working directory when no path is given — i.e. the same base `gnd` uses when no `.agents/gnd.toml` is discovered. Either way `gnd` **never** emits an absolute path or a path that escapes above the chosen base; this is what keeps the report deterministic per [§FS-errors.4](FS-errors.md#4-determinism). `color` controls ANSI styling once the colored-output feature lands ([§FS-errors.3](FS-errors.md#3-message-text)); until then output is plain bytes regardless of this value, and a change to that default goes through the [§G-no-silent-breakage](../goals/goals.md) path.
 
 ### 3.7 `[fmt.md_links]` — Markdown link emission
 
@@ -174,7 +174,7 @@ enabled       = false      # default; --md-links overrides per-invocation
 anchor_format = "github"   # default; one of github | gitlab | mkdocs | pandoc | none
 ```
 
-The full contract for this block — what `enabled` does, the named `anchor_format` profiles, and when the link pass runs — lives in §FS-fmt.6.7 and §DF-md-link-anchor-strategy. It is part of the schema here because the generated `.agents/gnd.toml` (§FS-init.2.4) writes every key in this section explicitly.
+The full contract for this block — what `enabled` does, the named `anchor_format` profiles, and when the link pass runs — lives in [§FS-fmt.6.7](FS-fmt.md#67-configurability) and [§DF-md-link-anchor-strategy](../decisions/functional/DF-md-link-anchor-strategy.md). It is part of the schema here because the generated `.agents/gnd.toml` ([§FS-init.2.4](FS-init.md#24-generated-agentsgndtoml)) writes every key in this section explicitly.
 
 ## 4. Validation and inspection
 
@@ -196,9 +196,9 @@ The TOML file may include a top-level `gnd_config_version = N`. The current vers
 
 ## 6. What is NOT configured here
 
-Per §G-friendliness-first, the following are deliberately **not** configurable, to avoid the trap of every gnd repo behaving differently in surprising ways:
+Per [§G-friendliness-first](../goals/goals.md), the following are deliberately **not** configurable, to avoid the trap of every gnd repo behaving differently in surprising ways:
 
 - The set of severity levels (only `error` and `warning` exist).
-- The exit code mapping (`0`/`1`/`2` per §FS-check.2).
+- The exit code mapping (`0`/`1`/`2` per [§FS-check.2](FS-check.md#2-outputs)).
 - The ordering of the report (always deterministic).
 - Anything that would let two correctly-configured gnd installs disagree on whether a given repo is well-formed.

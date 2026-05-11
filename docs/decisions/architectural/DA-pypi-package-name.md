@@ -2,11 +2,11 @@
 
 **Status:** Accepted
 **Date:** 2026-05-11
-**Supersedes:** §DA-reference-checker-name for the PyPI package name only.
+**Supersedes:** [§DA-reference-checker-name](DA-reference-checker-name.md) for the PyPI package name only.
 
 ## 1. Context
 
-§DA-reference-checker-name chose `gnd` for the binary and repository, and treated the existing PyPI `gnd` package as a dormant squat that could be ignored later. The final launch review re-checked the registry and found that the name is not available to this project: PyPI already serves `GND` releases, while `gnd-cli` is available on PyPI and is already the planned npm package name.
+[§DA-reference-checker-name](DA-reference-checker-name.md) chose `gnd` for the binary and repository, and treated the existing PyPI `gnd` package as a dormant squat that could be ignored later. The final launch review re-checked the registry and found that the name is not available to this project: PyPI already serves `GND` releases, while `gnd-cli` is available on PyPI and is already the planned npm package name.
 
 The product must not ask users to install through a name owned by an unrelated project. The binary can still be `gnd`; package-manager names do not have to be identical when a registry namespace is occupied.
 
@@ -20,8 +20,8 @@ Keep `gnd-lsp` as the planned PyPI package name for the optional LSP server.
 
 - `pip install gnd-cli` is the documented PyPI install command once Python wheels ship.
 - `from gnd import check, show` remains the intended Python API surface.
-- §FS-distribution records `gnd-cli` for PyPI instead of `gnd`.
-- The cargo crate, binary, repository, and npm package naming decisions from §DA-reference-checker-name are unchanged.
+- [§FS-distribution](../../functional-spec/FS-distribution.md) records `gnd-cli` for PyPI instead of `gnd`.
+- The cargo crate, binary, repository, and npm package naming decisions from [§DA-reference-checker-name](DA-reference-checker-name.md) are unchanged.
 
 ## 4. Alternatives considered
 

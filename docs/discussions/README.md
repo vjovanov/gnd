@@ -8,5 +8,5 @@ review before they become `FS-*`, `AS-*`, `DF-*`, `DA-*`, or roadmap entries.
 Discussion notes use the project-local `DISC-*` kind in `.agents/gnd.toml`.
 Current proposals:
 
-- §DISC-link-support
-- §DISC-external-ticket-resolvers
+- [§DISC-link-support](proposals/2026-05-09-link-support.md)
+- [§DISC-external-ticket-resolvers](proposals/2026-05-09-external-ticket-resolvers.md)
