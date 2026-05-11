@@ -64,6 +64,24 @@ def parse_args() -> argparse.Namespace:
             "Default: README.md, docs, examples."
         ),
     )
+    parser.add_argument(
+        "--no-lychee",
+        action="store_true",
+        help="Skip the lychee measurement and the comparison section (e.g. for CI runs where lychee is not installed).",
+    )
+    parser.add_argument(
+        "--no-markdown",
+        action="store_true",
+        help="Do not write the markdown report. Useful when only the badge JSON is needed.",
+    )
+    parser.add_argument(
+        "--badge-out",
+        default=None,
+        help=(
+            "If set, also write a shields.io endpoint-format JSON file with the "
+            "'ms per 1000 files' figure derived from the grund check warm median."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -266,23 +284,24 @@ def write_report(
     out: Path,
     repo: Path,
     grund: str,
-    lychee: str,
+    lychee: str | None,
     lychee_paths: list[str],
     warm_runs: int,
     specs: dict[str, str],
     versions: dict[str, str],
     git: dict[str, str],
     grund_load: dict[str, int],
-    lychee_load: dict[str, int | str],
+    lychee_load: dict[str, int | str] | None,
     results: list[dict[str, object]],
 ) -> None:
     by_name = {str(result["name"]): result for result in results}
     grund_check = by_name["grund check"]
-    lychee_check = by_name["lychee"]
-    edge_ratio = grund_load["edges"] / int(lychee_load["links"])
-    speed_ratio = float(lychee_check["median"]) / float(grund_check["median"])
+    lychee_check = by_name.get("lychee")
     grund_per_edge = float(grund_check["median"]) / grund_load["edges"]
-    lychee_per_link = float(lychee_check["median"]) / int(lychee_load["links"])
+    if lychee_check is not None and lychee_load is not None:
+        lychee_per_link = float(lychee_check["median"]) / int(lychee_load["links"])
+    else:
+        lychee_per_link = None
 
     lines = [
         "# Local benchmark report",
@@ -346,7 +365,12 @@ def write_report(
             "| Tool | Version |",
             "|---|---|",
             f"| `grund` | `{versions['grund']}` |",
-            f"| `lychee` | `{versions['lychee']}` |",
+        ]
+    )
+    if "lychee" in versions:
+        lines.append(f"| `lychee` | `{versions['lychee']}` |")
+    lines.extend(
+        [
             f"| Git commit | `{git['commit']}` |",
             f"| Git branch | `{git['branch']}` |",
             f"| Working tree dirty | `{git['dirty']}` |",
@@ -356,7 +380,16 @@ def write_report(
             "| Tool | Local work checked |",
             "|---|---:|",
             f"| `grund check .` | {grund_load['declarations']:,} declarations + {grund_load['citations']:,} citations across {grund_load['scanned_files']:,} scanned files |",
-            f"| `lychee --include-fragments README.md docs examples` | {int(lychee_load['links']):,} links across {int(lychee_load['scanned_files']):,} markup files |",
+        ]
+    )
+    if lychee_load is not None:
+        lines.append(
+            f"| `lychee --include-fragments README.md docs examples` | "
+            f"{int(lychee_load['links']):,} links across "
+            f"{int(lychee_load['scanned_files']):,} markup files |"
+        )
+    lines.extend(
+        [
             "",
             "## Results",
             "",
@@ -374,19 +407,25 @@ def write_report(
             f"{seconds(float(result['maximum']))} |"
         )
 
+    if lychee_check is not None and lychee_load is not None and lychee_per_link is not None:
+        lines.extend(
+            [
+                "",
+                "## Comparison",
+                "",
+                f"`grund check .` checks {ratio(grund_load['edges'], int(lychee_load['links']))} as many local intent edges as Lychee checks links in this run.",
+                f"Using warm medians, `grund check .` is {ratio(float(lychee_check['median']), float(grund_check['median']))} faster than the configured Lychee run.",
+                f"Per checked edge, `grund` costs about {grund_per_edge * 1_000_000:.0f} microseconds; Lychee costs about {lychee_per_link * 1_000_000:.0f} microseconds per link.",
+                "",
+                "Product copy:",
+                "",
+                "> Lychee checks whether Markdown links still open. `grund` checks whether the project still knows why the code exists.",
+                "> On this local run, `grund` checks more than twice as many project-intent edges and finishes several times faster.",
+            ]
+        )
+
     lines.extend(
         [
-            "",
-            "## Comparison",
-            "",
-            f"`grund check .` checks {ratio(grund_load['edges'], int(lychee_load['links']))} as many local intent edges as Lychee checks links in this run.",
-            f"Using warm medians, `grund check .` is {ratio(float(lychee_check['median']), float(grund_check['median']))} faster than the configured Lychee run.",
-            f"Per checked edge, `grund` costs about {grund_per_edge * 1_000_000:.0f} microseconds; Lychee costs about {lychee_per_link * 1_000_000:.0f} microseconds per link.",
-            "",
-            "Product copy:",
-            "",
-            "> Lychee checks whether Markdown links still open. `grund` checks whether the project still knows why the code exists.",
-            "> On this local run, `grund` checks more than twice as many project-intent edges and finishes several times faster.",
             "",
             "## Raw Warm Samples",
             "",
@@ -399,6 +438,22 @@ def write_report(
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_badge(out: Path, grund_check: dict[str, object], grund_load: dict[str, int]) -> None:
+    """Emit shields.io endpoint JSON: ms per 1000 scanned files (grund check, warm median)."""
+    scanned = int(grund_load["scanned_files"])
+    if scanned <= 0:
+        raise SystemExit("cannot compute badge: grund scanned 0 files")
+    ms_per_1k = round(float(grund_check["median"]) / scanned * 1_000 * 1_000)
+    payload = {
+        "schemaVersion": 1,
+        "label": "1k files",
+        "message": f"{ms_per_1k} ms",
+        "color": "brightgreen",
+    }
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload) + "\n", encoding="utf-8")
 
 
 def main() -> int:
@@ -414,32 +469,44 @@ def main() -> int:
 
     grund_check_command = [grund, "check", str(repo)]
     grund_fmt_command = [grund, "fmt", "--check", str(repo)]
-    lychee_command = [lychee, "--no-progress", "--include-fragments", *lychee_paths]
 
     results = [
         measure("grund check", grund_check_command, repo, args.warm_runs),
         measure("grund fmt --check", grund_fmt_command, repo, args.warm_runs),
-        measure("lychee", lychee_command, repo, args.warm_runs),
     ]
+    if not args.no_lychee:
+        lychee_command = [lychee, "--no-progress", "--include-fragments", *lychee_paths]
+        results.append(measure("lychee", lychee_command, repo, args.warm_runs))
 
     specs = machine_specs(repo)
-    versions = {
-        "grund": command_version([grund, "--version"], repo),
-        "lychee": command_version([lychee, "--version"], repo),
-    }
+    versions = {"grund": command_version([grund, "--version"], repo)}
+    if not args.no_lychee:
+        versions["lychee"] = command_version([lychee, "--version"], repo)
     git = {
         "commit": git_value(["rev-parse", "HEAD"], repo),
         "branch": git_value(["branch", "--show-current"], repo),
         "dirty": git_dirty(repo),
     }
     grund_load = grund_workload(grund, repo)
-    lychee_load = lychee_workload(lychee, lychee_paths, repo)
+    lychee_load = None if args.no_lychee else lychee_workload(lychee, lychee_paths, repo)
+
+    grund_check_result = next(r for r in results if r["name"] == "grund check")
+
+    if args.badge_out:
+        badge_path = Path(args.badge_out)
+        if not badge_path.is_absolute():
+            badge_path = (repo / badge_path).resolve()
+        write_badge(badge_path, grund_check_result, grund_load)
+        print(f"wrote {badge_path}")
+
+    if args.no_markdown:
+        return 0
 
     write_report(
         out=out,
         repo=repo,
         grund=grund,
-        lychee=lychee,
+        lychee=None if args.no_lychee else lychee,
         lychee_paths=lychee_paths,
         warm_runs=args.warm_runs,
         specs=specs,
