@@ -613,8 +613,8 @@ fn load_config(start: &Path) -> Result<Config> {
 /// `[output]` 3.6, `[fmt.cross_refs]` 3.7). Any unknown section/key or malformed
 /// value is a hard error reported as `path:line:` (§FS-config.4.3, §FS-errors.2.1).
 fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) -> Result<()> {
-    let text =
-        fs::read_to_string(read_path).with_context(|| format!("read {}", report_path.display()))?;
+    let text = fs::read_to_string(read_path)
+        .with_context(|| format!("read {}", format_path(report_path)))?;
     // Everything below reports problems against the stable relative path.
     let path = report_path;
     let mut section = String::new();
@@ -800,7 +800,7 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
     if config.strict && config.marker.is_empty() {
         return Err(anyhow!(
             "{}: reference.strict requires a non-empty marker",
-            path.display()
+            format_path(path)
         ));
     }
     if kinds_block_seen {
@@ -808,13 +808,13 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
         if parsed_kinds.iter().any(|p| p.prefix.is_empty()) {
             return Err(anyhow!(
                 "{}: every [[kinds]] entry must declare a `prefix`",
-                path.display()
+                format_path(path)
             ));
         }
         if parsed_kinds.is_empty() {
             return Err(anyhow!(
                 "{}: at least one [[kinds]] entry must declare a `prefix`",
-                path.display()
+                format_path(path)
             ));
         }
         // Reject kinds whose prefix is itself a prefix of another kind's prefix
@@ -827,7 +827,7 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
                 {
                     return Err(anyhow!(
                         "{}: kinds `{}` and `{}` collide (one is a prefix of the other)",
-                        path.display(),
+                        format_path(path),
                         a.prefix,
                         b.prefix
                     ));
@@ -839,7 +839,7 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
     if grammar_dirty || kinds_block_seen {
         config
             .rebuild_grammar()
-            .with_context(|| format!("{}: invalid [id] grammar", path.display()))?;
+            .with_context(|| format!("{}: invalid [id] grammar", format_path(path)))?;
     }
     Ok(())
 }
@@ -875,7 +875,7 @@ fn is_escaped(bytes: &[u8], pos: usize) -> bool {
 /// Fail config parsing with a `path:line: message` error — the located-finding
 /// shape applied to a malformed `.agents/grund.toml` (§FS-config.4.3, §FS-errors.2.1).
 fn bail_config<T>(path: &Path, line: usize, message: String) -> Result<T> {
-    Err(anyhow!("{}:{}: {}", path.display(), line, message))
+    Err(anyhow!("{}:{}: {}", format_path(path), line, message))
 }
 
 fn parse_string(path: &Path, line: usize, value: &str) -> Result<String> {
@@ -1136,7 +1136,7 @@ fn scan_e2e_cases(
             }
         }
     }
-    case_dirs.sort();
+    case_dirs.sort_by_key(|path| sort_path_key(path));
 
     for dir in case_dirs {
         let Some(name) = dir.file_name().and_then(|name| name.to_str()) else {
@@ -1219,10 +1219,10 @@ fn read_e2e_case(dir: &Path) -> Result<E2eCase> {
     let expected_exit = fs::read_to_string(dir.join("expected.exit"))?
         .trim()
         .parse::<i32>()
-        .with_context(|| format!("parse {}/expected.exit", dir.display()))?;
+        .with_context(|| format!("parse {}/expected.exit", format_path(dir)))?;
     let mut fixtures = Vec::new();
     collect_relative_fixture_files(dir, dir, &mut fixtures)?;
-    fixtures.sort();
+    fixtures.sort_by_key(|path| sort_path_key(path));
     Ok(E2eCase {
         dir: dir.to_path_buf(),
         args,
@@ -1315,7 +1315,7 @@ fn walk_scannable_files(
             files.push(entry.path().to_path_buf());
         }
     }
-    files.sort();
+    files.sort_by_key(|path| sort_path_key(path));
     Ok(files)
 }
 
@@ -1495,7 +1495,9 @@ fn check(findings: &Findings, config: &Config) -> Report {
                     line: d.line,
                 })
                 .collect();
-            sites.sort_by(|a, b| (a.path.as_os_str(), a.line).cmp(&(b.path.as_os_str(), b.line)));
+            sites.sort_by(|a, b| {
+                (sort_path_key(&a.path), a.line).cmp(&(sort_path_key(&b.path), b.line))
+            });
             let primary = sites[0].clone();
             let others = sites[1..]
                 .iter()
@@ -1569,7 +1571,7 @@ fn check(findings: &Findings, config: &Config) -> Report {
                     code: "broken-stub",
                     path: Some(decl.file.clone()),
                     line: Some(decl.line),
-                    message: format!("stub link target missing: {}", target.display()),
+                    message: format!("stub link target missing: {}", format_path(target)),
                     sites: Vec::new(),
                 });
                 continue;
@@ -1587,7 +1589,7 @@ fn check(findings: &Findings, config: &Config) -> Report {
                     message: format!(
                         "stub link target lacks {}: {}",
                         render_id(config, id),
-                        target.display()
+                        format_path(target)
                     ),
                     sites: Vec::new(),
                 });
@@ -1674,12 +1676,12 @@ fn sort_diagnostics(diagnostics: &mut [Diagnostic]) {
 
 fn diagnostic_cmp(a: &Diagnostic, b: &Diagnostic) -> std::cmp::Ordering {
     (
-        a.path.as_ref().map(|p| p.as_os_str()),
+        a.path.as_ref().map(|p| sort_path_key(p)),
         a.line.unwrap_or(0),
         a.message.as_str(),
     )
         .cmp(&(
-            b.path.as_ref().map(|p| p.as_os_str()),
+            b.path.as_ref().map(|p| sort_path_key(p)),
             b.line.unwrap_or(0),
             b.message.as_str(),
         ))
@@ -1998,10 +2000,15 @@ fn display_path(config: &Config, path: &Path) -> String {
     } else {
         &config.cli_base
     };
-    path.strip_prefix(base)
-        .unwrap_or(path)
-        .to_string_lossy()
-        .into_owned()
+    format_path(path.strip_prefix(base).unwrap_or(path))
+}
+
+fn format_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+fn sort_path_key(path: &Path) -> String {
+    format_path(path)
 }
 
 /// The CLI-level warning `check` reports when the tree walk matched no files
@@ -2031,7 +2038,7 @@ fn empty_scan_warning(config: &Config, path: &Path, path_provided: bool) -> Diag
         ),
         _ => format!(
             "nothing to scan — no files under `{}` matched grund's extensions ({}).",
-            path.display(),
+            format_path(path),
             config.extensions.join(", ")
         ),
     };
@@ -2385,7 +2392,7 @@ fn show_declaration(
                 render_id(config, id),
                 display_path(config, &decl.file),
                 decl.line,
-                decl.defined_in.as_ref().unwrap().display()
+                format_path(decl.defined_in.as_ref().unwrap())
             ));
         }
         if !file_declares_inline_home(&file, id, &config.grammar).unwrap_or(false) {
@@ -2394,7 +2401,7 @@ fn show_declaration(
                 render_id(config, id),
                 display_path(config, &decl.file),
                 decl.line,
-                decl.defined_in.as_ref().unwrap().display(),
+                format_path(decl.defined_in.as_ref().unwrap()),
                 render_id(config, id)
             ));
         }
@@ -2433,7 +2440,7 @@ fn show_e2e_case(
         lines.extend(
             case.fixtures
                 .iter()
-                .map(|path| format!("- {}", path.display())),
+                .map(|path| format!("- {}", format_path(path))),
         );
         format!("{}\n", lines.join("\n"))
     };
@@ -2446,7 +2453,7 @@ fn show_e2e_case(
     let fixtures_json = case
         .fixtures
         .iter()
-        .map(|path| format!("\"{}\"", json_escape(&path.display().to_string())))
+        .map(|path| format!("\"{}\"", json_escape(&format_path(path))))
         .collect::<Vec<_>>()
         .join(",");
     let json = format!(
@@ -2714,7 +2721,7 @@ fn command_fmt(args: &[String]) -> ExitCode {
     // `grund init` uses (§FS-errors.6). Only CLI-level `error:` lines go to stderr.
     if write {
         let mut files: Vec<PathBuf> = changes.iter().map(|(path, _, _)| path.clone()).collect();
-        files.sort();
+        files.sort_by_key(|path| sort_path_key(path));
         files.dedup();
         println!(
             "rewrote {} reference{}{}",
@@ -3732,7 +3739,7 @@ fn command_refs(args: &[String]) -> ExitCode {
         })
         .collect::<Vec<_>>();
     citations.sort_by(|a, b| {
-        (a.file.as_os_str(), a.line, a.column).cmp(&(b.file.as_os_str(), b.line, b.column))
+        (sort_path_key(&a.file), a.line, a.column).cmp(&(sort_path_key(&b.file), b.line, b.column))
     });
     // §FS-refs.2: zero citations is a normal answer, not an error — but if the ID
     // is *also* undeclared, the caller most likely fat-fingered it, so leave a
@@ -3860,8 +3867,11 @@ fn command_cover(args: &[String]) -> ExitCode {
         citations.sort_by_key(|c| (c.line, c.column));
     }
 
+    let mut cover_entries = by_file.iter().collect::<Vec<_>>();
+    cover_entries.sort_by_key(|(file, _)| display_path(&config, file));
+
     if format == "json" {
-        for (file, citations) in &by_file {
+        for (file, citations) in &cover_entries {
             let citation_json = citations
                 .iter()
                 .map(|citation| render_citation_json(&config, citation))
@@ -3874,12 +3884,12 @@ fn command_cover(args: &[String]) -> ExitCode {
             );
         }
     } else {
-        for (file, citations) in &by_file {
+        for (file, citations) in &cover_entries {
             println!("{}:", display_path(&config, file));
             if citations.is_empty() {
                 println!("  (no citations)");
             } else {
-                for citation in citations {
+                for citation in *citations {
                     println!("  {}:{} {}", citation.line, citation.column, citation.text);
                 }
             }
@@ -4021,7 +4031,9 @@ fn command_list(args: &[String]) -> ExitCode {
             .iter()
             .filter(|decl| !is_stub_for_inline_decl(&config.root, decl, decls))
             .collect();
-        homes.sort_by(|a, b| (a.file.as_os_str(), a.line).cmp(&(b.file.as_os_str(), b.line)));
+        homes.sort_by(|a, b| {
+            (sort_path_key(&a.file), a.line).cmp(&(sort_path_key(&b.file), b.line))
+        });
         let duplicate = homes.len() > 1;
         for home in homes {
             entries.push(Entry {
@@ -4052,7 +4064,7 @@ fn command_list(args: &[String]) -> ExitCode {
                     .home
                     .defined_in
                     .as_ref()
-                    .map(|target| format!("\"{}\"", json_escape(&target.display().to_string())))
+                    .map(|target| format!("\"{}\"", json_escape(&format_path(target))))
                     .unwrap_or_else(|| "null".to_string()),
                 entry.refs,
                 entry.duplicate,
@@ -4077,7 +4089,7 @@ fn command_list(args: &[String]) -> ExitCode {
                     .home
                     .defined_in
                     .as_ref()
-                    .map(|target| format!("→ {}", target.display()))
+                    .map(|target| format!("→ {}", format_path(target)))
                     .unwrap_or_default()
             } else {
                 entry.home.title.clone().unwrap_or_default()
@@ -4730,11 +4742,8 @@ fn command_init(args: &[String]) -> ExitCode {
         }
     };
     for path in companion_entrypoints {
-        let rel = path
-            .strip_prefix(&target)
-            .unwrap_or(&path)
-            .to_string_lossy()
-            .into_owned();
+        let rel = path.strip_prefix(&target).unwrap_or(&path).to_path_buf();
+        let rel = format_path(&rel);
         match update_agents_block(&path, &agents_block, &rel) {
             Ok(AgentsUpdateResult::Appended) => eprintln!("appended {rel}"),
             Ok(AgentsUpdateResult::Updated) => eprintln!("updated {rel}"),
@@ -5552,6 +5561,14 @@ mod tests {
 
     fn canonical_test_path(path: &Path) -> PathBuf {
         std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    }
+
+    #[test]
+    fn report_path_rendering_uses_forward_slashes() {
+        assert_eq!(
+            format_path(Path::new(r"docs\functional-spec\FS-001-alpha.md")),
+            "docs/functional-spec/FS-001-alpha.md"
+        );
     }
 
     fn current_block() -> String {

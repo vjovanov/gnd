@@ -148,13 +148,15 @@ Cargo, npm, and PyPI ship the same engine, with idiomatic API surfaces on each. 
 
 The same input — a tree plus an optional `grund.toml` — produces a byte-identical report regardless of which binding called the engine.
 
+The same input also produces a byte-identical CLI report on Linux, macOS, and Windows. Operating-system differences such as native path separators, drive prefixes on absolute paths, symlink support, or shell availability must not leak into ordinary `grund check` / `show` / `list` / `refs` / `cover` output for a repo-relative scan. Platform-specific differences are acceptable only when the requested operation itself is platform-specific or the host filesystem cannot represent the fixture.
+
 ### 2. Idiomatic surfaces
 
 Each binding fits its host. Rust returns `Result<T, E>`; Node returns Promises; Python returns values and raises exceptions. Names follow each ecosystem's conventions. Behavior is identical; surface fits each. See [§FS-distribution](../functional-spec/FS-distribution.md#fs-distribution-grund-distribution-targets) and [§AR-bindings](../architecture/AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms) for the implementation.
 
 ### 3. Measurable
 
-An integration test runs the same spec corpus through each binding and asserts byte-identical reports. Any diff between bindings is a release blocker.
+An integration test runs the same spec corpus through each binding and asserts byte-identical reports. The Rust CLI build/test matrix runs the same e2e corpus on Linux, macOS, and Windows; any report diff between bindings or operating systems is a release blocker.
 
 ## GOAL-friendliness-first: as user- and agent-friendly as possible
 
@@ -166,16 +168,17 @@ Friendliness is the second **ordering principle** (alongside speed, [§GOAL-fast
 - **Output is parseable.** A `--format=json` flag emits a stable JSON shape suitable for LLM consumption and editor integration.
 - **Show is grounded.** `grund show <ID>` returns just the declaration body — no surrounding context, no scrolling, no token waste — under 200 lines for the common case.
 - **Help is actionable.** `grund --help` is one screen; every flag has a one-line example.
+- **Frequent commands are one token.** Commands in the normal author, agent, and CI loops must be invokable as a single shell token after `grund` — for example `check`, `show`, `list`, `refs`, `cover`, `fmt`, and `id`. Setup and bootstrap commands are an explicit exception, as are infrequent selectors under an already chosen command and hidden machine helpers.
 - **No surprises.** Same input → same output, byte-for-byte. Order of files in the report is deterministic.
 - **Explicit success.** A passing text `grund check` prints exactly `success` on stdout; machine-readable `--format=json` stays diagnostics-only.
 
 ### 2. What this rules out
 
-By accepting friendliness as an ordering principle, we rule out designs that would compromise it for marginal gain: configurable severity levels (would let two installs disagree on whether a repo passes), configurable report ordering (would break editor integrations), per-flag interactive prompts (would block CI).
+By accepting friendliness as an ordering principle, we rule out designs that would compromise it for marginal gain: configurable severity levels (would let two installs disagree on whether a repo passes), configurable report ordering (would break editor integrations), command families that make frequent workflows spell a second verb before they do useful work, per-flag interactive prompts (would block CI).
 
 ### 3. Measurable
 
-Typical `grund show` output under 200 lines; `grund --format=json` validates against a stable schema in `e2e/`; `grund --help` fits in 24 lines; round-trip determinism is enforced by an e2e test that runs `grund` twice and diffs the output.
+Typical `grund show` output under 200 lines; `grund --format=json` validates against a stable schema in `e2e/`; `grund --help` fits in 24 lines and lists each frequent command as one token; round-trip determinism is enforced by an e2e test that runs `grund` twice and diffs the output.
 
 ## GOAL-configurable: every default is overridable
 

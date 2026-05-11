@@ -17,11 +17,11 @@ jobs:
     name: cargo test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
-      # Run every matrix leg even if one fails so we can see Linux + macOS results
-      # together rather than aborting after the first failure.
+      # Run every matrix leg even if one fails so we can see Linux + macOS + Windows
+      # results together rather than aborting after the first failure.
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -31,6 +31,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
 
       - name: Cache cargo registry and target
         uses: actions/cache@v4
@@ -49,7 +54,7 @@ jobs:
       - name: Install pre-commit hook dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
-          python3 -m pip install pre-commit
+          python -m pip install pre-commit
           cargo install lychee --version 0.23.0 --locked
 
       # `.pre-commit-config.yaml` is the local gate; CI runs it directly so every
@@ -62,14 +67,15 @@ jobs:
         run: cargo build --all-targets --locked
 
       - name: grund self-check
+        shell: bash
         run: |
           # `timeout 30` is the catastrophic-regression guard (§AR-ci.4 / §GOAL-fast-feedback):
           # `grund .` on this repo runs in tens of milliseconds, so a 30s ceiling never
           # flakes but still trips on a quadratic walk or a second read pass. The precise
           # per-commit meter is the `bench` job (§AR-benchmarks / §AR-ci.5); this timeout
           # is its backstop. Use Python rather than GNU `timeout` so the same step runs
-          # on Linux and macOS.
-          python3 - <<'PY'
+          # on Linux, macOS, and Windows.
+          python - <<'PY'
           import subprocess
           import sys
 

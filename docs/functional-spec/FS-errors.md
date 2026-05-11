@@ -96,6 +96,7 @@ Two runs of the same subcommand on the same input must produce byte-identical st
 - Wall-clock timestamps in messages.
 - Process IDs, hostnames, or absolute paths outside the configured root.
 - Non-deterministic ordering. Findings sort by `(path, line)` lexicographically; multi-site findings anchor at the lexicographically-first site ([§FS-check.2.1](FS-check.md#21-report-format)).
+- Platform-native path separators in repo-relative output. Any path that appears in a report, JSON field, e2e case manifest, duplicate-site list, stub-link note, or formatter summary is rendered with `/`, so Windows and Unix runs over the same tree compare byte-for-byte.
 
 A message that would otherwise be non-deterministic (e.g. the order of duplicate-declaration sites) is sorted before printing.
 
