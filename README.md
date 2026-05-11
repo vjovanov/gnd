@@ -133,7 +133,7 @@ For an agent reviewing a code change, the loop is mechanical: list the `§…` c
 cargo install --git https://github.com/vjovanov/gnd
 ```
 
-That puts the `gnd` binary on your `PATH`. npm and PyPI bindings are planned — see [`FS-distribution`](docs/functional-spec/FS-distribution.md).
+That puts the `gnd` binary on your `PATH`. npm and PyPI bindings are planned — see [`FS-distribution`](docs/functional-spec/FS-distribution.md). Before a registry publish, run the **Release registry names** workflow or `scripts/check-registry-names.sh` so the cargo, npm, and PyPI names are re-checked at release time.
 
 ## Set up a repo
 

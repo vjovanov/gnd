@@ -93,9 +93,9 @@ The e2e suite includes positive and negative fixtures for every supported doc-co
 
 Speed is not a target — it is an **ordering principle**. When a design choice trades clarity, generality, or features for speed, speed wins. `gnd` exists to be invoked on every keystroke (IDE), every save (watcher), every commit (CI). Anything slower than human reflex breaks the loop it is meant to enable.
 
-### 1. Budgets
+### 1. Performance targets
 
-These are the targets the implementation holds itself to. As of 0.1.0 they are met by a wide margin in practice (`gnd .` on this repo runs in tens of milliseconds), but they are not yet *gated* by an automated benchmark — a criterion harness that fails CI on regression is tracked under §RM-benchmarks. Until that lands, CI carries only the cheap guard in §3.
+These are the targets the implementation is designed around. As of 0.1.0 they are met by a wide margin in practice (`gnd .` on this repo runs in tens of milliseconds), but they are not yet a release-blocking measured contract: the criterion harness that records baselines and fails CI on regression is tracked under §RM-benchmarks. Until that lands, CI carries only the cheap guard in §3.
 
 - Under **100 ms** on the `gnd` repo itself. The self-host loop must be invisible.
 - Under **1 s** on a 10k-file repo.
@@ -111,7 +111,7 @@ These are the targets the implementation holds itself to. As of 0.1.0 they are m
 
 ### 3. Measurable
 
-`time gnd .` on a synthetic 10k-file fixture stays under budget. The full criterion harness that tracks the number across commits and fails CI on regression is §RM-benchmarks; until then CI runs the built `gnd .` under a generous timeout (§AS-ci.4) so a catastrophic regression — an accidental quadratic walk, a re-read pass — still fails the build.
+Manual timing on this repo and on a synthetic 10k-file fixture should stay within the targets above. The full criterion harness that turns those targets into recorded, release-blocking CI checks is §RM-benchmarks; until then CI runs the built `gnd .` under a generous timeout (§AS-ci.4) so a catastrophic regression — an accidental quadratic walk, a re-read pass — still fails the build.
 
 ## G-zero-config: works on any conformant tree
 

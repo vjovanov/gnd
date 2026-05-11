@@ -58,7 +58,7 @@ Pre-release sanity check: the registry names claimed across the docs may not sti
 
 ### 1. What
 
-A pre-release CI step that queries crates.io, npm, and PyPI for each claimed package name and fails if any claimed-available name is in fact taken or owned by another project. Docs are corrected so they no longer claim a name is free unless the project owns it. Where a registry name is unavailable, an explicit alternate package name is chosen and recorded in §FS-distribution.
+The `scripts/check-registry-names.sh` pre-release guard and the manual **Release registry names** workflow query crates.io, npm, and PyPI for each claimed package name and fail if any claimed-available name is in fact taken or owned by another project. Docs are corrected so they no longer claim a name is free unless the project owns it. Where a registry name is unavailable, an explicit alternate package name is chosen and recorded in §FS-distribution.
 
 ### 2. Why now
 
@@ -66,7 +66,7 @@ A doc contradiction at release time is a release blocker. The check is cheap to 
 
 ### 3. Measurable
 
-The release pipeline queries each registry and proceeds only if every claimed name resolves to either "available" or "owned by this project." §FS-distribution and §DA-reference-checker-name agree on every package name they mention.
+The release workflow queries each registry and proceeds only if every claimed name resolves to either "available" or "owned by this project." §FS-distribution and §DA-reference-checker-name agree on every package name they mention.
 
 ## RM-distribution: cargo + npm + pypi from one engine
 
