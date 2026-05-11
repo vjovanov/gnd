@@ -1,4 +1,4 @@
-/// # AS-005-cpp: C++ router
+/// # AR-005-cpp: C++ router
 ///
 /// Implements §FS-001-entrypoint.1.
 ///

@@ -1,4 +1,4 @@
-# # AS-011-ruby: Ruby router
+# # AR-011-ruby: Ruby router
 #
 # Implements §FS-001-entrypoint.1.
 #

@@ -31,8 +31,8 @@ folder = "docs/functional-spec"
 title = "Functional spec"
 
 [[kinds]]
-prefix = "AS"
-folder = "docs/architectural-spec"
+prefix = "AR"
+folder = "docs/architecture"
 title = "Architectural spec"
 
 # DF before DA, matching the canonical default kind order (FS-config.3.4, templates/grund.toml).

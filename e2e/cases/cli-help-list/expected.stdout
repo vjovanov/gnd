@@ -16,6 +16,6 @@ Exit:  0 scan succeeded (an empty catalog prints nothing) · 2 unreadable tree, 
 
 Examples:
   grund list                      # the whole catalog
-  grund list --kind AS docs/      # architectural-spec IDs under docs/
+  grund list --kind AR docs/      # architecture IDs under docs/
   grund list --unused             # uncited declarations (specs, decisions, …) — E2E cases excluded
   grund list --unused --kind E2E  # uncited e2e cases only, for inventory

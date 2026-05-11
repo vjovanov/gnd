@@ -77,7 +77,7 @@ The e2e suite includes deliberately broken inputs (missing declarations, missing
 
 ## GOAL-polyglot-citation: IDs cite cleanly from anywhere they are useful
 
-A `grund` citation is valid in a Markdown file, a Java doc-comment, a Rust `///` line, a Python docstring, a Go doc block, a TypeScript JSDoc, or any other source-comment form enumerated in [§AS-scanner.4](../architectural-spec/AS-scanner.md#4-inline-declarations-in-language-doc-comments) — and `grund` verifies it the same way in every one. This is the property that off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) cannot offer, and it is the load-bearing reason `grund` exists alongside them rather than competing with them.
+A `grund` citation is valid in a Markdown file, a Java doc-comment, a Rust `///` line, a Python docstring, a Go doc block, a TypeScript JSDoc, or any other source-comment form enumerated in [§AR-scanner.4](../architecture/AR-scanner.md#4-inline-declarations-in-language-doc-comments) — and `grund` verifies it the same way in every one. This is the property that off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) cannot offer, and it is the load-bearing reason `grund` exists alongside them rather than competing with them.
 
 ### 1. What "cleanly" means
 
@@ -98,7 +98,7 @@ Markdown links degrade the moment a citation crosses the docs/code boundary: sou
 
 ### 4. Measurable
 
-The e2e suite includes positive and negative fixtures for every supported doc-comment form in [§AS-scanner.4](../architectural-spec/AS-scanner.md#4-inline-declarations-in-language-doc-comments) — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, Rustdoc (`///`, `//!`, `/** … */`), Go `//` blocks, Python `""" … """` docstrings, C# XML doc, Ruby `#` lines. Each fixture exercises a citation crossing the docs/code boundary in both directions. A regression in any host is a release blocker.
+The e2e suite includes positive and negative fixtures for every supported doc-comment form in [§AR-scanner.4](../architecture/AR-scanner.md#4-inline-declarations-in-language-doc-comments) — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, Rustdoc (`///`, `//!`, `/** … */`), Go `//` blocks, Python `""" … """` docstrings, C# XML doc, Ruby `#` lines. Each fixture exercises a citation crossing the docs/code boundary in both directions. A regression in any host is a release blocker.
 
 ## GOAL-fast-feedback: grund must be as fast as possible
 
@@ -106,7 +106,7 @@ Speed is not a target — it is an **ordering principle**. When a design choice 
 
 ### 1. Performance targets
 
-These are the targets the implementation is designed around. As of 0.1.0 they are met by a wide margin in practice (`grund .` on this repo runs in tens of milliseconds). The instruction-counting benchmark harness that turns the targets into a number CI records — `cargo bench` over the hot commands, run under Callgrind so the figure does not flake on a loaded runner — is [§AS-benchmarks](../architectural-spec/AS-benchmarks.md#as-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands); the committed baseline and the build-failing regression threshold on top of it are the remaining work under [§RM-benchmarks](../roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets). Until that threshold lands, CI runs the harness for the numbers and carries the cheap catastrophic-regression guard in §3.
+These are the targets the implementation is designed around. As of 0.1.0 they are met by a wide margin in practice (`grund .` on this repo runs in tens of milliseconds). The instruction-counting benchmark harness that turns the targets into a number CI records — `cargo bench` over the hot commands, run under Callgrind so the figure does not flake on a loaded runner — is [§AR-benchmarks](../architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands); the committed baseline and the build-failing regression threshold on top of it are the remaining work under [§RM-benchmarks](../roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets). Until that threshold lands, CI runs the harness for the numbers and carries the cheap catastrophic-regression guard in §3.
 
 - Under **100 ms** on the `grund` repo itself. The self-host loop must be invisible.
 - Under **1 s** on a 10k-file repo.
@@ -122,7 +122,7 @@ These are the targets the implementation is designed around. As of 0.1.0 they ar
 
 ### 3. Measurable
 
-Manual timing on this repo and on a synthetic 10k-file fixture should stay within the targets above. The `cargo bench` instruction-counting harness over the commands agents and CI run most ([§AS-benchmarks](../architectural-spec/AS-benchmarks.md#as-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands), run in CI by the [§AS-ci.5](../architectural-spec/AS-ci.md#5-benchmark-job) job) is what records the per-commit number; turning a committed baseline into a release-blocking regression threshold is the remaining work in [§RM-benchmarks](../roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets). Alongside it CI runs the built `grund .` under a generous timeout ([§AS-ci.4](../architectural-spec/AS-ci.md#4-performance-smoke-guard)) so a catastrophic regression — an accidental quadratic walk, a re-read pass — still fails the build outright.
+Manual timing on this repo and on a synthetic 10k-file fixture should stay within the targets above. The `cargo bench` instruction-counting harness over the commands agents and CI run most ([§AR-benchmarks](../architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands), run in CI by the [§AR-ci.5](../architecture/AR-ci.md#5-benchmark-job) job) is what records the per-commit number; turning a committed baseline into a release-blocking regression threshold is the remaining work in [§RM-benchmarks](../roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets). Alongside it CI runs the built `grund .` under a generous timeout ([§AR-ci.4](../architecture/AR-ci.md#4-performance-smoke-guard)) so a catastrophic regression — an accidental quadratic walk, a re-read pass — still fails the build outright.
 
 ## GOAL-zero-config: works on any conformant tree
 
@@ -130,7 +130,7 @@ No config file, no flags required for the canonical layout. Discovery is by walk
 
 ### 1. What "canonical layout" means
 
-A repo whose layout follows the canonical `grund` conventions: `AGENTS.md` at the root; `docs/` containing `functional-spec/`, `architectural-spec/`, `decisions/{architectural,functional}/`, `goals/`; `e2e/` for end-to-end tests; sources under `src/`; IDs in the canonical grammar. For such a repo, `grund .` Just Works — with no config, the walk covers `docs/`, `e2e/`, and `src/` (the default `[scan] include`, [§FS-config.3.5](../functional-spec/FS-config.md#35-scan--what-gets-walked)). A project whose sources or specs live elsewhere is one `[scan] include` line away from the same experience (`grund init` writes the file for editing), and `grund check <path>` always scans exactly the path it is handed regardless of the default scope. A walk that ends up reading nothing says so rather than exiting `0` silently ([§FS-check.2.2](../functional-spec/FS-check.md#22-empty-scan)) — the "any conformant tree" promise fails loud, never quiet.
+A repo whose layout follows the canonical `grund` conventions: `AGENTS.md` at the root; `docs/` containing `functional-spec/`, `architecture/`, `decisions/{architectural,functional}/`, `goals/`; `e2e/` for end-to-end tests; sources under `src/`; IDs in the canonical grammar. For such a repo, `grund .` Just Works — with no config, the walk covers `docs/`, `e2e/`, and `src/` (the default `[scan] include`, [§FS-config.3.5](../functional-spec/FS-config.md#35-scan--what-gets-walked)). A project whose sources or specs live elsewhere is one `[scan] include` line away from the same experience (`grund init` writes the file for editing), and `grund check <path>` always scans exactly the path it is handed regardless of the default scope. A walk that ends up reading nothing says so rather than exiting `0` silently ([§FS-check.2.2](../functional-spec/FS-check.md#22-empty-scan)) — the "any conformant tree" promise fails loud, never quiet.
 
 ### 2. Measurable
 
@@ -150,7 +150,7 @@ The same input — a tree plus an optional `grund.toml` — produces a byte-iden
 
 ### 2. Idiomatic surfaces
 
-Each binding fits its host. Rust returns `Result<T, E>`; Node returns Promises; Python returns values and raises exceptions. Names follow each ecosystem's conventions. Behavior is identical; surface fits each. See [§FS-distribution](../functional-spec/FS-distribution.md#fs-distribution-grund-distribution-targets) and [§AS-bindings](../architectural-spec/AS-bindings.md#as-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms) for the implementation.
+Each binding fits its host. Rust returns `Result<T, E>`; Node returns Promises; Python returns values and raises exceptions. Names follow each ecosystem's conventions. Behavior is identical; surface fits each. See [§FS-distribution](../functional-spec/FS-distribution.md#fs-distribution-grund-distribution-targets) and [§AR-bindings](../architecture/AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms) for the implementation.
 
 ### 3. Measurable
 

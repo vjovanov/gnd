@@ -12,13 +12,13 @@
 3. **Separate binary in the same crate.** `grund-cli` produces both `grund` and `grund-lsp` from one Cargo manifest.
 4. **Separate crate, separate binary, separate published package.** `grund-lsp` is its own crate in the workspace; `cargo install grund-lsp` is the only way to get it.
 
-This decision picks among the four and pins the consequences for [§FS-distribution](../../functional-spec/FS-distribution.md#fs-distribution-grund-distribution-targets) and [§AS-bindings](../../architectural-spec/AS-bindings.md#as-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms).
+This decision picks among the four and pins the consequences for [§FS-distribution](../../functional-spec/FS-distribution.md#fs-distribution-grund-distribution-targets) and [§AR-bindings](../../architecture/AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms).
 
 ## 2. Decision
 
 **Option (4): separate crate, separate binary, separate published package on every registry.**
 
-`grund-lsp` lives at `crates/grund-lsp/` in the workspace defined by [§AS-bindings.1](../../architectural-spec/AS-bindings.md#1-target-workspace-layout), depends only on `grund-core`, and is published as a standalone package on cargo (`grund-lsp`), npm (`grund-lsp`), and PyPI (`grund-lsp`). The CLI install path (`cargo install grund`, `npm install grund-cli`, `pipx install grund`) does not transitively pull in the LSP server; users who want editor integration install it explicitly.
+`grund-lsp` lives at `crates/grund-lsp/` in the workspace defined by [§AR-bindings.1](../../architecture/AR-bindings.md#1-target-workspace-layout), depends only on `grund-core`, and is published as a standalone package on cargo (`grund-lsp`), npm (`grund-lsp`), and PyPI (`grund-lsp`). The CLI install path (`cargo install grund`, `npm install grund-cli`, `pipx install grund`) does not transitively pull in the LSP server; users who want editor integration install it explicitly.
 
 ## 3. Why this shape
 
@@ -44,7 +44,7 @@ A separate package on every registry means the LSP's release cadence can decoupl
 
 ## 4. Consequences
 
-- The workspace gains a third crate: `crates/grund-lsp/`. [§AS-bindings.1](../../architectural-spec/AS-bindings.md#1-target-workspace-layout) is updated to list it alongside `grund-core`, `grund-cli`, `grund-node`, and `grund-py`.
+- The workspace gains a third crate: `crates/grund-lsp/`. [§AR-bindings.1](../../architecture/AR-bindings.md#1-target-workspace-layout) is updated to list it alongside `grund-core`, `grund-cli`, `grund-node`, and `grund-py`.
 - Three new packages are published, one per registry: `grund-lsp` on cargo, npm, and PyPI. [§FS-distribution.1](../../functional-spec/FS-distribution.md#1-targets) is updated to list them.
 - [§FS-lsp.2.1](../../functional-spec/FS-lsp.md#21-install) ("Install") states that the CLI install does not pull in `grund-lsp` transitively; the inverse is also true (`grund-lsp` does not pull in the CLI binary).
 - The roadmap item [§RM-lsp](../../roadmap.md#rm-lsp-ship-the-optional-lsp-server) owns shipping the crate and the published packages. It depends on [§RM-core-cli-split](../../roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli) (the workspace split) — that prerequisite must land first so `grund-lsp` has a `grund-core` to depend on.

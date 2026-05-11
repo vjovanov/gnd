@@ -9,7 +9,7 @@ Discussion.
 Project discussions often need to reference issue trackers alongside local specs:
 GitHub issues, Jira tickets, Linear issues, or internal trackers. Those references
 are useful in the same prose where `grund` IDs appear, but they are not local
-declarations and should not behave like `FS-*` or `AS-*` specs.
+declarations and should not behave like `FS-*` or `AR-*` specs.
 
 The design tension is that `grund check` is intentionally deterministic and
 offline, while validating a ticket's existence usually requires network access

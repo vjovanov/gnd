@@ -113,8 +113,8 @@ folder = "docs/functional-spec"
 title  = "Functional spec"
 
 [[kinds]]
-prefix = "AS"
-folder = "docs/architectural-spec"
+prefix = "AR"
+folder = "docs/architecture"
 title  = "Architectural spec"
 
 [[kinds]]
@@ -138,7 +138,7 @@ folder = "docs"
 title  = "Roadmap milestone"
 ```
 
-`GND` is the H1 of the single file `docs/grund.md` (the project's reason for being — one declaration, all of it inline); `GOAL` declarations are H2 headings inside the single file `docs/goals/goals.md` (one file, all goals inline); `RM` declarations are likewise H2 headings inside the single file `docs/roadmap.md` (one file, all milestones inline) — `folder` is `docs` for `GND` and `RM` because those files live at the top of `docs/`; `FS`, `AS`, `DF`, and `DA` declarations are the H1 of a file in their `folder` (an `AS` declaration may instead live inline in a source doc-comment with an optional stub in `folder` — [§AS-scanner.4](../architectural-spec/AS-scanner.md#4-inline-declarations-in-language-doc-comments)); `E2E` declarations are case directories under `folder` rather than heading lines — [§AS-scanner.6](../architectural-spec/AS-scanner.md#6-e2e-case-declarations). A project that overrides this list replaces the defaults entirely — there is no merge. To extend rather than replace, copy the defaults and add to them.
+`GND` is the H1 of the single file `docs/grund.md` (the project's reason for being — one declaration, all of it inline); `GOAL` declarations are H2 headings inside the single file `docs/goals/goals.md` (one file, all goals inline); `RM` declarations are likewise H2 headings inside the single file `docs/roadmap.md` (one file, all milestones inline) — `folder` is `docs` for `GND` and `RM` because those files live at the top of `docs/`; `FS`, `AR`, `DF`, and `DA` declarations are the H1 of a file in their `folder` (an `AR` declaration may instead live inline in a source doc-comment with an optional stub in `folder` — [§AR-scanner.4](../architecture/AR-scanner.md#4-inline-declarations-in-language-doc-comments)); `E2E` declarations are case directories under `folder` rather than heading lines — [§AR-scanner.6](../architecture/AR-scanner.md#6-e2e-case-declarations). A project that overrides this list replaces the defaults entirely — there is no merge. To extend rather than replace, copy the defaults and add to them.
 
 Prefix sets must be unambiguous: no kind's `prefix` may itself be a prefix of another kind's `prefix`. For example, `prefix = "DA"` and `prefix = "DAT"` together are invalid because a token starting with `DAT-` would parse as either kind. grund validates this on load and refuses ambiguous configs with a single error pointing at the offending pair (per §4.3).
 
@@ -156,9 +156,9 @@ respect_gitignore  = true
 
 `include` is the set of paths walked **from the config root** — the directory containing `.agents/`, or, when no `.agents/grund.toml` was discovered, the current working directory (never a subdirectory that merely happened to be passed as `grund`'s path argument). So in a config-less repo `grund` (no path) and `grund check .` both walk `docs/`, `e2e/`, `src/` relative to the cwd, while `grund check src/foo` or `grund check lib/` scans exactly the file or directory it is handed — an explicit path argument overrides `include` rather than being filtered by it. A walk that ends up reading no files at all is reported, not silently passed ([§FS-check.2.2](FS-check.md#22-empty-scan)). `exclude` is the set of directory names skipped at any depth. `extensions` filters which files are read. `comment_prefixes` are the markers recognized when looking for inline declarations and citations in source files. `docstring_python` enables Python triple-quoted-string scanning in addition to `#` comments.
 
-The default `comment_prefixes` set is broader than the languages tabulated in [§AS-scanner.4](../architectural-spec/AS-scanner.md#4-inline-declarations-in-language-doc-comments): it also covers `;` (Lisp / Scheme / Clojure), `--` (SQL / Haskell / Lua / Ada), and `*` / `/*` (block-comment continuation and opener). Any line whose first non-whitespace run is a configured prefix is eligible to host a declaration heading or a citation; the [§AS-scanner.4](../architectural-spec/AS-scanner.md#4-inline-declarations-in-language-doc-comments) table documents the doc-comment *conventions* for the major languages, not the full set of recognized prefixes.
+The default `comment_prefixes` set is broader than the languages tabulated in [§AR-scanner.4](../architecture/AR-scanner.md#4-inline-declarations-in-language-doc-comments): it also covers `;` (Lisp / Scheme / Clojure), `--` (SQL / Haskell / Lua / Ada), and `*` / `/*` (block-comment continuation and opener). Any line whose first non-whitespace run is a configured prefix is eligible to host a declaration heading or a citation; the [§AR-scanner.4](../architecture/AR-scanner.md#4-inline-declarations-in-language-doc-comments) table documents the doc-comment *conventions* for the major languages, not the full set of recognized prefixes.
 
-`respect_gitignore` (default `true`) makes the scanner honor every form of ignore file the `ignore` crate recognizes — `.gitignore` at any depth, `.git/info/exclude`, the global `core.excludesFile`, and `.ignore` files. Set to `false` only when you genuinely need to scan ignored paths. The directory-level `exclude` list above is applied **in addition** to ignore-file rules, never instead of them. See [§AS-scanner.1.1](../architectural-spec/AS-scanner.md#11-respecting-gitignore-and-friends).
+`respect_gitignore` (default `true`) makes the scanner honor every form of ignore file the `ignore` crate recognizes — `.gitignore` at any depth, `.git/info/exclude`, the global `core.excludesFile`, and `.ignore` files. Set to `false` only when you genuinely need to scan ignored paths. The directory-level `exclude` list above is applied **in addition** to ignore-file rules, never instead of them. See [§AR-scanner.1.1](../architecture/AR-scanner.md#11-respecting-gitignore-and-friends).
 
 ### 3.6 `[output]` — report format
 

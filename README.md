@@ -1,16 +1,33 @@
 # grund — Keep Your Agents Grounded
 
-> A fast Rust CLI that keeps every agent (human or AI) cited as it works — across your docs *and* your code's doc-comments.
+[![CI](https://github.com/vjovanov/grund/actions/workflows/ci.yml/badge.svg)](https://github.com/vjovanov/grund/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/grund.svg)](https://crates.io/crates/grund)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![1k files: ~574ms](https://img.shields.io/badge/1k%20files-~574ms-brightgreen.svg)](docs/benchmarks.md)
+
+> Specs, docs, code — one knowledge graph, always in sync.
 
 `grund` is built around one workflow:
 
+0. **Specify your intent.** Declare the goal, spec, or decision as a `# <ID>: …` heading before any code or doc cites it.
 1. **Cite as you write.** Every code unit carries a `§<ID>` back to the spec section it implements.
 2. **Re-read before you edit.** `grund show <ID>.<section>` pulls just that subsection into context — no full-file reads, no token bloat.
 3. **No dangling pointers.** `grund check` validates that every cited ID resolves — in `.md`, Rust `///`, Java doc-comments, Python docstrings, Go `//`, JSDoc, every doc-comment form `grund` knows about.
 
 Off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) only handle `.md` and only validate `[text](url)`. A `§FS-events.4` cited from `src/bus.rs` is invisible to them. That gap is what `grund` exists to close.
 
-> Status: 0.1.0 release-candidate Cargo CLI. The core command surface is implemented and self-hosted on this repo; install from git works today, while registry publication, npm / PyPI bindings, the optional LSP server, and watch mode are tracked in [`docs/roadmap.md`](docs/roadmap.md).
+## 0. Specify your intent
+
+Before anything can be cited, the target has to exist. A declaration is a heading whose first token is the ID — `grund`'s own reason for being lives at [`docs/grund.md`](docs/grund.md):
+
+```markdown
+# GND-grund: agents stay grounded in the spec
+
+Keep agents grounded in the spec — fewer bugs, cheaper LLM context,
+faster onboarding. …
+```
+
+That heading lives in the configured home for its kind (`GND` → `docs/grund.md`, `FS` → `docs/functional-spec/`, `GOAL` → `docs/goals/`, and so on — see [§4](#4-the-structure-that-gets-cited)). Once it's declared, any code, doc, or test can cite `§GND-grund` and `grund check` will resolve it.
 
 ## 1. Cite as you write
 
@@ -19,7 +36,7 @@ When code realizes a named behavior, it carries a `§<ID>` citation — on its d
 ```rust
 // src/bus.rs
 
-/// # AS-event-bus: In-process event broadcaster
+/// # AR-event-bus: In-process event broadcaster
 ///
 /// Implements the publish-subscribe contract from §FS-events.
 pub struct EventBus {
@@ -80,25 +97,25 @@ Every fact in a `grund` repo has a stable ID. The default kinds (configurable):
 | `GND`  | the project's reason for being (the *grund*) | `docs/grund.md` (one declaration, all of it inline) |
 | `GOAL` | goal                    | `docs/goals/goals.md` (one file, all goals inline) |
 | `FS`   | functional spec         | `docs/functional-spec/` — external behavior    |
-| `AS`   | architectural spec      | `docs/architectural-spec/` — **or inline in a class / module doc-comment** |
+| `AR`   | architectural spec      | `docs/architecture/` — **or inline in a class / module doc-comment** |
 | `DF`   | functional decision     | `docs/decisions/functional/` (append-only)     |
 | `DA`   | architectural decision  | `docs/decisions/architectural/` (append-only)  |
 | `E2E`  | end-to-end test         | `e2e/cases/<id>/` (the test *is* the body)     |
 | `RM`   | roadmap milestone       | `docs/roadmap.md`                              |
 
-**Architectural specs can live inline in source.** Drop a one-line stub in `docs/architectural-spec/AS-foo.md` whose H1 is `# AS-foo: [src/foo.rs](src/foo.rs)`, then declare the spec in the class doc-comment:
+**Architectural specs can live inline in source.** Drop a one-line stub in `docs/architecture/AR-foo.md` whose H1 is `# AR-foo: [src/foo.rs](src/foo.rs)`, then declare the spec in the class doc-comment:
 
 ```rust
-/// # AS-event-bus: In-process event broadcaster
+/// # AR-event-bus: In-process event broadcaster
 ///
 /// ## 1. Topology
 /// One sender, many receivers. Senders never block.
 pub struct EventBus { /* … */ }
 ```
 
-`grund show AS-event-bus` follows the stub, strips the `///` markers, and prints the Rustdoc prose. The same goes for Javadoc, JSDoc, Python docstrings, Go doc blocks, KDoc, Doxygen — every comment form enumerated in `grund`'s scanner spec.
+`grund show AR-event-bus` follows the stub, strips the `///` markers, and prints the Rustdoc prose. The same goes for Javadoc, JSDoc, Python docstrings, Go doc blocks, KDoc, Doxygen — every comment form enumerated in `grund`'s scanner spec.
 
-`grund` does this itself: `§AS-checker` lives in the doc-comment of `fn check` in [`src/lib.rs`](src/lib.rs), with the one-line stub at [`docs/architectural-spec/AS-checker.md`](docs/architectural-spec/AS-checker.md) — `grund show AS-checker` prints it.
+`grund` does this itself: `§AR-checker` lives in the doc-comment of `fn check` in [`src/lib.rs`](src/lib.rs), with the one-line stub at [`docs/architecture/AR-checker.md`](docs/architecture/AR-checker.md) — `grund show AR-checker` prints it.
 
 **ID format:**
 
@@ -108,9 +125,9 @@ pub struct EventBus { /* … */ }
   [§] KIND - [number -] slug [.section]
    │   │       │         │       │
    │   │       │         │       └─ optional dotted path, arbitrary depth (.3, .3.1, …)
-   │   │       │         └───────── [a-z0-9][a-z0-9-]*  (default slug_pattern; this repo uses [a-z][a-z0-9-]*)
-   │   │       └─────────────────── optional ordinal (e.g. 001)
-   │   └─────────────────────────── G│FS│AS│DA│DF│E2E│RM│DISC
+   │   │       │         └───────── [a-z0-9][a-z0-9-]*  (default slug_pattern)
+   │   │       └─────────────────── optional ordinal (e.g., 001)
+   │   └─────────────────────────── G│FS│AR│DA│DF│E2E│RM│DISC
    └─────────────────────────────── citation marker (writing only)
 ```
 
@@ -132,7 +149,7 @@ Before changing or removing a declaration, see what leans on it:
 
 ```bash
 $ grund refs FS-events.4
-docs/architectural-spec/AS-event-bus.md:6: §FS-events.4
+docs/architecture/AR-event-bus.md:6: §FS-events.4
 src/bus.rs:7: §FS-events.4
 ```
 
@@ -208,10 +225,6 @@ That rule plus a clean `grund check` is the whole contract: every reference reso
 - [`docs/roadmap.md`](docs/roadmap.md) — what's next
 - [`docs/changelog.md`](docs/changelog.md) — what changed
 - [`docs/functional-spec/`](docs/functional-spec/) — external behavior
-- [`docs/architectural-spec/`](docs/architectural-spec/) — internals
+- [`docs/architecture/`](docs/architecture/) — internals
 - [`docs/decisions/`](docs/decisions/) — how we got here
 - [`e2e/`](e2e/) — executable proof that the spec holds
-
-## License
-
-[MIT](LICENSE).

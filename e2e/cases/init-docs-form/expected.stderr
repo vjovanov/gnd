@@ -5,7 +5,7 @@ wrote docs/goals/goals.md
 wrote docs/roadmap.md
 wrote docs/changelog.md
 wrote docs/functional-spec/README.md
-wrote docs/architectural-spec/README.md
+wrote docs/architecture/README.md
 wrote docs/decisions/architectural/.gitkeep
 wrote docs/decisions/functional/.gitkeep
 wrote e2e/README.md

@@ -54,7 +54,7 @@ static AGENTS_BLOCK_END: Lazy<Regex> =
 /// ID grammar compiled from [id].format + [[kinds]] — the single place that knows the
 /// shape of a declaration heading or a citation. Built once per config load.
 /// Realizes §FS-config.3.1, §FS-config.3.2, §FS-config.3.3 and the regex-not-a-parser
-/// stance of §AS-scanner.5.
+/// stance of §AR-scanner.5.
 #[derive(Clone)]
 struct Grammar {
     decl_re: Regex,
@@ -68,7 +68,7 @@ impl Grammar {
     /// here (`{kind}` required, at least one of `{number}`/`{slug}`, separator must be
     /// lexically distinct) are §FS-config.3.2; the optional `§`-marker prefix on a
     /// citation is §FS-config.3.1 / §DF-reference-marker; the comment-prefix wrapper
-    /// on declaration/section regexes is §AS-scanner.4 (declarations live in code
+    /// on declaration/section regexes is §AR-scanner.4 (declarations live in code
     /// doc-comments too).
     fn build(
         format: &str,
@@ -217,7 +217,7 @@ impl Grammar {
 /// Build the alternation a declaration/section heading may be prefixed by — one
 /// entry per `[scan] comment_prefixes` value (§FS-config.3.5), with `//` widened to
 /// also catch Rust/JS doc-comment forms `///` and `//!` so inline declarations in
-/// code are seen (§AS-scanner.4). Longest-first so `//` does not shadow `///`.
+/// code are seen (§AR-scanner.4). Longest-first so `//` does not shadow `///`.
 fn comment_prefix_regex(comment_prefixes: &[String]) -> String {
     let mut prefixes = comment_prefixes
         .iter()
@@ -253,8 +253,8 @@ struct Id {
 // on any repo that configured a non-default one.
 
 /// One declaration site discovered by the scanner: a `# <ID>: …` heading in a
-/// Markdown file or a code doc-comment (§AS-scanner.2.1, §AS-scanner.4), with its
-/// section body map (§AS-scanner.2.2) and, for stub headings, the inline-home path
+/// Markdown file or a code doc-comment (§AR-scanner.2.1, §AR-scanner.4), with its
+/// section body map (§AR-scanner.2.2) and, for stub headings, the inline-home path
 /// it points at (§FS-show.2.3, §FS-check.3.4).
 #[derive(Debug)]
 struct Declaration {
@@ -267,14 +267,14 @@ struct Declaration {
     defined_in: Option<PathBuf>,
     e2e_case: Option<E2eCase>,
     /// Heading text after `# <ID>:` — the one-line title an author wrote
-    /// (§AS-scanner.2.1). `None` when the heading carries no `: <text>` tail, or
+    /// (§AR-scanner.2.1). `None` when the heading carries no `: <text>` tail, or
     /// when the heading is a stub link (`# <ID>: [<text>](<path>)`), whose tail
     /// is a path, not a title.
     title: Option<String>,
 }
 
 /// An `e2e/cases/<name>/` directory treated as an `E2E-<name>` declaration
-/// (§AS-scanner.6) — its `command.args`, `expected.exit`, and fixture file list
+/// (§AR-scanner.6) — its `command.args`, `expected.exit`, and fixture file list
 /// are what `grund show E2E-<name>` renders (§FS-show.2.4).
 #[derive(Debug)]
 struct E2eCase {
@@ -285,7 +285,7 @@ struct E2eCase {
 }
 
 /// One citation site: an `<ID>[.<section>]` token, optionally `§`-prefixed
-/// (§AS-scanner.2.3, §FS-check.1.1). `has_marker` drives strict-mode filtering
+/// (§AR-scanner.2.3, §FS-check.1.1). `has_marker` drives strict-mode filtering
 /// (§FS-config.3.1) and is what `grund fmt` upgrades a bare token from (§FS-fmt.2.2).
 #[derive(Debug)]
 struct Citation {
@@ -300,13 +300,13 @@ struct Citation {
 
 /// Everything the scanner found in one tree walk — declarations grouped by ID
 /// (so duplicates surface, §FS-check.3.3) and citations in encounter order. This
-/// is the scanner's whole output; the checker (§AS-checker) consumes it without
+/// is the scanner's whole output; the checker (§AR-checker) consumes it without
 /// re-reading files.
 #[derive(Default)]
 struct Findings {
     declarations: BTreeMap<Id, Vec<Declaration>>,
     citations: Vec<Citation>,
-    /// Every file the walk read successfully (§AS-scanner.1) — the universe the
+    /// Every file the walk read successfully (§AR-scanner.1) — the universe the
     /// `[reference] require_grounding` check iterates over (§FS-check.3.6,
     /// §DF-require-grounding). Files that failed to read are not here; they are in
     /// the walk's `ScanError` list instead.
@@ -358,7 +358,7 @@ struct Config {
     grammar: Grammar,
 }
 
-const DEFAULT_KINDS: &[&str] = &["GND", "GOAL", "FS", "AS", "DF", "DA", "E2E", "RM"];
+const DEFAULT_KINDS: &[&str] = &["GND", "GOAL", "FS", "AR", "DF", "DA", "E2E", "RM"];
 const DEFAULT_ID_FORMAT: &str = "{kind}-{number}-{slug}";
 const DEFAULT_SECTION_SEPARATOR: &str = ".";
 const DEFAULT_NUMBER_PATTERN: &str = r"\d+";
@@ -476,7 +476,7 @@ fn default_kind_folder(prefix: &str) -> Option<&'static str> {
         "GND" => Some("docs"),
         "GOAL" => Some("docs/goals"),
         "FS" => Some("docs/functional-spec"),
-        "AS" => Some("docs/architectural-spec"),
+        "AR" => Some("docs/architecture"),
         "DA" => Some("docs/decisions/architectural"),
         "DF" => Some("docs/decisions/functional"),
         "E2E" => Some("e2e/cases"),
@@ -492,7 +492,7 @@ fn default_kind_title(prefix: &str) -> Option<&'static str> {
         "GND" => Some("Grund"),
         "GOAL" => Some("Goal"),
         "FS" => Some("Functional spec"),
-        "AS" => Some("Architectural spec"),
+        "AR" => Some("Architectural spec"),
         "DA" => Some("Architectural decision"),
         "DF" => Some("Functional decision"),
         "E2E" => Some("End-to-end test"),
@@ -539,7 +539,7 @@ struct ShowOutput {
 }
 
 /// Pull an `Id` out of a `Grammar` regex match — the `kind` / `num` / `slug`
-/// capture groups the `[id] format` defined (§FS-config.3.2, §AS-scanner.2.1).
+/// capture groups the `[id] format` defined (§FS-config.3.2, §AR-scanner.2.1).
 fn parse_id(caps: &regex::Captures) -> Option<Id> {
     let kind = caps.name("kind")?.as_str().to_string();
     let num = match caps.name("num") {
@@ -934,7 +934,7 @@ fn parse_string_list(path: &Path, line: usize, value: &str) -> Result<Vec<String
 }
 
 /// Whether a file is one the scanner reads: a non-hidden name with an extension in
-/// `[scan] extensions` (§FS-config.3.5, §AS-scanner.1).
+/// `[scan] extensions` (§FS-config.3.5, §AR-scanner.1).
 fn is_scannable(path: &Path, config: &Config) -> bool {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
         return false;
@@ -946,10 +946,10 @@ fn is_scannable(path: &Path, config: &Config) -> bool {
     config.extensions.iter().any(|allowed| allowed == ext)
 }
 
-/// The per-file scan (§AS-scanner.2): line by line, find declaration headings
-/// (§AS-scanner.2.1 — in Markdown or in a code/`"""` doc-comment, §AS-scanner.4),
-/// nested section headings (§AS-scanner.2.2), and `<ID>[.<section>]` citations
-/// (§AS-scanner.2.3, §FS-check.1.1) — skipping fenced code blocks and, outside
+/// The per-file scan (§AR-scanner.2): line by line, find declaration headings
+/// (§AR-scanner.2.1 — in Markdown or in a code/`"""` doc-comment, §AR-scanner.4),
+/// nested section headings (§AR-scanner.2.2), and `<ID>[.<section>]` citations
+/// (§AR-scanner.2.3, §FS-check.1.1) — skipping fenced code blocks and, outside
 /// Markdown, bare ID-shaped tokens inside string literals (§FS-fmt.2.3.1) and any
 /// bare token at all under `[reference] strict` (§FS-config.3.1).
 fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()> {
@@ -1082,7 +1082,7 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
 }
 
 /// Discover `e2e/cases/<name>/` directories and register each as an `E2E-<name>`
-/// declaration whose body is the case manifest (§AS-scanner.6, §FS-show.2.4) — so
+/// declaration whose body is the case manifest (§AR-scanner.6, §FS-show.2.4) — so
 /// `grund check` sees `§E2E-…` citations resolve and `grund refs` finds e2e tests.
 fn scan_e2e_cases(
     config: &Config,
@@ -1166,7 +1166,7 @@ fn scan_e2e_cases(
 }
 
 /// Map an `e2e/cases/<name>/` directory name to its `E2E-<name>` `Id` under the
-/// repo's `[id] format` (§AS-scanner.6, §FS-config.3.4).
+/// repo's `[id] format` (§AR-scanner.6, §FS-config.3.4).
 fn e2e_id_from_case_dir_name(config: &Config, name: &str) -> Option<Id> {
     let after_kind_literal = literal_after_kind_placeholder(&config.id_format)?;
     let raw = format!("E2E{after_kind_literal}{name}");
@@ -1180,7 +1180,7 @@ fn e2e_id_from_case_dir_name(config: &Config, name: &str) -> Option<Id> {
 
 /// The literal text between `{kind}` and the next placeholder in `[id] format`
 /// (e.g. `-` in `{kind}-{slug}`) — the glue an `E2E-<dirname>` ID is reassembled
-/// with (§AS-scanner.6).
+/// with (§AR-scanner.6).
 fn literal_after_kind_placeholder(format: &str) -> Option<&str> {
     let marker = "{kind}";
     let start = format.find(marker)? + marker.len();
@@ -1191,7 +1191,7 @@ fn literal_after_kind_placeholder(format: &str) -> Option<&str> {
 
 /// Inverse of `e2e_id_from_case_dir_name`: strip the `E2E` prefix off a rendered ID
 /// to get the `e2e/cases/<name>/` directory `grund id` tells the author to create
-/// (§FS-id.2, §AS-scanner.6).
+/// (§FS-id.2, §AR-scanner.6).
 fn e2e_case_dir_name(config: &Config, rendered: &str) -> String {
     let prefix = format!(
         "E2E{}",
@@ -1245,7 +1245,7 @@ fn collect_relative_fixture_files(root: &Path, dir: &Path, files: &mut Vec<PathB
 }
 
 /// Depth of a heading line — count of leading `#` — used to decide whether a
-/// section heading nests under the current declaration (§AS-scanner.2.2).
+/// section heading nests under the current declaration (§AR-scanner.2.2).
 fn heading_level_for_line(line: &str, markdown_heading: bool, caps: &regex::Captures) -> usize {
     if markdown_heading {
         return line
@@ -1258,9 +1258,9 @@ fn heading_level_for_line(line: &str, markdown_heading: bool, caps: &regex::Capt
     caps.name("hashes").map(|m| m.as_str().len()).unwrap_or(1)
 }
 
-/// The tree walk (§AS-scanner.1): from each scan root, descend skipping hidden and
+/// The tree walk (§AR-scanner.1): from each scan root, descend skipping hidden and
 /// `[scan] exclude` directories, honouring `.gitignore` and friends unless
-/// `respect_gitignore = false` (§AS-scanner.1.1, §FS-config.3.5), keeping only
+/// `respect_gitignore = false` (§AR-scanner.1.1, §FS-config.3.5), keeping only
 /// scannable files, in a sorted order so findings are deterministic (§FS-errors.4).
 fn walk_scannable_files(
     config: &Config,
@@ -1321,7 +1321,7 @@ fn walk_scannable_files(
 
 /// The directories (or single file) the walk starts from: a `[path]` argument when
 /// given (narrowing the default scope), otherwise `[scan] include` resolved against
-/// the repo root, otherwise the whole root (§FS-config.3.5, §AS-scanner.1).
+/// the repo root, otherwise the whole root (§FS-config.3.5, §AR-scanner.1).
 fn scan_roots(config: &Config, scope: Option<&Path>, explicit_scope: bool) -> Result<Vec<PathBuf>> {
     if explicit_scope {
         let scope = scope.unwrap_or(Path::new("."));
@@ -1351,8 +1351,8 @@ fn scan_roots(config: &Config, scope: Option<&Path>, explicit_scope: bool) -> Re
 /// fatal, `check` and `refs` report it and exit 2 with a still-printed report.
 type ScanError = (PathBuf, String);
 
-/// One full tree walk: scan every file (§AS-scanner.2) plus the e2e case
-/// directories (§AS-scanner.6), collecting unreadable files rather than aborting
+/// One full tree walk: scan every file (§AR-scanner.2) plus the e2e case
+/// directories (§AR-scanner.6), collecting unreadable files rather than aborting
 /// so `check` can report them and keep going (§FS-check.2).
 fn scan_tree(
     config: &Config,
@@ -1388,9 +1388,9 @@ fn scan_tree_strict(
     Ok(findings)
 }
 
-/// # AS-checker: how grund validates the scanner's findings
+/// # AR-checker: how grund validates the scanner's findings
 ///
-/// The checker takes the `Findings` produced by §AS-scanner and produces a
+/// The checker takes the `Findings` produced by §AR-scanner and produces a
 /// `Report`. It implements the rules in §FS-check.
 ///
 /// ## 1. Inputs and outputs
@@ -1472,7 +1472,7 @@ fn scan_tree_strict(
 /// on that view. Keeping them separate means:
 ///
 /// - New rules can be added without touching the scanner.
-/// - The optional LSP server (§AS-lsp) can run a subset of checks (e.g., only
+/// - The optional LSP server (§AR-lsp) can run a subset of checks (e.g., only
 ///   dangling references on the active file's citations) against a cached scan.
 /// - Tests can feed synthetic `Findings` directly to the checker without disk I/O.
 fn check(findings: &Findings, config: &Config) -> Report {
@@ -1550,7 +1550,7 @@ fn check(findings: &Findings, config: &Config) -> Report {
     }
 
     // §FS-check.3.4: a `# <ID>: [text](path)` stub is broken if `path` does not
-    // exist, or exists but does not itself declare `<ID>` inline (§AS-checker.2.4).
+    // exist, or exists but does not itself declare `<ID>` inline (§AR-checker.2.4).
     for (id, decls) in &findings.declarations {
         for decl in decls {
             if !decl.is_stub {
@@ -1782,7 +1782,7 @@ fn line_for_byte_index(text: &str, byte_index: usize) -> usize {
 
 /// Whether this stub heading is the one-line pointer to an inline declaration in
 /// code (`# <ID>: [text](src/foo.rs)` whose target also declares `<ID>`) — such a
-/// stub does not count as a second home, so it is not a duplicate (§AS-scanner.4,
+/// stub does not count as a second home, so it is not a duplicate (§AR-scanner.4,
 /// §FS-show.2.3).
 fn is_stub_for_inline_decl(root: &Path, decl: &Declaration, decls: &[Declaration]) -> bool {
     if !decl.is_stub {
@@ -1803,7 +1803,7 @@ fn is_stub_for_inline_decl(root: &Path, decl: &Declaration, decls: &[Declaration
 
 /// Whether `path` contains a real (non-stub) `# <ID>: …` declaration of `id` —
 /// the check that a stub's link target actually carries the inline home it claims
-/// (§FS-check.3.4, §AS-checker.2.4, §AS-scanner.4).
+/// (§FS-check.3.4, §AR-checker.2.4, §AR-scanner.4).
 fn file_declares_inline_home(path: &Path, id: &Id, grammar: &Grammar) -> Result<bool> {
     let text = fs::read_to_string(path)?;
     for line in text.lines() {
@@ -4403,7 +4403,7 @@ const GRUND_DOC_TEMPLATE: &str = include_str!("../templates/grund.md");
 const GOALS_TEMPLATE: &str = include_str!("../templates/goals.md");
 const E2E_README_TEMPLATE: &str = include_str!("../templates/e2e-README.md");
 const FS_README_TEMPLATE: &str = include_str!("../templates/functional-spec-README.md");
-const AS_README_TEMPLATE: &str = include_str!("../templates/architectural-spec-README.md");
+const AS_README_TEMPLATE: &str = include_str!("../templates/architecture-README.md");
 const GITKEEP_TEMPLATE: &str = include_str!("../templates/gitkeep.md");
 const AGENT_SETUP_INSTRUCTIONS: &str = include_str!("../skills/grund-init/SKILL.md");
 const AGENTS_BLOCK_VERSION: u32 = 1;
@@ -4975,7 +4975,7 @@ fn docs_scaffold() -> Vec<(&'static str, String)> {
             FS_README_TEMPLATE.to_string(),
         ),
         (
-            "docs/architectural-spec/README.md",
+            "docs/architecture/README.md",
             AS_README_TEMPLATE.to_string(),
         ),
         (
@@ -5166,7 +5166,7 @@ fn print_subcommand_help(cmd: &str) {
             println!();
             println!("Examples:");
             println!("  grund list                      # the whole catalog");
-            println!("  grund list --kind AS docs/      # architectural-spec IDs under docs/");
+            println!("  grund list --kind AR docs/      # architecture IDs under docs/");
             println!(
                 "  grund list --unused             # uncited declarations (specs, decisions, …) — E2E cases excluded"
             );
@@ -5278,7 +5278,7 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!(
-                "KIND is one of the configured `[[kinds]]` prefixes — defaults G, FS, AS, DF, DA, E2E, RM;"
+                "KIND is one of the configured `[[kinds]]` prefixes — defaults G, FS, AR, DF, DA, E2E, RM;"
             );
             println!(
                 "`grund config show` lists this repo's. The title is slugified deterministically; the number"
@@ -5646,7 +5646,7 @@ mod tests {
         let root = test_root("require_grounding_accepts_inline_declaration");
         write(
             &root.join("src/router.rs"),
-            "// # AS-001-router: Router\n//\n// ## 1. Shape\npub struct Router;\n",
+            "// # AR-001-router: Router\n//\n// ## 1. Shape\npub struct Router;\n",
         );
 
         let mut config = Config::default_for(root.clone());
@@ -5712,7 +5712,7 @@ mod tests {
         config.rebuild_grammar().expect("rebuild grammar");
         write(
             &root.join("src/router.rs"),
-            "// # AS-001-router: Router\n//\n// ## 1. Shape\n",
+            "// # AR-001-router: Router\n//\n// ## 1. Shape\n",
         );
 
         let (findings, _) =
@@ -5720,7 +5720,7 @@ mod tests {
 
         assert!(
             findings.declarations.contains_key(&Id {
-                kind: "AS".to_string(),
+                kind: "AR".to_string(),
                 num: Some(1),
                 slug: Some("router".to_string())
             }),

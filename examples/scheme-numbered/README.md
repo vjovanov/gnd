@@ -12,7 +12,7 @@ Example IDs:
 ```
 RFC-001
 FS-002
-AS-014
+AR-014
 ```
 
 ## Pros

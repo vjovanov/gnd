@@ -17,10 +17,10 @@ grund list [<path>] [--kind <KIND>] [--unused] [--format text|json]
 
 ## 2. Behaviour
 
-`list` runs the same scan as `check` ([§AS-scanner](../architectural-spec/AS-scanner.md#as-scanner-how-grund-discovers-declarations-and-citations)) and emits, for every declaration the scan found, one catalog line. The set of declarations is exactly the set `check` validates and `show` can resolve, so the three never disagree on what exists.
+`list` runs the same scan as `check` ([§AR-scanner](../architecture/AR-scanner.md#ar-scanner-how-grund-discovers-declarations-and-citations)) and emits, for every declaration the scan found, one catalog line. The set of declarations is exactly the set `check` validates and `show` can resolve, so the three never disagree on what exists.
 
 - **Order.** Declarations come out sorted by ID — kind, then number, then slug — the same stable order `check` reports diagnostics in ([§FS-errors.4](FS-errors.md#4-determinism)). The result is deterministic for a given tree.
-- **Stub-and-inline pairs collapse.** When an ID's home is an inline declaration in source code with a one-line stub under `docs/architectural-spec/` pointing at it (the [§FS-check.3.4](FS-check.md#34-broken-inline-spec-stub) / [§FS-show.2.3](FS-show.md#23-inline-declarations-in-code-and-doc-comments) arrangement), `list` shows **one** line for that ID, naming the source file where the body lives — not two lines, one for the stub and one for the inline declaration. A *broken* stub (its target missing, or the target has no matching inline declaration) is not paired with anything, so it does appear, listed at the stub's own location with a `→ <target>` note; `check` reports the breakage in located form.
+- **Stub-and-inline pairs collapse.** When an ID's home is an inline declaration in source code with a one-line stub under `docs/architecture/` pointing at it (the [§FS-check.3.4](FS-check.md#34-broken-inline-spec-stub) / [§FS-show.2.3](FS-show.md#23-inline-declarations-in-code-and-doc-comments) arrangement), `list` shows **one** line for that ID, naming the source file where the body lives — not two lines, one for the stub and one for the inline declaration. A *broken* stub (its target missing, or the target has no matching inline declaration) is not paired with anything, so it does appear, listed at the stub's own location with a `→ <target>` note; `check` reports the breakage in located form.
 - **Duplicate declarations.** When an ID is declared in more than one independent home — the [§FS-check.3.3](FS-check.md#33-duplicate-declaration) error — `list` prints one line per home, each flagged so the duplication is visible at a glance. `list` does not pick a winner; it shows the situation and leaves the located error to `check`.
 - **What it is not.** `list` does not print declaration *bodies* (that is `grund show`), and it does not list *citations* (that is `grund refs <ID>`). It does not modify anything. An ID that is cited but never declared does **not** appear in `list` — it has no declaration to catalog; `grund refs <ID>` and `grund check` are where a dangling citation surfaces.
 
@@ -32,7 +32,7 @@ One line per catalog entry on **stdout** (this is a result a caller consumes and
 
 ```
 $ grund list
-AS-event-bus    src/bus.rs:14                 In-process event broadcaster
+AR-event-bus    src/bus.rs:14                 In-process event broadcaster
 FS-check        docs/functional-spec/FS-check.md:1    grund validates every reference in a repo
 FS-login        docs/functional-spec/FS-login.md:1    A player can log in with email
 G-no-dangling-refs  docs/goals/goals.md:7     every cited ID resolves to a declaration
@@ -47,7 +47,7 @@ Stderr is empty on success.
 NDJSON on stdout — one object per catalog entry, same order as the text form:
 
 ```json
-{"id":"AS-event-bus","kind":"AS","path":"src/bus.rs","line":14,"title":"In-process event broadcaster","stub":false,"defines":null,"refs":3,"duplicate":false}
+{"id":"AR-event-bus","kind":"AR","path":"src/bus.rs","line":14,"title":"In-process event broadcaster","stub":false,"defines":null,"refs":3,"duplicate":false}
 {"id":"FS-login","kind":"FS","path":"docs/functional-spec/FS-login.md","line":1,"title":"A player can log in with email","stub":false,"defines":null,"refs":7,"duplicate":false}
 ```
 

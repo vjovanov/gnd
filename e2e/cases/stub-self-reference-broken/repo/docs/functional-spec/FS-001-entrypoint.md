@@ -1,3 +1,3 @@
 # FS-001-entrypoint: Entrypoint
 
-This cites §AS-001-router and keeps §FS-001-entrypoint used.
+This cites §AR-001-router and keeps §FS-001-entrypoint used.

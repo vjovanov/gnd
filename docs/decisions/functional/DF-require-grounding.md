@@ -26,7 +26,7 @@ Add `[reference] require_grounding` ([§FS-config.3.1](../../functional-spec/FS-
 A source file is grounded if **either**:
 
 - it contains at least one recognized citation ([§FS-check.1.1](../../functional-spec/FS-check.md#11-recognized-citations) — so a bare token counts only when `strict = false`) whose ID resolves to a declaration in the tree; **or**
-- it itself declares an ID inline ([§AS-scanner.4](../../architectural-spec/AS-scanner.md#4-inline-declarations-in-language-doc-comments)) as a non-stub home — a class that carries its own `§AS-…` spec is grounded in that spec.
+- it itself declares an ID inline ([§AR-scanner.4](../../architecture/AR-scanner.md#4-inline-declarations-in-language-doc-comments)) as a non-stub home — a class that carries its own `§AR-…` spec is grounded in that spec.
 
 A file whose only citation is dangling is not grounded; it earns both the `dangling` and the `ungrounded` finding, and fixing the citation clears both. "Source file" is decided purely by extension (not by parsing the file), so the rule adds no language awareness ([§FS-non-goals.3](../../functional-spec/FS-non-goals.md#3-code-ast-parsing)) and reads no history ([§FS-non-goals.6](../../functional-spec/FS-non-goals.md#6-decision-database-audit-log-history-tracking)) — it stays a pure function of `(tree, config)` ([§FS-non-goals.13](../../functional-spec/FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)).
 

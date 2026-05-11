@@ -1,5 +1,5 @@
 /**
- * # AS-007-typescript: TypeScript router
+ * # AR-007-typescript: TypeScript router
  *
  * Implements §FS-001-entrypoint.1.
  *

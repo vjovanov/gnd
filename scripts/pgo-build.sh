@@ -6,7 +6,7 @@ set -euo pipefail
 # or push/PR CI loop.
 #
 # Three phases: build an instrumented binary (`-Cprofile-generate`), run the
-# §AS-benchmarks workload against this repo's own conformant tree to produce
+# §AR-benchmarks workload against this repo's own conformant tree to produce
 # `.profraw` profiles, merge them, then rebuild the release binary with
 # `-Cprofile-use`. The training workload is deliberately the same set of
 # commands `benches/instructions.rs` benchmarks — the ones agents and CI invoke
@@ -41,7 +41,7 @@ RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Cprofile-generate=$pgo_dir" cargo build --r
 
 grund="$repo/target/release/grund"
 
-echo "==> 2/3  training run — the §AS-benchmarks workload"
+echo "==> 2/3  training run — the §AR-benchmarks workload"
 # Keep this list in sync with benches/instructions.rs. Exit codes are irrelevant
 # here (a non-canonical tree makes `fmt --check` exit 1); we only want the code
 # paths exercised.
@@ -50,7 +50,7 @@ for _ in 1 2 3; do
   "$grund" check "$repo"                  >/dev/null 2>&1
   "$grund" list "$repo"                   >/dev/null 2>&1
   "$grund" show FS-check "$repo"          >/dev/null 2>&1
-  "$grund" refs G-fast-feedback "$repo"   >/dev/null 2>&1
+  "$grund" refs GOAL-fast-feedback "$repo" >/dev/null 2>&1
   "$grund" cover "$repo"                  >/dev/null 2>&1
   "$grund" fmt --check "$repo"            >/dev/null 2>&1
 done

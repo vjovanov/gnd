@@ -48,13 +48,13 @@ Sites are listed in lexicographic `path:line` order so the message is stable acr
 
 When the ID's home is in code (per [§FS-check.3.4](FS-check.md#34-broken-inline-spec-stub) stub semantics), `show` extracts the comment block surrounding the inline declaration, strips comment markers, and prints the resulting prose. The same section logic applies.
 
-The scanner recognizes the same doc-comment forms enumerated in [§AS-scanner.4](../architectural-spec/AS-scanner.md#4-inline-declarations-in-language-doc-comments) — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, PHPDoc, Rustdoc (`///`, `//!`, `/** … */`), C# XML doc comments, Go's `// …` doc blocks, Ruby `#` comments, and Python `""" … """` docstrings. This means an architectural spec can live directly in the class-level Javadoc, and `grund show AS-<event-bus>` returns the rendered Javadoc body — same content the optional LSP server shows on hover ([§FS-lsp.1.2](FS-lsp.md#12-hover-preview)). The stub at `docs/architectural-spec/AS-<event-bus>.md` is a single-line H1 — `# AS-<event-bus>: [<path>](<path>)` — pointing at the file.
+The scanner recognizes the same doc-comment forms enumerated in [§AR-scanner.4](../architecture/AR-scanner.md#4-inline-declarations-in-language-doc-comments) — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, PHPDoc, Rustdoc (`///`, `//!`, `/** … */`), C# XML doc comments, Go's `// …` doc blocks, Ruby `#` comments, and Python `""" … """` docstrings. This means an architectural spec can live directly in the class-level Javadoc, and `grund show AR-<event-bus>` returns the rendered Javadoc body — same content the optional LSP server shows on hover ([§FS-lsp.1.2](FS-lsp.md#12-hover-preview)). The stub at `docs/architecture/AR-<event-bus>.md` is a single-line H1 — `# AR-<event-bus>: [<path>](<path>)` — pointing at the file.
 
 #### 2.3.1 What counts as the "comment block"
 
 Extraction is precisely defined so that the implementation has no freedom and the same input produces the same output across editor, CLI, and binding callers.
 
-A declaration is found on a "declaration line" — a line that matches the declaration regex from [§AS-scanner.2.1](../architectural-spec/AS-scanner.md#21-declaration-detection) *and* sits inside a comment or docstring. The block surrounding it is computed as follows:
+A declaration is found on a "declaration line" — a line that matches the declaration regex from [§AR-scanner.2.1](../architecture/AR-scanner.md#21-declaration-detection) *and* sits inside a comment or docstring. The block surrounding it is computed as follows:
 
 1. **Find the open boundary.** Walk **backwards** from the declaration line over consecutive lines that are part of the same comment construct:
    - For line-style comments (`//`, `///`, `//!`, `#`, `;`, `--`): consecutive lines whose first non-whitespace character matches the same comment prefix family. A blank line ends the block. A line whose first non-whitespace character is not a comment marker ends the block.
@@ -82,7 +82,7 @@ The result is the markdown that the declaration's author wrote, identical to wha
 
 #### 2.3.3 Section selection inside a doc-comment
 
-Section selection (`AS-<event-bus>.2`) works the same way inside a doc-comment as inside a markdown file: the scanner records the numbered subsection headings declared within the doc-comment block and `show` slices to the requested section. Section depth is measured relative to the declaration's heading level exactly as in markdown ([§AS-scanner.2.2](../architectural-spec/AS-scanner.md#22-section-detection)) — a `# AS-<event-bus>` heading inside a `///` block is "level 1", so `## 1.` is a depth-1 section. The comment-stripping pass leaves these headings intact.
+Section selection (`AR-<event-bus>.2`) works the same way inside a doc-comment as inside a markdown file: the scanner records the numbered subsection headings declared within the doc-comment block and `show` slices to the requested section. Section depth is measured relative to the declaration's heading level exactly as in markdown ([§AR-scanner.2.2](../architecture/AR-scanner.md#22-section-detection)) — a `# AR-<event-bus>` heading inside a `///` block is "level 1", so `## 1.` is a depth-1 section. The comment-stripping pass leaves these headings intact.
 
 #### 2.3.4 Broken stub
 
@@ -97,7 +97,7 @@ This is the same "found something other than exactly one body" family as `ID not
 
 ### 2.4 E2E cases
 
-`grund show E2E-<name>` returns the case's manifest ([§AS-scanner.6](../architectural-spec/AS-scanner.md#6-e2e-case-declarations)) in three parts:
+`grund show E2E-<name>` returns the case's manifest ([§AR-scanner.6](../architecture/AR-scanner.md#6-e2e-case-declarations)) in three parts:
 
 ```
 grund <args…>
@@ -129,7 +129,7 @@ A failed query (`1`) prints the bare result line and, where the next step is obv
 ### 3.1 Format variants
 
 - `text` (default) — the body only: for a whole markdown declaration, the lines after the declaration heading line through the end of the body; for a selected section, the selected section heading and its body (§2.2); for an inline-source declaration, the comment-stripped prose (§2.3.2); for an E2E case, the manifest (§2.4). The whole-declaration opening heading line is **omitted**. A `grund fmt --cross-refs` link wrapper around a citation (`[§FS-<x>.1](FS-<x>.md#1-y)`) is flattened back to the bare `§FS-<x>.1` — §3.2.
-- `md` — same as `text` but the opening heading line is **included** verbatim, so the output is a self-contained markdown fragment, and `--cross-refs` link wrappers are kept as written — that is the renderable form (§3.2). The kind's `[[kinds]] title` ([§FS-config.3.4](FS-config.md#34-kinds--recognized-prefixes)) is *not* injected — it is metadata exposed only in `json`. For an inline-source declaration the included heading is the one written in the doc-comment (`# AS-<event-bus>: In-process event broadcaster`), comment-markers stripped.
+- `md` — same as `text` but the opening heading line is **included** verbatim, so the output is a self-contained markdown fragment, and `--cross-refs` link wrappers are kept as written — that is the renderable form (§3.2). The kind's `[[kinds]] title` ([§FS-config.3.4](FS-config.md#34-kinds--recognized-prefixes)) is *not* injected — it is metadata exposed only in `json`. For an inline-source declaration the included heading is the one written in the doc-comment (`# AR-<event-bus>: In-process event broadcaster`), comment-markers stripped.
 - `json` — a single object on stdout: `{"id":<ID>,"section":<section-path or null>,"body":<string>,"path":<declaring file or case dir>,"line":<1-indexed>}`. `body` is the same text `text` prints — `--cross-refs` wrappers flattened (§3.2). `section` is `null` when the whole declaration was requested. For E2E cases the object is the §2.4 shape instead. The wire form is stable per [§GOAL-no-silent-breakage.1](../goals/goals.md#1-what-counts-as-user-visible).
 
 ### 3.2 Cross-reference links are flattened in `text` and `json`

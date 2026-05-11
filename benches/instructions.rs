@@ -1,12 +1,12 @@
 //! Instruction-counting benchmarks for the `grund` CLI — see
-//! `docs/architectural-spec/AS-benchmarks.md`.
+//! `docs/architecture/AR-benchmarks.md`.
 //!
 //! Each benchmark runs the freshly built `grund` binary under Callgrind via
 //! `iai-callgrind`, so the reported figure is the deterministic instruction
 //! count for an actual CLI invocation against this repository's conformant
 //! tree. Instruction counts (unlike wall-clock time) do not flake on a loaded
 //! CI runner, which is what makes "track the number across commits and fail on
-//! regression" implementable — the meter the G-fast-feedback budget asks for.
+//! regression" implementable — the meter the GOAL-fast-feedback budget asks for.
 //!
 //! The benched subcommands are the ones agents and CI invoke on every loop:
 //!
@@ -43,7 +43,7 @@ const SHOW_ID: &str = "FS-check";
 /// A heavily-cited goal — `grund refs` over it walks the whole tree and returns
 /// the blast radius an agent checks before changing a declaration.
 #[cfg(feature = "bench")]
-const REFS_ID: &str = "G-fast-feedback";
+const REFS_ID: &str = "GOAL-fast-feedback";
 
 // `grund check <repo>` — validate every citation in the tree.
 #[cfg(feature = "bench")]

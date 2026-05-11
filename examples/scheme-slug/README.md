@@ -13,7 +13,7 @@ Example IDs:
 ```
 FS-login
 FS-session
-AS-event-bus
+AR-event-bus
 ```
 
 ## Pros

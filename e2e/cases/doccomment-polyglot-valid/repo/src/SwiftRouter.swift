@@ -1,4 +1,4 @@
-/// # AS-009-swift: Swift router
+/// # AR-009-swift: Swift router
 ///
 /// Implements §FS-001-entrypoint.1.
 ///

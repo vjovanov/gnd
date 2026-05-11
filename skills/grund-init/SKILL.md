@@ -118,7 +118,7 @@ Default: `{kind}-{number}-{slug}`.
    │   │       │         │       └─ optional dotted path, arbitrary depth (.3, .3.1, .3.1.5, …)
    │   │       │         └───────── [a-z][a-z0-9-]*
    │   │       └─────────────────── optional ordinal (e.g. 001)
-   │   └─────────────────────────── G│FS│AS│DA│DF│E2E│RM│DISC
+   │   └─────────────────────────── G│FS│AR│DA│DF│E2E│RM│DISC
    └─────────────────────────────── citation marker (writing only)
 ```
 
@@ -157,7 +157,7 @@ Relax only to match existing IDs.
 
 ### `[[kinds]]`
 
-Default kinds: `GND`, `GOAL`, `FS`, `AS`, `DF`, `DA`, `E2E`, `RM`.
+Default kinds: `GND`, `GOAL`, `FS`, `AR`, `DF`, `DA`, `E2E`, `RM`.
 
 Ask whether to keep defaults, remove unused kinds, or add project-specific kinds.
 

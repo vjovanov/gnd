@@ -1,7 +1,7 @@
 <?php
 
 /**
- * # AS-010-php: PHP router
+ * # AR-010-php: PHP router
  *
  * Implements §FS-001-entrypoint.1.
  *

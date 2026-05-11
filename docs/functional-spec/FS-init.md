@@ -12,7 +12,7 @@ grund init [<path>] [--name <name>] [--docs] [--force] [--append]
 
 - `<path>` — directory in which to scaffold. Defaults to `.` (the current directory). Applies to every form of `init` — including `--docs` — and prefixes every emitted path in §2.1. Must exist; `init` does not create the target directory itself (a missing target is a user error, not something to silently paper over).
 - `--name <name>` — human-readable project name baked into the generated `AGENTS.md` heading and the `.agents/grund.toml` `project_name` key. Defaults to the basename of `<path>` resolved to an absolute path.
-- `--docs` — also scaffold the canonical `docs/` tree (stub `grund.md`, `goals/goals.md`, `roadmap.md`, `changelog.md`, `functional-spec/`, `architectural-spec/`, `decisions/architectural/`, `decisions/functional/`) and an empty `e2e/` directory with a stub `README.md`. The `roadmap.md` and `changelog.md` stubs are scaffolded because the generated `AGENTS.md` block's `docs/` table links to them (§2.3). Off by default — most adopters already have a `docs/` of some shape and want only the entry point and config. Composes with `<path>`: every scaffolded file lands under `<path>/`.
+- `--docs` — also scaffold the canonical `docs/` tree (stub `grund.md`, `goals/goals.md`, `roadmap.md`, `changelog.md`, `functional-spec/`, `architecture/`, `decisions/architectural/`, `decisions/functional/`) and an empty `e2e/` directory with a stub `README.md`. The `roadmap.md` and `changelog.md` stubs are scaffolded because the generated `AGENTS.md` block's `docs/` table links to them (§2.3). Off by default — most adopters already have a `docs/` of some shape and want only the entry point and config. Composes with `<path>`: every scaffolded file lands under `<path>/`.
 - `--force` — overwrite files that already exist at the target paths. Off by default. Mutually exclusive with `--append`: passing both is a CLI-level error and exits 2 without touching the working tree (per §4).
 - `--append` — explicitly request the default `AGENTS.md` behavior: keep existing content and append or update the managed `grund` block. This flag is accepted for scripts that want to state intent, but it is not required.
 
@@ -48,7 +48,7 @@ With `--docs`, additionally:
 - `<path>/docs/roadmap.md`
 - `<path>/docs/changelog.md`
 - `<path>/docs/functional-spec/README.md`
-- `<path>/docs/architectural-spec/README.md`
+- `<path>/docs/architecture/README.md`
 - `<path>/docs/decisions/architectural/.gitkeep`
 - `<path>/docs/decisions/functional/.gitkeep`
 - `<path>/e2e/README.md`
@@ -59,7 +59,7 @@ Each scaffolded markdown file is a minimal starter — enough structure to teach
 - `grund.md` — the H1 plus a one-line note on how the project's reason for being is declared inline (`# GND-NNN-slug: …`), then the three H2 sections (`## 1. The problem`, `## 2. What this project does about it`, `## 3. Who it is for`), each with a one-line italic prompt to be replaced.
 - `goals/goals.md` — the H1 plus a one-line note on how goals are declared inline (`# GOAL-NNN-slug: …`).
 - `roadmap.md`, `changelog.md` — the H1 plus a single `<!-- placeholder - replace with real content -->` line.
-- `functional-spec/README.md`, `architectural-spec/README.md` — the H1, the navigational note about how `FS-`/`AS-` IDs declare into the directory and the convention that the index lists every spec, and an empty `| ID | Subject |` table to fill in.
+- `functional-spec/README.md`, `architecture/README.md` — the H1, the navigational note about how `FS-`/`AR-` IDs declare into the directory and the convention that the index lists every spec, and an empty `| ID | Subject |` table to fill in.
 - `e2e/README.md` — the H1 (`# e2e`) plus a one-line note that every behaviour under `docs/functional-spec/` has at least one case.
 
 The exact bytes for a given `grund` version are embedded in the binary; reference copies live under `templates/` in the `grund` source tree, and two `grund init --docs` runs at the same version with the same `--name` produce byte-identical scaffolds ([§FS-non-goals.13](FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)). `grund check` is clean against the freshly-scaffolded tree. The `.gitkeep` files exist solely so the empty directories survive a `git add`; their content is a single line: `# placeholder — replace this directory's contents with real declarations`.

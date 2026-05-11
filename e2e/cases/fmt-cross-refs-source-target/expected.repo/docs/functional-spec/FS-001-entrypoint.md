@@ -1,3 +1,3 @@
 # FS-001-entrypoint: Entrypoint
 
-References [§AS-001-router](../../src/router.rs).
+References [§AR-001-router](../../src/router.rs).

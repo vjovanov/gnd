@@ -17,7 +17,7 @@ This DR picks the anchor strategy and tightens the idempotency rule.
 
 **Heading-text slugs**, derived per a configurable renderer profile, **re-derived on every `grund fmt --cross-refs` pass**.
 
-The scanner records each section heading's text alongside its section path (small extension to [§AS-scanner.2.2](../../architectural-spec/AS-scanner.md#22-section-detection)). When `grund fmt --cross-refs` emits a wrap, it looks up the heading text for the target section and slugifies it using the configured renderer profile. With the default `github` profile, a citation `§FS-fmt.6.2` (heading `### 6.2 Form`) becomes:
+The scanner records each section heading's text alongside its section path (small extension to [§AR-scanner.2.2](../../architecture/AR-scanner.md#22-section-detection)). When `grund fmt --cross-refs` emits a wrap, it looks up the heading text for the target section and slugifies it using the configured renderer profile. With the default `github` profile, a citation `§FS-fmt.6.2` (heading `### 6.2 Form`) becomes:
 
 ```text
 [§FS-fmt.6.2](../functional-spec/FS-fmt.md#62-form)
@@ -65,7 +65,7 @@ A repo using a renderer with no matching profile selects `none` until a profile 
 - [§FS-fmt.6.2](../../functional-spec/FS-fmt.md#62-form)'s "Anchor format" bullet is rewritten to reference this DR and the heading-text strategy.
 - [§FS-fmt.6.3](../../functional-spec/FS-fmt.md#63-idempotency-and-re-derive)'s idempotency rule changes from "leave wrapped URLs alone" to "recompute and rewrite if different." Idempotency itself holds — second-run-with-no-edits is a no-op.
 - [§FS-fmt.6.7](../../functional-spec/FS-fmt.md#67-configurability)'s `anchor_format` config gains the named-profile shape from §2.3 above.
-- [§AS-scanner.2.2](../../architectural-spec/AS-scanner.md#22-section-detection) is extended to record heading text per section, in addition to the existing section path.
+- [§AR-scanner.2.2](../../architecture/AR-scanner.md#22-section-detection) is extended to record heading text per section, in addition to the existing section path.
 - [§DF-md-link-emission.2.2](DF-md-link-emission.md#22-anchor-format) is superseded by this DR. The section-coord stability framing in that section is retracted.
 - [§RM-md-link-emission](../../roadmap.md#rm-md-link-emission-grund-fmt---cross-refs)'s "What" section grows by one item: implement the renderer-profile slugifiers and the heading-text storage in `Findings`.
 

@@ -32,7 +32,7 @@ Configured declaration homes:
 | `GND` | `docs` | Grund |
 | `GOAL` | `docs/goals` | Goal |
 | `FS` | `docs/functional-spec` | Functional spec |
-| `AS` | `docs/architectural-spec` | Architectural spec |
+| `AR` | `docs/architecture` | Architectural spec |
 | `DF` | `docs/decisions/functional` | Functional decision |
 | `DA` | `docs/decisions/architectural` | Architectural decision |
 | `E2E` | `e2e/cases` | End-to-end test |
@@ -43,9 +43,9 @@ These paths come from `.agents/grund.toml`. If this repo's specs, roadmaps, chan
 
 ## References
 
-The `grund` ID scheme in this repo: `<KIND>-<slug>[.<section>]`, where `KIND` ∈ `{GND, GOAL, FS, AS, DF, DA, E2E, RM, DISC}` — the kinds and the ID/marker syntax are configurable in `.agents/grund.toml` (run `grund config show` to see the effective settings). Citations are written prefixed by the marker `§` — type `$$` in a `grund`-aware editor and it becomes `§` automatically. Bare ID-shaped tokens are ignored — `[reference] strict = true` is set in `.agents/grund.toml`, so only `§`-prefixed citations are checked.
+The `grund` ID scheme in this repo: `<KIND>-<slug>[.<section>]`, where `KIND` ∈ `{GND, GOAL, FS, AR, DF, DA, E2E, RM, DISC}` — the kinds and the ID/marker syntax are configurable in `.agents/grund.toml` (run `grund config show` to see the effective settings). Citations are written prefixed by the marker `§` — type `$$` in a `grund`-aware editor and it becomes `§` automatically. Bare ID-shaped tokens are ignored — `[reference] strict = true` is set in `.agents/grund.toml`, so only `§`-prefixed citations are checked.
 
-Declarations are heading lines: `# FS-user-login: A player can log in …` in a markdown file (again, `FS-user-login` is just the shape), or the same shape inside a code doc-comment (Javadoc, JSDoc, Rustdoc, Python docstring, Go `//` block, etc.). A declaration can also live directly in a class-level or module-level doc-comment, with a one-line stub in that kind's configured home whose H1 is `# <ID>: [<path>](<path>)` (a markdown link to the file with the inline declaration). The exhaustive list of supported doc-comment forms is in [`grund`'s own architectural spec](https://github.com/vjovanov/grund/tree/main/docs/architectural-spec).
+Declarations are heading lines: `# FS-user-login: A player can log in …` in a markdown file (again, `FS-user-login` is just the shape), or the same shape inside a code doc-comment (Javadoc, JSDoc, Rustdoc, Python docstring, Go `//` block, etc.). A declaration can also live directly in a class-level or module-level doc-comment, with a one-line stub in that kind's configured home whose H1 is `# <ID>: [<path>](<path>)` (a markdown link to the file with the inline declaration). The exhaustive list of supported doc-comment forms is in [`grund`'s own architectural spec](https://github.com/vjovanov/grund/tree/main/docs/architecture).
 
 Code back-references the spec it realizes. When a function, class, or block implements a behavior, it carries a `§<ID>` citation — on its doc-comment for a whole behavior, or on an inline comment beside the line that enforces one clause (`§<ID>.2.1`) or honors one decision. Cite at the granularity you implement: the behavior on the doc-comment, the clause on the `if` that checks it, the decision ID on the literal it pinned. Each citation is one more edge `grund refs <ID>` reports, so a reviewer changing a spec sees exactly which code leans on it — closing the loop goals ← specs ← architecture ← code, alongside specs ← executable tests.
 

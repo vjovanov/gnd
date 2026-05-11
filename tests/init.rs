@@ -90,7 +90,7 @@ fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
         "docs/roadmap.md",
         "docs/changelog.md",
         "docs/functional-spec/README.md",
-        "docs/architectural-spec/README.md",
+        "docs/architecture/README.md",
         "docs/decisions/architectural/.gitkeep",
         "docs/decisions/functional/.gitkeep",
         "e2e/README.md",
@@ -169,7 +169,7 @@ title = "Architecture decision"
         "AGENTS.md should describe configured scan scope:\n{agents}"
     );
     assert!(
-        !agents.contains("docs/architectural-spec/") && !agents.contains("docs/decisions/"),
+        !agents.contains("docs/architecture/") && !agents.contains("docs/decisions/"),
         "AGENTS.md must not introduce canonical docs folders when specs are configured elsewhere"
     );
 }

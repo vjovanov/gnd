@@ -16,7 +16,7 @@ When `grund fmt --cross-refs` wraps a bare-ID citation (no `.<section>`) and the
 
 This does **not** apply when:
 
-- the home is a source file — a stub `# AS-x: [the scanner](../../src/lib.rs)` points at `src/lib.rs`, and a renderer will not jump inside a doc-comment, so the link stays a bare file link (the rule [§DF-md-link-emission.2.3](DF-md-link-emission.md#23-source-file-links) already states for source-file declarations);
+- the home is a source file — a stub `# AR-x: [the scanner](../../src/lib.rs)` points at `src/lib.rs`, and a renderer will not jump inside a doc-comment, so the link stays a bare file link (the rule [§DF-md-link-emission.2.3](DF-md-link-emission.md#23-source-file-links) already states for source-file declarations);
 - the active `anchor_format` is `none` — that profile is "no fragment, ever" by definition ([§DF-md-link-anchor-strategy.2.3](DF-md-link-anchor-strategy.md#23-renderer-profiles)).
 
 Citations remain the source of truth; this is still a presentation layer ([§DF-md-link-emission](DF-md-link-emission.md#df-md-link-emission-grund-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations)). It does not inject anchors into headings (the invasive option [§DF-md-link-anchor-strategy.5](DF-md-link-anchor-strategy.md#5-alternatives-considered) rejected) — it derives the anchor a renderer already produces for the heading the author wrote.

@@ -13,7 +13,7 @@ test`, so the snippets below cannot drift from what the tool actually does.
 |--------------------------------------------------------------|---------------------------|----------------------------|
 | [`scheme-numbered-slug/`](scheme-numbered-slug/)             | `{kind}-{number}-{slug}`  | `FS-001-login`             |
 | [`scheme-numbered/`](scheme-numbered/)                       | `{kind}-{number}`         | `RFC-001`, `FS-002`        |
-| [`scheme-slug/`](scheme-slug/)                               | `{kind}-{slug}`           | `FS-login`, `AS-event-bus` |
+| [`scheme-slug/`](scheme-slug/)                               | `{kind}-{slug}`           | `FS-login`, `AR-event-bus` |
 
 Each subfolder's `README.md` lists the trade-offs for that scheme. The
 top-level project [README](../README.md#4-the-structure-that-gets-cited)

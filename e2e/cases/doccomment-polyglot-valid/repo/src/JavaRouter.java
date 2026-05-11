@@ -1,5 +1,5 @@
 /**
- * # AS-001-java: Java router
+ * # AR-001-java: Java router
  *
  * Implements §FS-001-entrypoint.1.
  *
