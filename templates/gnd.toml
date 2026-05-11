@@ -61,6 +61,6 @@ format = "text"
 color = "auto"
 relative_paths = true
 
-[fmt.md_links]
+[fmt.cross_refs]
 enabled = false
 anchor_format = "github"

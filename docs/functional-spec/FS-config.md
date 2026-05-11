@@ -166,15 +166,15 @@ relative_paths = true     # show paths relative to config root in reports
 
 `relative_paths = true` (default) renders every `<path>` in a report relative to the config root (§1). `relative_paths = false` renders them relative to the path argument passed on the command line — or to the current working directory when no path is given — i.e. the same base `gnd` uses when no `.agents/gnd.toml` is discovered. Either way `gnd` **never** emits an absolute path or a path that escapes above the chosen base; this is what keeps the report deterministic per [§FS-errors.4](FS-errors.md#4-determinism). `color` controls ANSI styling once the colored-output feature lands ([§FS-errors.3](FS-errors.md#3-message-text)); until then output is plain bytes regardless of this value, and a change to that default goes through the [§G-no-silent-breakage](../goals/goals.md#g-no-silent-breakage-changes-ship-through-a-deprecation-path) path.
 
-### 3.7 `[fmt.md_links]` — Markdown link emission
+### 3.7 `[fmt.cross_refs]` — cross-reference emission
 
 ```toml
-[fmt.md_links]
-enabled       = false      # default; --md-links overrides per-invocation
+[fmt.cross_refs]
+enabled       = false      # default; --cross-refs overrides per-invocation
 anchor_format = "github"   # default; one of github | gitlab | mkdocs | pandoc | none
 ```
 
-The full contract for this block — what `enabled` does, the named `anchor_format` profiles, and when the link pass runs — lives in [§FS-fmt.6.7](FS-fmt.md#67-configurability) and [§DF-md-link-anchor-strategy](../decisions/functional/DF-md-link-anchor-strategy.md#df-md-link-anchor-strategy-heading-text-slugs-re-derived-on-every-fmt-pass). It is part of the schema here because the generated `.agents/gnd.toml` ([§FS-init.2.4](FS-init.md#24-generated-agentsgndtoml)) writes every key in this section explicitly.
+The full contract for this block — what `enabled` does, the named `anchor_format` profiles, and when the cross-reference pass runs — lives in [§FS-fmt.6.7](FS-fmt.md#67-configurability) and [§DF-md-link-anchor-strategy](../decisions/functional/DF-md-link-anchor-strategy.md#df-md-link-anchor-strategy-heading-text-slugs-re-derived-on-every-fmt-pass). It is part of the schema here because the generated `.agents/gnd.toml` ([§FS-init.2.4](FS-init.md#24-generated-agentsgndtoml)) writes every key in this section explicitly. `[fmt.cross_refs]` is the home for cross-reference settings; today `gnd fmt --cross-refs` only emits the Markdown inline-link form ([§FS-fmt.6](FS-fmt.md#6-cross-reference-emission-with---cross-refs)), so `anchor_format` is the only knob — a future markup family adds its settings under this same block ([§FS-fmt.6.7](FS-fmt.md#67-configurability)), additively, with no `gnd_config_version` bump (§5).
 
 ## 4. Validation and inspection
 

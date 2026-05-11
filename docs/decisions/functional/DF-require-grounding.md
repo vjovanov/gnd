@@ -41,7 +41,7 @@ Like `strict`, grounding is a discipline a repo opts into once it is ready (and 
 ## 3. Consequences
 
 - `Config` gains a `require_grounding: bool`; `check` gains the [§FS-check.3.6](../../functional-spec/FS-check.md#36-ungrounded-source-file-opt-in) loop over the scanner's file list (a new `Findings.scanned_files`); `gnd config show` prints the key; `gnd check --help` lists the flag; `templates/gnd.toml` carries `require_grounding = false` so the generated config still documents every key ([§FS-init.2.4](../../functional-spec/FS-init.md#24-generated-agentsgndtoml)).
-- No `gnd_config_version` bump: a v1 config without the key keeps working, and a v1 config that sets it is only understood by a `gnd` new enough to have this record — an additive change, like `[fmt.md_links]`.
+- No `gnd_config_version` bump: a v1 config without the key keeps working, and a v1 config that sets it is only understood by a `gnd` new enough to have this record — an additive change, like `[fmt.cross_refs]`.
 - The reverse-lookup story tightens: in a `require_grounding` repo, `gnd refs <ID>` over the source tree is complete by construction, because an ungrounded file cannot land.
 - Tiers 2 and 3 ([§RM-cover](../../roadmap.md#rm-cover-gnd-cover), [§RM-cochange-gate](../../roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test)) build on this; the co-change gate in particular lives in the pre-commit / CI recipe layer, not in `gnd-core` — a third first-party surface is out of scope ([§FS-non-goals.12](../../functional-spec/FS-non-goals.md#12-surfaces-outside-gnd-core-and-the-lsp-transport)).
 

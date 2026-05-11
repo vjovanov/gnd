@@ -1,0 +1,4 @@
+gnd_config_version = 1
+
+[fmt.cross_refs]
+anchor_format = "github"

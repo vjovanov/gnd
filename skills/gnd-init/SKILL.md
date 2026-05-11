@@ -235,14 +235,14 @@ Pros: deterministic, repo-root-relative reports.
 Cons: less convenient when running from a subdirectory and expecting local paths.
 Keep true for CI and shared logs.
 
-### `[fmt.md_links]`
+### `[fmt.cross_refs]`
 
 `enabled`
 
 Default: `false`.
 Pros true: Markdown citations can become normal links for rendered docs.
 Cons true: extra churn and renderer-specific anchors.
-Recommend false initially; use `gnd fmt --md-links` explicitly.
+Recommend false initially; use `gnd fmt --cross-refs` explicitly.
 
 `anchor_format`
 
@@ -297,7 +297,7 @@ Base this on actual directories:
 - JS monorepo: include `["docs", "e2e", "src", "packages", "apps", "tests"]` when present.
 - Go repo: include `["docs", "e2e", "cmd", "internal", "pkg", "tests"]` when present.
 
-### `[fmt.md_links].anchor_format`
+### `[fmt.cross_refs].anchor_format`
 
 Recommend:
 

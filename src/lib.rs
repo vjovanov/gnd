@@ -30,7 +30,7 @@ static STUB_LINK_HEADING: Lazy<Regex> =
 /// An inline Markdown link `[text](url)` — used to reduce a heading to the text a
 /// renderer would slugify (the destination URL is not part of that text), so an
 /// anchor stays correct even when a citation in a section heading has been wrapped
-/// by `gnd fmt --md-links` (§DF-github-anchor-fidelity, §FS-fmt.6.2).
+/// by `gnd fmt --cross-refs` (§DF-github-anchor-fidelity, §FS-fmt.6.2).
 static MD_INLINE_LINK: Lazy<Regex> = Lazy::new(|| Regex::new(r"\[([^\]]*)\]\([^)]*\)").unwrap());
 /// An HTML-tag-shaped span `<…>` — a renderer drops it from a heading's text
 /// (`## RM-show: gnd show <ID>` slugs as `rm-show-gnd-show`), so it must be removed
@@ -353,8 +353,8 @@ struct Config {
     number_pattern: String,
     slug_pattern: String,
     kinds: Vec<KindConfig>,
-    fmt_md_links_enabled: bool,
-    md_link_anchor_format: String,
+    fmt_cross_refs_enabled: bool,
+    cross_ref_anchor_format: String,
     grammar: Grammar,
 }
 
@@ -442,8 +442,8 @@ impl Config {
             number_pattern: DEFAULT_NUMBER_PATTERN.into(),
             slug_pattern: DEFAULT_SLUG_PATTERN.into(),
             kinds,
-            fmt_md_links_enabled: false,
-            md_link_anchor_format: "github".into(),
+            fmt_cross_refs_enabled: false,
+            cross_ref_anchor_format: "github".into(),
             grammar,
         }
     }
@@ -608,7 +608,7 @@ fn load_config(start: &Path) -> Result<Config> {
 
 /// Parse one `.agents/gnd.toml` over `config` — the schema of §FS-config.3 and its
 /// subsections (`[reference]` 3.1, `[id]` 3.2/3.3, `[[kinds]]` 3.4, `[scan]` 3.5,
-/// `[output]` 3.6, `[fmt.md_links]` 3.7). Any unknown section/key or malformed
+/// `[output]` 3.6, `[fmt.cross_refs]` 3.7). Any unknown section/key or malformed
 /// value is a hard error reported as `path:line:` (§FS-config.4.3, §FS-errors.2.1).
 fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) -> Result<()> {
     let text =
@@ -630,7 +630,7 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
             let is_array_table = line.starts_with("[[") && line.ends_with("]]");
             section = line.trim_matches(['[', ']']).to_string();
             match section.as_str() {
-                "reference" | "scan" | "output" | "id" | "fmt.md_links" => {}
+                "reference" | "scan" | "output" | "id" | "fmt.cross_refs" => {}
                 "kinds" => {
                     if !is_array_table {
                         bail_config(
@@ -754,10 +754,10 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
             ("output", "relative_paths") => {
                 config.relative_paths = parse_bool(path, line_no, value)?;
             }
-            ("fmt.md_links", "enabled") => {
-                config.fmt_md_links_enabled = parse_bool(path, line_no, value)?;
+            ("fmt.cross_refs", "enabled") => {
+                config.fmt_cross_refs_enabled = parse_bool(path, line_no, value)?;
             }
-            ("fmt.md_links", "anchor_format") => {
+            ("fmt.cross_refs", "anchor_format") => {
                 let format = parse_string(path, line_no, value)?;
                 if !matches!(
                     format.as_str(),
@@ -765,7 +765,7 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
                 ) {
                     bail_config(path, line_no, "unknown md link anchor format".to_string())?;
                 }
-                config.md_link_anchor_format = format;
+                config.cross_ref_anchor_format = format;
             }
             _ => bail_config(path, line_no, format!("unknown config key `{key}`"))?,
         }
@@ -2523,10 +2523,10 @@ fn is_line_style_comment_line(line: &str) -> bool {
         || trimmed.starts_with("--")
 }
 
-/// `gnd fmt [path] [--check|--write] [--marker] [--md-links]` — normalize citation
+/// `gnd fmt [path] [--check|--write] [--marker] [--cross-refs]` — normalize citation
 /// syntax in bulk (§FS-fmt.1): rewrite the `$$` trigger to the `§` marker
 /// (§FS-fmt.2.1), and with `--marker` upgrade bare ID-shaped tokens to `§`-prefixed
-/// (§FS-fmt.2.2); with `--md-links` (or `[fmt.md_links] enabled`) also wrap
+/// (§FS-fmt.2.2); with `--cross-refs` (or `[fmt.cross_refs] enabled`) also wrap
 /// citations as Markdown links (§FS-fmt.6, §DF-md-link-emission). `--check` reports
 /// without writing and exits `1` if anything would change (§FS-fmt.3).
 fn command_fmt(args: &[String]) -> ExitCode {
@@ -2535,13 +2535,13 @@ fn command_fmt(args: &[String]) -> ExitCode {
     let mut write = false;
     let mut check_flag = false;
     let mut marker = false;
-    let mut md_links = false;
+    let mut cross_refs = false;
     for arg in args {
         match arg.as_str() {
             "--check" => check_flag = true,
             "--write" => write = true,
             "--marker" => marker = true,
-            "--md-links" => md_links = true,
+            "--cross-refs" => cross_refs = true,
             other if other.starts_with('-') => {
                 eprintln!("error: unknown flag `{other}`");
                 return ExitCode::from(2);
@@ -2567,8 +2567,8 @@ fn command_fmt(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let md_links = md_links || (write && config.fmt_md_links_enabled);
-    let changes = match fmt_tree(&config, Some(&path), path_provided, marker, md_links, write) {
+    let cross_refs = cross_refs || (write && config.fmt_cross_refs_enabled);
+    let changes = match fmt_tree(&config, Some(&path), path_provided, marker, cross_refs, write) {
         Ok(changes) => changes,
         Err(err) => {
             eprintln!("error: {err:#}");
@@ -2607,18 +2607,18 @@ fn command_fmt(args: &[String]) -> ExitCode {
 /// Walk the tree and rewrite each scannable file line by line — never touching a
 /// declaration heading or anything inside a fenced code block (§FS-fmt.2.3) — and
 /// either write the changes back (`--write`) or just collect `(path, line, label)`
-/// for `--check`/dry-run (§FS-fmt.3). `--md-links` needs the full `Findings` first
+/// for `--check`/dry-run (§FS-fmt.3). `--cross-refs` needs the full `Findings` first
 /// so a link is only emitted when its target resolves (§FS-fmt.6.3).
 fn fmt_tree(
     config: &Config,
     scope: Option<&Path>,
     explicit_scope: bool,
     add_marker: bool,
-    md_links: bool,
+    cross_refs: bool,
     write: bool,
 ) -> Result<Vec<(PathBuf, usize, &'static str)>> {
     let mut changes = Vec::new();
-    let findings = if md_links {
+    let findings = if cross_refs {
         Some(scan_tree_strict(config, scope, explicit_scope)?)
     } else {
         None
@@ -2646,7 +2646,7 @@ fn fmt_tree(
                 &path,
                 config,
                 add_marker,
-                md_links,
+                cross_refs,
                 is_md,
                 findings.as_ref(),
             );
@@ -2676,7 +2676,7 @@ fn fmt_line(
     path: &Path,
     config: &Config,
     add_marker: bool,
-    md_links: bool,
+    cross_refs: bool,
     is_md: bool,
     findings: Option<&Findings>,
 ) -> (String, &'static str) {
@@ -2688,7 +2688,7 @@ fn fmt_line(
         triggered.clone()
     };
     let marker_changed = marked != triggered;
-    let final_line = if md_links && is_md {
+    let final_line = if cross_refs && is_md {
         match findings {
             Some(findings) => wrap_markdown_links(&marked, path, config, findings),
             None => marked.clone(),
@@ -2841,7 +2841,7 @@ fn is_inside_markdown_link_destination(line: &str, pos: usize) -> bool {
 }
 
 /// Wrap each `§<ID>[.<section>]` citation on this Markdown line as `[§<ID>…](url)`
-/// — the `--md-links` rewrite (§FS-fmt.6.2): re-derive an existing wrapper's URL,
+/// — the `--cross-refs` rewrite (§FS-fmt.6.2): re-derive an existing wrapper's URL,
 /// skip citations in inline code (§FS-fmt.6.4), and emit nothing when the target
 /// does not resolve (§FS-fmt.6.3).
 fn wrap_markdown_links(line: &str, path: &Path, config: &Config, findings: &Findings) -> String {
@@ -2922,7 +2922,7 @@ fn markdown_link_target(
     };
     let rel = relative_url(from_file, &home, config);
     let is_md = home.extension().and_then(|e| e.to_str()) == Some("md");
-    if !is_md || config.md_link_anchor_format == "none" {
+    if !is_md || config.cross_ref_anchor_format == "none" {
         return Some(rel);
     }
     let heading = match section {
@@ -2933,7 +2933,7 @@ fn markdown_link_target(
         // that declaration's own heading anchor, not just the file.
         None => declaration_heading_text(home_decl, config),
     };
-    let anchor = anchor_slug(&heading, &config.md_link_anchor_format);
+    let anchor = anchor_slug(&heading, &config.cross_ref_anchor_format);
     Some(format!("{}#{}", rel, anchor))
 }
 
@@ -2951,7 +2951,7 @@ fn declaration_heading_text(decl: &Declaration, config: &Config) -> String {
 }
 
 /// `../`-style relative path from one repo file to another — the link form
-/// `gnd fmt --md-links` writes (§FS-fmt.6.2).
+/// `gnd fmt --cross-refs` writes (§FS-fmt.6.2).
 fn relative_url(from_file: &Path, to_file: &Path, config: &Config) -> String {
     let from_rel = from_file.strip_prefix(&config.root).unwrap_or(from_file);
     let to_rel = to_file.strip_prefix(&config.root).unwrap_or(to_file);
@@ -2991,7 +2991,7 @@ fn path_components(path: &Path) -> Vec<String> {
 /// stored (§DF-md-link-anchor-strategy). The title is reduced to its rendered form
 /// (`reduce_heading_text`: `[§FS-<x>.1](path)` → `§FS-<x>.1`, `<ID>` dropped) so
 /// the anchor is stable whether or not a citation in this heading has been wrapped
-/// by `gnd fmt --md-links` (§DF-github-anchor-fidelity).
+/// by `gnd fmt --cross-refs` (§DF-github-anchor-fidelity).
 fn section_anchor_text(line: &str, section: &str) -> String {
     let trimmed = line.trim_start();
     let heading = trimmed
@@ -3041,7 +3041,7 @@ fn section_heading_text(
 }
 
 /// Slugify a heading into a fragment anchor, dispatching on the configured
-/// `[fmt.md_links] anchor_format` profile (github / gitlab / mkdocs / pandoc) —
+/// `[fmt.cross_refs] anchor_format` profile (github / gitlab / mkdocs / pandoc) —
 /// §FS-fmt.6.7, §DF-md-link-anchor-strategy.
 fn anchor_slug(text: &str, profile: &str) -> String {
     match profile {
@@ -3226,9 +3226,9 @@ fn command_config(args: &[String]) -> ExitCode {
                 println!("color = \"auto\"");
                 println!("relative_paths = {}", config.relative_paths);
                 println!();
-                println!("[fmt.md_links]");
-                println!("enabled = {}", config.fmt_md_links_enabled);
-                println!("anchor_format = \"{}\"", config.md_link_anchor_format);
+                println!("[fmt.cross_refs]");
+                println!("enabled = {}", config.fmt_cross_refs_enabled);
+                println!("anchor_format = \"{}\"", config.cross_ref_anchor_format);
                 ExitCode::SUCCESS
             }
             Err(err) => {
@@ -4968,7 +4968,7 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!("and optionally upgrade bare ID tokens to marker-prefixed ones.");
             println!();
-            println!("Usage:  gnd fmt [PATH] [--check | --write] [--marker] [--md-links]");
+            println!("Usage:  gnd fmt [PATH] [--check | --write] [--marker] [--cross-refs]");
             println!();
             println!("Options:");
             println!(
@@ -4981,7 +4981,7 @@ fn print_subcommand_help(cmd: &str) {
                 "  --marker       also prefix bare `<ID>` tokens with the marker        e.g. gnd fmt --write --marker"
             );
             println!(
-                "  --md-links     also wrap citations as Markdown links to their target e.g. gnd fmt --write --md-links"
+                "  --cross-refs     also wrap citations as Markdown links to their target e.g. gnd fmt --write --cross-refs"
             );
             println!();
             println!(

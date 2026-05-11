@@ -13,7 +13,7 @@ We want to keep IDs as the source of truth and *also* deliver clickable links in
 
 ## 2. Decision
 
-Extend `gnd fmt` (per [§FS-fmt.6](../../functional-spec/FS-fmt.md#6-markdown-link-emission-with---md-links)) with an opt-in `--md-links` mode that, in `.md` files only, wraps each marker-prefixed citation in a Markdown link to the declaration body. The unwrapped citation remains the canonical, source-of-truth form; the wrap is a derived presentation layer that `fmt` regenerates idempotently.
+Extend `gnd fmt` (per [§FS-fmt.6](../../functional-spec/FS-fmt.md#6-cross-reference-emission-with---cross-refs)) with an opt-in `--cross-refs` mode that, in `.md` files only, wraps each marker-prefixed citation in a Markdown link to the declaration body. The unwrapped citation remains the canonical, source-of-truth form; the wrap is a derived presentation layer that `fmt` regenerates idempotently.
 
 ### 2.1 Form
 
@@ -46,7 +46,7 @@ When the citation's declaration lives in source code (a stub of the form `# <ID>
 
 ### 2.4 Opt-in, never default
 
-`--md-links` is opt-in per invocation; `[fmt.md_links] enabled = true` opts a repo in globally. Three reasons (per [§FS-fmt.6.6](../../functional-spec/FS-fmt.md#66-why---md-links-is-opt-in)): paths in links are coupled to the file's location and rebase noisily under heavy refactor; alternative renderers (Pandoc, etc.) need different anchor formats; and treating wrapped form as canonical would imply the rendered Markdown view is the source of truth, which it is not.
+`--cross-refs` is opt-in per invocation; `[fmt.cross_refs] enabled = true` opts a repo in globally. Three reasons (per [§FS-fmt.6.6](../../functional-spec/FS-fmt.md#66-why---cross-refs-is-opt-in)): paths in links are coupled to the file's location and rebase noisily under heavy refactor; alternative renderers (Pandoc, etc.) need different anchor formats; and treating wrapped form as canonical would imply the rendered Markdown view is the source of truth, which it is not.
 
 ## 3. Reconciliation with non-goals
 
@@ -54,7 +54,7 @@ This decision sits close to two [§FS-non-goals](../../functional-spec/FS-non-go
 
 ### 3.1 [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation) — gnd does not validate Markdown links
 
-`fmt --md-links` *emits* a link; it does not *validate* a link. Once the link is on disk it is a normal Markdown link and `lychee` is the right tool to validate it. `gnd check` continues to validate only the underlying citation — the part inside the brackets — same as before. If a contributor hand-edits the URL inside `(...)` to point somewhere wrong, `gnd` will not catch it; that is `lychee`'s job, exactly as [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation) says.
+`fmt --cross-refs` *emits* a link; it does not *validate* a link. Once the link is on disk it is a normal Markdown link and `lychee` is the right tool to validate it. `gnd check` continues to validate only the underlying citation — the part inside the brackets — same as before. If a contributor hand-edits the URL inside `(...)` to point somewhere wrong, `gnd` will not catch it; that is `lychee`'s job, exactly as [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation) says.
 
 ### 3.2 [§FS-non-goals.5](../../functional-spec/FS-non-goals.md#5-documentation-generation) — gnd does not generate rendered documentation
 
@@ -62,11 +62,11 @@ The link emission is a transformation on the source `.md` file (a sibling of the
 
 ## 4. Consequences
 
-- A new `--md-links` flag on `gnd fmt` and a `[fmt.md_links]` config block in `gnd.toml` ([§FS-fmt.6.7](../../functional-spec/FS-fmt.md#67-configurability)).
-- A new roadmap item [§RM-md-link-emission](../../roadmap.md#rm-md-link-emission-gnd-fmt---md-links) carries the implementation.
+- A new `--cross-refs` flag on `gnd fmt` and a `[fmt.cross_refs]` config block in `gnd.toml` ([§FS-fmt.6.7](../../functional-spec/FS-fmt.md#67-configurability)).
+- A new roadmap item [§RM-md-link-emission](../../roadmap.md#rm-md-link-emission-gnd-fmt---cross-refs) carries the implementation.
 - The [§G-polyglot-citation](../../goals/goals.md#g-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) goal explicitly states that the polyglot grammar is the canonical form; this decision is the sanctioned exception that adds a presentation-layer view in `.md` only.
-- Repos that adopt `--md-links` should run `gnd fmt --md-links --write` as a pre-commit hook so the generated links stay in sync with file moves and citation edits. CI should run `gnd fmt --md-links --check` to flag drift.
-- The [§G-no-silent-breakage](../../goals/goals.md#g-no-silent-breakage-changes-ship-through-a-deprecation-path) path: shipping the flag does not change any existing behavior; `--md-links` and `[fmt.md_links] enabled = true` are both off by default, so a repo that does not opt in sees no diff.
+- Repos that adopt `--cross-refs` should run `gnd fmt --cross-refs --write` as a pre-commit hook so the generated links stay in sync with file moves and citation edits. CI should run `gnd fmt --cross-refs --check` to flag drift.
+- The [§G-no-silent-breakage](../../goals/goals.md#g-no-silent-breakage-changes-ship-through-a-deprecation-path) path: shipping the flag does not change any existing behavior; `--cross-refs` and `[fmt.cross_refs] enabled = true` are both off by default, so a repo that does not opt in sees no diff.
 
 ## 5. Alternatives considered
 

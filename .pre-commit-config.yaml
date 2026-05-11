@@ -1,7 +1,7 @@
-# Run `gnd check`, `gnd fmt --md-links`, and `lychee` before every commit. With
+# Run `gnd check`, `gnd fmt --cross-refs`, and `lychee` before every commit. With
 # `[reference] require_grounding = true` in `.agents/gnd.toml`, `gnd check` also
 # enforces the grounding floor (§FS-check.3.6): every source file under
-# `[scan] include` must cite a declared ID. `gnd fmt --md-links --write` keeps
+# `[scan] include` must cite a declared ID. `gnd fmt --cross-refs --write` keeps
 # every `§…` citation in the `.md` tree wrapped in a clickable link to its
 # declaration (§FS-fmt.6) — idempotent, so it is a no-op when nothing drifted; a
 # heading rename or file move shows up as a one-line `fmt` diff and pre-commit
@@ -25,9 +25,9 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-      - id: gnd-fmt-md-links
-        name: gnd fmt --md-links
-        entry: cargo run --quiet -- fmt --md-links --write
+      - id: gnd-fmt-cross-refs
+        name: gnd fmt --cross-refs
+        entry: cargo run --quiet -- fmt --cross-refs --write
         language: system
         pass_filenames: false
         always_run: true
