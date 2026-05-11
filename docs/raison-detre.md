@@ -14,7 +14,7 @@ Citations live wherever they are useful — including inside Java doc-comments, 
 2. **Citations survive refactors.** IDs are location-independent: `§FS-<user-login>.3.1` keeps resolving when files move or headings reword. Markdown anchors break; gnd citations don't.
 3. **Grounding is cheap.** `gnd show FS-<user-login>.3.1` returns just that subsection — under 200 lines per §G-friendliness-first.1 — so a human or LLM pulls one fact into context instead of a whole file.
 
-This serves §G-no-dangling-refs, §G-fast-feedback, §G-friendliness-first, and §G-polyglot-citation.
+This serves §G-agent-grounding — the headline goal that every other goal exists in service of — and the mechanisms that make it viable: §G-no-dangling-refs, §G-fast-feedback, §G-friendliness-first, and §G-polyglot-citation.
 
 ## 2. Who it is for
 
