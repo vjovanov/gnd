@@ -10,7 +10,7 @@
 
 Off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) only handle `.md` and only validate `[text](url)`. A `§FS-events.4` cited from `src/bus.rs` is invisible to them. That gap is what `gnd` exists to close.
 
-> Status: 0.1.0 Cargo CLI. The core command surface is implemented and self-hosted on this repo; npm / PyPI bindings, the optional LSP server, and watch mode are tracked in [`docs/roadmap.md`](docs/roadmap.md).
+> Status: 0.1.0 release-candidate Cargo CLI. The core command surface is implemented and self-hosted on this repo; install from git works today, while registry publication, npm / PyPI bindings, the optional LSP server, and watch mode are tracked in [`docs/roadmap.md`](docs/roadmap.md).
 
 ## 1. Cite as you write
 
@@ -99,11 +99,27 @@ pub struct EventBus { /* … */ }
 
 **ID format:**
 
-```
-<KIND>-<NNN>-<slug>[.<section>]
+```plaintext
+     ┌──────────── citation ───────────┐
+           ┌────────── ID ─────────────┐
+  [§] KIND - [number -] slug [.section]
+   │   │       │         │       │
+   │   │       │         │       └─ optional dotted path, arbitrary depth (.3, .3.1, …)
+   │   │       │         └───────── [a-z][a-z0-9-]*
+   │   │       └─────────────────── optional ordinal (e.g. 001)
+   │   └─────────────────────────── G│FS│AS│DA│DF│E2E│RM│DISC
+   └─────────────────────────────── citation marker (writing only)
 ```
 
-Three schemes are supported — `{kind}-{number}-{slug}`, `{kind}-{number}` (RFC-style), `{kind}-{slug}` (`gnd` itself uses this). Each has a runnable tiny repo under [`examples/`](examples/).
+Three schemes are supported. Pick one per repo and keep it stable — mixing is unsupported because citations would look identical but resolve under different rules. Each has a runnable tiny repo under [`examples/`](examples/).
+
+| Scheme                                     | Example             | Benefit                                                                                                          | Trade-off                                                                |
+|--------------------------------------------|---------------------|------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
+| `{kind}-{number}-{slug}` *(default)*       | `FS-014-user-login` | Number is the stable identifier; slug is descriptive and can be **renamed freely** without breaking citations.   | Two tokens to type; needs `gnd name` to allocate the next number.        |
+| `{kind}-{number}` (RFC-style)              | `FS-014`            | Maximally stable — no slug to drift. Familiar from RFCs/PEPs/JEPs/ADRs.                                          | Opaque at the call site: `§FS-014` tells you nothing without `gnd show`. |
+| `{kind}-{slug}` *(`gnd` itself uses this)* | `FS-user-login`     | Self-describing — reads like English in prose and code. No number to allocate.                                   | Renaming a slug rewrites every citation. Slug must be unique per kind.   |
+
+Rule of thumb: pick `{kind}-{slug}` until rename churn or ID count starts to hurt; switch to `{kind}-{number}-{slug}` when it does.
 
 Citations use the marker `§`, e.g. `§FS-user-login.3.1`. Type `$$` in a `gnd`-aware editor and it's rewritten to `§` automatically. Both marker and trigger are configurable in `.agents/gnd.toml`.
 
@@ -122,8 +138,10 @@ src/bus.rs:7: §FS-events.4
 Before reviewing a diff, group the citation graph by file so you can join changed files to the specs they touch:
 
 ```bash
-$ gnd cover --format json | jq '.files[] | select(.path | startswith("src/bus"))'
+$ gnd cover --format json | jq -c 'select(.path | startswith("src/bus"))'
 ```
+
+(`gnd cover --format json` is NDJSON — one `{"path":…,"citations":[…]}` record per scanned file.)
 
 For an agent reviewing a code change, the loop is mechanical: list the `§…` citations in the changed files, run `gnd show` on each, and ask "does the code still match what the spec claims?"
 
@@ -133,7 +151,7 @@ For an agent reviewing a code change, the loop is mechanical: list the `§…` c
 cargo install --git https://github.com/vjovanov/gnd
 ```
 
-That puts the `gnd` binary on your `PATH`. npm and PyPI bindings are planned — see [`FS-distribution`](docs/functional-spec/FS-distribution.md). Before a registry publish, run the **Release registry names** workflow or `scripts/check-registry-names.sh` so the cargo, npm, and PyPI names are re-checked at release time.
+That puts the `gnd` binary on your `PATH`. npm and PyPI bindings are planned — see [`FS-distribution`](docs/functional-spec/FS-distribution.md).
 
 ## Set up a repo
 
@@ -158,12 +176,15 @@ pip install pre-commit && cargo install lychee && pre-commit install
 
 - **`gnd check`** — validate every reference in the tree.
 - **`gnd show <ID>[.<section>]`** — print one declaration body, for pulling spec content into agent prompts.
-- **`gnd refs <ID>`** — list every citation of a declaration.
 - **`gnd list`** — the ID catalog.
-- **`gnd name <KIND> "<title>"`** — emit the next conflict-free ID for a new declaration.
-- **`gnd fmt`** — normalize citation syntax (`$$` → `§`, optional Markdown link wrapping).
+- **`gnd refs <ID>`** — list every citation of a declaration.
 - **`gnd cover`** — group the citation graph by file, for git-diff recipes.
+- **`gnd fmt`** — normalize citation syntax (`$$` → `§`, optional Markdown link wrapping).
+- **`gnd name <KIND> "<title>"`** — emit the next conflict-free ID for a new declaration.
 - **`gnd init`** — scaffold `agents.md` and `.agents/gnd.toml`.
+- **`gnd config`** — validate or print the effective `.agents/gnd.toml`.
+- **`gnd completions`** — print bash, zsh, or fish completion scripts.
+- **`gnd agent-setup-instructions`** — print the guided setup workflow for AI agents.
 
 Full surface (flags, JSON shapes, exit codes) in [`docs/functional-spec/`](docs/functional-spec/).
 

@@ -20,7 +20,7 @@ gnd fmt [<path>] [--check] [--marker] [--md-links] [--write]
 
 ### 2.1 Trigger-to-marker
 
-Wherever the configured trigger (default `$$`) is immediately followed by `<KIND>-<digit>`, replace the trigger with the configured marker (default `§`). Idempotent: running `gnd fmt` twice produces no further change.
+Wherever the configured trigger (default `$$`) is immediately followed by a token that matches the repo's `[id] format` (§FS-config.3.2) — `FS-007` under a numbered format, `FS-login` under the slug-only form `gnd` itself uses — replace the trigger with the configured marker (default `§`). The trigger is only consumed when a real ID-shaped token follows it, so a bare `$$` (LaTeX display math, a shell variable) is left alone. Idempotent: running `gnd fmt` twice produces no further change.
 
 ### 2.2 Bare-to-marker (with `--marker`)
 

@@ -3064,7 +3064,12 @@ fn command_config(args: &[String]) -> ExitCode {
         return ExitCode::from(2);
     };
     if !matches!(action, "validate" | "show") {
-        eprintln!("error: expected `config validate` or `config show`");
+        if action.starts_with('-') {
+            eprintln!("error: unknown flag `{action}`");
+        } else {
+            eprintln!("error: unknown config command `{action}`");
+            eprintln!("expected: config validate, config show");
+        }
         return ExitCode::from(2);
     }
 
@@ -4692,7 +4697,7 @@ fn print_help() {
         "  refs     List every citation of an ID, as path:line.              e.g. gnd refs FS-login"
     );
     println!(
-        "  cover    Group every scanned file's citations by file.            e.g. gnd cover --format json"
+        "  cover    Group the citation graph by scanned file.                e.g. gnd cover --format json"
     );
     println!(
         "  fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. gnd fmt --check"
@@ -4704,7 +4709,7 @@ fn print_help() {
         "  init     Scaffold agents.md + .agents/gnd.toml; idempotent.       e.g. gnd init --docs"
     );
     println!(
-        "  config   validate or show the effective .agents/gnd.toml.         e.g. gnd config show"
+        "  config   Validate or show the effective .agents/gnd.toml.         e.g. gnd config show"
     );
     println!(
         "  agent-setup-instructions  Print AI setup guide.                   e.g. gnd agent-setup-instructions"

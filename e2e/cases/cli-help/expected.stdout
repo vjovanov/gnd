@@ -11,11 +11,11 @@ Commands:
   show     Print one declaration body for agent context.            e.g. gnd show FS-login.3
   list     The ID catalog: every declared ID, path:line, title.     e.g. gnd list --kind FS
   refs     List every citation of an ID, as path:line.              e.g. gnd refs FS-login
-  cover    Group every scanned file's citations by file.            e.g. gnd cover --format json
+  cover    Group the citation graph by scanned file.                e.g. gnd cover --format json
   fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. gnd fmt --check
   name     Next conflict-free ID for a new KIND declaration.        e.g. gnd name FS "user login"
   init     Scaffold agents.md + .agents/gnd.toml; idempotent.       e.g. gnd init --docs
-  config   validate or show the effective .agents/gnd.toml.         e.g. gnd config show
+  config   Validate or show the effective .agents/gnd.toml.         e.g. gnd config show
   agent-setup-instructions  Print AI setup guide.                   e.g. gnd agent-setup-instructions
   completions  Print shell completion scripts.                      e.g. gnd completions bash
 

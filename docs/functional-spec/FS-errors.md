@@ -1,6 +1,6 @@
 # FS-errors: gnd emits messages in one of three fixed shapes
 
-This spec defines the style every `gnd` subcommand uses when it speaks to a user or to a downstream tool. It is cross-cutting: §FS-check, §FS-show, §FS-refs, §FS-cover, §FS-fmt, §FS-init, and §FS-name all conform to it, and the global-flag behaviour in §FS-cli routes its errors through §2.2 here. Serves §G-friendliness-first.1 ("errors point at the line", "no surprises") and §G-no-silent-breakage.1 (the message shapes are user-visible output).
+This spec defines the style every `gnd` subcommand uses when it speaks to a user or to a downstream tool. It is cross-cutting: §FS-check, §FS-show, §FS-list, §FS-refs, §FS-cover, §FS-fmt, §FS-init, §FS-name, §FS-config, and §FS-completions all conform to it, and the global-flag behaviour in §FS-cli routes its errors through §2.2 here. Serves §G-friendliness-first.1 ("errors point at the line", "no surprises") and §G-no-silent-breakage.1 (the message shapes are user-visible output).
 
 The shapes are **frozen** by the same logic as §FS-non-goals.9: two correctly-configured installs must agree on what they print. A subcommand that needs to say something new picks one of the shapes below; it does not invent a fourth.
 
@@ -77,7 +77,7 @@ A message that would otherwise be non-deterministic (e.g. the order of duplicate
 
 ## 5. JSON format
 
-Every subcommand that emits machine-readable diagnostics accepts `--format=json` (§G-friendliness-first.1). Two streams are distinguished, matching §1:
+The subcommands with a machine-readable result or diagnostic surface accept `--format=json`: `check`, `show`, `list`, `refs`, `cover`, and `name` (§G-friendliness-first.1, §FS-cli.3). Operational commands whose output is human text or generated files (`fmt`, `init`, `config`, `agent-setup-instructions`, `completions`) do not accept `--format` unless their own spec adds a JSON surface later. Two streams are distinguished, matching §1:
 
 - **Diagnostic JSON (stderr).** Located findings, CLI-level errors, and bare query results all serialize into the binding-level shape from §FS-distribution.2 (`{ severity, path, line, code, message }`); the wire form is one JSON object per line (NDJSON). `path` and `line` are `null` for the latter two shapes.
 - **Result JSON (stdout).** Query subcommands that produce a *result* (e.g. `gnd show --format=json`) emit a single JSON object on stdout, with the per-subcommand schema defined in that subcommand's spec (e.g. §FS-show). Stdout is never NDJSON for results — one command, one object.

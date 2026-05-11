@@ -1,0 +1,2 @@
+error: unknown config command `bogus`
+expected: config validate, config show

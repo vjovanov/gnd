@@ -22,7 +22,7 @@ The minimum viable set — everything the server speaks at version 1.0.
 
 ### 1.4 Live trigger transform
 
-`textDocument/onTypeFormatting` watches the configured trigger sequence (default `$$`, per §DF-reference-marker.2.2) and replaces it with the marker (default `§`) the moment the trigger is followed by a token matching `<KIND>-<digit>`. This is the live counterpart to `gnd fmt`'s bulk trigger pass (§FS-fmt.2.1) and is what makes the marker practical to type without leaving the keyboard.
+`textDocument/onTypeFormatting` watches the configured trigger sequence (default `$$`, per §DF-reference-marker.2.2) and replaces it with the marker (default `§`) the moment the trigger is followed by a token matching the repo's `[id] format` (§FS-config.3.2 — `FS-007` under a numbered format, `FS-login` under the slug-only form). This is the live counterpart to `gnd fmt`'s bulk trigger pass (§FS-fmt.2.1) and is what makes the marker practical to type without leaving the keyboard.
 
 The trigger, marker, and recognized `KIND` set are read from `.agents/gnd.toml` so the editor experience matches the project's choices. If no config is present, the defaults from §DF-reference-marker and §FS-config apply.
 

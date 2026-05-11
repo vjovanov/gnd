@@ -110,11 +110,27 @@ Recommend false initially; enable later or in CI once coverage is deliberate.
 
 Default: `{kind}-{number}-{slug}`.
 
-Options:
+```
+       ┌──────────── citation ──────────┐
+           ┌────────── ID ──────────┐
+  [§] KIND - [number -] slug [.section]
+   │   │       │         │       │
+   │   │       │         │       └─ optional dotted path, arbitrary depth (.3, .3.1, .3.1.5, …)
+   │   │       │         └───────── [a-z][a-z0-9-]*
+   │   │       └─────────────────── optional ordinal (e.g. 001)
+   │   └─────────────────────────── G│FS│AS│DA│DF│E2E│RM│DISC
+   └─────────────────────────────── citation marker (writing only)
+```
 
-- `{kind}-{number}-{slug}`: best default; stable numeric identity plus readable slug. Cons: IDs are longer.
-- `{kind}-{number}`: shortest stable numbered IDs. Cons: less readable.
-- `{kind}-{slug}`: readable and title-edit friendly. Cons: slug uniqueness becomes governance.
+Pick one per repo and keep it stable — mixing is unsupported because citations would look identical but resolve under different rules.
+
+| Scheme                                     | Example             | Benefit                                                                                                          | Trade-off                                                                |
+|--------------------------------------------|---------------------|------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
+| `{kind}-{number}-{slug}` *(default)*       | `FS-014-user-login` | Number is the stable identifier; slug is descriptive and can be **renamed freely** without breaking citations.   | Two tokens to type; needs `gnd name` to allocate the next number.        |
+| `{kind}-{number}` (RFC-style)              | `FS-014`            | Maximally stable — no slug to drift. Familiar from RFCs/PEPs/JEPs/ADRs.                                          | Opaque at the call site: `§FS-014` tells you nothing without `gnd show`. |
+| `{kind}-{slug}` *(`gnd` itself uses this)* | `FS-user-login`     | Self-describing — reads like English in prose and code. No number to allocate.                                   | Renaming a slug rewrites every citation. Slug must be unique per kind.   |
+
+Rule of thumb: pick `{kind}-{slug}` until rename churn or ID count starts to hurt; switch to `{kind}-{number}-{slug}` when it does.
 
 If existing IDs are detected, prefer matching them over the canonical default.
 
