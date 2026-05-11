@@ -1,5 +1,5 @@
 gnd fmt — normalize citation syntax: rewrite the `$$` trigger to the `§` marker,
-and optionally upgrade bare ID tokens to marker-prefixed ones.
+optionally upgrade bare ID tokens, and optionally emit Markdown cross-reference links.
 
 Usage:  gnd fmt [PATH] [--check | --write] [--marker] [--cross-refs]
 
@@ -7,7 +7,8 @@ Options:
   --check        report what would change, exit 1 if anything would   e.g. gnd fmt --check
   --write        apply the changes in place                           e.g. gnd fmt --write
   --marker       also prefix bare `<ID>` tokens with the marker        e.g. gnd fmt --write --marker
-  --cross-refs     also wrap citations as Markdown links to their target e.g. gnd fmt --write --cross-refs
+  --cross-refs   wrap citations as Markdown links to targets          e.g. gnd fmt --write --cross-refs
+                 also runs on --write when [fmt.cross_refs].enabled = true
 
 With neither --check nor --write, fmt prints the would-be changes and exits 1 if any (a dry run).
 --write prints `rewrote N references:` then one `  <path> (count)` line per file touched.

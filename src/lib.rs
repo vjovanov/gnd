@@ -5078,7 +5078,9 @@ fn print_subcommand_help(cmd: &str) {
             println!(
                 "gnd fmt — normalize citation syntax: rewrite the `$$` trigger to the `§` marker,"
             );
-            println!("and optionally upgrade bare ID tokens to marker-prefixed ones.");
+            println!(
+                "optionally upgrade bare ID tokens, and optionally emit Markdown cross-reference links."
+            );
             println!();
             println!("Usage:  gnd fmt [PATH] [--check | --write] [--marker] [--cross-refs]");
             println!();
@@ -5093,8 +5095,9 @@ fn print_subcommand_help(cmd: &str) {
                 "  --marker       also prefix bare `<ID>` tokens with the marker        e.g. gnd fmt --write --marker"
             );
             println!(
-                "  --cross-refs     also wrap citations as Markdown links to their target e.g. gnd fmt --write --cross-refs"
+                "  --cross-refs   wrap citations as Markdown links to targets          e.g. gnd fmt --write --cross-refs"
             );
+            println!("                 also runs on --write when [fmt.cross_refs].enabled = true");
             println!();
             println!(
                 "With neither --check nor --write, fmt prints the would-be changes and exits 1 if any (a dry run)."
