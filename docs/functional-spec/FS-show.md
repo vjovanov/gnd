@@ -1,26 +1,28 @@
 # FS-show: grund reads a single declaration body by ID
 
-The `show` subcommand prints just the body of a declaration, given an ID. It exists so an agent — human or AI — can pull a single grounded fact into context without loading the whole file. Serves [§GOAL-friendliness-first](../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible).
+The `show` subcommand prints just the body of a declaration, given an ID — or, with `--head` / `--outline` / `--brief`, a cheaper slice of it. It exists so an agent — human or AI — can pull a single grounded fact into context without loading the whole file. Serves [§GOAL-friendliness-first](../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) and [§GOAL-token-economy](../goals/goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file).
 
 ## 1. Inputs
 
 ```
-grund show <ID> [<path>] [--section <s>] [--head | --full] [--format <text|md|json>]
+grund show <ID> [<path>] [--section <s>] [--head | --outline | --brief | --full] [--format <text|md|json>]
 ```
 
 - `<ID>` — the full ID without the marker (e.g. `FS-check`). May include an inline section (`FS-check.3.1`). The dotted form uses the configured `[id] section_separator` ([§FS-config.3.2](FS-config.md#32-id--id-grammar)). When the separator is non-default (e.g., `:` or `#`) the inline form may collide with the slug grammar; use `--section` instead.
 - `<path>` — directory or file whose tree is scanned to resolve the ID. Defaults to `.`. Discovery is the same as every other subcommand (walk up to `.agents/grund.toml`, else defaults — [§FS-config.1](FS-config.md#1-file-location-and-discovery)). `--path <path>` is an accepted alias for scripts that prefer to pass it as a flag; the two forms are equivalent.
-- `--section <s>` — alternative way to specify a section path (`3.1`). Mutually exclusive with the dotted form. Required when `[id] section_separator` makes the dotted form ambiguous. Combined with `--head` it prints only the lead prose of that section (§2.1.1).
-- `--head` — print only the top of the context: the heading line and the prose up to the first numbered subsection. Useful for skimming.
-- `--full` — print the entire body (default).
-- `--head` and `--full` are mutually exclusive.
+- `--section <s>` — alternative way to specify a section path (`3.1`). Mutually exclusive with the dotted form. Required when `[id] section_separator` makes the dotted form ambiguous. Combined with `--head` it prints the selected section heading plus only the lead prose of that section (§2.1.1); combined with `--outline` it prints only the sub-headings nested under that section, not the selected section heading itself (§2.1.2).
+- `--head` — print only the top of the context: the heading line and the prose up to the first numbered subsection. The cheapest "what is this about" view (§2.1.1).
+- `--outline` — print only the declaration's numbered section headings, one per line — the *map* an agent reads to choose which `<ID>.<section>` to fetch, without paying for any section body (§2.1.2).
+- `--brief` — print `--head` then `--outline`: the lead prose plus the section map. The recommended first read when a citation is a bare `§<ID>` with no section coordinate (§2.1.3).
+- `--full` — print the entire body. The default, and the escalation path when `--head`, `--outline`, `--brief`, or a section slice is not enough.
+- `--head`, `--outline`, `--brief`, and `--full` are mutually exclusive — each picks one point on the "how much of the body" axis: lead prose only → section map → both → everything.
 - `--format` — output shape; defaults to `text` (just the body, no headers).
 
 ## 2. Behavior
 
 ### 2.1 Whole declaration (default, or `--full`)
 
-`grund show FS-check` prints from the heading of `FS-check` to the start of the next ID heading (or end of file). The opening heading is omitted in `text` format and included in `md`.
+`grund show FS-check` prints from the heading of `FS-check` to the start of the next ID heading (or end of file). The opening heading is omitted in `text` format and included in `md`. This is the default and stays the default: the `--head` / `--outline` / `--brief` slices below (§2.1.1–§2.1.3) are strictly additive — they never change what a bare `grund show <ID>` prints — decided in [§DF-show-token-cheap-reads](../decisions/functional/DF-show-token-cheap-reads.md#df-show-token-cheap-reads-grund-show-keeps-the-full-body-default-token-cheap-slices-are-opt-in).
 
 ### 2.1.1 Head only (`--head`)
 
@@ -29,6 +31,20 @@ grund show <ID> [<path>] [--section <s>] [--head | --full] [--format <text|md|js
 If a declaration has no lead paragraph (its body opens directly with `## 1. ...`), `--head` prints **nothing** and exits `0`. This is not an error: the declaration simply has no head. Callers (IDE hovers, agents) can detect this case by the empty output and decide whether to fall back to the full body. We do not auto-fall-back; the caller knows what it wants.
 
 `grund show --head FS-check.3.1` applies the same rule one level down, but keeps the selected section heading so the slice is self-labeled: it prints section heading `### 3.1 ...` and the prose up to the first numbered heading nested under it (`#### 3.1.1 ...`). If the section opens directly with a sub-subsection, the output is just the selected section heading. A section that does not exist is still a `section not found` error regardless of `--head`.
+
+### 2.1.2 Outline only (`--outline`)
+
+`grund show --outline FS-check` prints only the declaration's numbered section headings — one per line, in document order, each at the depth it was written (`## 1. Inputs`, `### 2.1 Whole declaration`, `### 2.1.1 Head only`, …): no lead prose, no section bodies. This is the *map* an agent reads to decide which `§FS-check.<section>` is worth fetching, at a fraction of the whole-body cost. The heading lines are emitted verbatim — the same bytes `--full` would show for those lines — so the section numbers the reader needs are right there to feed back into `grund show FS-check.<n>`. No generated summary, ever: `--outline` is a structural slice of the heading tree, as deterministic as `--head` ([§FS-errors.4](FS-errors.md#4-determinism)).
+
+A declaration whose body has no numbered `## N.` headings — an E2E manifest (§2.4), or any short declaration that is all lead prose — prints **nothing** and exits `0`. Like `--head`'s empty case (§2.1.1) this is not an error: there is no outline to show, and the caller decides whether to fall back.
+
+`grund show --outline FS-check.3.1` (equivalently `--section 3.1 --outline`) restricts the map to headings **nested under** the selected section: it prints `#### 3.1.1 …`, `#### 3.1.2 …`, and so on, stopping at the next sibling-or-shallower heading — the same slice boundary §2.2 uses, headings only. The selected section heading itself (`### 3.1 …`) is not printed by `--outline`; fetch `grund show --head FS-check.3.1` when the selected section needs to be self-labeled. A selected section with no nested headings prints nothing and exits `0`. A section that does not exist is still a `section not found` error regardless of `--outline`.
+
+### 2.1.3 Brief (`--brief`)
+
+`grund show --brief FS-check` prints the `--head` slice (§2.1.1), then a blank line, then the `--outline` slice (§2.1.2): the "what is this about" paragraph followed by the section map. This is the read an agent should reach for **first** when it lands on a bare `§<ID>` citation with no section coordinate — it answers "is this the right declaration?" and "which section do I actually need?" in one cheap call, after which the targeted move is `grund show <ID>.<section>` and, only if that slice is still not enough, `grund show <ID>` for the full body. (When the citation already names a section — `§<ID>.<s>` — skip `--brief` and fetch `grund show <ID>.<s>` directly; the map is only useful when the section is not yet known.)
+
+The blank line separator is emitted only when both halves are non-empty. If `--head` is empty but `--outline` is not, `--brief` prints the outline with no leading blank line; if `--outline` is empty but `--head` is not, `--brief` prints the head with no trailing blank line. If the declaration has neither a lead paragraph nor numbered sections, `--brief` prints **nothing** and exits `0` — the union of the two empty cases above, and not an error. With `--section` / the dotted form it composes the same way: the section's `--head` output (including the selected section heading), then the separator only if there are nested headings, then the section's `--outline` output (nested headings only, so the selected section heading is not duplicated).
 
 ### 2.2 Section
 
@@ -46,7 +62,7 @@ Sites are listed in lexicographic `path:line` order so the message is stable acr
 
 ### 2.3 Inline declarations in code and doc-comments
 
-When the ID's home is in code (per [§FS-check.3.4](FS-check.md#34-broken-inline-spec-stub) stub semantics), `show` extracts the comment block surrounding the inline declaration, strips comment markers, and prints the resulting prose. The same section logic applies.
+When the ID's home is in code (per [§FS-check.3.4](FS-check.md#34-broken-inline-spec-stub) stub semantics), `show` extracts the comment block surrounding the inline declaration, strips comment markers, and prints the resulting prose. The same section logic applies — and so do the `--head` / `--outline` / `--brief` slices, computed over the stripped block exactly as over a `.md` body (the lead prose is what precedes the first `## N.` heading inside the comment; the outline is the numbered headings recorded within it, per §2.3.3).
 
 The scanner recognizes the same doc-comment forms enumerated in [§AR-scanner.4](../architecture/AR-scanner.md#4-inline-declarations-in-language-doc-comments) — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, PHPDoc, Rustdoc (`///`, `//!`, `/** … */`), C# XML doc comments, Go's `// …` doc blocks, Ruby `#` comments, and Python `""" … """` docstrings. This means an architectural spec can live directly in the class-level Javadoc, and `grund show AR-<event-bus>` returns the rendered Javadoc body — same content the optional LSP server shows on hover ([§FS-lsp.1.2](FS-lsp.md#12-hover-preview)). The stub at `docs/architecture/AR-<event-bus>.md` is a single-line H1 — `# AR-<event-bus>: [<path>](<path>)` — pointing at the file.
 
@@ -108,7 +124,7 @@ fixtures:
 …
 ```
 
-The first line is the invocation (`grund check` when the case has no `command.args`); then an `expected exit: <code>` line; then a `fixtures:` line followed by one `- <path>` line per file in the case directory, paths relative to that directory, sorted lexicographically — deterministic for a given tree. `text`, `md`, and `--full` all produce this same output: the manifest has no heading to include or strip. This is the "the test *is* the body" view — enough for an agent to understand what the case proves without opening every fixture. `--head` prints only the first line (the invocation). Section paths are not defined for E2E cases (the manifest is not a numbered-heading tree); `grund show E2E-<name>.1` is a section-not-found error. `--format=json` emits a single object `{"id":"E2E-<name>","kind":"E2E","path":"e2e/cases/<name>","args":[…],"expected_exit":<code>,"fixtures":[…]}` — `args` is the parsed `command.args` (empty when there is none), `fixtures` the same sorted relative-path list.
+The first line is the invocation (`grund check` when the case has no `command.args`); then an `expected exit: <code>` line; then a `fixtures:` line followed by one `- <path>` line per file in the case directory, paths relative to that directory, sorted lexicographically — deterministic for a given tree. `text`, `md`, and `--full` all produce this same output: the manifest has no heading to include or strip. This is the "the test *is* the body" view — enough for an agent to understand what the case proves without opening every fixture. `--head` prints only the first line (the invocation). Section paths are not defined for E2E cases (the manifest is not a numbered-heading tree); `grund show E2E-<name>.1` is a section-not-found error, and `--outline E2E-<name>` prints nothing and exits `0` (no heading tree to map — the §2.1.2 empty case), so `--brief E2E-<name>` is just the `--head` line. `--format=json` emits a single object `{"id":"E2E-<name>","kind":"E2E","path":"e2e/cases/<name>","args":[…],"expected_exit":<code>,"fixtures":[…]}` — `args` is the parsed `command.args` (empty when there is none), `fixtures` the same sorted relative-path list; `--outline` / `--brief` over a case do not change this object (the `sections`/`head` additions of §3.1 have nothing to add — the manifest has no headings or lead prose).
 
 ## 3. Outputs
 
@@ -128,9 +144,9 @@ A failed query (`1`) prints the bare result line and, where the next step is obv
 
 ### 3.1 Format variants
 
-- `text` (default) — the body only: for a whole markdown declaration, the lines after the declaration heading line through the end of the body; for a selected section, the selected section heading and its body (§2.2); for an inline-source declaration, the comment-stripped prose (§2.3.2); for an E2E case, the manifest (§2.4). The whole-declaration opening heading line is **omitted**. A `grund fmt --cross-refs` link wrapper around a citation (`[§FS-<x>.1](FS-<x>.md#1-y)`) is flattened back to the bare `§FS-<x>.1` — §3.2.
-- `md` — same as `text` but the opening heading line is **included** verbatim, so the output is a self-contained markdown fragment, and `--cross-refs` link wrappers are kept as written — that is the renderable form (§3.2). The kind's `[[kinds]] title` ([§FS-config.3.4](FS-config.md#34-kinds--recognized-prefixes)) is *not* injected — it is metadata exposed only in `json`. For an inline-source declaration the included heading is the one written in the doc-comment (`# AR-<event-bus>: In-process event broadcaster`), comment-markers stripped.
-- `json` — a single object on stdout: `{"id":<ID>,"section":<section-path or null>,"body":<string>,"path":<declaring file or case dir>,"line":<1-indexed>}`. `body` is the same text `text` prints — `--cross-refs` wrappers flattened (§3.2). `section` is `null` when the whole declaration was requested. For E2E cases the object is the §2.4 shape instead. The wire form is stable per [§GOAL-no-silent-breakage.1](../goals/goals.md#1-what-counts-as-user-visible).
+- `text` (default) — the body only: for a whole markdown declaration, the lines after the declaration heading line through the end of the body; for a selected section, the selected section heading and its body (§2.2); for `--head`, the lead prose only (§2.1.1); for `--outline`, the numbered heading lines only (§2.1.2); for `--brief`, the non-empty `--head` and `--outline` slices joined by one blank line, with no leading or trailing separator when either half is empty (§2.1.3); for an inline-source declaration, the comment-stripped prose (§2.3.2); for an E2E case, the manifest (§2.4). The whole-declaration opening heading line is **omitted** — in `--head`, `--outline`, and `--brief` too. A `grund fmt --cross-refs` link wrapper around a citation (`[§FS-<x>.1](FS-<x>.md#1-y)`) is flattened back to the bare `§FS-<x>.1` — §3.2.
+- `md` — same as `text` but the opening declaration heading line is **included** verbatim, so the output is a self-contained markdown fragment, and `--cross-refs` link wrappers are kept as written — that is the renderable form (§3.2). This holds for the `--head` / `--outline` / `--brief` slices too: in `md` each is prefixed with the declaration's H1, while selected-section heading behavior otherwise stays the same as `text` (`--head` and `--brief` include it through the head slice; section `--outline` does not, because it intentionally lists only nested headings per §2.1.2). The kind's `[[kinds]] title` ([§FS-config.3.4](FS-config.md#34-kinds--recognized-prefixes)) is *not* injected — it is metadata exposed only in `json`. For an inline-source declaration the included heading is the one written in the doc-comment (`# AR-<event-bus>: In-process event broadcaster`), comment-markers stripped.
+- `json` — a single object on stdout: `{"id":<ID>,"section":<section-path or null>,"body":<string>,"path":<declaring file or case dir>,"line":<1-indexed>}`. `body` is the same text `text` prints — `--cross-refs` wrappers flattened (§3.2). `section` is `null` when the whole declaration was requested. With `--outline` the object additionally carries `sections` — one `{"path":<section path>,"title":<heading text>,"depth":<integer>}` per numbered heading in the selected outline slice, in document order; with `--brief` it carries both `sections` and `head` (the `--head` slice as a string). For E2E cases the object is the §2.4 shape instead. The wire form is stable per [§GOAL-no-silent-breakage.1](../goals/goals.md#1-what-counts-as-user-visible).
 
 Verbose `show --format=json` examples, including failed-query stream behavior, live in [§FS-output-shapes](FS-output-shapes.md#fs-output-shapes-machine-readable-output-shapes).
 
@@ -148,4 +164,6 @@ Without `show`, an agent retrieving a spec section either loads the whole file (
 grund show FS-check.3.1
 ```
 
-This is the agent-grounding loop: declarations live in one place, and any agent — at any time — can fetch one with a single command.
+And when the citation is a bare `§FS-check` with no section, the cheap first move is `grund show FS-check --brief` — the lead paragraph plus the section numbers — then `grund show FS-check.<n>` for the one section that matters, with `grund show FS-check` (the full body) held in reserve for when the slice is not enough. On this repo that ladder is roughly 1 KB → 1–2 KB → 15 KB: an agent that grounds itself this way pays for the fact it needs, not the file it lives in. `grund show FS-check --outline` alone — just the section map — is the move when the agent already knows what it is reading and only needs to find the right `<section>`.
+
+This is the agent-grounding loop: declarations live in one place, and any agent — at any time — can fetch one, or just its map, with a single command.

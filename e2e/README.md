@@ -42,7 +42,7 @@ Error output is part of the contract. Non-zero cases should keep `expected.stder
 - top-level help output
 - per-subcommand help (`grund help check`, `grund help show`, `grund help list`)
 - `grund help <unknown>` failure
-- `list` ID catalog (text), `--kind` filter, `--unused` filter, `--format json`
+- `list` ID catalog (text), comma and repeated multi-kind `--kind`, `--unused`, `--summary`, summary composition with `--kind` / `--unused`, `--format json`
 - JSON report output
 - `fmt --check` trigger-to-marker report
 - `fmt` custom trigger and marker from config
@@ -53,8 +53,10 @@ Error output is part of the contract. Non-zero cases should keep `expected.stder
 - `show` full Markdown declaration
 - `show` Markdown section extraction
 - `show --head`
+- `show --outline` / `show --brief` in text, Markdown, and JSON, including empty-half separator behavior, empty output, E2E manifests, and mode mutex errors
 - `show` missing ID failure (with recovery hint)
 - `show` missing section failure (with recovery hint)
+- `refs --summary` in text and JSON, including duplicate citations on one line and section-filtered summaries
 - `name --explain` next-step hint
 - `show` Rust inline declaration extraction
 - Markdown stub to Rust inline declaration

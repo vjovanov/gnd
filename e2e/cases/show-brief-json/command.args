@@ -1,0 +1,1 @@
+show --brief --format=json FS-001-alpha {repo}

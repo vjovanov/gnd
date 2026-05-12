@@ -1,0 +1,4 @@
+e2e/cases/** text eol=lf
+examples/** text eol=lf
+skills/** text eol=lf
+templates/** text eol=lf

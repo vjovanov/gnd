@@ -24,6 +24,14 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 
 ## Unreleased
 
+### Added
+
+- [§FS-show](functional-spec/FS-show.md#fs-show-grund-reads-a-single-declaration-body-by-id) / [§FS-refs](functional-spec/FS-refs.md#fs-refs-grund-lists-every-citation-of-an-id) / [§FS-list](functional-spec/FS-list.md#fs-list-grund-lists-every-declared-id): add token-cheap read surfaces for agents — `grund show --outline`, `grund show --brief`, `grund refs --summary`, multi-kind `grund list --kind FS,AR`, and `grund list --summary`. Outputs are structural slices, not generated summaries, per [§GOAL-token-economy](goals/goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file) and [§DF-show-token-cheap-reads](decisions/functional/DF-show-token-cheap-reads.md#df-show-token-cheap-reads-grund-show-keeps-the-full-body-default-token-cheap-slices-are-opt-in). E2E coverage added for text and JSON shapes where applicable.
+
+### Changed
+
+- **Schema:** [§FS-init.2.3](functional-spec/FS-init.md#23-generated-agent-entrypoints): bump the generated `AGENTS.md` managed block from v1 to v2 so new and refreshed agent entrypoints teach the cheap grounding ladder: `grund show <ID> --brief` for bare IDs, `grund show <ID>.<section>` for section citations, `grund refs <ID> --summary` before full back-reference dumps, and `grund list --kind FS,AR` for scoped discovery. Existing v1 blocks are updated in place by `grund init`; user-authored content outside the managed markers is preserved.
+
 ### Fixed
 
 - [§GOAL-multi-language.1](goals/goals.md#1-identical-behavior) / [§FS-distribution.2](functional-spec/FS-distribution.md#2-cli-parity) / [§FS-errors.4](functional-spec/FS-errors.md#4-determinism): make cross-platform CLI parity explicit, add Windows to the Rust CI matrix, and normalize repo-relative report paths to `/` so Linux, macOS, and Windows produce byte-identical e2e output.

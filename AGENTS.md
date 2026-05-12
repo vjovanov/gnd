@@ -1,22 +1,24 @@
-<!-- grund:init:agents:v1 begin -->
+<!-- grund:init:agents:v2 begin -->
 # grund — agent instructions
 
 This file is the entry point for any agent (human or AI) working on **grund**. Read it first, then read the declared artifacts it points to before making changes.
 
-This project uses the [`grund`](https://github.com/vjovanov/grund) reference scheme: every spec, goal, decision, and end-to-end test has a stable ID of the form `<KIND>-<slug>`, declared as a heading inside its home file. Citations are written prefixed by the marker `§`, e.g. `§FS-user-login.3.1` (the `FS-user-login` here is an illustration of the *shape*, not a real ID in this repo). Section paths can be arbitrary depth — `.3`, `.3.1`, `.3.1.2` are all valid as long as a heading at that depth exists in the declaration. Run `grund check` to validate every citation; `grund show <ID>` to print just the body of one declaration; `grund list` to see every declared ID; `grund refs <ID>` to see every place that cites it — the blast radius before you change or move a declaration. (`grund` documents its own `check`, `show`, `list`, and `refs` contract under [`docs/functional-spec/`](https://github.com/vjovanov/grund/tree/main/docs/functional-spec) in the `grund` repo — that's `grund`'s spec, not this project's; only IDs declared *in this repo* resolve with `grund show` here.)
+This project uses the [`grund`](https://github.com/vjovanov/grund) reference scheme: every spec, goal, decision, and end-to-end test has a stable ID of the form `<KIND>-<slug>`, declared as a heading inside its home file. Citations are written prefixed by the marker `§`, e.g. `§FS-user-login.3.1` (the `FS-user-login` here is an illustration of the *shape*, not a real ID in this repo). Section paths can be arbitrary depth — `.3`, `.3.1`, `.3.1.2` are all valid as long as a heading at that depth exists in the declaration. Run `grund check` to validate every citation; `grund show <ID> --brief` to read the lead prose plus section map for a bare cited ID; `grund show <ID>.<section>` to print one section; `grund list` or `grund list --kind FS,AR` to discover IDs; `grund refs <ID> --summary` to see the file-level blast radius before you change or move a declaration. (`grund` documents its own `check`, `show`, `list`, and `refs` contract under [`docs/functional-spec/`](https://github.com/vjovanov/grund/tree/main/docs/functional-spec) in the `grund` repo — that's `grund`'s spec, not this project's; only IDs declared *in this repo* resolve with `grund show` here.)
 
 ## Grounding yourself in the spec
 
 A `§<ID>` — or `§<ID>.<section>` — is a pointer to a fact, not a file path. When a doc, a code comment, or a review note cites one, resolve it with `grund` instead of opening the file and skimming:
 
-- `grund show <ID>` — the full declaration body (a spec file's contents, a goal's success criterion, a decision record).
-- `grund show <ID>.<section>` — just that subsection, so you pull one fact into context without loading the whole file. This is the cheap, precise move — prefer it.
-- `grund show <ID> --head` — the lead paragraph only, for a quick "what is this about" before deciding whether to read more.
-- `grund list` — every declared ID, when you need to discover the right `<ID>`. `grund refs <ID>` — every place that cites it, so you know what leans on a declaration before you change it.
+- `grund show <ID> --brief` — for a bare cited `§<ID>`, read the lead prose plus section map first.
+- `grund show <ID>.<section>` — for a citation that already names a section, read just that subsection.
+- `grund show <ID>` — the full declaration body, when the brief or section slice is not enough.
+- `grund show <ID> --outline` — just the numbered section map, when you already know the declaration and only need the right section coordinate.
+- `grund list` / `grund list --kind FS,AR` — every declared ID, or just the spec/architecture slice when you need to discover the right `<ID>`.
+- `grund refs <ID> --summary` / `grund refs <ID>` — the file-level blast radius first, then every citation site when you need exact edits.
 
 ## How to use this file
 
-1. Start with the project knowledge map below, then open the relevant declaration with `grund show <ID>` before making changes.
+1. Start with the project knowledge map below, then open the relevant declaration with `grund show <ID> --brief` (or `grund show <ID>.<section>` when the citation names a section) before making changes.
 2. When you learn something new about *why*, *where*, *what*, *how*, or *how we got here* — write it down in the matching declared artifact. Don't hoard context.
 3. When you make a non-obvious decision, add it to the configured decision or record location and cite the ID from the spec, code, or test it affects.
 4. Behavior is proven by executable tests or cases, not by prose alone. Every functional change ships with a matching proof in the repo's configured test artifacts.
@@ -52,8 +54,8 @@ Code back-references the spec it realizes. When a function, class, or block impl
 ## Rules for agents
 
 - **Citations climb toward the goals.** Specs cite goals. Architecture cites specs. Code cites the specs it implements. Executable tests or cases cite the behavior they verify.
-- **Refresh cited specs before editing code.** Before editing code that carries a `§<ID>` or `§<ID>.<section>` citation, run `grund show <ID>` or `grund show <ID>.<section>` for the cited behavior and keep that output in context while making the change.
-- **Know what leans on a declaration before you change it.** Before editing, renaming, or moving any declaration, run `grund refs <ID>` — it lists every citation site, so you update or relocate them in the same change and nothing dangles after.
+- **Refresh cited specs before editing code.** Before editing code that carries a `§<ID>` or `§<ID>.<section>` citation, run `grund show <ID> --brief` for a bare ID or `grund show <ID>.<section>` for a section citation; escalate to `grund show <ID>` only when the slice is not enough.
+- **Know what leans on a declaration before you change it.** Before editing, renaming, or moving any declaration, run `grund refs <ID> --summary` first, then `grund refs <ID>` when you need every citation site, so you update or relocate them in the same change and nothing dangles after.
 - **No dangling decisions.** Every decision record is cited from the spec or architecture doc it shaped, at the point where the choice applies — so a reader lands on the *why* without searching. A decision may also cite back into a spec; what it may not be is uncited — `grund check` flags that as unused.
 - **Decisions are append-only.** Never rewrite decision history. If a decision is reversed, add a new entry that supersedes the old one and link both ways.
 - **Cross-link everything via IDs.** Use the ID. No markdown links between docs.
@@ -61,4 +63,4 @@ Code back-references the spec it realizes. When a function, class, or block impl
 - **Run `grund check` before you commit.** A dangling reference is a stop-the-line bug; `grund check`'s output names the file and line for each one.
 
 This managed agent guidance block and the accompanying `.agents/grund.toml` were generated by `grund init`. Re-run `grund init --force` to refresh them at the current `grund` version.
-<!-- grund:init:agents:v1 end -->
+<!-- grund:init:agents:v2 end -->

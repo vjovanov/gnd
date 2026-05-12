@@ -62,6 +62,20 @@ Fields:
 - `section` is the requested section path as a string, or `null` for a whole declaration.
 - `body` is exactly the text-mode body, including trailing newline when text mode would print one.
 - `path` and `line` point at the declaration or selected section start.
+- `sections`, present for `show --outline --format=json` and `show --brief --format=json`, is the ordered outline slice as objects with `path`, `title`, and `depth`.
+- `head`, present for `show --brief --format=json`, is exactly the `--head` slice as a string.
+
+`show --outline --format=json` example:
+
+```json
+{"id":"FS-001-alpha","section":null,"body":"## 1. First\n### 1.1 Child\n","path":"docs/functional-spec/FS-001-alpha.md","line":1,"sections":[{"path":"1","title":"First","depth":1},{"path":"1.1","title":"Child","depth":2}]}
+```
+
+`show --brief --format=json` adds `head`:
+
+```json
+{"id":"FS-001-alpha","section":null,"body":"Alpha overview.\n\n## 1. First\n","path":"docs/functional-spec/FS-001-alpha.md","line":1,"sections":[{"path":"1","title":"First","depth":1}],"head":"Alpha overview.\n"}
+```
 
 For an E2E case, `show --format=json` uses the E2E manifest shape from [§FS-show.2.4](FS-show.md#24-e2e-cases):
 
@@ -87,6 +101,23 @@ Fields:
 - `defines` is the target path for a stub, otherwise `null`.
 - `refs` is the number of citations that resolve to this ID.
 - `duplicate` is true when this ID has more than one independent declaration home.
+
+`list --summary --format=json` emits one kind summary object per line, in configured kind order after `--kind` / `--unused` filtering:
+
+```json
+{"kind":"FS","title":"Functional spec","home":"docs/functional-spec","count":2}
+{"kind":"AR","title":"Architectural spec","home":"docs/architecture","count":1}
+```
+
+## 5.1 `refs --format=json`
+
+`refs --format=json` emits one citation object per line. With `--summary`, it emits one file summary object per line instead:
+
+```json
+{"path":"docs/functional-spec/FS-002-beta.md","count":3,"lines":[3,5]}
+```
+
+`count` is the number of citation sites in the file; `lines` is the sorted, de-duplicated set of 1-indexed source lines containing those sites.
 
 ## 6. CLI and config failures
 

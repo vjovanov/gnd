@@ -289,7 +289,7 @@ fn read_to_string(path: impl AsRef<Path>) -> String {
 }
 
 fn read_expected_output(path: impl AsRef<Path>) -> String {
-    let output = read_to_string(path);
+    let output = read_to_string(path).replace("\r\n", "\n");
     if output == "\n" {
         String::new()
     } else {
