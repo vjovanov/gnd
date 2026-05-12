@@ -34,6 +34,13 @@ Behavior every subcommand inherits.
 
 - [§FS-cli](FS-cli.md#fs-cli-grunds-command-line-surface-conventions) — the command-line surface: default subcommand, `--version`/`--help`, exit-code mapping
 - [§FS-errors](FS-errors.md#fs-errors-grund-emits-messages-in-fixed-shapes) — the shape and style of every message `grund` prints
+- [§FS-output-shapes](FS-output-shapes.md#fs-output-shapes-machine-readable-output-shapes) — verbose JSON/text output examples for implementers
+
+## Verbose fixtures
+
+Concrete fixtures that keep the command specs readable while pinning exact examples.
+
+- [§FS-init-fixtures](FS-init-fixtures.md#fs-init-fixtures-concrete-init-fixtures) — concrete `grund init` transcripts and final tree expectations
 
 ## Configuration and scope
 

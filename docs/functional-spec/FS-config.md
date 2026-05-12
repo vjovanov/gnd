@@ -195,6 +195,8 @@ Prints the **effective** configuration — defaults merged with the config disco
 
 A `grund.toml` that fails validation causes every `grund` subcommand to exit with code 2 (code 1 for `grund config validate` itself, §4.1) and a single error message pointing at the first problem, in the form `error: <path>:<line>: <message>` on stderr ([§FS-errors.2.2](FS-errors.md#22-cli-level-message), [§FS-check.2.1.1](FS-check.md#211-cli-level-messages)) — the `error:` prefix marks it a CLI-level failure, the `<path>:<line>:` inside the text points at the offending key or line. Subsequent problems are not reported until the first is fixed — this avoids cascading errors that obscure the root cause.
 
+For concrete stderr examples and the distinction between `config validate` exit `1` and config-blocked command exit `2`, see [§FS-output-shapes.6](FS-output-shapes.md#6-cli-and-config-failures).
+
 ## 5. Schema versioning
 
 The TOML file may include a top-level `grund_config_version = N`. The current version is **1**. Future incompatible schema changes increment this; grund refuses to load a config whose version is greater than the grund binary's known maximum, with an error suggesting an upgrade. Configs with no version key are interpreted as version 1.

@@ -4,6 +4,8 @@ The `init` subcommand writes the minimum set of files a project needs to start u
 
 `init` is the only `grund` subcommand that creates adoption scaffolding in the working tree. It may also update the managed `grund` block inside existing agent entrypoint files; it must not rewrite unrelated user-authored content in those files unless the file is the canonical `AGENTS.md` and `--force` is passed.
 
+For verbose implementer fixtures — exact stderr transcripts, final tree expectations, and common existing-file cases — see [§FS-init-fixtures](FS-init-fixtures.md#fs-init-fixtures-concrete-init-fixtures). Those fixtures are examples of this spec, not a separate feature.
+
 ## 1. Inputs
 
 ```

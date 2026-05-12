@@ -75,6 +75,47 @@ The recognized doc-comment forms (matched as comment prefixes preceding the head
 
 This table documents the doc-comment *conventions* for the languages `grund` is built to serve. It is not the gate: the gate is the `[scan] comment_prefixes` list ([§FS-config.3.5](../functional-spec/FS-config.md#35-scan--what-gets-walked)), whose default also recognizes `;` (Lisp / Scheme / Clojure), `--` (SQL / Haskell / Lua / Ada), and bare `*` / `/*` block-comment lines. Any line whose first non-whitespace run is a configured prefix can host a declaration heading or a citation; a language not in the table still works as long as its comment marker is in `comment_prefixes`.
 
+Before declaration, section, or citation detection runs on a source file, the scanner normalizes each eligible comment/docstring line to the markdown content the author meant:
+
+- `//`, `///`, and `//!` line comments strip the full leading comment marker and one following space when present. Therefore `/// # AR-001-router: Router`, `//! # AR-001-router: Router`, and `// # AR-001-router: Router` all expose the same content line: `# AR-001-router: Router`.
+- `#`, `;`, and `--` line comments strip that marker and one following space when present. Therefore Python/Ruby `# # AR-001-router: Router` exposes `# AR-001-router: Router`; a bare source line `# AR-001-router: Router` is not a comment-stripped declaration in Python/Ruby, because the first `#` is the comment marker.
+- Block comments strip the opener (`/*` or `/**`) and closer (`*/`) when they appear on their own content lines. Continuation lines strip one optional leading `*` plus one following space when present. Therefore ` * # AR-001-router: Router` exposes `# AR-001-router: Router`.
+- Python triple-quoted docstrings in `.py` files enter docstring mode for both `"""` and `'''`. The opening and closing quote-only lines are not content; lines inside are scanned as already-plain markdown. Therefore a class or module docstring containing `# AR-001-router: Router` declares `AR-001-router`.
+- The normalization is line-local and deterministic. It does not parse the host language beyond recognizing the comment/docstring form above; after normalization, the same heading and citation regexes from §2.1 through §2.3 apply.
+
+The following inline declarations are all required to be recognized under the default scan settings:
+
+```rust
+/// # AR-001-router: Router
+/// Routes requests by path.
+
+//! # AR-002-module: Module architecture
+
+/**
+ * # AR-003-block: Block comment spec
+ * ## 1. Contract
+ */
+```
+
+```go
+// # AR-004-handler: Handler
+// Handles HTTP requests.
+```
+
+```python
+"""
+# AR-005-service: Service
+## 1. Contract
+"""
+class Service:
+    pass
+```
+
+```ruby
+# # AR-006-job: Job
+# Runs background work.
+```
+
 A canonical example — a Java class whose Javadoc *is* the architectural spec:
 
 ```java

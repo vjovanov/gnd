@@ -27,6 +27,8 @@ A report on **stdout** — `check` is a linter and its findings are its output (
 - `1` — at least one error.
 - `2` — scan failure (I/O, malformed file, invalid `.agents/grund.toml`).
 
+For verbose text and JSON report examples, including empty JSON scans and global diagnostic ordering, see [§FS-output-shapes](FS-output-shapes.md#fs-output-shapes-machine-readable-output-shapes).
+
 An invalid `.agents/grund.toml` aborts before any file is read ([§FS-config.4.3](FS-config.md#43-invalid-config-behavior)): exit `2`, a single `error:` line on stderr, nothing on stdout. A per-file failure encountered *during* the walk (a file that cannot be read or decoded) is different: the offending file is reported as `error: <path>: <reason>` on stderr (the CLI-level shape, [§FS-errors.2.2](FS-errors.md#22-cli-level-message) — the file has no line to point at, and "I could not read this" is about the run, not a finding about the graph), the walk continues over the remaining files, every finding collected from the readable files is still printed to stdout in the normal `<path>:<line>:` form, and the run exits `2` because the view of the tree was incomplete. A `2` therefore always means "do not trust this report as complete"; the printed findings are still real.
 
 ### 2.1 Report format
