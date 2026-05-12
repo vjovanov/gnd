@@ -1,0 +1,2 @@
+E2E-login  e2e/cases/login:1  e2e case `login`
+FS-login   docs/functional-spec/FS-login.md:1  Login

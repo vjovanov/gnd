@@ -1,16 +1,17 @@
 # FS-list: grund lists every declared ID
 
-The `list` subcommand prints the repo's ID catalog: every declaration, where it lives, and its one-line title. It is the index that `grund show` reads from and the broad counterpart of `grund refs` — `refs` answers "who cites *this* ID?", `list` answers "what IDs are there?". An agent that has been told to ground itself with `grund show <ID>` needs a way to discover the `<ID>`s; a human auditing a spec tree needs the same. Serves [§GOAL-friendliness-first](../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) (no `grep` for `^# [A-Z]+-` across the tree) and the agent-grounding loop in [§GND-grund](../grund.md#gnd-grund-agents-stay-grounded-in-the-spec).
+The `list` subcommand prints the repo's ID catalog: every declaration, where it lives, and its one-line title — or, narrowed with `--kind`/`--summary`, just the slice an agent asked for. It is the index that `grund show` reads from and the broad counterpart of `grund refs` — `refs` answers "who cites *this* ID?", `list` answers "what IDs are there?". An agent that has been told to ground itself with `grund show <ID>` needs a way to discover the `<ID>`s; a human auditing a spec tree needs the same. Serves [§GOAL-friendliness-first](../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) (no `grep` for `^# [A-Z]+-` across the tree), [§GOAL-token-economy](../goals/goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file), and the agent-grounding loop in [§GND-grund](../grund.md#gnd-grund-agents-stay-grounded-in-the-spec).
 
 ## 1. Inputs
 
 ```
-grund list [<path>] [--kind <KIND>] [--unused] [--format text|json]
+grund list [<path>] [--kind <KIND>[,<KIND>…]]… [--unused] [--summary] [--format text|json]
 ```
 
 - `<path>` — directory or file whose tree is scanned. Defaults to `.`. Discovery is the same as every other subcommand (walk up to `.agents/grund.toml`, else defaults — [§FS-config.1](FS-config.md#1-file-location-and-discovery)).
-- `--kind <KIND>` — list only declarations whose ID has that kind prefix (one of the configured `[[kinds]]` prefixes — [§FS-config.3.4](FS-config.md#34-kinds--recognized-prefixes)). An unknown kind is a CLI-level error (§4): a typo'd `--kind` must not silently produce an empty catalog.
-- `--unused` — list only declarations that no recognised citation points at, **excluding `E2E` cases** — the same set `check` warns on ([§FS-check.4.1](FS-check.md#41-unused-declaration)). An e2e case is a proof artifact, exercised by being run, not a citation target, so it is uncited by construction and would only ever bury the actionable signal (uncited specs, decisions, goals) in a bare `--unused` query. To inventory uncited e2e cases anyway, narrow with `--unused --kind E2E`: with that one kind selected, the uncited case declarations are listed.
+- `--kind <KIND>[,<KIND>…]` — list only declarations whose ID has one of the named kind prefixes (each a configured `[[kinds]]` prefix — [§FS-config.3.4](FS-config.md#34-kinds--recognized-prefixes)). Accepts a comma-separated list (`--kind FS,AR`) and may be repeated (`--kind FS --kind AR`); the selections union. So an agent that wants only the specs and the architecture runs `grund list --kind FS,AR` instead of dumping the whole catalog. An unknown kind *anywhere* in the selection is a CLI-level error (§4): a typo'd `--kind` must not silently produce an empty — or merely short — catalog.
+- `--unused` — list only declarations that no recognised citation points at, **excluding `E2E` cases unless `E2E` is explicitly selected with `--kind`** — the same set `check` warns on ([§FS-check.4.1](FS-check.md#41-unused-declaration)). An e2e case is a proof artifact, exercised by being run, not a citation target, so it is uncited by construction and would only ever bury the actionable signal (uncited specs, decisions, goals) in a bare `--unused` query. To inventory uncited e2e cases anyway, include `E2E` in the kind filter: `--unused --kind E2E` lists uncited cases only, while `--unused --kind FS,E2E` lists uncited `FS` declarations plus uncited `E2E` cases because `E2E` was explicitly requested.
+- `--summary` — instead of one line per declaration, print one line per kind: the kind prefix, its declaration count, and its configured `[[kinds]]` home (§3.3). The catalog's shape at a glance — how many IDs of each kind there are and where their declarations live — without the full list. Composes with `--kind` (summarise only those kinds) and `--unused` (count only the uncited declarations, with the same `E2E` suppression this section describes for the per-declaration form).
 - `--format text|json` — output shape (§3). Default `text`.
 
 `list` is a query, like `show` and `refs` — non-interactive, no prompts ([§FS-non-goals.10](FS-non-goals.md#10-interactive-mode)).
@@ -38,7 +39,7 @@ FS-login        docs/functional-spec/FS-login.md:1    A player can log in with e
 G-no-dangling-refs  docs/goals/goals.md:7     every cited ID resolves to a declaration
 ```
 
-The columns are: the ID (rendered in the repo's `[id] format`, left-padded so the column aligns — capped so one very long ID does not blow out the table), then `<path>:<line>` of the home declaration (for a collapsed stub-and-inline pair, the source file the body is in), then the title — the heading text the author wrote after `# <ID>:`. A declaration whose heading carries no `: <text>` tail has an empty title column. A broken stub shows `→ <target>` in place of a title. A duplicated ID's lines carry a `(duplicate declaration — grund check)` note. With `--kind`, only that kind's lines appear; with `--unused`, only lines for declarations with zero inbound citations, with `E2E` cases excluded by default (the same suppression `check`'s unused-declaration warning applies, [§FS-check.4.1](FS-check.md#41-unused-declaration)) and re-included only when `--kind E2E` narrows the catalog to that one kind. An empty catalog (or an empty filter result) prints nothing — that is not an error.
+The columns are: the ID (rendered in the repo's `[id] format`, left-padded so the column aligns — capped so one very long ID does not blow out the table), then `<path>:<line>` of the home declaration (for a collapsed stub-and-inline pair, the source file the body is in), then the title — the heading text the author wrote after `# <ID>:`. A declaration whose heading carries no `: <text>` tail has an empty title column. A broken stub shows `→ <target>` in place of a title. A duplicated ID's lines carry a `(duplicate declaration — grund check)` note. With `--kind`, only the selected kinds' lines appear; with `--unused`, only lines for declarations with zero inbound citations, with `E2E` cases excluded by default (the same suppression `check`'s unused-declaration warning applies, [§FS-check.4.1](FS-check.md#41-unused-declaration)) and re-included whenever `E2E` is one of the explicitly selected kinds. An empty catalog (or an empty filter result) prints nothing — that is not an error.
 
 Stderr is empty on success.
 
@@ -53,13 +54,28 @@ NDJSON on stdout — one object per catalog entry, same order as the text form:
 
 Fields: `id` (rendered ID), `kind`, `path` and `line` of the home declaration, `title` (`null` when the heading has no title tail or the home is a broken stub), `stub` (true when this entry's home is a stub heading — only ever true for a *broken* stub, since a healthy one collapses into its inline declaration), `defines` (the `<target>` of a stub heading, else `null`), `refs` (the count of recognised citations of this ID across the scanned tree — the JSON form always carries it so a tool need not run `grund refs` per ID just to find the uncited ones), and `duplicate` (true when the ID has more than one home). The wire form is stable per [§GOAL-no-silent-breakage](../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path).
 
+### 3.3 `--summary`
+
+`grund list --summary` prints one line per kind — in the configured `[[kinds]]` order, for the kinds that have at least one declaration in scope:
+
+```
+$ grund list --summary
+AR    7    docs/architecture
+DA    3    docs/decisions/architectural
+DF    9    docs/decisions/functional
+FS   18    docs/functional-spec
+…
+```
+
+Columns: the kind prefix, the count of declarations of that kind the scan found (after `--kind` / `--unused` narrowing, if any), and that kind's configured home directory ([§FS-config.3.4](FS-config.md#34-kinds--recognized-prefixes)) — so one line tells an agent both how big each slice of the catalog is and where to look. A kind with zero declarations in scope is omitted; an empty result (every kind empty, or `--kind` narrowed to kinds with no declarations) prints nothing — not an error. With `--kind FS,AR --summary` only those rows appear; with `--unused --summary` the counts are of uncited declarations — the same set the per-declaration `--unused` lists (`E2E` excluded unless `E2E` is explicitly selected by `--kind`, including in a multi-kind selection such as `--kind FS,E2E`). `--format json` together with `--summary`: NDJSON, one object per kind, `{"kind":<prefix>,"title":<[[kinds]] title>,"home":<folder>,"count":<n>}`, same order. Exit codes (§4) are unchanged.
+
 ## 4. Exit codes
 
 - `0` — the scan succeeded; the listed catalog (possibly empty) is the result.
-- `2` — scan / I/O error ([§FS-check.2](FS-check.md#2-outputs) partial-scan semantics apply: an incomplete scan exits `2` and the catalog may be short), an unknown `--kind`, an unsupported `--format`, or any other CLI-level error ([§FS-cli.4](FS-cli.md#4-errors-with-no-source-location)).
+- `2` — scan / I/O error ([§FS-check.2](FS-check.md#2-outputs) partial-scan semantics apply: an incomplete scan exits `2` and the catalog may be short), an unknown `--kind` (any value in a comma-separated or repeated `--kind`), an unsupported `--format`, or any other CLI-level error ([§FS-cli.4](FS-cli.md#4-errors-with-no-source-location)).
 
 There is no `1`: `list` is a query that always returns *its* answer (a possibly-empty catalog), never "found something other than one body" — unlike `show`, it has no single-result expectation to violate.
 
 ## 5. Why this exists
 
-`grep -RhoE '^#+ [A-Z]+-[a-z0-9-]+'` across `docs/` gives a contributor a rough list of declaration headings but cannot: reach inline declarations inside source-code doc-comments; collapse a stub onto the inline declaration it points at; honour the configured `[id]` grammar in a repo that customised it; tell which declarations are uncited; or produce a stable, machine-shaped result an agent can program against. `list` is the scheme's own answer, sharing the scanner with `check` so the catalog and the validator never disagree on what a declaration is. With `show` and `refs` it completes the read surface: `list` enumerates the IDs, `show` reads the body one promises, `refs` enumerates who took the promise.
+`grep -RhoE '^#+ [A-Z]+-[a-z0-9-]+'` across `docs/` gives a contributor a rough list of declaration headings but cannot: reach inline declarations inside source-code doc-comments; collapse a stub onto the inline declaration it points at; honour the configured `[id]` grammar in a repo that customised it; tell which declarations are uncited; or produce a stable, machine-shaped result an agent can program against. `list` is the scheme's own answer, sharing the scanner with `check` so the catalog and the validator never disagree on what a declaration is. Multi-kind `--kind FS,AR` and `--summary` give an agent a scoped slice or a bird's-eye count of the catalog instead of the full dump — the discovery half of token-cheap grounding. With `show` and `refs` it completes the read surface: `list` enumerates the IDs, `show` reads the body one promises, `refs` enumerates who took the promise.

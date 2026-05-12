@@ -94,7 +94,7 @@ fn read_to_string(path: impl AsRef<Path>) -> String {
 /// newline means "empty output" so an empty capture round-trips to a one-byte
 /// file rather than vanishing from the diff.
 fn read_expected_output(path: impl AsRef<Path>) -> String {
-    let output = read_to_string(path);
+    let output = read_to_string(path).replace("\r\n", "\n");
     if output == "\n" {
         String::new()
     } else {

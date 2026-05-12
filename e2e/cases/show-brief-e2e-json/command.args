@@ -1,0 +1,1 @@
+show --brief --format=json E2E-login {repo}

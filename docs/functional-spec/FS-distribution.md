@@ -53,8 +53,9 @@ Finding {
 
 ShowOpts {
   section: string?    // dotted section path, e.g. "3.1.2"
-  head:    bool       // mutually exclusive with `full`
-  full:    bool
+  mode:    "full" | "head" | "outline" | "brief"
+                      // the same mutually exclusive show modes as §FS-show.1
+                      // default: "full"
   format:  "text" | "md" | "json"
 }
 ```
@@ -76,7 +77,7 @@ let body = grund::show("FS-check", ShowOpts::default())?;
 import { check, show } from 'grund-cli';
 
 const report = await check('./repo');
-const body = await show('FS-check', { head: true });
+const body = await show('FS-check', { mode: 'brief' });
 ```
 
 The Node binding is built with `napi-rs`. Native binaries are prebuilt for the platforms covered by `napi-rs` (macOS arm64/x64, Linux x64/arm64, Windows x64). Source builds are supported as a fallback.
@@ -87,7 +88,7 @@ The Node binding is built with `napi-rs`. Native binaries are prebuilt for the p
 from grund import check, show
 
 report = check("./repo")
-body = show("FS-check", head=True)
+body = show("FS-check", mode="brief")
 ```
 
 The Python binding is built with `PyO3` and packaged with `maturin`. Wheels are built for CPython 3.10+ across the platforms covered by `cibuildwheel`. The distribution package is named `grund-cli`; the import module is `grund` ([§DA-pypi-package-name](../decisions/architectural/DA-pypi-package-name.md#da-pypi-package-name-pypi-uses-gnd-cli-as-the-package-name) — that record predates the rename and used the old name; [§RM-distribution-naming](../roadmap.md#rm-distribution-naming-verify-package-names-before-first-publish) re-confirms the live names).

@@ -1,13 +1,14 @@
 grund refs — list every citation of an ID, as `path:line`, so you can see who
 depends on a declaration before you change it.
 
-Usage:  grund refs <ID>[.<section>] [PATH] [--section S] [--format text|json]
+Usage:  grund refs <ID>[.<section>] [PATH] [--section S] [--summary] [--format text|json]
 
 PATH defaults to `.`. With a `.<section>` (or --section), only citations of that
 exact section are listed. An ID with no citations prints nothing and exits 0.
 
 Options:
   --section S          list only citations of that section path   e.g. grund refs FS-login --section 3
+  --summary            group citations by citing file             e.g. grund refs FS-login --summary
   --format text|json   text (default) prints `path:line: <citation>`; json emits NDJSON.
 
 The citation list is the result, so it goes to stdout (text and json alike) —
@@ -17,4 +18,5 @@ Exit:  0 scan succeeded (with or without hits) · 2 unreadable tree or CLI error
 
 Examples:
   grund refs FS-login             # every citation of FS-login
+  grund refs FS-login --summary   # one row per citing file
   grund refs FS-login.3           # only citations of section 3

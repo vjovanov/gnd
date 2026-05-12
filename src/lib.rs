@@ -313,6 +313,20 @@ struct Findings {
     scanned_files: Vec<PathBuf>,
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ShowMode {
+    Full,
+    Head,
+    Outline,
+    Brief,
+}
+
+struct ShowSection {
+    path: String,
+    title: String,
+    depth: usize,
+}
+
 /// One `[[kinds]]` entry: prefix plus the folder its declarations live in and the
 /// human title `grund id` prints (§FS-config.3.4).
 #[derive(Clone)]
@@ -536,6 +550,8 @@ struct ShowOutput {
     path: PathBuf,
     line: usize,
     json: Option<String>,
+    sections: Vec<ShowSection>,
+    head: Option<String>,
 }
 
 /// Pull an `Id` out of a `Grammar` regex match — the `kind` / `num` / `slug`
@@ -2161,7 +2177,7 @@ fn command_check(args: &[String]) -> ExitCode {
     }
 }
 
-/// `grund show <ID>[.<section>] [--head|--full] [--section S] [--format text|md|json]`
+/// `grund show <ID>[.<section>] [--head|--outline|--brief|--full] [--section S] [--format text|md|json]`
 /// — print the body of one declaration (§FS-show.1): the whole thing by default
 /// (§FS-show.2.1), the lead paragraph with `--head` (§FS-show.2.1.1), one
 /// subsection with `.<section>` or `--section` (§FS-show.2.2). Ambiguous IDs and
@@ -2174,21 +2190,44 @@ fn command_show(args: &[String]) -> ExitCode {
     let mut id_arg = None;
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
-    let mut head = false;
-    let mut saw_head = false;
-    let mut saw_full = false;
+    let mut mode = ShowMode::Full;
+    let mut mode_flag: Option<&'static str> = None;
     let mut section_override = None;
     let mut format = "text".to_string();
     let mut idx = 0;
     while idx < args.len() {
         match args[idx].as_str() {
             "--head" => {
-                saw_head = true;
-                head = true;
+                if let Some(previous) = mode_flag {
+                    eprintln!("error: {previous} and --head cannot be used together");
+                    return ExitCode::from(2);
+                }
+                mode_flag = Some("--head");
+                mode = ShowMode::Head;
+            }
+            "--outline" => {
+                if let Some(previous) = mode_flag {
+                    eprintln!("error: {previous} and --outline cannot be used together");
+                    return ExitCode::from(2);
+                }
+                mode_flag = Some("--outline");
+                mode = ShowMode::Outline;
+            }
+            "--brief" => {
+                if let Some(previous) = mode_flag {
+                    eprintln!("error: {previous} and --brief cannot be used together");
+                    return ExitCode::from(2);
+                }
+                mode_flag = Some("--brief");
+                mode = ShowMode::Brief;
             }
             "--full" => {
-                saw_full = true;
-                head = false;
+                if let Some(previous) = mode_flag {
+                    eprintln!("error: {previous} and --full cannot be used together");
+                    return ExitCode::from(2);
+                }
+                mode_flag = Some("--full");
+                mode = ShowMode::Full;
             }
             other if other.starts_with("--format=") => {
                 format = other.trim_start_matches("--format=").to_string();
@@ -2238,10 +2277,6 @@ fn command_show(args: &[String]) -> ExitCode {
         eprintln!("error: show requires an ID");
         return ExitCode::from(2);
     };
-    if saw_head && saw_full {
-        eprintln!("error: --head and --full cannot be used together");
-        return ExitCode::from(2);
-    }
     let config = match load_config(&path) {
         Ok(config) => config,
         Err(err) => {
@@ -2286,7 +2321,7 @@ fn command_show(args: &[String]) -> ExitCode {
         &findings,
         &id,
         section.as_deref(),
-        head,
+        mode,
         format == "md",
     ) {
         Ok(mut output) => {
@@ -2294,13 +2329,42 @@ fn command_show(args: &[String]) -> ExitCode {
             // back to bare `§…` citations; `md` keeps the renderable form verbatim.
             if format != "md" {
                 output.body = flatten_cross_ref_links(&output.body, &config);
+                if let Some(head) = &mut output.head {
+                    *head = flatten_cross_ref_links(head, &config);
+                }
             }
             if format == "json" {
                 if let Some(json) = output.json {
                     println!("{json}");
                 } else {
+                    let mut extra = String::new();
+                    if matches!(mode, ShowMode::Outline | ShowMode::Brief) {
+                        extra.push_str(",\"sections\":[");
+                        extra.push_str(
+                            &output
+                                .sections
+                                .iter()
+                                .map(|section| {
+                                    format!(
+                                        "{{\"path\":\"{}\",\"title\":\"{}\",\"depth\":{}}}",
+                                        json_escape(&section.path),
+                                        json_escape(&section.title),
+                                        section.depth
+                                    )
+                                })
+                                .collect::<Vec<_>>()
+                                .join(","),
+                        );
+                        extra.push(']');
+                    }
+                    if matches!(mode, ShowMode::Brief) {
+                        extra.push_str(&format!(
+                            ",\"head\":\"{}\"",
+                            json_escape(output.head.as_deref().unwrap_or(""))
+                        ));
+                    }
                     println!(
-                        "{{\"id\":\"{}\",\"section\":{},\"body\":\"{}\",\"path\":\"{}\",\"line\":{}}}",
+                        "{{\"id\":\"{}\",\"section\":{},\"body\":\"{}\",\"path\":\"{}\",\"line\":{}{}}}",
                         json_escape(&render_id(&config, &id)),
                         match section.as_deref() {
                             Some(section) => format!("\"{}\"", json_escape(section)),
@@ -2308,7 +2372,8 @@ fn command_show(args: &[String]) -> ExitCode {
                         },
                         json_escape(&output.body),
                         json_escape(&display_path(&config, &output.path)),
-                        output.line
+                        output.line,
+                        extra
                     );
                 }
             } else {
@@ -2348,7 +2413,7 @@ fn show_declaration(
     findings: &Findings,
     id: &Id,
     section: Option<&str>,
-    head: bool,
+    mode: ShowMode,
     include_heading: bool,
 ) -> Result<ShowOutput> {
     let root = &config.root;
@@ -2374,7 +2439,7 @@ fn show_declaration(
     }
     let decl = decls.iter().find(|decl| decl.is_stub).unwrap_or(&decls[0]);
     if let Some(case) = &decl.e2e_case {
-        return show_e2e_case(config, id, case, section, head);
+        return show_e2e_case(config, id, case, section, mode);
     }
     let file = if let Some(target) = &decl.defined_in {
         if target.is_absolute() {
@@ -2406,7 +2471,7 @@ fn show_declaration(
             ));
         }
     }
-    extract_declaration_body(&file, id, section, head, include_heading, config)
+    extract_declaration_body(&file, id, section, mode, include_heading, config)
 }
 
 /// Render an e2e case as a `grund show` body: the invocation, expected exit, and
@@ -2418,7 +2483,7 @@ fn show_e2e_case(
     id: &Id,
     case: &E2eCase,
     section: Option<&str>,
-    head: bool,
+    mode: ShowMode,
 ) -> Result<ShowOutput> {
     if let Some(section) = section {
         return Err(anyhow!(
@@ -2429,20 +2494,23 @@ fn show_e2e_case(
         ));
     }
     let invocation = format!("grund {}", case.args.join(" "));
-    let body = if head {
-        format!("{invocation}\n")
-    } else {
-        let mut lines = vec![
-            invocation,
-            format!("expected exit: {}", case.expected_exit),
-            "fixtures:".to_string(),
-        ];
-        lines.extend(
-            case.fixtures
-                .iter()
-                .map(|path| format!("- {}", format_path(path))),
-        );
-        format!("{}\n", lines.join("\n"))
+    let head_body = format!("{invocation}\n");
+    let body = match mode {
+        ShowMode::Head | ShowMode::Brief => head_body.clone(),
+        ShowMode::Outline => String::new(),
+        ShowMode::Full => {
+            let mut lines = vec![
+                invocation,
+                format!("expected exit: {}", case.expected_exit),
+                "fixtures:".to_string(),
+            ];
+            lines.extend(
+                case.fixtures
+                    .iter()
+                    .map(|path| format!("- {}", format_path(path))),
+            );
+            format!("{}\n", lines.join("\n"))
+        }
     };
     let args_json = case
         .args
@@ -2469,6 +2537,8 @@ fn show_e2e_case(
         path: case.dir.clone(),
         line: 1,
         json: Some(json),
+        sections: Vec::new(),
+        head: matches!(mode, ShowMode::Brief).then_some(head_body),
     })
 }
 
@@ -2482,10 +2552,23 @@ fn extract_declaration_body(
     path: &Path,
     id: &Id,
     section: Option<&str>,
-    head: bool,
+    mode: ShowMode,
     include_heading: bool,
     config: &Config,
 ) -> Result<ShowOutput> {
+    if mode == ShowMode::Brief {
+        let mut head_output =
+            extract_declaration_body(path, id, section, ShowMode::Head, include_heading, config)?;
+        let outline_output =
+            extract_declaration_body(path, id, section, ShowMode::Outline, false, config)?;
+        let body = join_brief_body(&head_output.body, &outline_output.body);
+        head_output.body = body;
+        head_output.sections = outline_output.sections;
+        head_output.head =
+            Some(extract_declaration_body(path, id, section, ShowMode::Head, false, config)?.body);
+        return Ok(head_output);
+    }
+
     let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
     let is_py = path.extension().and_then(|e| e.to_str()) == Some("py");
@@ -2495,6 +2578,7 @@ fn extract_declaration_body(
     let mut found_section = section.is_none();
     let mut target_depth = usize::MAX;
     let mut lines = Vec::new();
+    let mut sections = Vec::new();
     let mut output_line = 1;
 
     for (idx, line) in text.lines().enumerate() {
@@ -2522,7 +2606,7 @@ fn extract_declaration_body(
                 output_line = lineno;
                 // `md` format keeps the heading verbatim — including for `--head`,
                 // which then prints heading + lead prose (§FS-show.3.1).
-                if include_heading && section.is_none() {
+                if include_heading {
                     lines.push(clean_body_line(scan_line, is_md || in_py_docstring));
                 }
                 continue;
@@ -2549,20 +2633,33 @@ fn extract_declaration_body(
         }
         if let Some(caps) = config.grammar.section_re.captures(scan_line) {
             let sec = caps.name("sec").map(|m| m.as_str()).unwrap_or("");
+            let depth = sec.split('.').count();
             match section {
                 // Whole-declaration head: stop at the first numbered subsection.
                 None => {
-                    if head {
+                    if mode == ShowMode::Head {
                         break;
+                    }
+                    if mode == ShowMode::Outline {
+                        push_outline_section(
+                            &mut lines,
+                            &mut sections,
+                            scan_line,
+                            sec,
+                            depth,
+                            is_md || in_py_docstring,
+                        );
+                        continue;
                     }
                 }
                 Some(target) => {
-                    let depth = sec.split('.').count();
                     if sec == target {
                         found_section = true;
                         target_depth = depth;
                         output_line = lineno;
-                        lines.push(clean_body_line(scan_line, is_md || in_py_docstring));
+                        if mode != ShowMode::Outline {
+                            lines.push(clean_body_line(scan_line, is_md || in_py_docstring));
+                        }
                         continue;
                     }
                     // Inside the target section: a sibling-or-shallower heading
@@ -2570,13 +2667,24 @@ fn extract_declaration_body(
                     // heading — including a child — ends the section's lead prose
                     // (§FS-show.2.1.1). Before the target section is found, keep
                     // scanning past unrelated headings.
-                    if found_section && (head || depth <= target_depth) {
+                    if found_section && (mode == ShowMode::Head || depth <= target_depth) {
                         break;
+                    }
+                    if found_section && mode == ShowMode::Outline {
+                        push_outline_section(
+                            &mut lines,
+                            &mut sections,
+                            scan_line,
+                            sec,
+                            depth - target_depth,
+                            is_md || in_py_docstring,
+                        );
+                        continue;
                     }
                 }
             }
         }
-        if found_section {
+        if found_section && mode != ShowMode::Outline {
             lines.push(clean_body_line(scan_line, is_md || in_py_docstring));
         }
     }
@@ -2608,7 +2716,46 @@ fn extract_declaration_body(
         path: path.to_path_buf(),
         line: output_line,
         json: None,
+        sections,
+        head: None,
     })
+}
+
+fn join_brief_body(head: &str, outline: &str) -> String {
+    match (head.is_empty(), outline.is_empty()) {
+        (true, true) => String::new(),
+        (true, false) => outline.to_string(),
+        (false, true) => head.to_string(),
+        (false, false) => format!("{head}\n{outline}"),
+    }
+}
+
+fn push_outline_section(
+    lines: &mut Vec<String>,
+    sections: &mut Vec<ShowSection>,
+    line: &str,
+    section: &str,
+    depth: usize,
+    markdown_heading: bool,
+) {
+    lines.push(clean_body_line(line, markdown_heading));
+    sections.push(ShowSection {
+        path: section.to_string(),
+        title: section_title(line, section, markdown_heading),
+        depth,
+    });
+}
+
+fn section_title(line: &str, section: &str, markdown_heading: bool) -> String {
+    let clean = clean_body_line(line, markdown_heading);
+    clean
+        .trim_start()
+        .trim_start_matches('#')
+        .trim_start()
+        .trim_start_matches(section)
+        .trim_start_matches('.')
+        .trim_start()
+        .to_string()
 }
 
 /// Strip the comment marker (`///`, `//!`, `//`, `#`, `*`, `/*`, `*/`) off a body
@@ -3630,7 +3777,7 @@ fn command_id(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// `grund refs <ID>[.<section>] [--format text|json]` — the reverse of `grund show`:
+/// `grund refs <ID>[.<section>] [--summary] [--format text|json]` — the reverse of `grund show`:
 /// list every place that cites the ID (§FS-refs.1, §FS-refs.2), scheme-aware where
 /// a grep cannot be. Shares the scanner with `check` so the two never disagree on
 /// what counts as a citation (§FS-refs.5). Empty results, including undeclared IDs
@@ -3645,9 +3792,11 @@ fn command_refs(args: &[String]) -> ExitCode {
     let mut path_provided = false;
     let mut section_override: Option<String> = None;
     let mut format_override: Option<String> = None;
+    let mut summary = false;
     let mut idx = 0;
     while idx < args.len() {
         match args[idx].as_str() {
+            "--summary" => summary = true,
             "--section" => {
                 idx += 1;
                 if idx >= args.len() {
@@ -3754,7 +3903,49 @@ fn command_refs(args: &[String]) -> ExitCode {
     // stdout (text and JSON alike), like `grund list` / `grund cover` / `grund show` —
     // even though a line shares the `path:line: <text>` shape `check` uses for
     // diagnostics on stderr. Only the `note:` breadcrumb above stays on stderr.
-    if format == "json" {
+    if summary {
+        let mut by_file: BTreeMap<PathBuf, (usize, BTreeSet<usize>)> = BTreeMap::new();
+        for citation in citations {
+            let entry = by_file
+                .entry(citation.file.clone())
+                .or_insert_with(|| (0, BTreeSet::new()));
+            entry.0 += 1;
+            entry.1.insert(citation.line);
+        }
+        let mut entries = by_file.iter().collect::<Vec<_>>();
+        entries.sort_by_key(|(file, _)| display_path(&config, file));
+        if format == "json" {
+            for (file, (count, lines)) in entries {
+                let lines_json = lines
+                    .iter()
+                    .map(|line| line.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                println!(
+                    "{{\"path\":\"{}\",\"count\":{},\"lines\":[{}]}}",
+                    json_escape(&display_path(&config, file)),
+                    count,
+                    lines_json
+                );
+            }
+        } else {
+            for (file, (count, lines)) in entries {
+                let label = if lines.len() == 1 { "line" } else { "lines" };
+                let lines_text = lines
+                    .iter()
+                    .map(|line| line.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                println!(
+                    "{}: {} ({} {})",
+                    display_path(&config, file),
+                    count,
+                    label,
+                    lines_text
+                );
+            }
+        }
+    } else if format == "json" {
         for citation in citations {
             println!("{}", render_citation_json(&config, citation));
         }
@@ -3908,7 +4099,7 @@ fn command_cover(args: &[String]) -> ExitCode {
     }
 }
 
-/// `grund list [path] [--kind K] [--unused] [--format text|json]` — print every
+/// `grund list [path] [--kind K[,K]...] [--unused] [--summary] [--format text|json]` — print every
 /// declared ID with its home `path:line` and one-line title (§FS-list.1,
 /// §FS-list.3), optionally filtered to one kind or to declarations nothing cites
 /// (the same set as the §FS-check.4.1 warning). The discovery side of the loop:
@@ -3916,23 +4107,25 @@ fn command_cover(args: &[String]) -> ExitCode {
 fn command_list(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
-    let mut kind_filter: Option<String> = None;
+    let mut kind_filter: BTreeSet<String> = BTreeSet::new();
     let mut unused_only = false;
+    let mut summary = false;
     let mut format_override: Option<String> = None;
     let mut idx = 0;
     while idx < args.len() {
         match args[idx].as_str() {
             "--unused" => unused_only = true,
+            "--summary" => summary = true,
             "--kind" => {
                 idx += 1;
                 if idx >= args.len() {
                     eprintln!("error: --kind requires a value");
                     return ExitCode::from(2);
                 }
-                kind_filter = Some(args[idx].clone());
+                add_kind_filters(&mut kind_filter, &args[idx]);
             }
             other if other.starts_with("--kind=") => {
-                kind_filter = Some(other.trim_start_matches("--kind=").to_string());
+                add_kind_filters(&mut kind_filter, other.trim_start_matches("--kind="));
             }
             other if other.starts_with("--format=") => {
                 format_override = Some(other.trim_start_matches("--format=").to_string());
@@ -3972,15 +4165,16 @@ fn command_list(args: &[String]) -> ExitCode {
         eprintln!("error: unsupported list format `{format}`");
         return ExitCode::from(2);
     }
-    if let Some(kind) = &kind_filter
-        && !config
+    for kind in &kind_filter {
+        if !config
             .kinds
             .iter()
             .any(|candidate| &candidate.prefix == kind)
-    {
-        eprintln!("error: unknown kind `{kind}`");
-        eprintln!("known kinds: {}", kind_prefixes(&config.kinds).join(", "));
-        return ExitCode::from(2);
+        {
+            eprintln!("error: unknown kind `{kind}`");
+            eprintln!("known kinds: {}", kind_prefixes(&config.kinds).join(", "));
+            return ExitCode::from(2);
+        }
     }
     let (findings, scan_errors) = match scan_tree(&config, Some(&path), path_provided) {
         Ok(out) => out,
@@ -4005,9 +4199,7 @@ fn command_list(args: &[String]) -> ExitCode {
     // out in the same stable order `grund check` reports diagnostics in.
     let mut entries: Vec<Entry> = Vec::new();
     for (id, decls) in &findings.declarations {
-        if let Some(kind) = &kind_filter
-            && &id.kind != kind
-        {
+        if !kind_filter.is_empty() && !kind_filter.contains(&id.kind) {
             continue;
         }
         let refs = ref_counts.get(id).copied().unwrap_or(0);
@@ -4018,9 +4210,10 @@ fn command_list(args: &[String]) -> ExitCode {
         // artifact, exercised by being run, not a citation target (the same reason
         // §FS-check.4.1 does not warn for uncited E2E cases). Bare `grund list --unused`
         // therefore skips E2E so the actionable signal — uncited specs and decisions —
-        // is not buried under the whole case corpus; `grund list --unused --kind E2E`
-        // opts back in for an inventory (§FS-list.1, §FS-list.3.1).
-        if unused_only && id.kind == "E2E" && kind_filter.as_deref() != Some("E2E") {
+        // is not buried under the whole case corpus; selecting E2E with `--kind`
+        // opts back in for an inventory, even in a multi-kind filter (§FS-list.1,
+        // §FS-list.3.1).
+        if unused_only && id.kind == "E2E" && !kind_filter.contains("E2E") {
             continue;
         }
         // A stub paired with the inline declaration it points at is *one* home,
@@ -4045,7 +4238,40 @@ fn command_list(args: &[String]) -> ExitCode {
         }
     }
 
-    if format == "json" {
+    if summary {
+        let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+        for entry in &entries {
+            *counts.entry(&entry.id.kind).or_insert(0) += 1;
+        }
+        if format == "json" {
+            for kind in &config.kinds {
+                let count = counts.get(kind.prefix.as_str()).copied().unwrap_or(0);
+                if count == 0 {
+                    continue;
+                }
+                println!(
+                    "{{\"kind\":\"{}\",\"title\":\"{}\",\"home\":\"{}\",\"count\":{}}}",
+                    json_escape(&kind.prefix),
+                    json_escape(kind.title.as_deref().unwrap_or("Declaration")),
+                    json_escape(kind.folder.as_deref().unwrap_or("")),
+                    count
+                );
+            }
+        } else {
+            for kind in &config.kinds {
+                let count = counts.get(kind.prefix.as_str()).copied().unwrap_or(0);
+                if count == 0 {
+                    continue;
+                }
+                println!(
+                    "{:<4}  {:>3}  {}",
+                    kind.prefix,
+                    count,
+                    kind.folder.as_deref().unwrap_or("")
+                );
+            }
+        }
+    } else if format == "json" {
         for entry in &entries {
             println!(
                 "{{\"id\":\"{}\",\"kind\":\"{}\",\"path\":\"{}\",\"line\":{},\"title\":{},\"stub\":{},\"defines\":{},\"refs\":{},\"duplicate\":{}}}",
@@ -4118,6 +4344,12 @@ fn command_list(args: &[String]) -> ExitCode {
             eprintln!("error: {}: {}", display_path(&config, &file), message);
         }
         ExitCode::from(2)
+    }
+}
+
+fn add_kind_filters(kind_filter: &mut BTreeSet<String>, raw: &str) {
+    for kind in raw.split(',') {
+        kind_filter.insert(kind.to_string());
     }
 }
 
@@ -4427,9 +4659,9 @@ const FS_README_TEMPLATE: &str = include_str!("../templates/functional-spec-READ
 const AS_README_TEMPLATE: &str = include_str!("../templates/architecture-README.md");
 const GITKEEP_TEMPLATE: &str = include_str!("../templates/gitkeep.md");
 const AGENT_SETUP_INSTRUCTIONS: &str = include_str!("../skills/grund-init/SKILL.md");
-const AGENTS_BLOCK_VERSION: u32 = 1;
-const AGENTS_APPEND_BEGIN: &str = "<!-- grund:init:agents:v1 begin -->";
-const AGENTS_APPEND_END: &str = "<!-- grund:init:agents:v1 end -->";
+const AGENTS_BLOCK_VERSION: u32 = 2;
+const AGENTS_APPEND_BEGIN: &str = "<!-- grund:init:agents:v2 begin -->";
+const AGENTS_APPEND_END: &str = "<!-- grund:init:agents:v2 end -->";
 const CANONICAL_AGENT_ENTRYPOINT: &str = "AGENTS.md";
 const COMPANION_AGENT_ENTRYPOINTS: &[&str] = &[
     "AGENTS.override.md",
@@ -4438,6 +4670,10 @@ const COMPANION_AGENT_ENTRYPOINTS: &[&str] = &[
     "GEMINI.md",
     ".github/copilot-instructions.md",
 ];
+
+fn canonical_template_text(template: &str) -> String {
+    template.replace("\r\n", "\n").replace('\r', "\n")
+}
 
 /// The substitutions that turn `templates/AGENTS.md` into a concrete `AGENTS.md`
 /// for a repo (§FS-init.2.3): the project name, plus the ID/marker shape taken
@@ -4545,7 +4781,7 @@ fn declaration_table(config: &Config) -> String {
 /// substitutions applied (§FS-init.2.3). Deterministic: same `grund` version, same
 /// `--name`, same effective config ⇒ byte-identical output (§FS-non-goals.13).
 fn render_agents_md(name: &str, config: &Config) -> String {
-    let mut rendered = AGENTS_TEMPLATE.to_string();
+    let mut rendered = canonical_template_text(AGENTS_TEMPLATE);
     for (placeholder, value) in agents_template_substitutions(name, config) {
         rendered = rendered.replace(placeholder, &value);
     }
@@ -4634,7 +4870,7 @@ fn init_effective_config(target: &Path) -> Config {
 /// The generated `.agents/grund.toml` — every default written out explicitly as a
 /// teaching surface, with only `project_name` substituted (§FS-init.2.4).
 fn render_grund_toml(name: &str) -> String {
-    GRUND_TOML_TEMPLATE.replace("{NAME}", &escape_toml_basic(name))
+    canonical_template_text(GRUND_TOML_TEMPLATE).replace("{NAME}", &escape_toml_basic(name))
 }
 
 fn escape_toml_basic(raw: &str) -> String {
@@ -4978,8 +5214,11 @@ fn derive_default_name(target: &Path) -> Result<String> {
 /// §FS-init.2.1, each a minimal starter that leaves `grund check` clean.
 fn docs_scaffold() -> Vec<(&'static str, String)> {
     vec![
-        ("docs/grund.md", GRUND_DOC_TEMPLATE.to_string()),
-        ("docs/goals/goals.md", GOALS_TEMPLATE.to_string()),
+        ("docs/grund.md", canonical_template_text(GRUND_DOC_TEMPLATE)),
+        (
+            "docs/goals/goals.md",
+            canonical_template_text(GOALS_TEMPLATE),
+        ),
         (
             "docs/roadmap.md",
             "# Roadmap\n\n<!-- placeholder - replace with real content -->\n".to_string(),
@@ -4990,22 +5229,28 @@ fn docs_scaffold() -> Vec<(&'static str, String)> {
         ),
         (
             "docs/functional-spec/README.md",
-            FS_README_TEMPLATE.to_string(),
+            canonical_template_text(FS_README_TEMPLATE),
         ),
         (
             "docs/architecture/README.md",
-            AS_README_TEMPLATE.to_string(),
+            canonical_template_text(AS_README_TEMPLATE),
         ),
         (
             "docs/decisions/architectural/.gitkeep",
-            GITKEEP_TEMPLATE.to_string(),
+            canonical_template_text(GITKEEP_TEMPLATE),
         ),
         (
             "docs/decisions/functional/.gitkeep",
-            GITKEEP_TEMPLATE.to_string(),
+            canonical_template_text(GITKEEP_TEMPLATE),
         ),
-        ("e2e/README.md", E2E_README_TEMPLATE.to_string()),
-        ("e2e/cases/.gitkeep", GITKEEP_TEMPLATE.to_string()),
+        (
+            "e2e/README.md",
+            canonical_template_text(E2E_README_TEMPLATE),
+        ),
+        (
+            "e2e/cases/.gitkeep",
+            canonical_template_text(GITKEEP_TEMPLATE),
+        ),
     ]
 }
 
@@ -5121,13 +5366,19 @@ fn print_subcommand_help(cmd: &str) {
             println!("into context without loading the whole document.");
             println!();
             println!(
-                "Usage:  grund show <ID>[.<section>] [PATH] [--section S] [--head|--full] [--format text|md|json] [--path PATH]"
+                "Usage:  grund show <ID>[.<section>] [PATH] [--section S] [--head|--outline|--brief|--full] [--format text|md|json] [--path PATH]"
             );
             println!();
             println!("Options:");
             println!("  --section S            show only that section path, e.g. --section 3.1");
             println!(
                 "  --head                 first paragraph only       e.g. grund show --head FS-login"
+            );
+            println!(
+                "  --outline              numbered headings only     e.g. grund show --outline FS-login"
+            );
+            println!(
+                "  --brief                head plus outline          e.g. grund show --brief FS-login"
             );
             println!(
                 "  --full                 the whole declaration       e.g. grund show --full FS-login"
@@ -5143,6 +5394,7 @@ fn print_subcommand_help(cmd: &str) {
             println!();
             println!("Examples:");
             println!("  grund show FS-login              # the whole declaration body");
+            println!("  grund show FS-login --brief      # lead prose plus section map");
             println!("  grund show FS-login.3.1          # just that nested section");
             println!();
             println!(
@@ -5158,7 +5410,9 @@ fn print_subcommand_help(cmd: &str) {
                 "the citations of one ID) — `list` is the index of what you can `grund show`."
             );
             println!();
-            println!("Usage:  grund list [PATH] [--kind KIND] [--unused] [--format text|json]");
+            println!(
+                "Usage:  grund list [PATH] [--kind KIND[,KIND]...] [--unused] [--summary] [--format text|json]"
+            );
             println!();
             println!(
                 "Output is one line per declared ID, `<ID>  <path>:<line>  <title>`, sorted by ID."
@@ -5169,10 +5423,13 @@ fn print_subcommand_help(cmd: &str) {
             println!();
             println!("Options:");
             println!(
-                "  --kind KIND          only IDs of that kind                e.g. grund list --kind FS"
+                "  --kind KIND[,KIND]  only selected kinds; repeatable       e.g. grund list --kind FS,AR"
             );
             println!(
-                "  --unused             only declarations nothing cites yet (skips E2E cases; --kind E2E re-includes them)"
+                "  --unused            only declarations nothing cites yet (skips E2E unless E2E is selected)"
+            );
+            println!(
+                "  --summary           one row per kind with count and home  e.g. grund list --summary"
             );
             println!(
                 "  --format text|json   text (default) is the table on stdout; json emits NDJSON (adds `refs` count)."
@@ -5184,7 +5441,8 @@ fn print_subcommand_help(cmd: &str) {
             println!();
             println!("Examples:");
             println!("  grund list                      # the whole catalog");
-            println!("  grund list --kind AR docs/      # architecture IDs under docs/");
+            println!("  grund list --kind FS,AR docs/   # specs and architecture IDs under docs/");
+            println!("  grund list --summary            # counts by kind");
             println!(
                 "  grund list --unused             # uncited declarations (specs, decisions, …) — E2E cases excluded"
             );
@@ -5197,7 +5455,7 @@ fn print_subcommand_help(cmd: &str) {
             println!("depends on a declaration before you change it.");
             println!();
             println!(
-                "Usage:  grund refs <ID>[.<section>] [PATH] [--section S] [--format text|json]"
+                "Usage:  grund refs <ID>[.<section>] [PATH] [--section S] [--summary] [--format text|json]"
             );
             println!();
             println!(
@@ -5210,6 +5468,9 @@ fn print_subcommand_help(cmd: &str) {
             println!("Options:");
             println!(
                 "  --section S          list only citations of that section path   e.g. grund refs FS-login --section 3"
+            );
+            println!(
+                "  --summary            group citations by citing file             e.g. grund refs FS-login --summary"
             );
             println!(
                 "  --format text|json   text (default) prints `path:line: <citation>`; json emits NDJSON."
@@ -5228,6 +5489,7 @@ fn print_subcommand_help(cmd: &str) {
             println!();
             println!("Examples:");
             println!("  grund refs FS-login             # every citation of FS-login");
+            println!("  grund refs FS-login --summary   # one row per citing file");
             println!("  grund refs FS-login.3           # only citations of section 3");
         }
         "cover" => {
@@ -5423,7 +5685,7 @@ fn command_agent_setup_instructions(args: &[String]) -> ExitCode {
         eprintln!("error: agent-setup-instructions takes no arguments");
         return ExitCode::from(2);
     }
-    print!("{AGENT_SETUP_INSTRUCTIONS}");
+    print!("{}", canonical_template_text(AGENT_SETUP_INSTRUCTIONS));
     ExitCode::SUCCESS
 }
 
@@ -5799,6 +6061,22 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     }
 
     #[test]
+    fn embedded_templates_are_lf_canonical() {
+        assert_eq!(
+            canonical_template_text("alpha\r\nbeta\rgamma\n"),
+            "alpha\nbeta\ngamma\n"
+        );
+
+        let config = Config::default_for(PathBuf::from("."));
+        assert!(!render_agents_md("demo", &config).contains('\r'));
+        assert!(!render_grund_toml("demo").contains('\r'));
+        assert!(!canonical_template_text(AGENT_SETUP_INSTRUCTIONS).contains('\r'));
+        for (_, contents) in docs_scaffold() {
+            assert!(!contents.contains('\r'));
+        }
+    }
+
+    #[test]
     fn agents_update_appends_managed_block_when_missing() {
         let (updated, result) =
             update_agents_text("# Existing agents\n", &current_block(), "AGENTS.md")
@@ -5842,8 +6120,8 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     #[test]
     fn agents_update_replaces_older_block_in_place() {
         let old_block = current_block()
-            .replace("grund:init:agents:v1 begin", "grund:init:agents:v0 begin")
-            .replace("grund:init:agents:v1 end", "grund:init:agents:v0 end");
+            .replace("grund:init:agents:v2 begin", "grund:init:agents:v1 begin")
+            .replace("grund:init:agents:v2 end", "grund:init:agents:v1 end");
         let existing = format!("# Existing agents\n\n{old_block}\n\n# Local notes\n");
         let (updated, result) =
             update_agents_text(&existing, &current_block(), "AGENTS.md").expect("update old block");
@@ -5852,12 +6130,12 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         assert!(updated.starts_with("# Existing agents\n\n"));
         assert!(updated.ends_with("\n\n# Local notes\n"));
         assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
-        assert!(!updated.contains("grund:init:agents:v0"));
+        assert!(!updated.contains("grund:init:agents:v1"));
     }
 
     #[test]
     fn agents_update_keeps_current_block_in_middle_position() {
-        // §FS-init.2.3.1 / §FS-init.2.2: a v1 block already current and already
+        // §FS-init.2.3.1 / §FS-init.2.2: a block already current and already
         // sitting between user-authored sections is left byte-for-byte untouched
         // (`Unchanged` → `exists `) — nothing around it moves, nothing is rewritten.
         let existing = format!(
@@ -5879,16 +6157,16 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
     #[test]
     fn agents_update_handles_crlf_line_endings() {
-        // §FS-init.2.3.2: a CRLF-encoded AGENTS.md with a v0 block sandwiched
+        // §FS-init.2.3.2: a CRLF-encoded AGENTS.md with an older block sandwiched
         // between user-authored sections must still be detected and updated, with
         // CRLF preserved outside the managed block.
         let v0_lf = current_block()
-            .replace("grund:init:agents:v1 begin", "grund:init:agents:v0 begin")
-            .replace("grund:init:agents:v1 end", "grund:init:agents:v0 end");
+            .replace("grund:init:agents:v2 begin", "grund:init:agents:v1 begin")
+            .replace("grund:init:agents:v2 end", "grund:init:agents:v1 end");
         let v0_crlf = v0_lf.replace('\n', "\r\n");
         let existing = format!("# Existing agents\r\n\r\n{v0_crlf}\r\n\r\n# Local notes\r\n");
         let (updated, result) = update_agents_text(&existing, &current_block(), "AGENTS.md")
-            .expect("update CRLF v0 block");
+            .expect("update CRLF old block");
 
         assert_eq!(result, AgentsUpdateResult::Updated);
         assert!(
@@ -5900,7 +6178,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
             "CRLF suffix must be preserved verbatim"
         );
         assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
-        assert!(!updated.contains("grund:init:agents:v0"));
+        assert!(!updated.contains("grund:init:agents:v1"));
     }
 
     #[test]
