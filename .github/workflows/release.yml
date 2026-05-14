@@ -382,20 +382,27 @@ jobs:
         if: steps.state.outputs.core_published == 'false'
         run: cargo publish -p grund-core --locked
 
-      - name: Wait for grund-core to index
+      - name: Wait for grund-core dependency resolution
         if: steps.state.outputs.grund_published == 'false'
         shell: bash
         run: |
           set -euo pipefail
           version="${{ needs.verify.outputs.version }}"
-          for attempt in $(seq 1 30); do
-            if cargo search grund-core --limit 1 | grep -q "^grund-core = \"$version\""; then
+          max_attempts=90
+          sleep_seconds=20
+          package_log="$(mktemp)"
+
+          for attempt in $(seq 1 "$max_attempts"); do
+            if cargo package -p grund --locked --allow-dirty --no-verify >"$package_log" 2>&1; then
+              echo "grund-core $version is available for publishing grund"
               exit 0
             fi
-            echo "grund-core $version not indexed yet; waiting (${attempt}/30)"
-            sleep 10
+            echo "grund-core $version not resolvable by cargo yet; waiting (${attempt}/${max_attempts})"
+            sleep "$sleep_seconds"
           done
-          echo "error: timed out waiting for grund-core $version to appear in the crates.io index" >&2
+
+          echo "error: timed out after $((max_attempts * sleep_seconds / 60)) minutes waiting for cargo to resolve grund-core $version" >&2
+          cat "$package_log" >&2
           exit 1
 
       - name: Publish grund
