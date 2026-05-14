@@ -38,3 +38,12 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: no-claude-attribution
+        name: no Claude attribution boilerplate
+        entry: scripts/check-no-claude-attribution.sh
+        language: system
+        # Run against staged file content only — the script accepts the file
+        # list pre-commit passes. The script's own source documents the
+        # patterns it blocks; exclude it so the hook does not flag itself.
+        pass_filenames: true
+        exclude: ^scripts/check-no-claude-attribution\.sh$
