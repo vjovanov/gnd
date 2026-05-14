@@ -47,7 +47,7 @@ fn print_help() {
     );
     println!();
     println!(
-        "Options:  --format text|json   output shape; text is the default (where it applies)."
+        "Options:  --format text|json   per-command (place after the subcommand); text is the default."
     );
     println!("          --version, -V        print version.       --help, -h   show this screen.");
     println!("Help and version go to stdout and exit 0.   Docs: docs/functional-spec/");

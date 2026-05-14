@@ -158,12 +158,6 @@ fn command_id(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// `grund refs <ID>[.<section>] [--summary] [--format text|json]` — the reverse of `grund show`:
-/// list every place that cites the ID (§FS-refs.1, §FS-refs.2), scheme-aware where
-/// a grep cannot be. Shares the scanner with `check` so the two never disagree on
-/// what counts as a citation (§FS-refs.5). Empty results, including undeclared IDs
-/// with no citations, exit `0` (§FS-refs.4).
-
 /// The repeating character class of a slug pattern — the last `[...]` bracket
 /// expression in `slug_pattern` (e.g. `[a-z0-9-]` from `[a-z0-9][a-z0-9-]*`) —
 /// used when slugifying a `grund id` title so the result fits the configured
