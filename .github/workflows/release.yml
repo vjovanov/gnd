@@ -23,6 +23,11 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # Pin the Rust toolchain used by every release job so all six PGO binaries
+  # are produced by the same compiler version (avoids drift between the
+  # outside-container `dtolnay/rust-toolchain` and the inside-container
+  # `rustup` install).
+  RUST_TOOLCHAIN: "1.95.0"
 
 jobs:
   verify:
@@ -39,6 +44,8 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Resolve release version
         id: version
@@ -113,6 +120,21 @@ jobs:
           echo "create_github_release=$create_github_release" >> "$GITHUB_OUTPUT"
           echo "create_tag=$create_tag" >> "$GITHUB_OUTPUT"
 
+      # Fail fast: the actual `cargo publish` step lives behind a 20+ minute
+      # PGO matrix, so an unset secret was discovered very late before this.
+      - name: Preflight crates.io token
+        if: steps.mode.outputs.publish_crates == 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "error: publish_crates=true but the CARGO_REGISTRY_TOKEN secret is not set" >&2
+            echo "       set it under repo settings > secrets, or re-dispatch with publish_crates=false" >&2
+            exit 1
+          fi
+
       - name: Check registry names
         run: bash scripts/check-registry-names.sh
 
@@ -155,27 +177,50 @@ jobs:
           git push origin "refs/tags/${tag}"
 
   build-linux-gnu-pgo:
-    name: PGO binary (linux glibc 2.17)
+    name: PGO binary (${{ matrix.triple }})
     needs:
       - verify
       - prepare-release-ref
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # manylinux2014 images pinned by digest (tag 2026.05.13-1) so a
+          # registry-side rebuild cannot shift the glibc 2.17 baseline mid-release.
+          - triple: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            image: "quay.io/pypa/manylinux2014_x86_64@sha256:8149fab622c82b6f5feb63df797b6d762551c5780d3a6c188893609700775fc7"
+          - triple: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+            image: "quay.io/pypa/manylinux2014_aarch64@sha256:abd9b0ca7c11710ac3c5ab22ac699e50a0b579a9cbdfb3e84cb9d2709d33b5da"
     steps:
       - uses: actions/checkout@v4
 
       - name: Build PGO release binary in manylinux2014
+        env:
+          IMAGE: ${{ matrix.image }}
+          RUST_TOOLCHAIN: ${{ env.RUST_TOOLCHAIN }}
         run: |
           docker run --rm \
+            -e RUST_TOOLCHAIN \
             -v "$PWD:/work" \
             -w /work \
-            quay.io/pypa/manylinux2014_x86_64:latest \
+            "$IMAGE" \
             bash -lc '
               set -euo pipefail
-              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs \
+                | sh -s -- -y --profile minimal --default-toolchain "$RUST_TOOLCHAIN"
               source "$HOME/.cargo/env"
               rustup component add llvm-tools-preview
               bash scripts/pgo-build.sh
             '
+
+      # Files written from inside the container are root-owned on the host.
+      # Restore ownership so subsequent steps (read/copy/tar) run as the
+      # normal runner user without surprises.
+      - name: Restore ownership of build outputs
+        run: sudo chown -R "$(id -u):$(id -g)" target
 
       - name: Self-check PGO release binary
         run: |
@@ -193,7 +238,7 @@ jobs:
           set -euo pipefail
 
           version="${{ needs.verify.outputs.version }}"
-          base="grund-${version}-x86_64-unknown-linux-gnu"
+          base="grund-${version}-${{ matrix.triple }}"
           dir="dist/${base}"
           mkdir -p "$dir"
 
@@ -229,15 +274,17 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - macos-15-intel
-          - macos-15
-          - windows-latest
+          - macos-15-intel    # x86_64-apple-darwin
+          - macos-15          # aarch64-apple-darwin
+          - windows-latest    # x86_64-pc-windows-msvc
+          - windows-11-arm    # aarch64-pc-windows-msvc
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: llvm-tools-preview
 
       - name: Cache cargo registry and target
@@ -247,8 +294,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-${{ runner.arch }}-cargo-release-pgo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-release-pgo-${{ env.RUST_TOOLCHAIN }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-release-pgo-${{ env.RUST_TOOLCHAIN }}-
             ${{ runner.os }}-${{ runner.arch }}-cargo-release-pgo-
             ${{ runner.os }}-${{ runner.arch }}-cargo-
 
@@ -334,6 +382,8 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Verify crates.io token
         shell: bash

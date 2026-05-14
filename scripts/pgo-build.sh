@@ -75,7 +75,18 @@ for _ in 1 2 3; do
 done
 set -e
 
-"$llvm_profdata" merge -o "$profdata" "$pgo_dir"/*.profraw
+# Fail loudly if the training loop produced no profiles — every command above
+# was wrapped in `set +e`, so a totally-broken `$grund` invocation would
+# otherwise be hidden until `llvm-profdata` errored on an empty input.
+shopt -s nullglob
+profraws=("$pgo_dir"/*.profraw)
+if [ ${#profraws[@]} -eq 0 ]; then
+  echo "error: PGO training produced no .profraw files in $pgo_dir" >&2
+  echo "       (the instrumented '$grund' did not run successfully)" >&2
+  exit 1
+fi
+
+"$llvm_profdata" merge -o "$profdata" "${profraws[@]}"
 
 echo "==> 3/3  rebuild optimized (-Cprofile-use)"
 RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Cprofile-use=$profdata_rustc -Cllvm-args=-pgo-warn-missing-function" cargo build --release --locked
