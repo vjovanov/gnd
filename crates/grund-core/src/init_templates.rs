@@ -64,7 +64,6 @@ fn agents_template_substitutions(name: &str, config: &Config) -> Vec<(&'static s
         ("{BARE_TOKEN_NOTE}", bare_note),
         ("{MARKER}", marker.to_string()),
         ("{TRIGGER}", config.trigger.clone()),
-        ("{SCAN_SCOPE}", scan_scope_summary(config)),
         ("{DECLARATION_TABLE}", declaration_table(config)),
     ]
 }
@@ -75,32 +74,6 @@ fn markdown_cell(raw: &str) -> String {
 
 fn code_span(raw: &str) -> String {
     format!("`{}`", raw.replace('`', "\\`"))
-}
-
-fn scan_scope_summary(config: &Config) -> String {
-    let include = config.include.as_deref().unwrap_or(&[]);
-    let roots = if include.is_empty() {
-        "the repository root".to_string()
-    } else {
-        include
-            .iter()
-            .map(|path| code_span(path))
-            .collect::<Vec<_>>()
-            .join(", ")
-    };
-    if config.exclude.is_empty() {
-        roots
-    } else {
-        format!(
-            "{roots}; excluded directories: {}",
-            config
-                .exclude
-                .iter()
-                .map(|path| code_span(path))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    }
 }
 
 fn declaration_table(config: &Config) -> String {

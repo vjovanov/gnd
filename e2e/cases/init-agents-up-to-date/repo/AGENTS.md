@@ -17,8 +17,6 @@ A `§<ID>` is a pointer to a fact, not a file path. Resolve it with `grund` and 
 
 ### Project map
 
-`grund` scans: `docs`, `e2e`, `src`; excluded directories: `target`, `node_modules`, `.git`, `dist`, `build`, `.venv`.
-
 | Kind | Home | Purpose |
 |---|---|---|
 | `G` | `docs/goals` | Goal |

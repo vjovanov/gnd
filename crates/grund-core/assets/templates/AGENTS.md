@@ -15,8 +15,6 @@ A `{MARKER}<ID>` is a pointer to a fact, not a file path. Resolve it with `grund
 
 ### Project map
 
-`grund` scans: {SCAN_SCOPE}.
-
 {DECLARATION_TABLE}
 
 ### Declarations and citations

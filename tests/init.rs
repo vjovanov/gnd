@@ -165,12 +165,12 @@ title = "Architecture decision"
         "AGENTS.md should describe configured decision homes:\n{agents}"
     );
     assert!(
-        agents.contains("`specs`, `records`, `crates`"),
-        "AGENTS.md should describe configured scan scope:\n{agents}"
-    );
-    assert!(
         !agents.contains("docs/architecture/") && !agents.contains("docs/decisions/"),
         "AGENTS.md must not introduce canonical docs folders when specs are configured elsewhere"
+    );
+    assert!(
+        !agents.contains("`grund` scans:"),
+        "AGENTS.md must not surface scan scope (§FS-init.2.3.4.4):\n{agents}"
     );
 }
 
