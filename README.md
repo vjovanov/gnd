@@ -115,7 +115,7 @@ pub struct EventBus { /* … */ }
 
 `grund show AR-event-bus` follows the stub, strips the `///` markers, and prints the Rustdoc prose. The same goes for Javadoc, JSDoc, Python docstrings, Go doc blocks, KDoc, Doxygen — every comment form enumerated in `grund`'s scanner spec.
 
-`grund` does this itself: `§AR-checker` lives in the doc-comment of `fn check` in [`src/checker.rs`](src/checker.rs), with the one-line stub at [`docs/architecture/AR-checker.md`](docs/architecture/AR-checker.md) — `grund show AR-checker` prints it.
+`grund` does this itself: [§AR-checker](src/checker.rs) lives in the doc-comment of `fn check` in [`src/checker.rs`](src/checker.rs), with the one-line stub at [`docs/architecture/AR-checker.md`](docs/architecture/AR-checker.md) — `grund show AR-checker` prints it.
 
 **ID format:**
 
@@ -225,6 +225,6 @@ That rule plus a clean `grund check` is the whole contract: every reference reso
 - [`docs/roadmap.md`](docs/roadmap.md) — what's next
 - [`docs/changelog.md`](docs/changelog.md) — what changed
 - [`docs/functional-spec/`](docs/functional-spec/) — external behavior
-- [`docs/architecture/`](docs/architecture/) — internals, including the core file layout in `§AR-core-module-layout`
+- [`docs/architecture/`](docs/architecture/) — internals: [§AR-scanner](docs/architecture/AR-scanner.md#ar-scanner-how-grund-discovers-declarations-and-citations) for discovery, [§AR-checker](src/checker.rs) for validation, and [§AR-core-module-layout](docs/architecture/AR-core-module-layout.md#ar-core-module-layout-core-implementation-is-split-by-category) for the core source layout
 - [`docs/decisions/`](docs/decisions/) — how we got here
 - [`e2e/`](e2e/) — executable proof that the spec holds
