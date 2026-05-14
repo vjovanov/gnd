@@ -83,7 +83,7 @@ Paths are relative to `<path>`. Stdout is always empty (consistent with [§GOAL-
 
 ### 2.3 Generated agent entrypoints
 
-The emitted agent guidance is a canonical managed block: it explains the ID grammar, points at the configured declaration homes and scan scope from `.agents/grund.toml`, tells an agent how to resolve a marker-citation on demand *cheaply* — `grund show <ID> --brief` (the lead prose plus the section map — [§FS-show.2.1.3](FS-show.md#213-brief---brief)) as the first read for a bare cited `§<ID>`, `grund show <ID>.<section>` for a citation that already names a section, `grund show <ID>` for the whole body when the slice is not enough, plus `grund list` / `grund list --kind FS,AR` for discovery and `grund refs <ID>` / `grund refs <ID> --summary` for the back-references — rather than re-reading whole files, instructs the agent to refresh cited specs with `grund show` before editing code that carries those citations, instructs the agent to back-reference the spec from the implementation — a marker-citation in the doc-comment or inline comment of the function, class, or block that realizes a behavior, at the granularity it implements — so `grund refs <ID>` enumerates the code that leans on a declaration, and lists the rules for agents (mirrors the rules in this repo's own `AGENTS.md`). The canonical text for a given block version `vN` is embedded in the `grund` binary; the reference copy lives at `templates/AGENTS.md` in the `grund` source tree, and the `vN` marker (§2.3) is what versions it under [§GOAL-no-silent-breakage](../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — so teaching this brief/section-first workflow is itself a block-version bump, carried by that mechanism, not a silent rewrite.
+The emitted agent guidance is a canonical managed block: it teaches the session-start workflow and rules listed in §2.3.4, rendered against the target repo's effective configuration. The block stays concise under [§GOAL-token-economy](../goals/goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file): it teaches only the rules an agent needs before work begins, leaving detail to cited specs and `grund show` output. The canonical text for a given block version `vN` is embedded in the `grund` binary; the reference copy lives at `templates/AGENTS.md` in the `grund` source tree, and the `vN` marker (§2.3) is what versions it under [§GOAL-no-silent-breakage](../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — so changing the taught workflow is itself a block-version bump, carried by that mechanism, not a silent rewrite.
 
 Several things in the block are *substituted in* rather than fixed for that `vN`, so the file describes the repo it is in: the project name from `--name` (interpolated into the H1 and the opening sentence), and the **effective ID grammar and artifact map** — taken from the `.agents/grund.toml` `init` leaves governing the target (an existing config in the target, or the defaults `init` is about to write, never an ancestor's). From that config the block fills in the ID shape (`<KIND>-<NNN>-<slug>`, `<KIND>-<slug>`, …, derived from `[id].format`), one worked example ID and citation, the `[id].section_separator`, the marker and `$$`-trigger from `[reference]`, the `KIND ∈ {…}` set from `[[kinds]]`, a table of each kind's configured declaration home and title, the `[scan].include` / `[scan].exclude` scope, a sentence on whether bare ID-shaped tokens count as citations (driven by `[reference].strict`), and the **citation-form variant** — bare `§<ID>` versus `§<ID>` wrapped with a Markdown link — driven by `[fmt.cross_refs].enabled` per §2.3.3. The contract this spec makes is the *determinism and versioning*, not a literal transcript: two `grund init` runs at the same `grund` version against trees with the same `--name` and the same effective config produce byte-identical managed blocks ([§FS-non-goals.13](FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)), and `grund check`'s `AGENTS.md` validation ([§FS-check.3.5](FS-check.md#35-invalid-agent-entrypoint-init-block)) checks the begin/end marker pair and the version, not a byte-diff against the canonical text.
 
@@ -115,7 +115,7 @@ The managed block's **position within an existing agent entrypoint is preserved 
 
 #### 2.3.3 Citation-form variant
 
-The citation form shown in the managed block matches what `grund fmt` writes to disk for the host repo, driven by `[fmt.cross_refs].enabled` per [§DF-md-link-emission.2.4](../decisions/functional/DF-md-link-emission.md#24-opt-in-never-default). The grounding workflow itself — `grund show <ID> --brief` / `grund show <ID>.<section>` / `grund show <ID>` / `grund list` / `grund refs <ID>` — is **identical in both variants** and is emitted unchanged: it operates on the citation regardless of wrap. Only the form description and the cross-link rule differ.
+The citation form shown in the managed block matches what `grund fmt` writes to disk for the host repo, driven by `[fmt.cross_refs].enabled` per [§DF-md-link-emission.2.4](../decisions/functional/DF-md-link-emission.md#24-opt-in-never-default). The grounding workflow itself — `grund show <ID>` / `grund show <ID> --toc` / `grund show <ID>.<section>` / `grund show <ID> --full` / `grund list` / `grund refs <ID>` — is **identical in both variants** and is emitted unchanged: it operates on the citation regardless of wrap. Only the form description and the cross-link rule differ.
 
 The two variants:
 
@@ -125,6 +125,70 @@ The two variants:
 Re-running `grund init` after toggling `[fmt.cross_refs].enabled` re-renders the block to the matching variant under the same-version re-render rule in §2.3, with no schema-version bump: the variant is a config-driven substitution, not a different block version.
 
 The generated file uses the canonical `grund` reference grammar even before any IDs exist in the repo — citations of `§GOAL-no-dangling-refs`, `§FS-check`, etc. inside the boilerplate point at the **grund project's own** documentation, not the new repo's. This is intentional: the boilerplate is a teaching surface, and the IDs anchor the teaching to a stable source. The generated `.agents/grund.toml` (§2.4) sets `[scan] include = ["docs", "e2e", "src"]` so the boilerplate's pedagogical citations in `AGENTS.md` are not themselves scanned (the file lives at the repo root, outside `include`) — the citations remain inert text in the host repo and never flow into its findings.
+
+#### 2.3.4 Managed-block content points
+
+The generated `AGENTS.md` block is not a literal transcript in this spec, but its canonical template must preserve the following separately citeable content points. Each point is phrased compactly in the template, because the entrypoint is read at session start and serves [§GOAL-token-economy](../goals/goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file).
+
+##### 2.3.4.1 Entrypoint
+
+The block identifies itself as the entrypoint for agents working in the project and instructs them to read it, then read the declared artifacts it points to, before making changes.
+
+##### 2.3.4.2 Reference Scheme
+
+The block teaches the configured reference scheme: IDs have the configured shape, citations use the configured marker and optional section path, `grund check` validates citations, `grund list` discovers IDs, `grund show` reads cited declarations or sections, and `grund refs` reports what leans on a declaration.
+
+##### 2.3.4.3 Cheap Grounding
+
+The block teaches the cheap grounding ladder: use `grund show <ID>` as the first read for a bare citation, `grund show <ID> --toc` when section navigation is needed, `grund show <ID>.<section>` for section citations, `grund show <ID> --full` only when a narrower read is insufficient, `grund list --kind FS,AR` for scoped discovery, and `grund refs <ID> --summary` before a full back-reference listing.
+
+##### 2.3.4.4 Project Map
+
+The block describes the configured declaration homes and scan scope from the effective `.agents/grund.toml`, so the generated instructions name the host repo's actual artifact layout instead of hard-coding the default layout.
+
+##### 2.3.4.5 Declaration Forms
+
+The block teaches that declarations are heading lines in markdown or supported language doc-comments, and that an inline source declaration can be represented by a one-line markdown stub in the configured kind home.
+
+##### 2.3.4.6 Spec First
+
+The rules tell agents to write or update the most-specific functional or architectural spec point before writing behavior or design code that implements it.
+
+##### 2.3.4.7 Most-Specific Citations
+
+The code back-reference guidance tells agents to cite the most-specific spec point the code or prose realizes: whole behavior on the function, class, or block doc-comment; narrower clauses or decisions inline where they are enforced.
+
+##### 2.3.4.8 Refresh Before Editing
+
+The rules tell agents to refresh the cited spec with `grund show` before editing code that already carries a `§<ID>` or `§<ID>.<section>` citation.
+
+##### 2.3.4.9 Declaration Blast Radius
+
+The rules tell agents to run `grund refs <ID> --summary` before changing, moving, or renaming a declaration, and to use the full `grund refs <ID>` output when exact citation sites are needed.
+
+##### 2.3.4.10 Citation Direction
+
+The rules teach the expected citation direction: specs cite goals, architecture cites specs, code cites the specs it implements, and executable tests or cases cite the behavior they verify.
+
+##### 2.3.4.11 Decisions
+
+The rules tell agents that decisions must be cited from the spec or architecture point they shaped, and that decision history is append-only: reversals are new decisions that supersede older ones rather than rewrites.
+
+##### 2.3.4.12 Cross-Linking
+
+The rules tell agents to cross-link project knowledge through IDs, with the exact cross-link wording selected by the citation-form variant in §2.3.3.
+
+##### 2.3.4.13 Executable Proof
+
+The rules tell agents that behavior is proven by executable tests or cases, and that disagreements between the spec and executable proof require fixing both in the same change.
+
+##### 2.3.4.14 Final Check
+
+The rules tell agents to run `grund check` before committing, because dangling references are stop-the-line bugs whose diagnostics name the file and line.
+
+##### 2.3.4.15 Grund-Owned References
+
+References to `grund`'s own documentation inside the managed block are prose links, not host-repo `§<ID>` citations; any `§<KIND>-<…>` tokens shown by the block are explicitly examples, because only declarations in the host repo resolve with `grund show` there.
 
 ### 2.4 Generated `.agents/grund.toml`
 
