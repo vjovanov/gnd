@@ -10,7 +10,7 @@
 `grund` is built around one workflow:
 
 0. **Specify your intent.** Declare the goal, spec, or decision as a `# <ID>: …` heading before any code or doc cites it.
-1. **Cite as you write.** Every code unit carries a `§<ID>` back to the spec section it implements.
+1. **Cite as you write.** Every code unit carries a `§<ID>` back to the spec section it implements (`§<KIND>-<slug>[.section]` — full grammar in [§4](#4-the-structure-that-gets-cited)).
 2. **Re-read before you edit.** `grund show <ID>.<section>` pulls just that subsection into context — no full-file reads, no token bloat.
 3. **No dangling pointers.** `grund check` validates that every cited ID resolves — in `.md`, Rust `///`, Java doc-comments, Python docstrings, Go `//`, JSDoc, every doc-comment form `grund` knows about.
 
@@ -107,20 +107,6 @@ Every fact in a `grund` repo has a stable ID. The default kinds (configurable):
 | `E2E`  | end-to-end test         | `e2e/cases/<id>/` (the test *is* the body)     |
 | `RM`   | roadmap milestone       | `docs/roadmap.md`                              |
 
-**Architectural specs can live inline in source.** Drop a one-line stub in `docs/architecture/AR-foo.md` whose H1 is `# AR-foo: [src/foo.rs](src/foo.rs)`, then declare the spec in the class doc-comment:
-
-```rust
-/// # AR-event-bus: In-process event broadcaster
-///
-/// ## 1. Topology
-/// One sender, many receivers. Senders never block.
-pub struct EventBus { /* … */ }
-```
-
-`grund show AR-event-bus` follows the stub, strips the `///` markers, and prints the Rustdoc prose. The same goes for Javadoc, JSDoc, Python docstrings, Go doc blocks, KDoc, Doxygen — every comment form enumerated in `grund`'s scanner spec.
-
-`grund` does this itself: [§AR-checker](src/checker.rs) lives in the doc-comment of `fn check` in [`src/checker.rs`](src/checker.rs), with the one-line stub at [`docs/architecture/AR-checker.md`](docs/architecture/AR-checker.md) — `grund show AR-checker` prints it.
-
 **ID format:**
 
 ```plaintext
@@ -146,6 +132,20 @@ Three schemes are supported. Pick one per repo and keep it stable — mixing is 
 Rule of thumb: pick `{kind}-{slug}` until rename churn or ID count starts to hurt; switch to `{kind}-{number}-{slug}` when it does.
 
 Citations use the marker `§`, e.g. `§FS-user-login.3.1`. Type `$$` in a `grund`-aware editor and it's rewritten to `§` automatically. Both marker and trigger are configurable in `.agents/grund.toml`.
+
+**Specs can live inline in source.** Drop a one-line stub in `docs/architecture/AR-foo.md` whose H1 is `# AR-foo: [src/foo.rs](src/foo.rs)`, then declare the spec in the class doc-comment:
+
+```rust
+/// # AR-event-bus: In-process event broadcaster
+///
+/// ## 1. Topology
+/// One sender, many receivers. Senders never block.
+pub struct EventBus { /* … */ }
+```
+
+`grund show AR-event-bus` follows the stub, strips the `///` markers, and prints the Rustdoc prose. The same goes for Javadoc, JSDoc, Python docstrings, Go doc blocks, KDoc, Doxygen — every comment form enumerated in `grund`'s scanner spec.
+
+`grund` does this itself: [§AR-checker](crates/grund-core/src/checker.rs) lives in the doc-comment of `fn check` in [`crates/grund-core/src/checker.rs`](crates/grund-core/src/checker.rs), with the one-line stub at [`docs/architecture/AR-checker.md`](docs/architecture/AR-checker.md) — `grund show AR-checker` prints it.
 
 ## 5. Reviewing code
 
@@ -229,6 +229,6 @@ That rule plus a clean `grund check` is the whole contract: every reference reso
 - [`docs/roadmap.md`](docs/roadmap.md) — what's next
 - [`docs/changelog.md`](docs/changelog.md) — what changed
 - [`docs/functional-spec/`](docs/functional-spec/) — external behavior
-- [`docs/architecture/`](docs/architecture/) — internals: [§AR-scanner](docs/architecture/AR-scanner.md#ar-scanner-how-grund-discovers-declarations-and-citations) for discovery, [§AR-checker](src/checker.rs) for validation, and [§AR-core-module-layout](docs/architecture/AR-core-module-layout.md#ar-core-module-layout-core-implementation-is-split-by-category) for the core source layout
+- [`docs/architecture/`](docs/architecture/) — internals: [§AR-scanner](docs/architecture/AR-scanner.md#ar-scanner-how-grund-discovers-declarations-and-citations) for discovery, [§AR-checker](crates/grund-core/src/checker.rs) for validation, and [§AR-core-module-layout](docs/architecture/AR-core-module-layout.md#ar-core-module-layout-core-implementation-is-split-by-category) for the core source layout
 - [`docs/decisions/`](docs/decisions/) — how we got here
 - [`e2e/`](e2e/) — executable proof that the spec holds
