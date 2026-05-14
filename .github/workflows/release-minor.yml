@@ -1,15 +1,11 @@
-name: Weekly patch release
+name: Release minor
 
-# Mondays at 09:00 UTC: if main has shipped non-doc changes since the last
-# vX.Y.Z tag and CI on that tip is green, bump the patch version, commit the
-# bump to main, and dispatch release.yml to publish crates + binaries. A
-# GITHUB_TOKEN push does not trigger other workflows, so release.yml is
-# invoked explicitly via `gh workflow run` rather than relying on the tag-push
-# trigger.
+# Manual minor release helper: from the latest vX.Y.Z tag, bump to vX.(Y+1).0,
+# commit the workspace version update to main, and dispatch release.yml to
+# publish crates + binaries. release.yml remains the publishing workflow; this
+# file only prepares the version bump.
 
 on:
-  schedule:
-    - cron: "0 9 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -20,7 +16,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  weekly-release:
+  minor-release:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
@@ -28,11 +24,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # Use a fine-grained PAT so the bump push is authenticated as the
-          # token owner (repository admin), which the main-branch ruleset
-          # exempts via its bypass list. GITHUB_TOKEN cannot bypass rulesets
-          # that require a pull request, so a plain `git push origin main`
-          # would be rejected once protection is enabled.
+          # Use the same release PAT as auto-bump.yml so the version commit can
+          # pass the main-branch ruleset bypass configured for releases.
           token: ${{ secrets.RELEASE_PAT }}
 
       - name: Resolve current and next versions
@@ -47,55 +40,26 @@ jobs:
           fi
           current="${tag#v}"
           IFS=. read -r major minor patch <<< "$current"
-          next="${major}.${minor}.$((patch + 1))"
+          next="${major}.$((minor + 1)).0"
           echo "current=$current"  >> "$GITHUB_OUTPUT"
           echo "next=$next"        >> "$GITHUB_OUTPUT"
           echo "current_tag=$tag"  >> "$GITHUB_OUTPUT"
           echo "next_tag=v$next"   >> "$GITHUB_OUTPUT"
-          echo "Latest tag: $tag — proposed bump: v$next"
+          echo "Latest tag: $tag; proposed minor release: v$next"
 
-      - name: Gate — commits since last tag
-        id: gate_commits
+      - name: Gate - commits since last tag
         shell: bash
         run: |
           set -euo pipefail
           tag="${{ steps.versions.outputs.current_tag }}"
           count="$(git rev-list --count "$tag"..HEAD)"
-          echo "count=$count" >> "$GITHUB_OUTPUT"
           if [ "$count" -eq 0 ]; then
-            echo "::notice::No commits since $tag — skipping."
-          else
-            echo "$count commits since $tag."
+            echo "error: no commits since $tag; refusing to create an empty minor release" >&2
+            exit 1
           fi
+          echo "$count commits since $tag."
 
-      - name: Gate — non-doc/CI changes since last tag
-        id: gate_substantive
-        if: steps.gate_commits.outputs.count != '0'
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="${{ steps.versions.outputs.current_tag }}"
-
-          # A patch release is warranted only if something a user could observe
-          # changed. Pure-docs runs, link-checker config, and workflow tweaks do
-          # not move the published binary or the crates.io package.
-          substantive="$(git diff --name-only "$tag"..HEAD \
-            | grep -Ev '^(docs/|\.github/)' \
-            | grep -Ev '\.md$' \
-            | grep -Ev '^(LICENSE|lychee\.toml|AGENTS\.md|CLAUDE\.md)$' \
-            || true)"
-
-          if [ -z "$substantive" ]; then
-            echo "::notice::Only docs/CI changes since $tag — skipping."
-            echo "ok=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-            echo "Substantive paths changed since $tag:"
-            printf '  %s\n' $substantive
-          fi
-
-      - name: Gate — CI on current main tip is green
-        if: steps.gate_substantive.outputs.ok == 'true'
+      - name: Gate - CI on current main tip is green
         shell: bash
         run: |
           set -euo pipefail
@@ -119,17 +83,14 @@ jobs:
           echo "CI on $sha is green."
 
       - name: Install Rust toolchain
-        if: steps.gate_substantive.outputs.ok == 'true'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-edit
-        if: steps.gate_substantive.outputs.ok == 'true'
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-edit
 
       - name: Bump workspace version and refresh lockfile
-        if: steps.gate_substantive.outputs.ok == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -137,7 +98,6 @@ jobs:
           cargo update --workspace
 
       - name: Commit and push bump
-        if: steps.gate_substantive.outputs.ok == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -151,15 +111,12 @@ jobs:
           git push origin main
 
       - name: Dispatch release workflow
-        if: steps.gate_substantive.outputs.ok == 'true'
         shell: bash
         run: |
           set -euo pipefail
           next="${{ steps.versions.outputs.next }}"
-          # GITHUB_TOKEN pushes do not fan out to other workflows, so the
-          # tag-push trigger on release.yml will not fire. Dispatch it directly
-          # from main; release.yml will create the v<next> tag in its
-          # prepare-release-ref step.
+          # GITHUB_TOKEN pushes do not fan out to other workflows, so dispatch
+          # release.yml directly from main after the version bump commit lands.
           gh workflow run release.yml \
             --ref main \
             -f version="$next" \
