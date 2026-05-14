@@ -8,7 +8,8 @@ categories = ["development-tools"]
 license = "MIT"
 repository = "https://github.com/vjovanov/grund"
 homepage = "https://github.com/vjovanov/grund"
-include = ["src/**", "assets/**", "Cargo.toml"]
+readme = "README.md"
+include = ["src/**", "assets/**", "Cargo.toml", "README.md"]
 
 [dependencies]
 ignore = "0.4"
