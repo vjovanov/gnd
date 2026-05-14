@@ -1,0 +1,162 @@
+name: Weekly patch release
+
+# Mondays at 09:00 UTC: if main has shipped non-doc changes since the last
+# vX.Y.Z tag and CI on that tip is green, bump the patch version, commit the
+# bump to main, and dispatch release.yml to publish crates + binaries. A
+# GITHUB_TOKEN push does not trigger other workflows, so release.yml is
+# invoked explicitly via `gh workflow run` rather than relying on the tag-push
+# trigger.
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write   # gh workflow run needs actions:write to dispatch
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  weekly-release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve current and next versions
+        id: versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1)"
+          if [ -z "$tag" ]; then
+            echo "error: no v*.*.* tag exists; bootstrap the first release manually" >&2
+            exit 1
+          fi
+          current="${tag#v}"
+          IFS=. read -r major minor patch <<< "$current"
+          next="${major}.${minor}.$((patch + 1))"
+          echo "current=$current"  >> "$GITHUB_OUTPUT"
+          echo "next=$next"        >> "$GITHUB_OUTPUT"
+          echo "current_tag=$tag"  >> "$GITHUB_OUTPUT"
+          echo "next_tag=v$next"   >> "$GITHUB_OUTPUT"
+          echo "Latest tag: $tag — proposed bump: v$next"
+
+      - name: Gate — commits since last tag
+        id: gate_commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.versions.outputs.current_tag }}"
+          count="$(git rev-list --count "$tag"..HEAD)"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" -eq 0 ]; then
+            echo "::notice::No commits since $tag — skipping."
+          else
+            echo "$count commits since $tag."
+          fi
+
+      - name: Gate — non-doc/CI changes since last tag
+        id: gate_substantive
+        if: steps.gate_commits.outputs.count != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.versions.outputs.current_tag }}"
+
+          # A patch release is warranted only if something a user could observe
+          # changed. Pure-docs runs, link-checker config, and workflow tweaks do
+          # not move the published binary or the crates.io package.
+          substantive="$(git diff --name-only "$tag"..HEAD \
+            | grep -Ev '^(docs/|\.github/)' \
+            | grep -Ev '\.md$' \
+            | grep -Ev '^(LICENSE|lychee\.toml|AGENTS\.md|CLAUDE\.md)$' \
+            || true)"
+
+          if [ -z "$substantive" ]; then
+            echo "::notice::Only docs/CI changes since $tag — skipping."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "Substantive paths changed since $tag:"
+            printf '  %s\n' $substantive
+          fi
+
+      - name: Gate — CI on current main tip is green
+        if: steps.gate_substantive.outputs.ok == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          # The CI workflow runs on push to main. Find the most recent run that
+          # targeted this exact tip; if none exists yet, the bump must wait.
+          run="$(gh run list --workflow=CI --branch=main --limit=20 \
+            --json status,conclusion,headSha,databaseId \
+            | jq -c ".[] | select(.headSha == \"$sha\")" | head -n1)"
+
+          if [ -z "$run" ]; then
+            echo "error: no CI run found for HEAD ($sha); rerun once CI has finished" >&2
+            exit 1
+          fi
+          status="$(echo "$run" | jq -r '.status')"
+          conclusion="$(echo "$run" | jq -r '.conclusion')"
+          if [ "$status" != "completed" ] || [ "$conclusion" != "success" ]; then
+            echo "error: CI on $sha is $status/$conclusion (need completed/success)" >&2
+            exit 1
+          fi
+          echo "CI on $sha is green."
+
+      - name: Install Rust toolchain
+        if: steps.gate_substantive.outputs.ok == 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-edit
+        if: steps.gate_substantive.outputs.ok == 'true'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-edit
+
+      - name: Bump workspace version and refresh lockfile
+        if: steps.gate_substantive.outputs.ok == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo set-version --workspace "${{ steps.versions.outputs.next }}"
+          cargo update --workspace
+
+      - name: Commit and push bump
+        if: steps.gate_substantive.outputs.ok == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          next="${{ steps.versions.outputs.next }}"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git add Cargo.toml crates/grund-core/Cargo.toml Cargo.lock
+          git commit -m "Release v${next}"
+          git push origin main
+
+      - name: Dispatch release workflow
+        if: steps.gate_substantive.outputs.ok == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          next="${{ steps.versions.outputs.next }}"
+          # GITHUB_TOKEN pushes do not fan out to other workflows, so the
+          # tag-push trigger on release.yml will not fire. Dispatch it directly
+          # from main; release.yml will create the v<next> tag in its
+          # prepare-release-ref step.
+          gh workflow run release.yml \
+            --ref main \
+            -f version="$next" \
+            -f publish_crates=true \
+            -f create_github_release=true
+          echo "Dispatched release.yml for v$next."
