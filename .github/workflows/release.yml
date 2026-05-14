@@ -12,7 +12,7 @@ on:
       publish_crates:
         description: "Publish grund-core and grund to crates.io"
         type: boolean
-        default: false
+        default: true
       create_github_release:
         description: "Create or update the GitHub release and upload artifacts"
         type: boolean
@@ -33,6 +33,7 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       publish_crates: ${{ steps.mode.outputs.publish_crates }}
       create_github_release: ${{ steps.mode.outputs.create_github_release }}
+      create_tag: ${{ steps.mode.outputs.create_tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -48,6 +49,11 @@ jobs:
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             tag="${GITHUB_REF_NAME}"
             version="${tag#v}"
+            requested="${{ inputs.version }}"
+            if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "$requested" ] && [ "$requested" != "$version" ]; then
+              echo "error: workflow ref ${tag} does not match requested v${requested}" >&2
+              exit 1
+            fi
           else
             version="${{ inputs.version }}"
             tag="v${version}"
@@ -85,25 +91,74 @@ jobs:
           if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             publish_crates="true"
             create_github_release="true"
+            create_tag="false"
           else
             publish_crates="${{ inputs.publish_crates }}"
             create_github_release="${{ inputs.create_github_release }}"
-          fi
 
-          if { [ "$publish_crates" = "true" ] || [ "$create_github_release" = "true" ]; } && [ "${GITHUB_REF_TYPE}" != "tag" ]; then
-            echo "error: publishing or creating a GitHub release must run from the v${{ steps.version.outputs.version }} tag" >&2
-            exit 1
+            if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+              if [ "${GITHUB_REF_NAME}" != "${{ steps.version.outputs.tag }}" ]; then
+                echo "error: workflow ref ${GITHUB_REF_NAME} does not match requested ${{ steps.version.outputs.tag }}" >&2
+                exit 1
+              fi
+              create_tag="false"
+            elif [ "$publish_crates" = "true" ] || [ "$create_github_release" = "true" ]; then
+              create_tag="true"
+            else
+              create_tag="false"
+            fi
           fi
 
           echo "publish_crates=$publish_crates" >> "$GITHUB_OUTPUT"
           echo "create_github_release=$create_github_release" >> "$GITHUB_OUTPUT"
+          echo "create_tag=$create_tag" >> "$GITHUB_OUTPUT"
 
       - name: Check registry names
         run: bash scripts/check-registry-names.sh
 
+  prepare-release-ref:
+    name: prepare release tag
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create or verify release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${{ needs.verify.outputs.tag }}"
+
+          # Manual releases create the tag from the selected commit (§FS-distribution.4).
+          # Tag-triggered releases already have the ref; dry runs with publishing disabled
+          # do not need a tag.
+          if [ "${{ needs.verify.outputs.create_tag }}" != "true" ]; then
+            echo "release tag $tag already selected or not required"
+            exit 0
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            git fetch --force origin "refs/tags/${tag}:refs/tags/${tag}"
+            existing="$(git rev-list -n 1 "${tag}")"
+            if [ "$existing" != "$GITHUB_SHA" ]; then
+              echo "error: ${tag} already points at ${existing}, not ${GITHUB_SHA}" >&2
+              exit 1
+            fi
+            echo "release tag $tag already points at $GITHUB_SHA"
+            exit 0
+          fi
+
+          git tag "$tag" "$GITHUB_SHA"
+          git push origin "refs/tags/${tag}"
+
   build-linux-gnu-pgo:
     name: PGO binary (linux glibc 2.17)
-    needs: verify
+    needs:
+      - verify
+      - prepare-release-ref
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -166,7 +221,9 @@ jobs:
 
   build-native-pgo:
     name: PGO binary (${{ matrix.os }})
-    needs: verify
+    needs:
+      - verify
+      - prepare-release-ref
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -235,8 +292,15 @@ jobs:
           cp "$bin" "$dir/"
           cp README.md LICENSE "$dir/"
 
-          archive="${base}.tar.gz"
-          tar -czf "$archive" -C dist "$base"
+          if [[ "$host" == *windows* ]]; then
+            archive="${base}.zip"
+            powershell -NoProfile -Command \
+              "Compress-Archive -Path 'dist/${base}' -DestinationPath '${archive}' -Force"
+          else
+            archive="${base}.tar.gz"
+            tar -czf "$archive" -C dist "$base"
+          fi
+
           if command -v sha256sum >/dev/null 2>&1; then
             sha256sum "$archive" > "${archive}.sha256"
           else
@@ -258,6 +322,7 @@ jobs:
     name: publish crates.io packages
     needs:
       - verify
+      - prepare-release-ref
       - build-linux-gnu-pgo
       - build-native-pgo
     if: needs.verify.outputs.publish_crates == 'true'
@@ -279,10 +344,46 @@ jobs:
             exit 1
           fi
 
+      # Re-running this job after a partial success must be safe: skip any crate
+      # whose exact <name>@<version> already exists on crates.io rather than
+      # letting `cargo publish` fail with "already uploaded".
+      - name: Check crates.io publication state
+        id: state
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.verify.outputs.version }}"
+
+          check_published() {
+            local crate="$1"
+            local code
+            code="$(curl -sS -o /dev/null -w '%{http_code}' \
+              -A 'grund-release/0.1' \
+              "https://crates.io/api/v1/crates/${crate}/${version}")"
+            case "$code" in
+              200) echo "true" ;;
+              404) echo "false" ;;
+              *)
+                echo "error: unexpected HTTP $code querying crates.io for ${crate} ${version}" >&2
+                exit 1
+                ;;
+            esac
+          }
+
+          core_published="$(check_published grund-core)"
+          grund_published="$(check_published grund)"
+
+          echo "core_published=$core_published" >> "$GITHUB_OUTPUT"
+          echo "grund_published=$grund_published" >> "$GITHUB_OUTPUT"
+          echo "grund-core $version already on crates.io: $core_published"
+          echo "grund $version already on crates.io: $grund_published"
+
       - name: Publish grund-core
+        if: steps.state.outputs.core_published == 'false'
         run: cargo publish -p grund-core --locked
 
       - name: Wait for grund-core to index
+        if: steps.state.outputs.core_published == 'false' && steps.state.outputs.grund_published == 'false'
         shell: bash
         run: |
           set -euo pipefail
@@ -298,12 +399,14 @@ jobs:
           exit 1
 
       - name: Publish grund
+        if: steps.state.outputs.grund_published == 'false'
         run: cargo publish -p grund --locked
 
   github-release:
     name: publish GitHub release
     needs:
       - verify
+      - prepare-release-ref
       - build-linux-gnu-pgo
       - build-native-pgo
       - publish-crates
