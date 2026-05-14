@@ -1,1 +1,1 @@
-show --head --brief FS-001-alpha {repo}
+show --brief --toc FS-001-alpha {repo}

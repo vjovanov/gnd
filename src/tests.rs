@@ -38,6 +38,16 @@ mod tests {
         render_agents_append_block("demo", &Config::default_for(PathBuf::from(".")))
     }
 
+    fn current_marker() -> &'static str {
+        "## Agent instructions (grund-agents v3)"
+    }
+
+    fn legacy_v2_block() -> String {
+        format!(
+            "<!-- grund:init:agents:v2 begin -->\n# demo — agent instructions\n\nlegacy body\n<!-- grund:init:agents:v2 end -->",
+        )
+    }
+
     #[test]
     fn explicit_file_scope_ignores_unrelated_findings() {
         let root = test_root("explicit_file_scope_ignores_unrelated_findings");
@@ -285,7 +295,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
         assert_eq!(result, AgentsUpdateResult::Appended);
         assert!(updated.starts_with("# Existing agents\n\n"));
-        assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
+        assert_eq!(updated.matches(current_marker()).count(), 1);
     }
 
     #[test]
@@ -298,40 +308,42 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
         assert_eq!(result, AgentsUpdateResult::Unchanged);
         assert_eq!(updated, existing);
-        assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
+        assert_eq!(updated.matches(current_marker()).count(), 1);
     }
 
     #[test]
     fn agents_update_rewrites_current_block_from_rendered_template() {
-        let existing_block = current_block();
-        let replacement_block =
-            render_agents_append_block("renamed", &Config::default_for(PathBuf::from(".")));
-        let existing = format!("# Local notes\n\n{existing_block}\n");
+        // A block that differs from the current render (here: an extra hand-added
+        // line) is replaced and reported `Updated`.
+        let mut stale = current_block();
+        stale.insert_str(stale.len() - 1, "\nhand-edited line\n");
+        let existing = format!("# Local notes\n\n{stale}");
 
-        let (updated, result) = update_agents_text(&existing, &replacement_block, "AGENTS.md")
+        let (updated, result) = update_agents_text(&existing, &current_block(), "AGENTS.md")
             .expect("rewrite current block");
 
         assert_eq!(result, AgentsUpdateResult::Updated);
         assert!(updated.starts_with("# Local notes\n\n"));
-        assert!(updated.contains("# renamed — agent instructions"));
-        assert!(!updated.contains("# demo — agent instructions"));
-        assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
+        assert!(!updated.contains("hand-edited line"));
+        assert_eq!(updated.matches(current_marker()).count(), 1);
     }
 
     #[test]
-    fn agents_update_replaces_older_block_in_place() {
-        let old_block = current_block()
-            .replace("grund:init:agents:v2 begin", "grund:init:agents:v1 begin")
-            .replace("grund:init:agents:v2 end", "grund:init:agents:v1 end");
-        let existing = format!("# Existing agents\n\n{old_block}\n\n# Local notes\n");
+    fn agents_update_replaces_legacy_v2_block_in_place() {
+        // §FS-init.2.3.2: a v2 HTML-comment block is recognized and upgraded to
+        // the current marker form, with surrounding content preserved.
+        let existing = format!(
+            "# Existing agents\n\n{}\n\n# Local notes\n",
+            legacy_v2_block()
+        );
         let (updated, result) =
-            update_agents_text(&existing, &current_block(), "AGENTS.md").expect("update old block");
+            update_agents_text(&existing, &current_block(), "AGENTS.md").expect("update v2 block");
 
         assert_eq!(result, AgentsUpdateResult::Updated);
         assert!(updated.starts_with("# Existing agents\n\n"));
         assert!(updated.ends_with("\n\n# Local notes\n"));
-        assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
-        assert!(!updated.contains("grund:init:agents:v1"));
+        assert_eq!(updated.matches(current_marker()).count(), 1);
+        assert!(!updated.contains("grund:init:agents:v2"));
     }
 
     #[test]
@@ -340,7 +352,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         // sitting between user-authored sections is left byte-for-byte untouched
         // (`Unchanged` → `exists `) — nothing around it moves, nothing is rewritten.
         let existing = format!(
-            "# Existing agents\n\n{}\n\n# Local notes\n",
+            "# Existing agents\n\n{}\n# Local notes\n",
             current_block()
         );
         let (updated, result) = update_agents_text(&existing, &current_block(), "AGENTS.md")
@@ -352,22 +364,19 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
             "an already-current block preserves every byte, inside and out"
         );
         assert!(updated.starts_with("# Existing agents\n\n"));
-        assert!(updated.ends_with("\n\n# Local notes\n"));
-        assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
+        assert!(updated.ends_with("\n# Local notes\n"));
+        assert_eq!(updated.matches(current_marker()).count(), 1);
     }
 
     #[test]
     fn agents_update_handles_crlf_line_endings() {
-        // §FS-init.2.3.2: a CRLF-encoded AGENTS.md with an older block sandwiched
-        // between user-authored sections must still be detected and updated, with
-        // CRLF preserved outside the managed block.
-        let v0_lf = current_block()
-            .replace("grund:init:agents:v2 begin", "grund:init:agents:v1 begin")
-            .replace("grund:init:agents:v2 end", "grund:init:agents:v1 end");
-        let v0_crlf = v0_lf.replace('\n', "\r\n");
-        let existing = format!("# Existing agents\r\n\r\n{v0_crlf}\r\n\r\n# Local notes\r\n");
+        // §FS-init.2.3.2: a CRLF-encoded AGENTS.md with a legacy v2 block sandwiched
+        // between user-authored sections must still be detected and upgraded, with
+        // surrounding CRLF preserved.
+        let v2_crlf = legacy_v2_block().replace('\n', "\r\n");
+        let existing = format!("# Existing agents\r\n\r\n{v2_crlf}\r\n\r\n# Local notes\r\n");
         let (updated, result) = update_agents_text(&existing, &current_block(), "AGENTS.md")
-            .expect("update CRLF old block");
+            .expect("update CRLF legacy block");
 
         assert_eq!(result, AgentsUpdateResult::Updated);
         assert!(
@@ -378,8 +387,8 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
             updated.ends_with("\r\n\r\n# Local notes\r\n"),
             "CRLF suffix must be preserved verbatim"
         );
-        assert_eq!(updated.matches(AGENTS_APPEND_BEGIN).count(), 1);
-        assert!(!updated.contains("grund:init:agents:v1"));
+        assert_eq!(updated.matches(current_marker()).count(), 1);
+        assert!(!updated.contains("grund:init:agents:v2"));
     }
 
     #[test]

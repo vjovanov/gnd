@@ -244,10 +244,10 @@ fn update_agents_block(dest: &Path, block: &str, label: &str) -> Result<AgentsUp
 }
 
 /// The pure string transform behind `update_agents_block`: splice the current
-/// managed block into `existing`, preserving everything outside the begin/end
-/// markers byte-for-byte — including the block's position and any CRLF endings
-/// (§FS-init.2.3.1, §FS-init.2.3.2). Returns `Unchanged` when the splice would
-/// reproduce `existing` exactly. A newer-than-supported block is an error.
+/// managed block into `existing`, preserving everything outside it byte-for-byte
+/// — including the block's position and any CRLF endings (§FS-init.2.3.1,
+/// §FS-init.2.3.2). Returns `Unchanged` when the splice would reproduce
+/// `existing` exactly. A newer-than-supported block is an error.
 fn update_agents_text(
     existing: &str,
     block: &str,
@@ -263,7 +263,7 @@ fn update_agents_text(
         }
         let mut updated = String::with_capacity(existing.len() + block.len());
         updated.push_str(&existing[..existing_block.start]);
-        updated.push_str(block.trim_end());
+        updated.push_str(block);
         updated.push_str(&existing[existing_block.end..]);
         let result = if updated == existing {
             AgentsUpdateResult::Unchanged
@@ -273,9 +273,9 @@ fn update_agents_text(
         return Ok((updated, result));
     }
 
-    if AGENTS_BLOCK_BEGIN.is_match(existing) {
+    if AGENTS_BLOCK_LEGACY_BEGIN.is_match(existing) {
         return Err(anyhow!(
-            "{label} contains a grund init block start without a matching end"
+            "{label} contains a legacy grund init block start without a matching end"
         ));
     }
 
@@ -302,17 +302,43 @@ struct AgentsBlock {
     version: u32,
 }
 
-/// Locate the `<!-- grund:init:agents:vN begin -->`…`end` block in `AGENTS.md`,
-/// tolerating any whitespace (including `\r`) between marker tokens so a CRLF file
-/// is still recognized (§FS-init.2.3.2, §FS-check.3.5).
+/// Locate the managed block in `AGENTS.md`. The current marker is an H2 line
+/// (`## Agent instructions (grund-agents vN)`); the block runs until the next H1
+/// or H2 (or EOF). Legacy `<!-- grund:init:agents:vN begin -->`…`end` blocks are
+/// also recognized so `init` can upgrade them in place (§FS-init.2.3.2).
 fn find_agents_block(text: &str) -> Option<AgentsBlock> {
-    let begin = AGENTS_BLOCK_BEGIN.captures(text)?;
+    if let Some(caps) = AGENTS_BLOCK_H2.captures(text) {
+        let begin_match = caps.get(0)?;
+        let version = caps.name("version")?.as_str().parse::<u32>().ok()?;
+        let after = begin_match.end();
+        let section_end = AGENTS_SECTION_BOUNDARY
+            .find_at(text, after)
+            .map(|m| m.start())
+            .unwrap_or(text.len());
+        // Trailing blank lines before the next section are inter-section spacing,
+        // not part of the managed body. Trim them back so a re-render of the same
+        // content is a no-op (`exists `, §FS-init.2.3.1).
+        let mut end = section_end;
+        while end > after && text[..end].ends_with("\n\n") {
+            end -= 1;
+        }
+        return Some(AgentsBlock {
+            start: begin_match.start(),
+            end,
+            version,
+        });
+    }
+    let begin = AGENTS_BLOCK_LEGACY_BEGIN.captures(text)?;
     let begin_match = begin.get(0)?;
     let version = begin.name("version")?.as_str().parse::<u32>().ok()?;
-    let end_match = AGENTS_BLOCK_END.find(&text[begin_match.end()..])?;
+    let end_match = AGENTS_BLOCK_LEGACY_END.find(&text[begin_match.end()..])?;
+    let mut end = begin_match.end() + end_match.end();
+    if text[end..].starts_with('\n') {
+        end += 1;
+    }
     Some(AgentsBlock {
         start: begin_match.start(),
-        end: begin_match.end() + end_match.end(),
+        end,
         version,
     })
 }

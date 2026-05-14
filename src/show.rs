@@ -1,8 +1,10 @@
-/// `grund show <ID>[.<section>] [--head|--outline|--brief|--full] [--section S] [--format text|md|json]`
-/// — print the body of one declaration (§FS-show.1): the whole thing by default
-/// (§FS-show.2.1), the lead paragraph with `--head` (§FS-show.2.1.1), one
-/// subsection with `.<section>` or `--section` (§FS-show.2.2). Ambiguous IDs and
-/// missing IDs/sections exit `1` with a hint (§FS-show.2.2.1, §FS-show.3).
+/// `grund show <ID>[.<section>] [--brief|--toc|--full] [--section S] [--format text|md|json]`
+/// — print a slice of one declaration's body (§FS-show.1): by default the *lead*
+/// (prose down to the first child heading, §FS-show.2.1); `--brief` for heading + first
+/// paragraph (§FS-show.2.1.1); `--toc` for the lead plus the section map (§FS-show.2.1.2);
+/// `--full` for everything (§FS-show.2.1.3); a section with `.<section>` or `--section`
+/// (§FS-show.2.2). Ambiguous IDs and missing IDs/sections exit `1` with a hint
+/// (§FS-show.2.2.1, §FS-show.3).
 fn command_show(args: &[String]) -> ExitCode {
     if args.is_empty() {
         eprintln!("error: show requires an ID");
@@ -11,29 +13,13 @@ fn command_show(args: &[String]) -> ExitCode {
     let mut id_arg = None;
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
-    let mut mode = ShowMode::Full;
+    let mut mode = ShowMode::Default;
     let mut mode_flag: Option<&'static str> = None;
     let mut section_override = None;
     let mut format = "text".to_string();
     let mut idx = 0;
     while idx < args.len() {
         match args[idx].as_str() {
-            "--head" => {
-                if let Some(previous) = mode_flag {
-                    eprintln!("error: {previous} and --head cannot be used together");
-                    return ExitCode::from(2);
-                }
-                mode_flag = Some("--head");
-                mode = ShowMode::Head;
-            }
-            "--outline" => {
-                if let Some(previous) = mode_flag {
-                    eprintln!("error: {previous} and --outline cannot be used together");
-                    return ExitCode::from(2);
-                }
-                mode_flag = Some("--outline");
-                mode = ShowMode::Outline;
-            }
             "--brief" => {
                 if let Some(previous) = mode_flag {
                     eprintln!("error: {previous} and --brief cannot be used together");
@@ -41,6 +27,14 @@ fn command_show(args: &[String]) -> ExitCode {
                 }
                 mode_flag = Some("--brief");
                 mode = ShowMode::Brief;
+            }
+            "--toc" => {
+                if let Some(previous) = mode_flag {
+                    eprintln!("error: {previous} and --toc cannot be used together");
+                    return ExitCode::from(2);
+                }
+                mode_flag = Some("--toc");
+                mode = ShowMode::Toc;
             }
             "--full" => {
                 if let Some(previous) = mode_flag {
@@ -150,16 +144,13 @@ fn command_show(args: &[String]) -> ExitCode {
             // back to bare `§…` citations; `md` keeps the renderable form verbatim.
             if format != "md" {
                 output.body = flatten_cross_ref_links(&output.body, &config);
-                if let Some(head) = &mut output.head {
-                    *head = flatten_cross_ref_links(head, &config);
-                }
             }
             if format == "json" {
                 if let Some(json) = output.json {
                     println!("{json}");
                 } else {
                     let mut extra = String::new();
-                    if matches!(mode, ShowMode::Outline | ShowMode::Brief) {
+                    if matches!(mode, ShowMode::Toc) {
                         extra.push_str(",\"sections\":[");
                         extra.push_str(
                             &output
@@ -177,12 +168,6 @@ fn command_show(args: &[String]) -> ExitCode {
                                 .join(","),
                         );
                         extra.push(']');
-                    }
-                    if matches!(mode, ShowMode::Brief) {
-                        extra.push_str(&format!(
-                            ",\"head\":\"{}\"",
-                            json_escape(output.head.as_deref().unwrap_or(""))
-                        ));
                     }
                     println!(
                         "{{\"id\":\"{}\",\"section\":{},\"body\":\"{}\",\"path\":\"{}\",\"line\":{}{}}}",
@@ -214,7 +199,7 @@ fn command_show(args: &[String]) -> ExitCode {
                     );
                 } else if message.starts_with("section not found:") {
                     eprintln!(
-                        "hint: run `grund show {}` to print the whole declaration with its section numbers",
+                        "hint: run `grund show {} --toc` to print the lead with the section map",
                         render_id(&config, &id)
                     );
                 }

@@ -84,23 +84,24 @@ fn show_e2e_case(
         ));
     }
     let invocation = format!("grund {}", case.args.join(" "));
-    let head_body = format!("{invocation}\n");
+    let brief_body = format!("{invocation}\n");
+    let manifest = {
+        let mut lines = vec![
+            invocation.clone(),
+            format!("expected exit: {}", case.expected_exit),
+            "fixtures:".to_string(),
+        ];
+        lines.extend(
+            case.fixtures
+                .iter()
+                .map(|path| format!("- {}", format_path(path))),
+        );
+        format!("{}\n", lines.join("\n"))
+    };
     let body = match mode {
-        ShowMode::Head | ShowMode::Brief => head_body.clone(),
+        ShowMode::Brief => brief_body,
         ShowMode::Outline => String::new(),
-        ShowMode::Full => {
-            let mut lines = vec![
-                invocation,
-                format!("expected exit: {}", case.expected_exit),
-                "fixtures:".to_string(),
-            ];
-            lines.extend(
-                case.fixtures
-                    .iter()
-                    .map(|path| format!("- {}", format_path(path))),
-            );
-            format!("{}\n", lines.join("\n"))
-        }
+        ShowMode::Default | ShowMode::Toc | ShowMode::Full => manifest,
     };
     let args_json = case
         .args
@@ -128,7 +129,6 @@ fn show_e2e_case(
         line: 1,
         json: Some(json),
         sections: Vec::new(),
-        head: matches!(mode, ShowMode::Brief).then_some(head_body),
     })
 }
 
@@ -146,17 +146,42 @@ fn extract_declaration_body(
     include_heading: bool,
     config: &Config,
 ) -> Result<ShowOutput> {
-    if mode == ShowMode::Brief {
-        let mut head_output =
-            extract_declaration_body(path, id, section, ShowMode::Head, include_heading, config)?;
+    // `--toc` = the default lead, then a blank line, then the nested section
+    // headings (§FS-show.2.1.2). Internally: compose the Default body with an
+    // Outline-only scan, sharing the same `(path, id, section)` resolution.
+    if mode == ShowMode::Toc {
+        let mut default_output = extract_declaration_body(
+            path,
+            id,
+            section,
+            ShowMode::Default,
+            include_heading,
+            config,
+        )?;
         let outline_output =
             extract_declaration_body(path, id, section, ShowMode::Outline, false, config)?;
-        let body = join_brief_body(&head_output.body, &outline_output.body);
-        head_output.body = body;
-        head_output.sections = outline_output.sections;
-        head_output.head =
-            Some(extract_declaration_body(path, id, section, ShowMode::Head, false, config)?.body);
-        return Ok(head_output);
+        default_output.body = join_with_blank(&default_output.body, &outline_output.body);
+        default_output.sections = outline_output.sections;
+        return Ok(default_output);
+    }
+
+    // `--brief` = heading + first paragraph (§FS-show.2.1.1). The heading is
+    // always included (H1 for a whole declaration, section heading for a
+    // selected section) so the slice is self-labeled regardless of `text` vs
+    // `md`. When a section is selected we suppress the H1 — only the most
+    // specific heading is kept.
+    if mode == ShowMode::Brief {
+        let want_h1_for_default = section.is_none();
+        let mut output = extract_declaration_body(
+            path,
+            id,
+            section,
+            ShowMode::Default,
+            want_h1_for_default,
+            config,
+        )?;
+        output.body = truncate_to_first_paragraph(&output.body);
+        return Ok(output);
     }
 
     let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
@@ -227,7 +252,7 @@ fn extract_declaration_body(
             match section {
                 // Whole-declaration head: stop at the first numbered subsection.
                 None => {
-                    if mode == ShowMode::Head {
+                    if mode == ShowMode::Default {
                         break;
                     }
                     if mode == ShowMode::Outline {
@@ -257,7 +282,7 @@ fn extract_declaration_body(
                     // heading — including a child — ends the section's lead prose
                     // (§FS-show.2.1.1). Before the target section is found, keep
                     // scanning past unrelated headings.
-                    if found_section && (mode == ShowMode::Head || depth <= target_depth) {
+                    if found_section && (mode == ShowMode::Default || depth <= target_depth) {
                         break;
                     }
                     if found_section && mode == ShowMode::Outline {
@@ -307,16 +332,56 @@ fn extract_declaration_body(
         line: output_line,
         json: None,
         sections,
-        head: None,
     })
 }
 
-fn join_brief_body(head: &str, outline: &str) -> String {
-    match (head.is_empty(), outline.is_empty()) {
+/// `--toc` joins the default body with the section-map body, separated by one
+/// blank line. Empty halves are dropped; if both are empty the result is empty.
+/// Each body already ends with `\n`, so `{a}\n{b}` produces `<a>\n\n<b>\n`
+/// (§FS-show.2.1.2).
+fn join_with_blank(default_body: &str, outline_body: &str) -> String {
+    match (default_body.is_empty(), outline_body.is_empty()) {
         (true, true) => String::new(),
-        (true, false) => outline.to_string(),
-        (false, true) => head.to_string(),
-        (false, false) => format!("{head}\n{outline}"),
+        (true, false) => outline_body.to_string(),
+        (false, true) => default_body.to_string(),
+        (false, false) => format!("{default_body}\n{outline_body}"),
+    }
+}
+
+/// `--brief` truncates the (default-mode, heading-included) body to its first
+/// blank-line-separated paragraph (§FS-show.2.1.1). Keeps the heading line and
+/// at most one blank-line separator before the first paragraph; stops at the
+/// next blank line (or end of body).
+fn truncate_to_first_paragraph(body: &str) -> String {
+    let mut lines: Vec<&str> = body.split('\n').collect();
+    // `body` ends with `\n`, so the split produces a trailing empty element.
+    if lines.last() == Some(&"") {
+        lines.pop();
+    }
+    if lines.is_empty() {
+        return String::new();
+    }
+    let mut out: Vec<&str> = vec![lines[0]];
+    let mut i = 1;
+    let mut kept_separator = false;
+    while i < lines.len() && lines[i].trim().is_empty() {
+        if !kept_separator {
+            out.push(lines[i]);
+            kept_separator = true;
+        }
+        i += 1;
+    }
+    while i < lines.len() && !lines[i].trim().is_empty() {
+        out.push(lines[i]);
+        i += 1;
+    }
+    while out.last().is_some_and(|line| line.trim().is_empty()) {
+        out.pop();
+    }
+    if out.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n", out.join("\n"))
     }
 }
 

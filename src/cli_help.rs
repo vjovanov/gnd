@@ -110,23 +110,17 @@ fn print_subcommand_help(cmd: &str) {
             println!("into context without loading the whole document.");
             println!();
             println!(
-                "Usage:  grund show <ID>[.<section>] [PATH] [--section S] [--head|--outline|--brief|--full] [--format text|md|json] [--path PATH]"
+                "Usage:  grund show <ID>[.<section>] [PATH] [--section S] [--brief|--toc|--full] [--format text|md|json] [--path PATH]"
             );
             println!();
-            println!("Options:");
+            println!("Modes form an ordered ladder (each adds to the previous):");
+            println!("  --brief                heading + first paragraph    e.g. grund show --brief FS-login");
+            println!("  (default)              + the rest of the lead, cut at the first child section");
+            println!("  --toc                  + the nested section map     e.g. grund show --toc FS-login");
+            println!("  --full                 + every subsection body      e.g. grund show --full FS-login");
+            println!();
+            println!("Other options:");
             println!("  --section S            show only that section path, e.g. --section 3.1");
-            println!(
-                "  --head                 first paragraph only       e.g. grund show --head FS-login"
-            );
-            println!(
-                "  --outline              numbered headings only     e.g. grund show --outline FS-login"
-            );
-            println!(
-                "  --brief                head plus outline          e.g. grund show --brief FS-login"
-            );
-            println!(
-                "  --full                 the whole declaration       e.g. grund show --full FS-login"
-            );
             println!(
                 "  --format text|md|json  text (default) is the body; md keeps the heading; json wraps it"
             );
@@ -137,9 +131,10 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!("Examples:");
-            println!("  grund show FS-login              # the whole declaration body");
-            println!("  grund show FS-login --brief      # lead prose plus section map");
-            println!("  grund show FS-login.3.1          # just that nested section");
+            println!("  grund show FS-login              # the lead — the cheap default");
+            println!("  grund show FS-login --toc        # lead + section map");
+            println!("  grund show FS-login.3.1          # the lead of that nested section");
+            println!("  grund show FS-login --full       # the whole declaration body");
             println!();
             println!(
                 "ID not found? `grund list` shows every declared ID; `grund id <KIND> \"…\"` proposes a new one."

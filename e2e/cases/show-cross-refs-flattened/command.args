@@ -1,1 +1,1 @@
-show FS-001-foo {repo}
+show --full FS-001-foo {repo}

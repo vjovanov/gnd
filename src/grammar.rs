@@ -36,9 +36,23 @@ fn reduce_heading_text(text: &str) -> String {
         .replace_all(&MD_INLINE_LINK.replace_all(text, "$1"), "")
         .into_owned()
 }
-static AGENTS_BLOCK_BEGIN: Lazy<Regex> =
+/// The current managed-block marker: an H2 heading carrying the block version.
+/// `init` and `check` find the block by this line, and the block runs until the
+/// next H1/H2 or EOF (§FS-init.2.3.1).
+static AGENTS_BLOCK_H2: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?m)^##[ \t]+Agent instructions[ \t]+\(grund-agents v(?P<version>\d+)\)[ \t]*\r?$")
+        .unwrap()
+});
+/// The next H1 or H2 heading after a position — the implicit end of the managed
+/// section. The block ends at this line's start, or at EOF if no such line follows.
+static AGENTS_SECTION_BOUNDARY: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?m)^#{1,2}[ \t]+\S").unwrap());
+/// Legacy v2 HTML-comment markers — recognized only so `init` can upgrade an
+/// existing v2 block to the current marker form (§FS-init.2.3.2). New blocks are
+/// never written in this form.
+static AGENTS_BLOCK_LEGACY_BEGIN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"<!--\s*grund:init:agents:v(?P<version>\d+)\s+begin\s*-->").unwrap());
-static AGENTS_BLOCK_END: Lazy<Regex> =
+static AGENTS_BLOCK_LEGACY_END: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"<!--\s*grund:init:agents:v\d+\s+end\s*-->").unwrap());
 
 /// ID grammar compiled from [id].format + [[kinds]] — the single place that knows the

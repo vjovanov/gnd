@@ -1,1 +1,1 @@
-show --format md FS-001-alpha {repo}
+show --full --format md FS-001-alpha {repo}

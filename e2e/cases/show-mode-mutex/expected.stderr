@@ -1,1 +1,1 @@
-error: --head and --brief cannot be used together
+error: --brief and --toc cannot be used together

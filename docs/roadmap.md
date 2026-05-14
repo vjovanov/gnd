@@ -201,7 +201,7 @@ Shipped. Whole declaration, `--head`, `--section` and dotted-inline section path
 
 ## RM-token-cheap-grounding: token-cheap read surfaces for agents
 
-Shipped. `grund show --outline`, `grund show --brief`, `grund refs --summary`, multi-kind `grund list --kind FS,AR`, `grund list --summary`, and the v2 generated `AGENTS.md` guidance block — see `docs/changelog.md`, [§FS-show.2.1.2](functional-spec/FS-show.md#212-outline-only---outline), [§FS-show.2.1.3](functional-spec/FS-show.md#213-brief---brief), [§FS-refs.3.3](functional-spec/FS-refs.md#33---summary), [§FS-list.3.3](functional-spec/FS-list.md#33---summary), and [§DF-show-token-cheap-reads](decisions/functional/DF-show-token-cheap-reads.md#df-show-token-cheap-reads-grund-show-keeps-the-full-body-default-token-cheap-slices-are-opt-in).
+Shipped. `grund show --outline`, `grund show --brief`, `grund refs --summary`, multi-kind `grund list --kind FS,AR`, `grund list --summary`, and the v2 generated `AGENTS.md` guidance block — see `docs/changelog.md`, [§FS-show.2.1.2](functional-spec/FS-show.md#212-section-map---toc), [§FS-show.2.1.3](functional-spec/FS-show.md#213-full-body---full), [§FS-refs.3.3](functional-spec/FS-refs.md#33---summary), [§FS-list.3.3](functional-spec/FS-list.md#33---summary), and [§DF-show-token-cheap-reads](decisions/functional/DF-show-token-cheap-reads.md#df-show-token-cheap-reads-grund-show-keeps-the-full-body-default-token-cheap-slices-are-opt-in).
 
 ## RM-config: .agents/grund.toml discovery, parsing, and inspection
 

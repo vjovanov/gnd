@@ -85,19 +85,18 @@ Paths are relative to `<path>`. Stdout is always empty (consistent with [§GOAL-
 
 The emitted agent guidance is a canonical managed block: it teaches the session-start workflow and rules listed in §2.3.4, rendered against the target repo's effective configuration. The block stays concise under [§GOAL-token-economy](../goals/goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file): it teaches only the rules an agent needs before work begins, leaving detail to cited specs and `grund show` output. The canonical text for a given block version `vN` is embedded in the `grund` binary; the reference copy lives at `templates/AGENTS.md` in the `grund` source tree, and the `vN` marker (§2.3) is what versions it under [§GOAL-no-silent-breakage](../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — so changing the taught workflow is itself a block-version bump, carried by that mechanism, not a silent rewrite.
 
-Several things in the block are *substituted in* rather than fixed for that `vN`, so the file describes the repo it is in: the project name from `--name` (interpolated into the H1 and the opening sentence), and the **effective ID grammar and artifact map** — taken from the `.agents/grund.toml` `init` leaves governing the target (an existing config in the target, or the defaults `init` is about to write, never an ancestor's). From that config the block fills in the ID shape (`<KIND>-<NNN>-<slug>`, `<KIND>-<slug>`, …, derived from `[id].format`), one worked example ID and citation, the `[id].section_separator`, the marker and `$$`-trigger from `[reference]`, the `KIND ∈ {…}` set from `[[kinds]]`, a table of each kind's configured declaration home and title, the `[scan].include` / `[scan].exclude` scope, a sentence on whether bare ID-shaped tokens count as citations (driven by `[reference].strict`), and the **citation-form variant** — bare `§<ID>` versus `§<ID>` wrapped with a Markdown link — driven by `[fmt.cross_refs].enabled` per §2.3.3. The contract this spec makes is the *determinism and versioning*, not a literal transcript: two `grund init` runs at the same `grund` version against trees with the same `--name` and the same effective config produce byte-identical managed blocks ([§FS-non-goals.13](FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)), and `grund check`'s `AGENTS.md` validation ([§FS-check.3.5](FS-check.md#35-invalid-agent-entrypoint-init-block)) checks the begin/end marker pair and the version, not a byte-diff against the canonical text.
+Several things in the block are *substituted in* rather than fixed for that `vN`, so the file describes the repo it is in: the project name from `--name` (interpolated into the scaffolding H1 emitted above the block for a fresh `AGENTS.md`), and the **effective ID grammar and artifact map** — taken from the `.agents/grund.toml` `init` leaves governing the target (an existing config in the target, or the defaults `init` is about to write, never an ancestor's). From that config the block fills in the ID shape (`<KIND>-<NNN>-<slug>`, `<KIND>-<slug>`, …, derived from `[id].format`), one worked example ID and citation, the `[id].section_separator`, the marker and `$$`-trigger from `[reference]`, the `KIND ∈ {…}` set from `[[kinds]]`, a table of each kind's configured declaration home and title, the `[scan].include` / `[scan].exclude` scope, and a sentence on whether bare ID-shaped tokens count as citations (driven by `[reference].strict`). The contract this spec makes is the *determinism and versioning*, not a literal transcript: two `grund init` runs at the same `grund` version against trees with the same `--name` and the same effective config produce byte-identical managed blocks ([§FS-non-goals.13](FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)), and `grund check`'s `AGENTS.md` validation ([§FS-check.3.5](FS-check.md#35-invalid-agent-entrypoint-init-block)) checks the marker line and the version, not a byte-diff against the canonical text.
 
-One content rule the canonical text *does* commit to, because getting it wrong sets a trap: references to `grund`'s own specification — the `check`/`show` contract, the enumerated doc-comment forms, the marker decision — are written as prose and links to the `grund` repository, never as `§<ID>` citations. In the user's repo only IDs declared *in that repo* resolve with `grund show`; an `AGENTS.md` that tells the reader "run `grund show <ID>`" and then cites `§FS-…` IDs that belong to `grund` itself would have the reader chase a dangling reference. The `§<KIND>-<…>` tokens that do appear in the block are explicitly flagged as shape illustrations, not real IDs.
+The managed block is an H2 section whose heading carries the schema version:
 
-The managed block is wrapped in version markers:
-
-```
-<!-- grund:init:agents:v1 begin -->
-...
-<!-- grund:init:agents:v1 end -->
+```markdown
+## Agent instructions (grund-agents vN)
+…
 ```
 
-The integer after `v` is the agent guidance block schema version. A fresh `AGENTS.md` consists of this block. If `AGENTS.md` already exists and contains no `grund:init:agents` block, `init` appends the current block after the existing content. If a known companion entrypoint such as `AGENTS.override.md`, `CLAUDE.md`, `.claude/CLAUDE.md`, `GEMINI.md`, or `.github/copilot-instructions.md` exists and is not a symlink to `AGENTS.md`, the same append/update rules apply to that companion. If the file already contains any supported block version, including the current one, `init` re-renders the block from the current effective `.agents/grund.toml`, compares it to the bytes between the begin and end markers, and — when they differ — replaces only those bytes, leaving all content before and after the block untouched (reported `updated `). This means same-version template/config changes propagate on the next `grund init` without requiring `--force`. When the re-render is byte-identical to what is on disk, `init` writes nothing and reports the file with `exists ` (§2.2) — re-running `grund init` on an already-current repo is a no-op on every file. If the file contains a newer block version than the running binary supports, `init` exits 2 and leaves the file unchanged.
+The integer after `v` is the agent guidance block schema version. The heading line is the block's begin marker; the block runs until the next H1 or H2 heading, or end of file. A fresh `AGENTS.md` consists of this block preceded by a one-line scaffolding H1 (`# {NAME} — agent instructions`); the H1 is *unmanaged*, so `init --force` rewrites the block but leaves the title alone. If `AGENTS.md` already exists and contains no managed block, `init` appends the current block after the existing content (no H1 is inserted — the host file owns its title). If a known companion entrypoint such as `AGENTS.override.md`, `CLAUDE.md`, `.claude/CLAUDE.md`, `GEMINI.md`, or `.github/copilot-instructions.md` exists and is not a symlink to `AGENTS.md`, the same append/update rules apply to that companion. If the file already contains any supported block version, including the current one, `init` re-renders the block from the current effective `.agents/grund.toml`, compares it to the bytes between the marker line and the next H1/H2 (or EOF), and — when they differ — replaces only those bytes, leaving all content before and after the block untouched (reported `updated `). This means same-version template/config changes propagate on the next `grund init` without requiring `--force`. When the re-render is byte-identical to what is on disk, `init` writes nothing and reports the file with `exists ` (§2.2) — re-running `grund init` on an already-current repo is a no-op on every file. If the file contains a newer block version than the running binary supports, `init` exits 2 and leaves the file unchanged.
+
+Legacy `<!-- grund:init:agents:vN begin -->`…`end` blocks (block versions ≤ 2) are still recognized so `init` can upgrade them in place to the current H2-marker form. After upgrade the HTML-comment delimiters are gone and the H1 that older versions baked inside the block is dropped (the host owns the title from then on).
 
 `AGENTS.md` is the canonical entrypoint and is always created or maintained. Companion entrypoints are discovery-based: `init` updates them only if the repo already has them. The built-in companion set covers common root or repository instruction files used by agent-specific tooling: Codex override instructions (`AGENTS.override.md`), Claude Code (`CLAUDE.md`, `.claude/CLAUDE.md`), Gemini (`GEMINI.md`), and GitHub Copilot (`.github/copilot-instructions.md`). When one of those paths is a symlink to `AGENTS.md`, `init` does not touch it separately and `grund check` treats the canonical `AGENTS.md` block as sufficient.
 
@@ -109,20 +108,13 @@ The managed block's **position within an existing agent entrypoint is preserved 
 
 `init` does not normalize line endings. When updating or reading an existing agent entrypoint:
 
-- The bytes outside the managed block (everything before `<!-- grund:init:agents:v… begin -->` and everything after `<!-- grund:init:agents:v… end -->`) are preserved byte-for-byte, including CRLF (`\r\n`) and lone-CR endings.
-- The block-recognition regex tolerates any whitespace (including `\r`) between the marker tokens, so a CRLF-encoded file with a v0 block is detected and updated correctly.
+- The bytes outside the managed block (everything before the `## Agent instructions (grund-agents vN)` heading line, and everything after the next H1 or H2 — or the legacy `<!-- grund:init:agents:vN end -->` for blocks being upgraded) are preserved byte-for-byte, including CRLF (`\r\n`) and lone-CR endings.
+- The H2 marker regex tolerates an optional trailing `\r` before the line end, so a CRLF-encoded file is detected correctly. The legacy-block regex tolerates `\r` between the HTML comment tokens for the same reason.
 - The freshly-written block uses LF endings (the bytes embedded in the binary). On a CRLF-encoded host file the result is mixed line endings inside the managed region and CRLF outside; this is intentional. Normalizing the rest of the file would violate the "leave content alone" guarantee.
 
-#### 2.3.3 Citation-form variant
+#### 2.3.3 Citation form
 
-The citation form shown in the managed block matches what `grund fmt` writes to disk for the host repo, driven by `[fmt.cross_refs].enabled` per [§DF-md-link-emission.2.4](../decisions/functional/DF-md-link-emission.md#24-opt-in-never-default). The grounding workflow itself — `grund show <ID>` / `grund show <ID> --toc` / `grund show <ID>.<section>` / `grund show <ID> --full` / `grund list` / `grund refs <ID>` — is **identical in both variants** and is emitted unchanged: it operates on the citation regardless of wrap. Only the form description and the cross-link rule differ.
-
-The two variants:
-
-- **Default (`[fmt.cross_refs].enabled = false`)** — the block teaches the bare-marker form. The form sentence reads: *"Citations are written prefixed by the marker `§`, e.g. `§<KIND>-<slug>.3.1`."* The cross-link rule reads: *"Cross-link everything via IDs. Use the ID. No Markdown links between docs."*
-- **Cross-refs on (`[fmt.cross_refs].enabled = true`)** — the block teaches that authoring stays bare but on-disk citations are wrapped. The form sentence reads: *"Citations are authored as `§<ID>`; `grund fmt` wraps them in a Markdown link as a derived presentation layer — `[§<KIND>-<slug>.3.1](path.md#…)`. Either form resolves with `grund show`; do not hand-write the wrap — `grund fmt` regenerates it idempotently."* The cross-link rule reads: *"Cross-link everything via IDs. The `§<ID>` citation is the source of truth; any Markdown link wrap is generated by `grund fmt` — never hand-authored."*
-
-Re-running `grund init` after toggling `[fmt.cross_refs].enabled` re-renders the block to the matching variant under the same-version re-render rule in §2.3, with no schema-version bump: the variant is a config-driven substitution, not a different block version.
+The managed block teaches a single citation form — `§<ID>`, bare, with an optional `.<section>` path. `[fmt.cross_refs].enabled` per [§DF-md-link-emission.2.4](../decisions/functional/DF-md-link-emission.md#24-opt-in-never-default) governs whether `grund fmt` wraps on-disk citations in Markdown links; the managed block's guidance is the same in either mode — cite specs by ID; any Markdown wrap is generated by `grund fmt`, not hand-authored.
 
 The generated file uses the canonical `grund` reference grammar even before any IDs exist in the repo — citations of `§GOAL-no-dangling-refs`, `§FS-check`, etc. inside the boilerplate point at the **grund project's own** documentation, not the new repo's. This is intentional: the boilerplate is a teaching surface, and the IDs anchor the teaching to a stable source. The generated `.agents/grund.toml` (§2.4) sets `[scan] include = ["docs", "e2e", "src"]` so the boilerplate's pedagogical citations in `AGENTS.md` are not themselves scanned (the file lives at the repo root, outside `include`) — the citations remain inert text in the host repo and never flow into its findings.
 
@@ -176,7 +168,7 @@ The rules tell agents that decisions must be cited from the spec or architecture
 
 ##### 2.3.4.12 Cross-Linking
 
-The rules tell agents to cross-link project knowledge through IDs, with the exact cross-link wording selected by the citation-form variant in §2.3.3.
+The block tells agents to cross-link specs only via IDs — a single short sentence in the citations narrative, not phrased as a rule. The `[fmt.cross_refs].enabled` mode (§2.3.3) does not change this wording.
 
 ##### 2.3.4.13 Executable Proof
 
@@ -185,10 +177,6 @@ The rules tell agents that behavior is proven by executable tests or cases, and 
 ##### 2.3.4.14 Final Check
 
 The rules tell agents to run `grund check` before committing, because dangling references are stop-the-line bugs whose diagnostics name the file and line.
-
-##### 2.3.4.15 Grund-Owned References
-
-References to `grund`'s own documentation inside the managed block are prose links, not host-repo `§<ID>` citations; any `§<KIND>-<…>` tokens shown by the block are explicitly examples, because only declarations in the host repo resolve with `grund show` there.
 
 ### 2.4 Generated `.agents/grund.toml`
 

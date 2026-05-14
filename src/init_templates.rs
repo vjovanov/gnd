@@ -9,9 +9,7 @@ const FS_README_TEMPLATE: &str = include_str!("../templates/functional-spec-READ
 const AS_README_TEMPLATE: &str = include_str!("../templates/architecture-README.md");
 const GITKEEP_TEMPLATE: &str = include_str!("../templates/gitkeep.md");
 const AGENT_SETUP_INSTRUCTIONS: &str = include_str!("../skills/grund-init/SKILL.md");
-const AGENTS_BLOCK_VERSION: u32 = 2;
-const AGENTS_APPEND_BEGIN: &str = "<!-- grund:init:agents:v2 begin -->";
-const AGENTS_APPEND_END: &str = "<!-- grund:init:agents:v2 end -->";
+const AGENTS_BLOCK_VERSION: u32 = 3;
 const CANONICAL_AGENT_ENTRYPOINT: &str = "AGENTS.md";
 const COMPANION_AGENT_ENTRYPOINTS: &[&str] = &[
     "AGENTS.override.md",
@@ -127,10 +125,10 @@ fn declaration_table(config: &Config) -> String {
     lines.join("\n")
 }
 
-/// The full generated `AGENTS.md` for a fresh repo — the template with all
-/// substitutions applied (§FS-init.2.3). Deterministic: same `grund` version, same
-/// `--name`, same effective config ⇒ byte-identical output (§FS-non-goals.13).
-fn render_agents_md(name: &str, config: &Config) -> String {
+/// The managed block — just the H2 section that `init` appends to, or replaces
+/// inside, an existing `AGENTS.md` (§FS-init.2.3). The template *is* the block;
+/// the H2 line carrying the version is its own begin marker (§FS-init.2.3.1).
+fn render_agents_append_block(name: &str, config: &Config) -> String {
     let mut rendered = canonical_template_text(AGENTS_TEMPLATE);
     for (placeholder, value) in agents_template_substitutions(name, config) {
         rendered = rendered.replace(placeholder, &value);
@@ -138,18 +136,15 @@ fn render_agents_md(name: &str, config: &Config) -> String {
     rendered
 }
 
-/// Just the `<!-- grund:init:agents:vN begin -->`…`end` managed block — what `init`
-/// appends to, or replaces inside, an existing `AGENTS.md` (§FS-init.2.3).
-fn render_agents_append_block(name: &str, config: &Config) -> String {
-    let rendered = render_agents_md(name, config);
-    let start = rendered
-        .find(AGENTS_APPEND_BEGIN)
-        .expect("agents template must contain append block start marker");
-    let end = rendered
-        .find(AGENTS_APPEND_END)
-        .map(|index| index + AGENTS_APPEND_END.len())
-        .expect("agents template must contain append block end marker");
-    format!("{}\n", rendered[start..end].trim_end())
+/// The full generated `AGENTS.md` for a fresh repo — the H1 scaffolding line
+/// followed by the managed block (§FS-init.2.3). The H1 is *unmanaged* — `init`
+/// owns the block, not the title. Deterministic: same `grund` version, same
+/// `--name`, same effective config ⇒ byte-identical output (§FS-non-goals.13).
+fn render_agents_md(name: &str, config: &Config) -> String {
+    format!(
+        "# {name} — agent instructions\n\n{}",
+        render_agents_append_block(name, config)
+    )
 }
 
 /// Existing companion agent entrypoints that should carry the same managed grund

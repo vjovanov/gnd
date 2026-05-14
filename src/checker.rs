@@ -370,8 +370,8 @@ fn check_agent_block_path(path: &Path, report: &mut Report) {
         }
         return;
     }
-    if AGENTS_BLOCK_BEGIN.is_match(&text) {
-        let line = AGENTS_BLOCK_BEGIN
+    if AGENTS_BLOCK_LEGACY_BEGIN.is_match(&text) {
+        let line = AGENTS_BLOCK_LEGACY_BEGIN
             .find(&text)
             .map(|m| line_for_byte_index(&text, m.start()))
             .unwrap_or(1);

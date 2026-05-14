@@ -1,7 +1,8 @@
 # DF-show-token-cheap-reads: grund show keeps the full-body default; token-cheap slices are opt-in
 
-**Status:** Accepted
+**Status:** Superseded
 **Date:** 2026-05-12
+**Superseded by:** [§DF-show-default-token-cheap](DF-show-default-token-cheap.md#df-show-default-token-cheap-grund-show-defaults-to-the-cheap-read-the-full-body-is-opt-in) — the four-flag surface (`--head` / `--outline` / `--brief` / `--full`) introduced here proved harder to learn than expected; the default flips to the cheap read and the slice flags are renamed around an incremental ladder. The "structural, not generated" and "`check` is not abridged" properties (§2.2, §2.3) carry over unchanged.
 
 ## 1. Context
 
@@ -11,8 +12,8 @@
 
 Add token-cheap read modes as **opt-in flags over the existing scanner**, and leave every default unchanged:
 
-- `grund show <ID> --outline` — only the declaration's numbered section headings ([§FS-show.2.1.2](../../functional-spec/FS-show.md#212-outline-only---outline)): the map an agent reads before choosing a section.
-- `grund show <ID> --brief` — `--head` then `--outline` ([§FS-show.2.1.3](../../functional-spec/FS-show.md#213-brief---brief)): the recommended first read for a bare cited `§<ID>`.
+- `grund show <ID> --outline` — only the declaration's numbered section headings ([§FS-show.2.1.2](../../functional-spec/FS-show.md#212-section-map---toc)): the map an agent reads before choosing a section.
+- `grund show <ID> --brief` — `--head` then `--outline` ([§FS-show.2.1.3](../../functional-spec/FS-show.md#213-full-body---full)): the recommended first read for a bare cited `§<ID>`.
 - `grund refs <ID> --summary` — one line per citing file with a count and line list ([§FS-refs.3.3](../../functional-spec/FS-refs.md#33---summary)).
 - `grund list --kind FS,AR` (multi-value `--kind`) and `grund list --summary` (one line per kind, with counts and homes) ([§FS-list.3.3](../../functional-spec/FS-list.md#33---summary)).
 - The generated `AGENTS.md` block teaches the ladder — `show <ID> --brief` for a bare ID, `show <ID>.<section>` for a section citation, `show <ID>` only as the escalation — which is a managed-block version bump under [§GOAL-no-silent-breakage](../../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) ([§FS-init.2.3](../../functional-spec/FS-init.md#23-generated-agent-entrypoints)).
@@ -38,9 +39,9 @@ The token economy applies to the read/query surface only. `grund check` diagnost
 
 ## 4. Consequences
 
-- New [§FS-show.2.1.2](../../functional-spec/FS-show.md#212-outline-only---outline) / [§FS-show.2.1.3](../../functional-spec/FS-show.md#213-brief---brief) and the `--head | --outline | --brief | --full` mutual-exclusion group in [§FS-show.1](../../functional-spec/FS-show.md#1-inputs); the format-variant bullets in [§FS-show.3.1](../../functional-spec/FS-show.md#31-format-variants) gain `sections` / `head` JSON fields.
+- New [§FS-show.2.1.2](../../functional-spec/FS-show.md#212-section-map---toc) / [§FS-show.2.1.3](../../functional-spec/FS-show.md#213-full-body---full) and the `--head | --outline | --brief | --full` mutual-exclusion group in [§FS-show.1](../../functional-spec/FS-show.md#1-inputs); the format-variant bullets in [§FS-show.3.1](../../functional-spec/FS-show.md#31-format-variants) gain `sections` / `head` JSON fields.
 - New [§FS-refs.3.3](../../functional-spec/FS-refs.md#33---summary) (`--summary`) and [§FS-list.3.3](../../functional-spec/FS-list.md#33---summary) (`--summary`, multi-value `--kind`).
-- [§FS-init.2.3](../../functional-spec/FS-init.md#23-generated-agent-entrypoints) and [§FS-init.2.3.3](../../functional-spec/FS-init.md#233-citation-form-variant) describe the brief/section-first workflow; landing it bumps the `AGENTS.md` managed-block version and refreshes `templates/AGENTS.md` and the `init-agents-*` e2e fixtures.
+- [§FS-init.2.3](../../functional-spec/FS-init.md#23-generated-agent-entrypoints) and [§FS-init.2.3.3](../../functional-spec/FS-init.md#233-citation-form) describe the brief/section-first workflow; landing it bumps the `AGENTS.md` managed-block version and refreshes `templates/AGENTS.md` and the `init-agents-*` e2e fixtures.
 - New [§FS-non-goals.14](../../functional-spec/FS-non-goals.md#14-generated-summaries-token-saving-inside-check) records the "no generated summaries, no abridged `check`" boundary.
 - E2E fixtures cover `show --outline`, `show --brief`, `refs --summary`, `list --kind FS,AR`, `list --summary` in text and JSON, plus the bumped `init-agents-*` block.
 

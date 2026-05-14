@@ -1,1 +1,0 @@
-show --outline --format=json E2E-login {repo}

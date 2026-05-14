@@ -14,7 +14,7 @@ The minimum viable set — everything the server speaks at version 1.0.
 
 ### 1.2 Hover preview
 
-`textDocument/hover` on a citation returns the body `grund show <ID>` would print ([§FS-show.2.1](FS-show.md#21-whole-declaration-default-or---full)), or the body of the requested section if the citation includes one ([§FS-show.2.2](FS-show.md#22-section)). When the declaration's home is in source code (a stub points at `src/bus.rs`), the hover body is the comment-stripped prose per [§FS-show.2.3.2](FS-show.md#232-stripping-comment-markers) — the same content the CLI returns. There is no separate "IDE-only" rendering; hover and `grund show` produce the same bytes.
+`textDocument/hover` on a citation returns the body `grund show <ID>` would print ([§FS-show.2.1](FS-show.md#21-whole-declaration-default)), or the body of the requested section if the citation includes one ([§FS-show.2.2](FS-show.md#22-section)). When the declaration's home is in source code (a stub points at `src/bus.rs`), the hover body is the comment-stripped prose per [§FS-show.2.3.2](FS-show.md#232-stripping-comment-markers) — the same content the CLI returns. There is no separate "IDE-only" rendering; hover and `grund show` produce the same bytes.
 
 ### 1.3 Go-to-definition
 

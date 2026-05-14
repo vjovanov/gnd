@@ -11,10 +11,17 @@
 //! The benched subcommands are the ones agents and CI invoke on every loop:
 //!
 //! - `check` — every save / commit / push; the headline operation.
-//! - `list` / `show` / `refs` — the agent grounding workflow (discover IDs,
-//!   read a declaration body, see a declaration's blast radius).
+//! - `list` / `show --brief` / `show` / `refs` — the agent grounding workflow
+//!   (discover IDs, read the brief lead-prose-plus-section-map slice, read a
+//!   full declaration body, see a declaration's blast radius).
 //! - `cover` — what the co-change recipe / CI consume.
 //! - `fmt --check` — the pre-commit / CI normalization gate.
+//!
+//! Each command exits 0 on this repository's conformant tree, so iai-callgrind
+//! (which expects `ExitWith::Success`) is happy. On a *broken* tree — a dangling
+//! citation, a stray `$$` trigger — `check` / `fmt --check` exit non-zero and
+//! the bench fails; that is intentional, not a bug to paper over with
+//! `.exit_with(...)`: a baseline recorded against a broken tree is worthless.
 //!
 //! The same workload drives the release/benchmark PGO training run in
 //! `scripts/pgo-build.sh` (§DA-pgo-release) — keep the command list there in
@@ -36,8 +43,9 @@ const GRUND: &str = env!("CARGO_BIN_EXE_grund");
 #[cfg(feature = "bench")]
 const REPO: &str = env!("CARGO_MANIFEST_DIR");
 
-/// A representative declared ID with a substantial body — what `grund show` reads
-/// when an agent grounds itself before editing.
+/// A representative declared ID with a substantial body — what `grund show`
+/// reads in full, and what `grund show --brief` reduces to lead prose plus a
+/// section map, when an agent grounds itself before editing.
 #[cfg(feature = "bench")]
 const SHOW_ID: &str = "FS-check";
 /// A heavily-cited goal — `grund refs` over it walks the whole tree and returns
@@ -59,7 +67,17 @@ fn list() -> Command {
     Command::new(GRUND).args(["list", REPO]).build()
 }
 
-// `grund show <ID> <repo>` — one declaration body.
+// `grund show <ID> --brief <repo>` — the lead prose plus section map; the
+// grounding read AGENTS.md / CLAUDE.md tell agents to do first.
+#[cfg(feature = "bench")]
+#[binary_benchmark]
+fn show_brief() -> Command {
+    Command::new(GRUND)
+        .args(["show", SHOW_ID, "--brief", REPO])
+        .build()
+}
+
+// `grund show <ID> <repo>` — one full declaration body.
 #[cfg(feature = "bench")]
 #[binary_benchmark]
 fn show() -> Command {
@@ -90,7 +108,7 @@ fn fmt_check() -> Command {
 #[cfg(feature = "bench")]
 binary_benchmark_group!(
     name = commands;
-    benchmarks = check, list, show, refs, cover, fmt_check
+    benchmarks = check, list, show_brief, show, refs, cover, fmt_check
 );
 
 #[cfg(feature = "bench")]

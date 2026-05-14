@@ -47,12 +47,13 @@ echo "==> 2/3  training run — the §AR-benchmarks workload"
 # paths exercised.
 set +e
 for _ in 1 2 3; do
-  "$grund" check "$repo"                  >/dev/null 2>&1
-  "$grund" list "$repo"                   >/dev/null 2>&1
-  "$grund" show FS-check "$repo"          >/dev/null 2>&1
+  "$grund" check "$repo"                   >/dev/null 2>&1
+  "$grund" list "$repo"                    >/dev/null 2>&1
+  "$grund" show FS-check --brief "$repo"   >/dev/null 2>&1
+  "$grund" show FS-check "$repo"           >/dev/null 2>&1
   "$grund" refs GOAL-fast-feedback "$repo" >/dev/null 2>&1
-  "$grund" cover "$repo"                  >/dev/null 2>&1
-  "$grund" fmt --check "$repo"            >/dev/null 2>&1
+  "$grund" cover "$repo"                   >/dev/null 2>&1
+  "$grund" fmt --check "$repo"             >/dev/null 2>&1
 done
 set -e
 

@@ -1,1 +1,1 @@
-show AR-001-router {repo}
+show --full AR-001-router {repo}

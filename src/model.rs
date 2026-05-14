@@ -73,12 +73,18 @@ struct Findings {
     scanned_files: Vec<PathBuf>,
 }
 
+/// `grund show` slice mode (§FS-show.1): each rung adds to the previous one —
+/// `--brief` is heading + first paragraph; `Default` adds the rest of the lead
+/// (cut at the first child section); `Toc` adds the nested section map; `Full`
+/// adds every subsection body. `Outline` is an internal-only mode used by `Toc`
+/// to collect the section map; the CLI does not expose it.
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum ShowMode {
-    Full,
-    Head,
-    Outline,
     Brief,
+    Default,
+    Toc,
+    Full,
+    Outline,
 }
 
 struct ShowSection {
@@ -303,15 +309,14 @@ struct Report {
 }
 
 /// What `grund show` resolved an ID to: the body text to print, the `path:line` it
-/// came from, and the pre-rendered JSON when `--format json` was asked for
-/// (§FS-show.3, §FS-errors.5).
+/// came from, the section map (`--toc` only), and the pre-rendered JSON when
+/// `--format json` was asked for (§FS-show.3, §FS-errors.5).
 struct ShowOutput {
     body: String,
     path: PathBuf,
     line: usize,
     json: Option<String>,
     sections: Vec<ShowSection>,
-    head: Option<String>,
 }
 
 /// Pull an `Id` out of a `Grammar` regex match — the `kind` / `num` / `slug`
