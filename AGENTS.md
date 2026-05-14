@@ -19,17 +19,17 @@ A `§<ID>` is a pointer to a fact, not a file path. Resolve it with `grund` and 
 
 `grund` scans: `docs`, `e2e`, `src`; excluded directories: `target`, `node_modules`, `.git`, `dist`, `build`, `.venv`, `repo`, `expected.repo`.
 
-| Kind | Home | Purpose |
-|---|---|---|
-| `GND` | `docs` | Grund |
-| `GOAL` | `docs/goals` | Goal |
-| `FS` | `docs/functional-spec` | Functional spec |
-| `AR` | `docs/architecture` | Architectural spec |
-| `DF` | `docs/decisions/functional` | Functional decision |
-| `DA` | `docs/decisions/architectural` | Architectural decision |
-| `E2E` | `e2e/cases` | End-to-end test |
-| `RM` | `docs` | Roadmap milestone |
-| `DISC` | `docs/discussions` | Discussion |
+| Kind   | Home                           | Purpose                |
+|--------|--------------------------------|------------------------|
+| `GND`  | `docs`                         | Grund                  |
+| `GOAL` | `docs/goals`                   | Goal                   |
+| `FS`   | `docs/functional-spec`         | Functional spec        |
+| `AR`   | `docs/architecture`            | Architectural spec     |
+| `DF`   | `docs/decisions/functional`    | Functional decision    |
+| `DA`   | `docs/decisions/architectural` | Architectural decision |
+| `E2E`  | `e2e/cases`                    | End-to-end test        |
+| `RM`   | `docs`                         | Roadmap milestone      |
+| `DISC` | `docs/discussions`             | Discussion             |
 
 ### Declarations and citations
 
