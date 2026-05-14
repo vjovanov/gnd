@@ -1,6 +1,6 @@
 # FS-list: grund lists every declared ID
 
-The `list` subcommand prints the repo's ID catalog: every declaration, where it lives, and its one-line title — or, narrowed with `--kind`/`--summary`, just the slice an agent asked for. It is the index that `grund show` reads from and the broad counterpart of `grund refs` — `refs` answers "who cites *this* ID?", `list` answers "what IDs are there?". An agent that has been told to ground itself with `grund show <ID>` needs a way to discover the `<ID>`s; a human auditing a spec tree needs the same. Serves [§GOAL-friendliness-first](../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) (no `grep` for `^# [A-Z]+-` across the tree), [§GOAL-token-economy](../goals/goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file), and the agent-grounding loop in [§GND-grund](../grund.md#gnd-grund-agents-stay-grounded-in-the-spec).
+The `list` subcommand prints the repo's ID catalog: every declaration, where it lives, and its one-line title — or, narrowed with `--kind`/`--summary`, just the slice an agent asked for. It is the index that `grund show` reads from and the broad counterpart of `grund refs` — `refs` answers "who cites *this* ID?", `list` answers "what IDs are there?". An agent that has been told to ground itself with `grund show <ID>` needs a way to discover the `<ID>`s; a human auditing a spec tree needs the same. Serves [§GOAL-friendliness-first](../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) (no `grep` for `^# [A-Z]+-` across the tree), [§GOAL-token-economy](../goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file), and the agent-grounding loop in [§GND-grund](../grund.md#gnd-grund-agents-stay-grounded-in-the-spec).
 
 ## 1. Inputs
 
@@ -36,7 +36,7 @@ $ grund list
 AR-event-bus    src/bus.rs:14                 In-process event broadcaster
 FS-check        docs/functional-spec/FS-check.md:1    grund validates every reference in a repo
 FS-login        docs/functional-spec/FS-login.md:1    A player can log in with email
-G-no-dangling-refs  docs/goals/goals.md:7     every cited ID resolves to a declaration
+G-no-dangling-refs  docs/goals.md:7     every cited ID resolves to a declaration
 ```
 
 The columns are: the ID (rendered in the repo's `[id] format`, left-padded so the column aligns — capped so one very long ID does not blow out the table), then `<path>:<line>` of the home declaration (for a collapsed stub-and-inline pair, the source file the body is in), then the title — the heading text the author wrote after `# <ID>:`. A declaration whose heading carries no `: <text>` tail has an empty title column. A broken stub shows `→ <target>` in place of a title. A duplicated ID's lines carry a `(duplicate declaration — grund check)` note. With `--kind`, only the selected kinds' lines appear; with `--unused`, only lines for declarations with zero inbound citations, with `E2E` cases excluded by default (the same suppression `check`'s unused-declaration warning applies, [§FS-check.4.1](FS-check.md#41-unused-declaration)) and re-included whenever `E2E` is one of the explicitly selected kinds. An empty catalog (or an empty filter result) prints nothing — that is not an error.
@@ -52,7 +52,7 @@ NDJSON on stdout — one object per catalog entry, same order as the text form:
 {"id":"FS-login","kind":"FS","path":"docs/functional-spec/FS-login.md","line":1,"title":"A player can log in with email","stub":false,"defines":null,"refs":7,"duplicate":false}
 ```
 
-Fields: `id` (rendered ID), `kind`, `path` and `line` of the home declaration, `title` (`null` when the heading has no title tail or the home is a broken stub), `stub` (true when this entry's home is a stub heading — only ever true for a *broken* stub, since a healthy one collapses into its inline declaration), `defines` (the `<target>` of a stub heading, else `null`), `refs` (the count of recognised citations of this ID across the scanned tree — the JSON form always carries it so a tool need not run `grund refs` per ID just to find the uncited ones), and `duplicate` (true when the ID has more than one home). The wire form is stable per [§GOAL-no-silent-breakage](../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path).
+Fields: `id` (rendered ID), `kind`, `path` and `line` of the home declaration, `title` (`null` when the heading has no title tail or the home is a broken stub), `stub` (true when this entry's home is a stub heading — only ever true for a *broken* stub, since a healthy one collapses into its inline declaration), `defines` (the `<target>` of a stub heading, else `null`), `refs` (the count of recognised citations of this ID across the scanned tree — the JSON form always carries it so a tool need not run `grund refs` per ID just to find the uncited ones), and `duplicate` (true when the ID has more than one home). The wire form is stable per [§GOAL-no-silent-breakage](../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path).
 
 ### 3.3 `--summary`
 

@@ -1,6 +1,6 @@
 # grund — agent instructions
 
-## Agent instructions (grund-agents v3)
+## Grounding with grund (v1)
 
 This project uses [`grund`](https://github.com/vjovanov/grund): every spec, goal, decision, and end-to-end test has a stable ID `<KIND>-<slug>[.<section>]` (`KIND ∈ {GND, GOAL, FS, AR, DF, DA, E2E, RM, DISC}`), cited with the marker `§` — e.g. `§FS-user-login.3.1` (the `FS-user-login` here is a shape illustration, not a real ID in this repo). Type `$$` in a grund-aware editor and it becomes `§`. Bare ID-shaped tokens are ignored — `[reference] strict = true` is set in `.agents/grund.toml`, so only `§`-prefixed citations are checked.
 
@@ -19,17 +19,17 @@ A `§<ID>` is a pointer to a fact, not a file path. Resolve it with `grund` and 
 
 `grund` scans: `docs`, `e2e`, `src`, `crates`; excluded directories: `target`, `node_modules`, `.git`, `dist`, `build`, `.venv`, `repo`, `expected.repo`, `assets`.
 
-| Kind   | Home                           | Purpose                |
-|--------|--------------------------------|------------------------|
-| `GND`  | `docs`                         | Grund                  |
-| `GOAL` | `docs/goals`                   | Goal                   |
-| `FS`   | `docs/functional-spec`         | Functional spec        |
-| `AR`   | `docs/architecture`            | Architectural spec     |
-| `DF`   | `docs/decisions/functional`    | Functional decision    |
-| `DA`   | `docs/decisions/architectural` | Architectural decision |
-| `E2E`  | `e2e/cases`                    | End-to-end test        |
-| `RM`   | `docs`                         | Roadmap milestone      |
-| `DISC` | `docs/discussions`             | Discussion             |
+| Kind | Home | Purpose |
+|---|---|---|
+| `GND` | `docs/grund.md` | Grund |
+| `GOAL` | `docs/goals.md` | Goal |
+| `FS` | `docs/functional-spec` | Functional spec |
+| `AR` | `docs/architecture` | Architectural spec |
+| `DF` | `docs/decisions/functional` | Functional decision |
+| `DA` | `docs/decisions/architectural` | Architectural decision |
+| `E2E` | `e2e/cases` | End-to-end test |
+| `RM` | `docs/roadmap.md` | Roadmap milestone |
+| `DISC` | `docs/discussions` | Discussion |
 
 ### Declarations and citations
 

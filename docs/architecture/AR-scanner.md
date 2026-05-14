@@ -1,6 +1,6 @@
 # AR-scanner: how grund discovers declarations and citations
 
-The scanner is the single tree-walk that produces all of grund's input data. Every check in [§FS-check](../functional-spec/FS-check.md#fs-check-grund-validates-every-reference-in-a-repo) and every retrieval in [§FS-show](../functional-spec/FS-show.md#fs-show-grund-reads-a-single-declaration-body-by-id) derives from what the scanner finds. Speed ([§GOAL-fast-feedback](../goals/goals.md#goal-fast-feedback-grund-must-be-as-fast-as-possible)) is set here.
+The scanner is the single tree-walk that produces all of grund's input data. Every check in [§FS-check](../functional-spec/FS-check.md#fs-check-grund-validates-every-reference-in-a-repo) and every retrieval in [§FS-show](../functional-spec/FS-show.md#fs-show-grund-reads-a-single-declaration-body-by-id) derives from what the scanner finds. Speed ([§GOAL-fast-feedback](../goals.md#goal-fast-feedback-grund-must-be-as-fast-as-possible)) is set here.
 
 ## 1. Tree walk
 
@@ -10,7 +10,7 @@ Directory-level skip rules:
 
 - Hidden directories (any name starting with `.`) are skipped — this already covers `.next`, `.venv`, and friends.
 - Build/output directories named in the skip list (`target`, `node_modules`, `.git`, `dist`, `build`, `.venv` by default — [§FS-config.3.5](../functional-spec/FS-config.md#35-scan--what-gets-walked)) are skipped at any depth.
-- The skip list is configurable per [§GOAL-configurable](../goals/goals.md#goal-configurable-every-default-is-overridable) and [§FS-config.3.5](../functional-spec/FS-config.md#35-scan--what-gets-walked).
+- The skip list is configurable per [§GOAL-configurable](../goals.md#goal-configurable-every-default-is-overridable) and [§FS-config.3.5](../functional-spec/FS-config.md#35-scan--what-gets-walked).
 
 Files are filtered by extension to those that can plausibly contain specs or inline declarations: `.md` and a curated list of source-file extensions.
 
@@ -40,7 +40,7 @@ A regex matches declaration lines in either of two shapes:
 1. **Markdown-form** — `<comment-prefix>? #{1,N} <ID>[:…]`: a `#`-prefixed heading at any markdown level, optionally itself sitting inside a comment marker. This is how `.md` files declare (`# FS-foo:`) and also how inline declarations in doc-comments were written historically (`/// # AR-foo:`).
 2. **Code-form** — `<comment-prefix> <ID>[:…]`: a doc-comment-prefixed line with the ID directly after the marker, no `#` prefix. Decided in [§DF-code-declarations-drop-hash](../decisions/functional/DF-code-declarations-drop-hash.md#df-code-declarations-drop-hash-code-resident-declarations-may-drop-the--prefix). The comment prefix is **required** in this form — without a `#` or a doc-comment marker, a line `FS-foo: anything` in markdown prose is not a declaration.
 
-`<ID>` is the configured `[id]` grammar ([§FS-config.3.2](../functional-spec/FS-config.md#32-id--id-grammar)) with `{kind}` drawn from a configured `[[kinds]]` prefix. The heading may sit at any markdown level when written in markdown-form: file-form `GND`/`FS`/`AR`/`DF`/`DA` declarations are H1 (`# FS-… :`), `GOAL` and `RM` declarations are H2 inside `docs/goals/goals.md` and `docs/roadmap.md` respectively, and an inline declaration in a doc-comment is whatever level the author wrote (`# AR-… ` is "level 1" *within* the comment block).
+`<ID>` is the configured `[id]` grammar ([§FS-config.3.2](../functional-spec/FS-config.md#32-id--id-grammar)) with `{kind}` drawn from a configured `[[kinds]]` prefix. The heading may sit at any markdown level when written in markdown-form: file-form `GND`/`FS`/`AR`/`DF`/`DA` declarations are H1 (`# FS-… :`), `GOAL` and `RM` declarations are H2 inside `docs/goals.md` and `docs/roadmap.md` respectively, and an inline declaration in a doc-comment is whatever level the author wrote (`# AR-… ` is "level 1" *within* the comment block).
 
 When the regex matches, the line opens a new "current declaration" context and the **declaration heading level** `L` is recorded:
 
@@ -160,7 +160,7 @@ Specs live in markdown *and* in source-file doc-comments across half a dozen lan
 
 The trade-off: we cannot reason about the surrounding code structure. We do not need to — IDs are syntactic, not semantic. The link in the stub heading is the only structural pointer between a stub and the code that hosts the inline spec, and it is verified by [§AR-checker.2.4](../../crates/grund-core/src/checker.rs).
 
-The marker character recognized in citations follows [§DF-reference-marker](../decisions/functional/DF-reference-marker.md#df-reference-marker-use--as-the-reference-marker-with--as-the-typing-trigger); the regex shape changes when the marker is reconfigured per [§GOAL-configurable](../goals/goals.md#goal-configurable-every-default-is-overridable).
+The marker character recognized in citations follows [§DF-reference-marker](../decisions/functional/DF-reference-marker.md#df-reference-marker-use--as-the-reference-marker-with--as-the-typing-trigger); the regex shape changes when the marker is reconfigured per [§GOAL-configurable](../goals.md#goal-configurable-every-default-is-overridable).
 
 ## 6. E2E case declarations
 

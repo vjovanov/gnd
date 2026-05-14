@@ -1,6 +1,6 @@
 # FS-distribution: grund distribution targets
 
-`grund` is written in Rust; the target distribution is **all three** major language ecosystems — cargo, npm, and PyPI — with idiomatic API bindings on each. The check engine stays a single shared library; only the surfaces differ. Today the Cargo CLI is implemented and installable from git; registry publication, the npm and PyPI bindings, and the optional `grund-lsp` server are tracked in `docs/roadmap.md` and gated by [§RM-distribution-naming](../roadmap.md#rm-distribution-naming-verify-package-names-before-first-publish). Serves [§GOAL-multi-language](../goals/goals.md#goal-multi-language-same-engine-three-platforms) and [§GOAL-friendliness-first](../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible).
+`grund` is written in Rust; the target distribution is **all three** major language ecosystems — cargo, npm, and PyPI — with idiomatic API bindings on each. The check engine stays a single shared library; only the surfaces differ. Today the Cargo CLI is implemented and installable from git; registry publication, the npm and PyPI bindings, and the optional `grund-lsp` server are tracked in `docs/roadmap.md` and gated by [§RM-distribution-naming](../roadmap.md#rm-distribution-naming-verify-package-names-before-first-publish). Serves [§GOAL-multi-language](../goals.md#goal-multi-language-same-engine-three-platforms) and [§GOAL-friendliness-first](../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible).
 
 ## 1. Targets
 
@@ -62,7 +62,7 @@ ShowOpts {
 }
 ```
 
-These fields are normative. The byte-for-byte JSON form emitted by `grund --format=json` and consumed by IDE/agent integrations follows the same shape and is the cross-binding equivalence test ([§GOAL-multi-language.3](../goals/goals.md#3-measurable)).
+These fields are normative. The byte-for-byte JSON form emitted by `grund --format=json` and consumed by IDE/agent integrations follows the same shape and is the cross-binding equivalence test ([§GOAL-multi-language.3](../goals.md#3-measurable)).
 
 ### 3.1 Rust (`grund-core` crate)
 

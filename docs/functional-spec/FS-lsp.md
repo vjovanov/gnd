@@ -61,7 +61,7 @@ Adding a new editor's snippet to the README is a small contribution; it does not
 
 ## 3. Configuration
 
-The server reads `.agents/grund.toml` via the same discovery logic as `grund check` ([§FS-config](FS-config.md#fs-config-grund-reads-a-toml-config-file-under-agents)), walking up from the workspace root supplied by the editor's LSP `initialize` request. There is no separate LSP config; one source of truth drives both the CLI and the LSP. A workspace without `.agents/grund.toml` falls back to the canonical defaults ([§GOAL-zero-config](../goals/goals.md#goal-zero-config-works-on-any-conformant-tree)).
+The server reads `.agents/grund.toml` via the same discovery logic as `grund check` ([§FS-config](FS-config.md#fs-config-grund-reads-a-toml-config-file-under-agents)), walking up from the workspace root supplied by the editor's LSP `initialize` request. There is no separate LSP config; one source of truth drives both the CLI and the LSP. A workspace without `.agents/grund.toml` falls back to the canonical defaults ([§GOAL-zero-config](../goals.md#goal-zero-config-works-on-any-conformant-tree)).
 
 Editor-side LSP configuration (server arguments, workspace folders) is the user's responsibility per §2.3 and is not part of `grund.toml`.
 

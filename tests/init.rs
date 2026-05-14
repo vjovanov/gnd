@@ -86,7 +86,7 @@ fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
         "AGENTS.md",
         ".agents/grund.toml",
         "docs/grund.md",
-        "docs/goals/goals.md",
+        "docs/goals.md",
         "docs/roadmap.md",
         "docs/changelog.md",
         "docs/functional-spec/README.md",

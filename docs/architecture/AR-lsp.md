@@ -28,11 +28,11 @@ The `Findings` is the cache for everything else: hover, definition, and diagnost
 
 ### 3.1 Full re-scan on every change (v1)
 
-Initial implementation: every `didChange` triggers `grund-core::scan(workspace_root)` and a fresh `grund-core::check`. This is simple and correct. Per [§GOAL-fast-feedback.1](../goals/goals.md#1-performance-targets), a scan completes in under 100 ms on the grund repo and under 1 s on a 10k-file repo — fast enough that a full re-scan per keystroke is invisible on small and medium projects, and acceptable per-save on large ones.
+Initial implementation: every `didChange` triggers `grund-core::scan(workspace_root)` and a fresh `grund-core::check`. This is simple and correct. Per [§GOAL-fast-feedback.1](../goals.md#1-performance-targets), a scan completes in under 100 ms on the grund repo and under 1 s on a 10k-file repo — fast enough that a full re-scan per keystroke is invisible on small and medium projects, and acceptable per-save on large ones.
 
 ### 3.2 Incremental scan (v2, when budget breaks)
 
-When the full-scan budget breaks (typically: large monorepos, slow disks, or per-keystroke debounce too tight), switch to incremental: rescan only the changed file and re-validate citations whose targets touch the changed file's declarations. This is the same gradient [§GOAL-fast-feedback.2](../goals/goals.md#2-how-we-get-there) endorses for the CLI's parallel walk — incremental is added when the simple version stops winning, not before.
+When the full-scan budget breaks (typically: large monorepos, slow disks, or per-keystroke debounce too tight), switch to incremental: rescan only the changed file and re-validate citations whose targets touch the changed file's declarations. This is the same gradient [§GOAL-fast-feedback.2](../goals.md#2-how-we-get-there) endorses for the CLI's parallel walk — incremental is added when the simple version stops winning, not before.
 
 The incremental path keeps the single source of truth in `grund-core::scan`; `grund-lsp` adds a thin "what changed" diff over scan inputs and reuses the rest.
 

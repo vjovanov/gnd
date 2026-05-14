@@ -1,6 +1,6 @@
 # FS-init: grund bootstraps a new grund-conformant repo
 
-The `init` subcommand writes the minimum set of files a project needs to start using `grund` — an `AGENTS.md` entry point at the repo root and a `.agents/grund.toml` config — so that a fresh repo (or an existing repo adopting the scheme) becomes scannable in one command. The config lives under `.agents/` per [§FS-config.1](FS-config.md#1-file-location-and-discovery), so the repo root stays free of `grund`-specific files. In a repo that already has `AGENTS.md`, `init` preserves the existing file and appends or updates a versioned `grund` block by default. If the repo already has known companion agent entrypoints, `init` makes those grund-aware too; for example, an existing `CLAUDE.md` that is not a symlink to `AGENTS.md` gets the same managed block. Serves [§GOAL-agent-grounding.1](../goals/goals.md#1-the-three-layers) (the managed `grund` block is the instruction layer — an agent reading its entry-point file at session start arrives already taught), [§GOAL-zero-config](../goals/goals.md#goal-zero-config-works-on-any-conformant-tree) (the emitted defaults are the canonical grammar), and [§GOAL-friendliness-first](../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) (no prompts, no surprises).
+The `init` subcommand writes the minimum set of files a project needs to start using `grund` — an `AGENTS.md` entry point at the repo root and a `.agents/grund.toml` config — so that a fresh repo (or an existing repo adopting the scheme) becomes scannable in one command. The config lives under `.agents/` per [§FS-config.1](FS-config.md#1-file-location-and-discovery), so the repo root stays free of `grund`-specific files. In a repo that already has `AGENTS.md`, `init` preserves the existing file and appends or updates a versioned `grund` block by default. If the repo already has known companion agent entrypoints, `init` makes those grund-aware too; for example, an existing `CLAUDE.md` that is not a symlink to `AGENTS.md` gets the same managed block. Serves [§GOAL-agent-grounding.1](../goals.md#1-the-three-layers) (the managed `grund` block is the instruction layer — an agent reading its entry-point file at session start arrives already taught), [§GOAL-zero-config](../goals.md#goal-zero-config-works-on-any-conformant-tree) (the emitted defaults are the canonical grammar), and [§GOAL-friendliness-first](../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) (no prompts, no surprises).
 
 `init` is the only `grund` subcommand that creates adoption scaffolding in the working tree. It may also update the managed `grund` block inside existing agent entrypoint files; it must not rewrite unrelated user-authored content in those files unless the file is the canonical `AGENTS.md` and `--force` is passed.
 
@@ -14,7 +14,7 @@ grund init [<path>] [--name <name>] [--docs] [--force] [--append]
 
 - `<path>` — directory in which to scaffold. Defaults to `.` (the current directory). Applies to every form of `init` — including `--docs` — and prefixes every emitted path in §2.1. Must exist; `init` does not create the target directory itself (a missing target is a user error, not something to silently paper over).
 - `--name <name>` — human-readable project name baked into the generated `AGENTS.md` heading and the `.agents/grund.toml` `project_name` key. Defaults to the basename of `<path>` resolved to an absolute path.
-- `--docs` — also scaffold the canonical `docs/` tree (stub `grund.md`, `goals/goals.md`, `roadmap.md`, `changelog.md`, `functional-spec/`, `architecture/`, `decisions/architectural/`, `decisions/functional/`) and an empty `e2e/` directory with a stub `README.md`. The `roadmap.md` and `changelog.md` stubs are scaffolded because the generated `AGENTS.md` block's `docs/` table links to them (§2.3). Off by default — most adopters already have a `docs/` of some shape and want only the entry point and config. Composes with `<path>`: every scaffolded file lands under `<path>/`.
+- `--docs` — also scaffold the canonical `docs/` tree (stub `grund.md`, `goals.md`, `roadmap.md`, `changelog.md`, `functional-spec/`, `architecture/`, `decisions/architectural/`, `decisions/functional/`) and an empty `e2e/` directory with a stub `README.md`. The `roadmap.md` and `changelog.md` stubs are scaffolded because the generated `AGENTS.md` block's `docs/` table links to them (§2.3). Off by default — most adopters already have a `docs/` of some shape and want only the entry point and config. Composes with `<path>`: every scaffolded file lands under `<path>/`.
 - `--force` — overwrite files that already exist at the target paths. Off by default. Mutually exclusive with `--append`: passing both is a CLI-level error and exits 2 without touching the working tree (per §4).
 - `--append` — explicitly request the default `AGENTS.md` behavior: keep existing content and append or update the managed `grund` block. This flag is accepted for scripts that want to state intent, but it is not required.
 
@@ -46,7 +46,7 @@ In the default form (no `--docs`):
 With `--docs`, additionally:
 
 - `<path>/docs/grund.md`
-- `<path>/docs/goals/goals.md`
+- `<path>/docs/goals.md`
 - `<path>/docs/roadmap.md`
 - `<path>/docs/changelog.md`
 - `<path>/docs/functional-spec/README.md`
@@ -59,7 +59,7 @@ With `--docs`, additionally:
 Each scaffolded markdown file is a minimal starter — enough structure to teach the layout, no real content:
 
 - `grund.md` — the H1 plus a one-line note on how the project's reason for being is declared inline (`# GND-NNN-slug: …`), then the three H2 sections (`## 1. The problem`, `## 2. What this project does about it`, `## 3. Who it is for`), each with a one-line italic prompt to be replaced.
-- `goals/goals.md` — the H1 plus a one-line note on how goals are declared inline (`# GOAL-NNN-slug: …`).
+- `goals.md` — the H1 plus a one-line note on how goals are declared inline (`# GOAL-NNN-slug: …`).
 - `roadmap.md`, `changelog.md` — the H1 plus a single `<!-- placeholder - replace with real content -->` line.
 - `functional-spec/README.md`, `architecture/README.md` — the H1, the navigational note about how `FS-`/`AR-` IDs declare into the directory and the convention that the index lists every spec, and an empty `| ID | Subject |` table to fill in.
 - `e2e/README.md` — the H1 (`# e2e`) plus a one-line note that every behaviour under `docs/functional-spec/` has at least one case.
@@ -79,24 +79,24 @@ The prefix is `wrote ` for a newly written or overwritten file, `appended ` when
 
 After the file list, stderr prints a short `next:` block — a blank line, then numbered first steps, then `see AGENTS.md for the full workflow.` — so the user is not left at a bare list of paths wondering what to do. The steps are: run `grund check` (a fresh tree is clean); allocate an ID with `ID=$(grund id FS "…")` and write `docs/functional-spec/$ID.md` with the `# <ID>: …` H1; cite it as `§<ID>` from the docs and e2e tests that depend on it. When `--docs` was *not* passed, step 2 instead points at re-running with `--docs` (or creating `docs/` and `e2e/` by hand). This block is guidance, not a finding; it is part of the success output and does not change the exit code.
 
-Paths are relative to `<path>`. Stdout is always empty (consistent with [§GOAL-friendliness-first.1](../goals/goals.md#1-hard-requirements) — output that other tools might pipe stays clean).
+Paths are relative to `<path>`. Stdout is always empty (consistent with [§GOAL-friendliness-first.1](../goals.md#1-hard-requirements) — output that other tools might pipe stays clean).
 
 ### 2.3 Generated agent entrypoints
 
-The emitted agent guidance is a canonical managed block: it teaches the session-start workflow and rules listed in §2.3.4, rendered against the target repo's effective configuration. The block stays concise under [§GOAL-token-economy](../goals/goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file): it teaches only the rules an agent needs before work begins, leaving detail to cited specs and `grund show` output. The canonical text for a given block version `vN` is embedded in the `grund` binary; the reference copy lives at `templates/AGENTS.md` in the `grund` source tree, and the `vN` marker (§2.3) is what versions it under [§GOAL-no-silent-breakage](../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — so changing the taught workflow is itself a block-version bump, carried by that mechanism, not a silent rewrite.
+The emitted agent guidance is a canonical managed block: it teaches the session-start workflow and rules listed in §2.3.4, rendered against the target repo's effective configuration. The block stays concise under [§GOAL-token-economy](../goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file): it teaches only the rules an agent needs before work begins, leaving detail to cited specs and `grund show` output. The canonical text for a given block version `vN` is embedded in the `grund` binary; the reference copy lives at `templates/AGENTS.md` in the `grund` source tree, and the `vN` marker (§2.3) is what versions it under [§GOAL-no-silent-breakage](../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — so changing the taught workflow is itself a block-version bump, carried by that mechanism, not a silent rewrite.
 
 Several things in the block are *substituted in* rather than fixed for that `vN`, so the file describes the repo it is in: the project name from `--name` (interpolated into the scaffolding H1 emitted above the block for a fresh `AGENTS.md`), and the **effective ID grammar and artifact map** — taken from the `.agents/grund.toml` `init` leaves governing the target (an existing config in the target, or the defaults `init` is about to write, never an ancestor's). From that config the block fills in the ID shape (`<KIND>-<NNN>-<slug>`, `<KIND>-<slug>`, …, derived from `[id].format`), one worked example ID and citation, the `[id].section_separator`, the marker and `$$`-trigger from `[reference]`, the `KIND ∈ {…}` set from `[[kinds]]`, a table of each kind's configured declaration home and title, the `[scan].include` / `[scan].exclude` scope, and a sentence on whether bare ID-shaped tokens count as citations (driven by `[reference].strict`). The contract this spec makes is the *determinism and versioning*, not a literal transcript: two `grund init` runs at the same `grund` version against trees with the same `--name` and the same effective config produce byte-identical managed blocks ([§FS-non-goals.13](FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)), and `grund check`'s `AGENTS.md` validation ([§FS-check.3.5](FS-check.md#35-invalid-agent-entrypoint-init-block)) checks the marker line and the version, not a byte-diff against the canonical text.
 
 The managed block is an H2 section whose heading carries the schema version:
 
 ```markdown
-## Agent instructions (grund-agents vN)
+## Grounding with grund (vN)
 …
 ```
 
 The integer after `v` is the agent guidance block schema version. The heading line is the block's begin marker; the block runs until the next H1 or H2 heading, or end of file. A fresh `AGENTS.md` consists of this block preceded by a one-line scaffolding H1 (`# {NAME} — agent instructions`); the H1 is *unmanaged*, so `init --force` rewrites the block but leaves the title alone. If `AGENTS.md` already exists and contains no managed block, `init` appends the current block after the existing content (no H1 is inserted — the host file owns its title). If a known companion entrypoint such as `AGENTS.override.md`, `CLAUDE.md`, `.claude/CLAUDE.md`, `GEMINI.md`, or `.github/copilot-instructions.md` exists and is not a symlink to `AGENTS.md`, the same append/update rules apply to that companion. If the file already contains any supported block version, including the current one, `init` re-renders the block from the current effective `.agents/grund.toml`, compares it to the bytes between the marker line and the next H1/H2 (or EOF), and — when they differ — replaces only those bytes, leaving all content before and after the block untouched (reported `updated `). This means same-version template/config changes propagate on the next `grund init` without requiring `--force`. When the re-render is byte-identical to what is on disk, `init` writes nothing and reports the file with `exists ` (§2.2) — re-running `grund init` on an already-current repo is a no-op on every file. If the file contains a newer block version than the running binary supports, `init` exits 2 and leaves the file unchanged.
 
-Legacy `<!-- grund:init:agents:vN begin -->`…`end` blocks (block versions ≤ 2) are still recognized so `init` can upgrade them in place to the current H2-marker form. After upgrade the HTML-comment delimiters are gone and the H1 that older versions baked inside the block is dropped (the host owns the title from then on).
+Legacy `<!-- grund:init:agents:vN begin -->`…`end` blocks from pre-release development are still recognized so `init` can upgrade them in place to the H2-marker form. After upgrade the HTML-comment delimiters are gone and any H1 that the legacy block baked inside it is dropped (the host owns the title from then on).
 
 `AGENTS.md` is the canonical entrypoint and is always created or maintained. Companion entrypoints are discovery-based: `init` updates them only if the repo already has them. The built-in companion set covers common root or repository instruction files used by agent-specific tooling: Codex override instructions (`AGENTS.override.md`), Claude Code (`CLAUDE.md`, `.claude/CLAUDE.md`), Gemini (`GEMINI.md`), and GitHub Copilot (`.github/copilot-instructions.md`). When one of those paths is a symlink to `AGENTS.md`, `init` does not touch it separately and `grund check` treats the canonical `AGENTS.md` block as sufficient.
 
@@ -108,7 +108,7 @@ The managed block's **position within an existing agent entrypoint is preserved 
 
 `init` does not normalize line endings. When updating or reading an existing agent entrypoint:
 
-- The bytes outside the managed block (everything before the `## Agent instructions (grund-agents vN)` heading line, and everything after the next H1 or H2 — or the legacy `<!-- grund:init:agents:vN end -->` for blocks being upgraded) are preserved byte-for-byte, including CRLF (`\r\n`) and lone-CR endings.
+- The bytes outside the managed block (everything before the `## Grounding with grund (vN)` heading line, and everything after the next H1 or H2 — or the legacy `<!-- grund:init:agents:vN end -->` for blocks being upgraded) are preserved byte-for-byte, including CRLF (`\r\n`) and lone-CR endings.
 - The H2 marker regex tolerates an optional trailing `\r` before the line end, so a CRLF-encoded file is detected correctly. The legacy-block regex tolerates `\r` between the HTML comment tokens for the same reason.
 - The freshly-written block uses LF endings (the bytes embedded in the binary). On a CRLF-encoded host file the result is mixed line endings inside the managed region and CRLF outside; this is intentional. Normalizing the rest of the file would violate the "leave content alone" guarantee.
 
@@ -120,7 +120,7 @@ The generated file uses the canonical `grund` reference grammar even before any 
 
 #### 2.3.4 Managed-block content points
 
-The generated `AGENTS.md` block is not a literal transcript in this spec, but its canonical template must preserve the following separately citeable content points. Each point is phrased compactly in the template, because the entrypoint is read at session start and serves [§GOAL-token-economy](../goals/goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file).
+The generated `AGENTS.md` block is not a literal transcript in this spec, but its canonical template must preserve the following separately citeable content points. Each point is phrased compactly in the template, because the entrypoint is read at session start and serves [§GOAL-token-economy](../goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file).
 
 ##### 2.3.4.1 Entrypoint
 
@@ -180,7 +180,7 @@ The rules tell agents to run `grund check` before committing, because dangling r
 
 ### 2.4 Generated `.agents/grund.toml`
 
-`init` writes this file **only when it is absent**. An existing `.agents/grund.toml` is the repo's configuration — the one surface a project customizes ([§GOAL-configurable](../goals/goals.md#goal-configurable-every-default-is-overridable)) — and `init` never overwrites it, not even with `--force`: an existing config is reported as `exists` and left byte-for-byte unchanged (§3). `--force` resets the things `init` owns end to end — the managed `AGENTS.md` block and the `--docs` scaffold stubs — not the user's settings; a customized config that `init --force` clobbered would be a footgun. (When the file is absent and `init` does write it, every key written matches the built-in default for that key — the file is a teaching surface, not an override surface, so a new user can see the schema they will be editing. Top of file is `grund_config_version = 1` per [§FS-config.5](FS-config.md#5-schema-versioning); the schema written is exactly the one in [§FS-config.3](FS-config.md#3-schema), no extra keys, no missing keys.)
+`init` writes this file **only when it is absent**. An existing `.agents/grund.toml` is the repo's configuration — the one surface a project customizes ([§GOAL-configurable](../goals.md#goal-configurable-every-default-is-overridable)) — and `init` never overwrites it, not even with `--force`: an existing config is reported as `exists` and left byte-for-byte unchanged (§3). `--force` resets the things `init` owns end to end — the managed `AGENTS.md` block and the `--docs` scaffold stubs — not the user's settings; a customized config that `init --force` clobbered would be a footgun. (When the file is absent and `init` does write it, every key written matches the built-in default for that key — the file is a teaching surface, not an override surface, so a new user can see the schema they will be editing. Top of file is `grund_config_version = 1` per [§FS-config.5](FS-config.md#5-schema-versioning); the schema written is exactly the one in [§FS-config.3](FS-config.md#3-schema), no extra keys, no missing keys.)
 
 A single `project_name = "<name>"` key appears at the top above the section tables. This key is metadata only — it is not consumed by any other `grund` subcommand and exists so downstream tooling (IDE status bars, CI dashboards) can read it without re-deriving the name.
 
@@ -201,7 +201,7 @@ The `--docs` mode applies the same rule across the docs tree: existing scaffold 
 - `0` — every requested file was written, appended, updated, or already current.
 - `2` — I/O error (target path does not exist, permission denied, disk full, etc.); a CLI-level error such as `--append` and `--force` together (§1); or an existing `AGENTS.md` contains a managed block whose schema version is newer than the running binary supports (§2.3), in which case the file is left unchanged.
 
-Exit-code mapping is fixed per [§GOAL-friendliness-first.2](../goals/goals.md#2-what-this-rules-out) and [§FS-non-goals.9](FS-non-goals.md#9-severity-exit-code-or-report-ordering-customization).
+Exit-code mapping is fixed per [§GOAL-friendliness-first.2](../goals.md#2-what-this-rules-out) and [§FS-non-goals.9](FS-non-goals.md#9-severity-exit-code-or-report-ordering-customization).
 
 ## 5. Agent setup instructions
 
@@ -213,6 +213,6 @@ The core instructions must not fork from the distributable skill. The binary emb
 
 ## 6. Why this exists
 
-Without `init`, the on-ramp to `grund` is a copy-paste of someone else's `AGENTS.md`, with the resulting drift between projects. `init` collapses the on-ramp to one command and freezes the canonical entry point at the `grund` version that wrote it — when the canonical form evolves, `grund init --force` re-emits it ([§GOAL-configurable](../goals/goals.md#goal-configurable-every-default-is-overridable) still applies for downstream edits).
+Without `init`, the on-ramp to `grund` is a copy-paste of someone else's `AGENTS.md`, with the resulting drift between projects. `init` collapses the on-ramp to one command and freezes the canonical entry point at the `grund` version that wrote it — when the canonical form evolves, `grund init --force` re-emits it ([§GOAL-configurable](../goals.md#goal-configurable-every-default-is-overridable) still applies for downstream edits).
 
 `init` is also the only safe place to demonstrate the ID grammar before any IDs exist: a repo that has not yet authored its first `FS-001-…` declaration still gets a literate `AGENTS.md` from `init` that teaches the grammar by example.

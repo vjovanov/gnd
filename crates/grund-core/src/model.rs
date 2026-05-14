@@ -94,11 +94,15 @@ struct ShowSection {
 }
 
 /// One `[[kinds]]` entry: prefix plus the folder its declarations live in and the
-/// human title `grund id` prints (§FS-config.3.4).
+/// human title `grund id` prints (§FS-config.3.4). When `file` is set, every
+/// declaration of this kind must live in that exact file — a *single-file kind*,
+/// used by `GND`/`GOAL`/`RM` whose IDs all live in one document
+/// (`docs/grund.md`, `docs/goals.md`, `docs/roadmap.md`).
 #[derive(Clone)]
 struct KindConfig {
     prefix: String,
     folder: Option<String>,
+    file: Option<String>,
     title: Option<String>,
 }
 
@@ -154,6 +158,7 @@ impl Config {
             .map(|prefix| KindConfig {
                 prefix: prefix.to_string(),
                 folder: default_kind_folder(prefix).map(str::to_string),
+                file: default_kind_file(prefix).map(str::to_string),
                 title: default_kind_title(prefix).map(str::to_string),
             })
             .collect();
@@ -253,14 +258,27 @@ fn kind_prefixes(kinds: &[KindConfig]) -> Vec<String> {
 /// a path under and `grund check` expects the declaration to live in (§FS-config.3.4).
 fn default_kind_folder(prefix: &str) -> Option<&'static str> {
     match prefix {
-        "GND" => Some("docs"),
-        "GOAL" => Some("docs/goals"),
         "FS" => Some("docs/functional-spec"),
         "AR" => Some("docs/architecture"),
         "DA" => Some("docs/decisions/architectural"),
         "DF" => Some("docs/decisions/functional"),
         "E2E" => Some("e2e/cases"),
-        "RM" => Some("docs"),
+        // GND, GOAL, RM are single-file kinds — see `default_kind_file`. A
+        // kind can always be broken up later by swapping `file = "…"` for
+        // `folder = "…"` and moving the document into the folder.
+        _ => None,
+    }
+}
+
+/// Default single-file home for the three kinds whose declarations all live in
+/// one document — `GND` in `docs/grund.md`, `GOAL` in `docs/goals.md`, `RM`
+/// in `docs/roadmap.md` (§FS-config.3.4). Other built-in kinds have no `file`
+/// (each declaration is its own file).
+fn default_kind_file(prefix: &str) -> Option<&'static str> {
+    match prefix {
+        "GND" => Some("docs/grund.md"),
+        "GOAL" => Some("docs/goals.md"),
+        "RM" => Some("docs/roadmap.md"),
         _ => None,
     }
 }

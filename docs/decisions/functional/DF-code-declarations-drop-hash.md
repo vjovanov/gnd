@@ -66,9 +66,9 @@ This is **not** landing with the initial change because it would update every ex
 
 ## 3. Why this fits grund's goals
 
-- [§GOAL-friendliness-first](../../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) — the new form reads as what it is (a label on a prose block) rather than as a misplaced markdown heading. The `#` was confusing exactly the audience the goal is for.
+- [§GOAL-friendliness-first](../../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) — the new form reads as what it is (a label on a prose block) rather than as a misplaced markdown heading. The `#` was confusing exactly the audience the goal is for.
 - [§GND-grund](../../grund.md#gnd-grund-agents-stay-grounded-in-the-spec) — co-locating multiple declarations in one doc-comment (an `AR-` and an `FS-` on the same class) was already legal; the new form makes it readable, which makes it likelier to be used, which improves grounding.
-- [§GOAL-no-silent-breakage](../../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — both forms parse. No repo breaks. Migration is opt-in.
+- [§GOAL-no-silent-breakage](../../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — both forms parse. No repo breaks. Migration is opt-in.
 
 ## 4. Consequences
 

@@ -59,7 +59,7 @@ Editor-native input methods (snippets, Compose, OS Unicode entry) remain availab
 
 ### 2.5 Configurability
 
-Both marker and trigger are configurable per [§GOAL-configurable](../../goals/goals.md#goal-configurable-every-default-is-overridable):
+Both marker and trigger are configurable per [§GOAL-configurable](../../goals.md#goal-configurable-every-default-is-overridable):
 
 ```toml
 [reference]

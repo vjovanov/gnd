@@ -28,7 +28,7 @@ This decision picks among the four and pins the consequences for [§FS-distribut
 
 ### 3.2 CI binary size and start-up
 
-CI pipelines and pre-commit hooks call `grund check` thousands of times more often than any editor opens `grund-lsp`. Keeping the CLI binary small and synchronous matters for both raw start-up cost (every invocation pays binary-load overhead) and download size (every CI cache pull moves the binary across the network). A bundled binary that includes a LSP server most users will never invoke is a tax on the common case. [§GOAL-fast-feedback](../../goals/goals.md#goal-fast-feedback-grund-must-be-as-fast-as-possible) explicitly endorses paying engineering cost to keep the CLI fast; this is part of that pattern.
+CI pipelines and pre-commit hooks call `grund check` thousands of times more often than any editor opens `grund-lsp`. Keeping the CLI binary small and synchronous matters for both raw start-up cost (every invocation pays binary-load overhead) and download size (every CI cache pull moves the binary across the network). A bundled binary that includes a LSP server most users will never invoke is a tax on the common case. [§GOAL-fast-feedback](../../goals.md#goal-fast-feedback-grund-must-be-as-fast-as-possible) explicitly endorses paying engineering cost to keep the CLI fast; this is part of that pattern.
 
 ### 3.3 Distribution parallel to industry practice
 
@@ -38,7 +38,7 @@ CI pipelines and pre-commit hooks call `grund check` thousands of times more oft
 
 [§FS-non-goals.12.1](../../functional-spec/FS-non-goals.md#121-plugins-or-scripting-hooks-inside-the-engine) forbids a plugin system inside the engine. Keeping `grund-lsp` as a separate process that talks to the engine through a defined transport (LSP over stdio) — rather than as a feature flag that links against the engine in-process — preserves the "no plugins inside" property at the architectural level. The LSP is a *consumer* of `grund-core`, on equal footing with `grund-cli`, `grund-node`, and `grund-py`.
 
-### 3.5 Composition with [§GOAL-no-silent-breakage](../../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path)
+### 3.5 Composition with [§GOAL-no-silent-breakage](../../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path)
 
 A separate package on every registry means the LSP's release cadence can decouple from the CLI's when needed. A bug fix to the LSP (say, a hover formatting change) does not require a CLI version bump. Conversely, a CLI surface change that breaks the LSP's assumptions surfaces as a build break in the LSP crate before release, not as a runtime mismatch in editors. The compile-time link from `grund-lsp` to a pinned `grund-core` version is what enforces this.
 

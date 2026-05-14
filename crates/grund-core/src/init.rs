@@ -254,7 +254,7 @@ fn update_agents_text(
     label: &str,
 ) -> Result<(String, AgentsUpdateResult)> {
     if let Some(existing_block) = find_agents_block(existing) {
-        if existing_block.version > AGENTS_BLOCK_VERSION {
+        if !existing_block.legacy && existing_block.version > AGENTS_BLOCK_VERSION {
             return Err(anyhow!(
                 "{label} contains newer grund init block v{}; this binary supports v{}",
                 existing_block.version,
@@ -300,6 +300,7 @@ struct AgentsBlock {
     start: usize,
     end: usize,
     version: u32,
+    legacy: bool,
 }
 
 /// Locate the managed block in `AGENTS.md`. The current marker is an H2 line
@@ -326,6 +327,7 @@ fn find_agents_block(text: &str) -> Option<AgentsBlock> {
             start: begin_match.start(),
             end,
             version,
+            legacy: false,
         });
     }
     let begin = AGENTS_BLOCK_LEGACY_BEGIN.captures(text)?;
@@ -340,6 +342,7 @@ fn find_agents_block(text: &str) -> Option<AgentsBlock> {
         start: begin_match.start(),
         end,
         version,
+        legacy: true,
     })
 }
 
@@ -356,14 +359,14 @@ fn derive_default_name(target: &Path) -> Result<String> {
 }
 
 /// The `--docs` scaffold: the canonical `docs/` tree (stub `grund.md`,
-/// `goals/goals.md`, `roadmap.md`, `changelog.md`, the two spec READMEs, the
+/// `goals.md`, `roadmap.md`, `changelog.md`, the two spec READMEs, the
 /// decision `.gitkeep`s) plus an empty `e2e/` with a README — the file list of
 /// §FS-init.2.1, each a minimal starter that leaves `grund check` clean.
 fn docs_scaffold() -> Vec<(&'static str, String)> {
     vec![
         ("docs/grund.md", canonical_template_text(GRUND_DOC_TEMPLATE)),
         (
-            "docs/goals/goals.md",
+            "docs/goals.md",
             canonical_template_text(GOALS_TEMPLATE),
         ),
         (

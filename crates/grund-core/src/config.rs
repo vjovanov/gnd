@@ -85,6 +85,7 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
                     current_kind = Some(KindConfig {
                         prefix: String::new(),
                         folder: None,
+                        file: None,
                         title: None,
                     });
                     kinds_block_seen = true;
@@ -160,6 +161,18 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
                         path,
                         line_no,
                         "`folder` outside of [[kinds]] block".to_string(),
+                    )?;
+                }
+            }
+            ("kinds", "file") => {
+                let file = parse_string(path, line_no, value)?;
+                if let Some(slot) = current_kind.as_mut() {
+                    slot.file = Some(file);
+                } else {
+                    bail_config(
+                        path,
+                        line_no,
+                        "`file` outside of [[kinds]] block".to_string(),
                     )?;
                 }
             }
@@ -253,6 +266,19 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
                 "{}: at least one [[kinds]] entry must declare a `prefix`",
                 format_path(path)
             ));
+        }
+        // Reject kinds that set both `folder` and `file` — they're mutually
+        // exclusive (§FS-config.3.4). A kind is either multi-file (folder) or
+        // single-file (file); the schema models the "can always be broken up"
+        // transition as swapping one key for the other, not setting both.
+        for k in &parsed_kinds {
+            if k.folder.is_some() && k.file.is_some() {
+                return Err(anyhow!(
+                    "{}: kind `{}` sets both `folder` and `file` (use one)",
+                    format_path(path),
+                    k.prefix
+                ));
+            }
         }
         // Reject kinds whose prefix is itself a prefix of another kind's prefix
         // (§FS-config.3.4 — would make tokenization ambiguous).

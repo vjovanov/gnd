@@ -1,6 +1,6 @@
 # FS-refs: grund lists every citation of an ID
 
-The `refs` subcommand answers the reverse of `grund show`: not "what does this ID say?" but "who points at it?". An agent about to change a declaration — or delete one — needs to know what leans on it; `grund refs FS-check` is that lookup, scheme-aware in the ways a `grep` cannot be, with a compact `--summary` for a quick blast-radius read. Serves [§GOAL-friendliness-first](../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible), [§GOAL-token-economy](../goals/goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file), and the agent-grounding loop in [§GND-grund](../grund.md#gnd-grund-agents-stay-grounded-in-the-spec) (an agent verifying a change reads the cited bodies *and* the back-references).
+The `refs` subcommand answers the reverse of `grund show`: not "what does this ID say?" but "who points at it?". An agent about to change a declaration — or delete one — needs to know what leans on it; `grund refs FS-check` is that lookup, scheme-aware in the ways a `grep` cannot be, with a compact `--summary` for a quick blast-radius read. Serves [§GOAL-friendliness-first](../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible), [§GOAL-token-economy](../goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file), and the agent-grounding loop in [§GND-grund](../grund.md#gnd-grund-agents-stay-grounded-in-the-spec) (an agent verifying a change reads the cited bodies *and* the back-references).
 
 ## 1. Inputs
 

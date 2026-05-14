@@ -64,15 +64,15 @@ The link emission is a transformation on the source `.md` file (a sibling of the
 
 - A new `--cross-refs` flag on `grund fmt` and a `[fmt.cross_refs]` config block in `grund.toml` ([§FS-fmt.6.7](../../functional-spec/FS-fmt.md#67-configurability)).
 - A new roadmap item [§RM-md-link-emission](../../roadmap.md#rm-md-link-emission-grund-fmt---cross-refs) carries the implementation.
-- The [§GOAL-polyglot-citation](../../goals/goals.md#goal-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) goal explicitly states that the polyglot grammar is the canonical form; this decision is the sanctioned exception that adds a presentation-layer view in `.md` only.
+- The [§GOAL-polyglot-citation](../../goals.md#goal-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) goal explicitly states that the polyglot grammar is the canonical form; this decision is the sanctioned exception that adds a presentation-layer view in `.md` only.
 - Repos that adopt `--cross-refs` should run `grund fmt --cross-refs --write` as a pre-commit hook so the generated links stay in sync with file moves and citation edits. CI should run `grund fmt --cross-refs --check` to flag drift.
-- The [§GOAL-no-silent-breakage](../../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) path: shipping the flag does not change any existing behavior; `--cross-refs` and `[fmt.cross_refs] enabled = true` are both off by default, so a repo that does not opt in sees no diff.
+- The [§GOAL-no-silent-breakage](../../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) path: shipping the flag does not change any existing behavior; `--cross-refs` and `[fmt.cross_refs] enabled = true` are both off by default, so a repo that does not opt in sees no diff.
 
 ## 5. Alternatives considered
 
 | Approach | Why rejected |
 |---|---|
-| Markdown links as the source of truth (delete the ID grammar) | Loses the polyglot property entirely — the reason `grund` exists per [§GOAL-polyglot-citation](../../goals/goals.md#goal-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) and [§GND-grund](../../grund.md#gnd-grund-agents-stay-grounded-in-the-spec). Source comments cannot host clickable Markdown. |
+| Markdown links as the source of truth (delete the ID grammar) | Loses the polyglot property entirely — the reason `grund` exists per [§GOAL-polyglot-citation](../../goals.md#goal-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) and [§GND-grund](../../grund.md#gnd-grund-agents-stay-grounded-in-the-spec). Source comments cannot host clickable Markdown. |
 | Render IDs to links at publish time, in a downstream tool | Pushes the work to every consumer — MkDocs plugin, GitHub Action, IDE preview — and gives each one a chance to disagree on the link target. Doing it once in `grund fmt` keeps two installs in agreement ([§FS-non-goals.13](../../functional-spec/FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)). |
-| Always emit links (no opt-in) | Surprises existing repos with a large mechanical diff on first upgrade; couples every `.md` to its current path layout; violates [§GOAL-no-silent-breakage](../../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path). |
+| Always emit links (no opt-in) | Surprises existing repos with a large mechanical diff on first upgrade; couples every `.md` to its current path layout; violates [§GOAL-no-silent-breakage](../../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path). |
 | Heading-text slugs for anchors | Brittle under heading edits; would force `fmt` to rewrite anchors whenever prose changes; runs counter to "IDs survive refactors" — the property this project exists to defend. |

@@ -12,9 +12,9 @@ Citations live wherever they are useful — including inside Java doc-comments, 
 
 1. **No dangling reference ships.** Every cited ID is checked across prose and code alike — Javadoc, Rustdoc, Python docstrings, Go blocks, JSDoc. Dangling refs, broken section coordinates, duplicate declarations, and broken stub links all fail the build.
 2. **Citations survive refactors.** IDs are location-independent: `§FS-<user-login>.3.1` keeps resolving when files move or headings reword. Markdown anchors break; grund citations don't.
-3. **Grounding is cheap.** `grund show FS-<user-login>.3.1` returns just that subsection — under 200 lines per [§GOAL-friendliness-first.1](goals/goals.md#1-hard-requirements) — so a human or LLM pulls one fact into context instead of a whole file.
+3. **Grounding is cheap.** `grund show FS-<user-login>.3.1` returns just that subsection — under 200 lines per [§GOAL-friendliness-first.1](goals.md#1-hard-requirements) — so a human or LLM pulls one fact into context instead of a whole file.
 
-This serves [§GOAL-agent-grounding](goals/goals.md#goal-agent-grounding-agents-stay-cited-as-they-work) — the headline goal that every other goal exists in service of — and the mechanisms that make it viable: [§GOAL-no-dangling-refs](goals/goals.md#goal-no-dangling-refs-every-cited-id-resolves-to-a-declaration), [§GOAL-fast-feedback](goals/goals.md#goal-fast-feedback-grund-must-be-as-fast-as-possible), [§GOAL-friendliness-first](goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible), and [§GOAL-polyglot-citation](goals/goals.md#goal-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful).
+This serves [§GOAL-agent-grounding](goals.md#goal-agent-grounding-agents-stay-cited-as-they-work) — the headline goal that every other goal exists in service of — and the mechanisms that make it viable: [§GOAL-no-dangling-refs](goals.md#goal-no-dangling-refs-every-cited-id-resolves-to-a-declaration), [§GOAL-fast-feedback](goals.md#goal-fast-feedback-grund-must-be-as-fast-as-possible), [§GOAL-friendliness-first](goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible), and [§GOAL-polyglot-citation](goals.md#goal-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful).
 
 ## 2. Who it is for
 

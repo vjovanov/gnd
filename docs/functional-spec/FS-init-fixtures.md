@@ -52,7 +52,7 @@ Exit `0`, stdout empty, stderr:
 wrote AGENTS.md
 wrote .agents/grund.toml
 wrote docs/grund.md
-wrote docs/goals/goals.md
+wrote docs/goals.md
 wrote docs/roadmap.md
 wrote docs/changelog.md
 wrote docs/functional-spec/README.md
@@ -74,7 +74,7 @@ Final tree includes the default-form files plus exactly these docs/e2e scaffold 
 
 ```text
 docs/grund.md
-docs/goals/goals.md
+docs/goals.md
 docs/roadmap.md
 docs/changelog.md
 docs/functional-spec/README.md

@@ -64,7 +64,7 @@ Three reasons:
 
 ## 5. Configurability
 
-Marker, trigger, and the recognized `KIND` set are read from `grund.toml` per [§GOAL-configurable](../goals/goals.md#goal-configurable-every-default-is-overridable). The defaults are `§` and `$$` as decided in [§DF-reference-marker](../decisions/functional/DF-reference-marker.md#df-reference-marker-use--as-the-reference-marker-with--as-the-typing-trigger).
+Marker, trigger, and the recognized `KIND` set are read from `grund.toml` per [§GOAL-configurable](../goals.md#goal-configurable-every-default-is-overridable). The defaults are `§` and `$$` as decided in [§DF-reference-marker](../decisions/functional/DF-reference-marker.md#df-reference-marker-use--as-the-reference-marker-with--as-the-typing-trigger).
 
 ## 6. Cross-reference emission (with `--cross-refs`)
 
@@ -112,7 +112,7 @@ In addition to the never-rewrite rules in §2.3:
 
 ### 6.6 Why `--cross-refs` is opt-in
 
-Three reasons, all about preserving [§GOAL-no-silent-breakage](../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path):
+Three reasons, all about preserving [§GOAL-no-silent-breakage](../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path):
 
 1. The path inside the link is computed from the current location of citation and declaration. Repos that move files frequently (without running `grund fmt`) would see noisy diffs as paths rebase.
 2. Some projects render their Markdown through tools that produce different anchor slugs than `#3-1` (e.g., Pandoc). For those projects, the configurable anchor format (§6.7) is the right answer; until then, opting in is the conservative default.

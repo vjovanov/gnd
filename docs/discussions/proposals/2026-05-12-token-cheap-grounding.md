@@ -35,7 +35,7 @@ These outputs should remain deterministic, line-oriented, and easy to pipe, foll
 
 ## Boundaries
 
-- Do not change `grund show <ID>` default behavior in the first pass. Full-body output is already specified and useful for humans; changing it is a compatibility decision under [§GOAL-no-silent-breakage](../../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path).
+- Do not change `grund show <ID>` default behavior in the first pass. Full-body output is already specified and useful for humans; changing it is a compatibility decision under [§GOAL-no-silent-breakage](../../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path).
 - Do not add summarization by language model. These are structural slices from the declaration headings and citation graph, not generated prose.
 - Do not hide information in `check`. Diagnostics stay complete; token-saving applies to read/query commands.
 

@@ -27,7 +27,7 @@ Keep agents grounded in the spec — fewer bugs, cheaper LLM context,
 faster onboarding. …
 ```
 
-That heading lives in the configured home for its kind (`GND` → `docs/grund.md`, `FS` → `docs/functional-spec/`, `GOAL` → `docs/goals/`, and so on — see [§4](#4-the-structure-that-gets-cited)). Once it's declared, any code, doc, or test can cite `§GND-grund` and `grund check` will resolve it.
+That heading lives in the configured home for its kind (`GND` → `docs/grund.md`, `FS` → `docs/functional-spec/`, `GOAL` → `docs/goals.md`, and so on — see [§4](#4-the-structure-that-gets-cited)). Once it's declared, any code, doc, or test can cite `§GND-grund` and `grund check` will resolve it.
 
 ## 1. Cite as you write
 
@@ -97,7 +97,7 @@ Every fact in a `grund` repo has a stable ID. The default kinds (configurable):
 | Kind   | What it is              | Where it lives                                 |
 |--------|-------------------------|------------------------------------------------|
 | `GND`  | the project's reason for being (the *grund*) | `docs/grund.md` (one declaration, all of it inline) |
-| `GOAL` | goal                    | `docs/goals/goals.md` (one file, all goals inline) |
+| `GOAL` | goal                    | `docs/goals.md` (one file, all goals inline) |
 | `FS`   | functional spec         | `docs/functional-spec/` — external behavior    |
 | `AR`   | architectural spec      | `docs/architecture/` — **or inline in a class / module doc-comment** |
 | `DF`   | functional decision     | `docs/decisions/functional/` (append-only)     |
@@ -223,7 +223,7 @@ That rule plus a clean `grund check` is the whole contract: every reference reso
 `grund` follows its own scheme. Start at [`AGENTS.md`](AGENTS.md), then read down through [`docs/`](docs/):
 
 - [`docs/grund.md`](docs/grund.md) — why this exists
-- [`docs/goals/`](docs/goals/) — what we measure ourselves against
+- [`docs/goals.md`](docs/goals.md) — what we measure ourselves against
 - [`docs/roadmap.md`](docs/roadmap.md) — what's next
 - [`docs/changelog.md`](docs/changelog.md) — what changed
 - [`docs/functional-spec/`](docs/functional-spec/) — external behavior

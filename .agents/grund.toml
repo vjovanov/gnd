@@ -17,12 +17,12 @@ slug_pattern = "[a-z][a-z0-9-]*"
 
 [[kinds]]
 prefix = "GND"
-folder = "docs"
+file = "docs/grund.md"
 title = "Grund"
 
 [[kinds]]
 prefix = "GOAL"
-folder = "docs/goals"
+file = "docs/goals.md"
 title = "Goal"
 
 [[kinds]]
@@ -53,7 +53,7 @@ title = "End-to-end test"
 
 [[kinds]]
 prefix = "RM"
-folder = "docs"
+file = "docs/roadmap.md"
 title = "Roadmap milestone"
 
 [[kinds]]

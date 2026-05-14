@@ -128,6 +128,34 @@ fn check(findings: &Findings, config: &Config) -> Report {
         }
     }
 
+    // §FS-check.3.7: a kind with `file = "<path>"` set in `[[kinds]]` is a
+    // single-file kind — every declaration of that kind must live in that
+    // exact file. A declaration anywhere else is a misplaced-declaration error.
+    for (id, decls) in &findings.declarations {
+        let Some(expected) = single_file_home_for_kind(config, &id.kind) else {
+            continue;
+        };
+        let expected_path = PathBuf::from(&expected);
+        for decl in decls {
+            if decl.is_stub {
+                continue;
+            }
+            if !paths_same_location(&decl.file, &expected_path) {
+                report.errors.push(Diagnostic {
+                    code: "misplaced-declaration",
+                    path: Some(decl.file.clone()),
+                    line: Some(decl.line),
+                    message: format!(
+                        "{} must be declared in {} (single-file kind)",
+                        render_id(config, id),
+                        expected
+                    ),
+                    sites: Vec::new(),
+                });
+            }
+        }
+    }
+
     for cite in &findings.citations {
         // §FS-check.3.1: a citation whose ID is declared nowhere is dangling.
         let Some(decls) = findings.declarations.get(&cite.id) else {
@@ -341,7 +369,7 @@ fn check_agent_block_path(path: &Path, report: &mut Report) {
     };
     if let Some(block) = find_agents_block(&text) {
         let line = line_for_byte_index(&text, block.start);
-        if block.version < AGENTS_BLOCK_VERSION {
+        if block.legacy || block.version < AGENTS_BLOCK_VERSION {
             report.errors.push(Diagnostic {
                 code: "agents-init",
                 path: Some(path.to_path_buf()),
@@ -412,6 +440,17 @@ fn is_stub_for_inline_decl(root: &Path, decl: &Declaration, decls: &[Declaration
     decls
         .iter()
         .any(|other| paths_same_location(&other.file, &resolved) && other.file != decl.file)
+}
+
+/// The `[[kinds]].file` setting for `kind`, if any — the single document every
+/// declaration of that kind must live in (§FS-config.3.4). Returns `None` for
+/// multi-file kinds (those configured with `folder` instead).
+fn single_file_home_for_kind(config: &Config, kind: &str) -> Option<String> {
+    config
+        .kinds
+        .iter()
+        .find(|k| k.prefix == kind)
+        .and_then(|k| k.file.clone())
 }
 
 fn paths_same_location(left: &Path, right: &Path) -> bool {

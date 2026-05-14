@@ -39,7 +39,7 @@ mod tests {
     }
 
     fn current_marker() -> &'static str {
-        "## Agent instructions (grund-agents v3)"
+        "## Grounding with grund (v1)"
     }
 
     fn legacy_v2_block() -> String {

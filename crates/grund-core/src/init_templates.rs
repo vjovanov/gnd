@@ -9,7 +9,7 @@ const FS_README_TEMPLATE: &str = include_str!("../assets/templates/functional-sp
 const AS_README_TEMPLATE: &str = include_str!("../assets/templates/architecture-README.md");
 const GITKEEP_TEMPLATE: &str = include_str!("../assets/templates/gitkeep.md");
 const AGENT_SETUP_INSTRUCTIONS: &str = include_str!("../assets/skills/grund-init/SKILL.md");
-const AGENTS_BLOCK_VERSION: u32 = 3;
+const AGENTS_BLOCK_VERSION: u32 = 1;
 const CANONICAL_AGENT_ENTRYPOINT: &str = "AGENTS.md";
 const COMPANION_AGENT_ENTRYPOINTS: &[&str] = &[
     "AGENTS.override.md",
@@ -110,8 +110,9 @@ fn declaration_table(config: &Config) -> String {
     ];
     for kind in &config.kinds {
         let home = kind
-            .folder
+            .file
             .as_deref()
+            .or(kind.folder.as_deref())
             .map(code_span)
             .unwrap_or_else(|| "inline / configured by convention".to_string());
         let title = kind.title.as_deref().unwrap_or("Declaration");

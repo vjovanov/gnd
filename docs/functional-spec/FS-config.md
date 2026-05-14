@@ -1,6 +1,6 @@
 # FS-config: grund reads a TOML config file under .agents/
 
-`grund` is zero-config out of the box ([§GOAL-zero-config](../goals/goals.md#goal-zero-config-works-on-any-conformant-tree)) and fully configurable when a project's conventions diverge ([§GOAL-configurable](../goals/goals.md#goal-configurable-every-default-is-overridable)). This spec defines the contract: where the config lives, what it contains, what it overrides, and how malformed configs are reported.
+`grund` is zero-config out of the box ([§GOAL-zero-config](../goals.md#goal-zero-config-works-on-any-conformant-tree)) and fully configurable when a project's conventions diverge ([§GOAL-configurable](../goals.md#goal-configurable-every-default-is-overridable)). This spec defines the contract: where the config lives, what it contains, what it overrides, and how malformed configs are reported.
 
 ## 1. File location and discovery
 
@@ -16,7 +16,7 @@ CLI flags > `grund.toml` > built-in defaults. Layering is shallow: a value prese
 
 ## 3. Schema
 
-The config file is TOML. Every key is optional; omitted keys take the default value. Unknown keys are an **error**, not a warning, per [§GOAL-friendliness-first](../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) — typos in config files are bugs and grund surfaces them loudly.
+The config file is TOML. Every key is optional; omitted keys take the default value. Unknown keys are an **error**, not a warning, per [§GOAL-friendliness-first](../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) — typos in config files are bugs and grund surfaces them loudly.
 
 The recognized surface is the line-oriented subset that the schema below uses: one `key = value` per line, basic (double-quoted) strings, booleans, integers, and single-line `["…", "…"]` arrays of basic strings; `#` comments; `[table]` and `[[array.of.tables]]` headers. Multi-line arrays, inline `{ … }` tables, and other TOML constructs are not parsed — keep each value on one line. A line that does not fit this shape is reported as an error pointing at the offending line, per §4.3.
 
@@ -92,19 +92,19 @@ This split keeps the section grammar regular at any depth.
 
 ### 3.4 `[[kinds]]` — recognized prefixes
 
-One `[[kinds]]` table per allowed prefix. `folder` is the conventional home for declarations of this kind — used by `grund id` ([§FS-id.2.2](FS-id.md#22---format-json) emits it as the `folder` field) and by editor "create new declaration" / "go to home folder" actions; it is **not** enforced by the checker — declarations are recognized wherever they appear. `title` is human-readable metadata: it surfaces in `grund show --format=json`, `grund refs --format=json`, and IDE hover previews, and is **not** injected into `grund show --format=md` text (which is the declaration verbatim — [§FS-show.3](FS-show.md#3-outputs)).
+One `[[kinds]]` table per allowed prefix. A kind is either *multi-file* (`folder = "<dir>"`) — each declaration is the H1 of its own file under `<dir>` — or *single-file* (`file = "<path>"`) — every declaration of the kind is an H2 inside that one document. Setting both `folder` and `file` on the same kind is invalid; setting neither leaves the kind with no configured home (`grund id` will print no folder, and the misplaced-declaration check in [§FS-check.3.7](FS-check.md#37-misplaced-declaration-single-file-kind) does not apply). `folder` is used by `grund id` ([§FS-id.2.2](FS-id.md#22---format-json) emits it as the `folder` field) and by editor "create new declaration" / "go to home folder" actions; for multi-file kinds it is **not** enforced by the checker — declarations are recognized wherever they appear. `file`, by contrast, *is* enforced: declarations of a single-file kind found outside the configured path are reported under [§FS-check.3.7](FS-check.md#37-misplaced-declaration-single-file-kind). `title` is human-readable metadata: it surfaces in `grund show --format=json`, `grund refs --format=json`, and IDE hover previews, and is **not** injected into `grund show --format=md` text (which is the declaration verbatim — [§FS-show.3](FS-show.md#3-outputs)).
 
 The defaults declare the canonical eight, in this order:
 
 ```toml
 [[kinds]]
 prefix = "GND"
-folder = "docs"
+file   = "docs/grund.md"
 title  = "Grund"
 
 [[kinds]]
 prefix = "GOAL"
-folder = "docs/goals"
+file   = "docs/goals.md"
 title  = "Goal"
 
 [[kinds]]
@@ -134,11 +134,11 @@ title  = "End-to-end test"
 
 [[kinds]]
 prefix = "RM"
-folder = "docs"
+file   = "docs/roadmap.md"
 title  = "Roadmap milestone"
 ```
 
-`GND` is the H1 of the single file `docs/grund.md` (the project's reason for being — one declaration, all of it inline); `GOAL` declarations are H2 headings inside the single file `docs/goals/goals.md` (one file, all goals inline); `RM` declarations are likewise H2 headings inside the single file `docs/roadmap.md` (one file, all milestones inline) — `folder` is `docs` for `GND` and `RM` because those files live at the top of `docs/`; `FS`, `AR`, `DF`, and `DA` declarations are the H1 of a file in their `folder` (an `AR` declaration may instead live inline in a source doc-comment with an optional stub in `folder` — [§AR-scanner.4](../architecture/AR-scanner.md#4-inline-declarations-in-language-doc-comments)); `E2E` declarations are case directories under `folder` rather than heading lines — [§AR-scanner.6](../architecture/AR-scanner.md#6-e2e-case-declarations). A project that overrides this list replaces the defaults entirely — there is no merge. To extend rather than replace, copy the defaults and add to them.
+`GND` is the H1 of the single file `docs/grund.md` (the project's reason for being — one declaration, all of it inline); `GOAL` declarations are H2 headings inside the single file `docs/goals.md` (one file, all goals inline); `RM` declarations are likewise H2 headings inside the single file `docs/roadmap.md` (one file, all milestones inline) — those three are single-file kinds (`file = "<path>"`); `FS`, `AR`, `DF`, and `DA` declarations are the H1 of a file in their `folder` (an `AR` declaration may instead live inline in a source doc-comment with an optional stub in `folder` — [§AR-scanner.4](../architecture/AR-scanner.md#4-inline-declarations-in-language-doc-comments)); `E2E` declarations are case directories under `folder` rather than heading lines — [§AR-scanner.6](../architecture/AR-scanner.md#6-e2e-case-declarations). A single-file kind can always be broken up later by swapping `file = "<path>"` for `folder = "<dir>"` and moving the document into that folder — the schema models the transition as exchanging one key for the other, not setting both. A project that overrides this list replaces the defaults entirely — there is no merge. To extend rather than replace, copy the defaults and add to them.
 
 Prefix sets must be unambiguous: no kind's `prefix` may itself be a prefix of another kind's `prefix`. For example, `prefix = "DA"` and `prefix = "DAT"` together are invalid because a token starting with `DAT-` would parse as either kind. grund validates this on load and refuses ambiguous configs with a single error pointing at the offending pair (per §4.3).
 
@@ -169,7 +169,7 @@ color          = "auto"   # auto | always | never
 relative_paths = true     # show paths relative to config root in reports
 ```
 
-`relative_paths = true` (default) renders every `<path>` in a report relative to the config root (§1). `relative_paths = false` renders them relative to the path argument passed on the command line — or to the current working directory when no path is given — i.e. the same base `grund` uses when no `.agents/grund.toml` is discovered. Either way `grund` **never** emits an absolute path or a path that escapes above the chosen base; this is what keeps the report deterministic per [§FS-errors.4](FS-errors.md#4-determinism). `color` controls ANSI styling once the colored-output feature lands ([§FS-errors.3](FS-errors.md#3-message-text)); until then output is plain bytes regardless of this value, and a change to that default goes through the [§GOAL-no-silent-breakage](../goals/goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) path.
+`relative_paths = true` (default) renders every `<path>` in a report relative to the config root (§1). `relative_paths = false` renders them relative to the path argument passed on the command line — or to the current working directory when no path is given — i.e. the same base `grund` uses when no `.agents/grund.toml` is discovered. Either way `grund` **never** emits an absolute path or a path that escapes above the chosen base; this is what keeps the report deterministic per [§FS-errors.4](FS-errors.md#4-determinism). `color` controls ANSI styling once the colored-output feature lands ([§FS-errors.3](FS-errors.md#3-message-text)); until then output is plain bytes regardless of this value, and a change to that default goes through the [§GOAL-no-silent-breakage](../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) path.
 
 ### 3.7 `[fmt.cross_refs]` — cross-reference emission
 
@@ -203,7 +203,7 @@ The TOML file may include a top-level `grund_config_version = N`. The current ve
 
 ## 6. What is NOT configured here
 
-Per [§GOAL-friendliness-first](../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible), the following are deliberately **not** configurable, to avoid the trap of every grund repo behaving differently in surprising ways:
+Per [§GOAL-friendliness-first](../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible), the following are deliberately **not** configurable, to avoid the trap of every grund repo behaving differently in surprising ways:
 
 - The set of severity levels (only `error` and `warning` exist).
 - The exit code mapping (`0`/`1`/`2` per [§FS-check.2](FS-check.md#2-outputs)).

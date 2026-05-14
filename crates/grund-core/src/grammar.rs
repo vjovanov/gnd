@@ -40,7 +40,7 @@ fn reduce_heading_text(text: &str) -> String {
 /// `init` and `check` find the block by this line, and the block runs until the
 /// next H1/H2 or EOF (§FS-init.2.3.1).
 static AGENTS_BLOCK_H2: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?m)^##[ \t]+Agent instructions[ \t]+\(grund-agents v(?P<version>\d+)\)[ \t]*\r?$")
+    Regex::new(r"(?m)^##[ \t]+Grounding with grund[ \t]+\(v(?P<version>\d+)\)[ \t]*\r?$")
         .unwrap()
 });
 /// The next H1 or H2 heading after a position — the implicit end of the managed

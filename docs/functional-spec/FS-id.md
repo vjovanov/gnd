@@ -1,6 +1,6 @@
 # FS-id: grund proposes IDs for new declarations
 
-The `id` subcommand emits a single, conflict-free `<KIND>-<NNN>-<slug>` ID for a new declaration. The name is deliberate: `id` is the pure allocator, while `new` is reserved for a future command that would create a declaration stub ([§DF-keep-id-for-pure-id-allocation-and-reserve-new-for-stub](../decisions/functional/DF-keep-id-for-pure-id-allocation-and-reserve-new-for-stub.md#df-keep-id-for-pure-id-allocation-and-reserve-new-for-stub-keep-id-for-pure-id-allocation-and-reserve-new-for-stub-creation)). Authors writing a new spec, agents drafting a new doc, and IDE plugins offering a "new declaration" action all call the same primitive — so the next number for a kind, and the canonical slug for a title, are computed in exactly one place. Serves [§GOAL-friendliness-first](../goals/goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) (no human picks the next number by reading a directory listing) and [§GOAL-no-dangling-refs](../goals/goals.md#goal-no-dangling-refs-every-cited-id-resolves-to-a-declaration) (proposed IDs cannot collide with existing declarations).
+The `id` subcommand emits a single, conflict-free `<KIND>-<NNN>-<slug>` ID for a new declaration. The name is deliberate: `id` is the pure allocator, while `new` is reserved for a future command that would create a declaration stub ([§DF-keep-id-for-pure-id-allocation-and-reserve-new-for-stub](../decisions/functional/DF-keep-id-for-pure-id-allocation-and-reserve-new-for-stub.md#df-keep-id-for-pure-id-allocation-and-reserve-new-for-stub-keep-id-for-pure-id-allocation-and-reserve-new-for-stub-creation)). Authors writing a new spec, agents drafting a new doc, and IDE plugins offering a "new declaration" action all call the same primitive — so the next number for a kind, and the canonical slug for a title, are computed in exactly one place. Serves [§GOAL-friendliness-first](../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) (no human picks the next number by reading a directory listing) and [§GOAL-no-dangling-refs](../goals.md#goal-no-dangling-refs-every-cited-id-resolves-to-a-declaration) (proposed IDs cannot collide with existing declarations).
 
 ## 1. Inputs
 
@@ -39,7 +39,7 @@ ID=$(grund id FS "User can log in with email")
 $EDITOR "docs/functional-spec/${ID}.md"
 ```
 
-Stderr is empty on success unless `--explain` was passed (§2.3). The `path:line:` prefix from [§GOAL-friendliness-first.1](../goals/goals.md#1-hard-requirements) does not apply — `id` synthesizes; it does not point at a source location.
+Stderr is empty on success unless `--explain` was passed (§2.3). The `path:line:` prefix from [§GOAL-friendliness-first.1](../goals.md#1-hard-requirements) does not apply — `id` synthesizes; it does not point at a source location.
 
 ### 2.3 `--explain` (text only)
 
