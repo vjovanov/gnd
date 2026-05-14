@@ -411,7 +411,13 @@ fn is_stub_for_inline_decl(root: &Path, decl: &Declaration, decls: &[Declaration
     let resolved = resolve_stub_target(root, &decl.file, target);
     decls
         .iter()
-        .any(|other| other.file == resolved && other.file != decl.file)
+        .any(|other| paths_same_location(&other.file, &resolved) && other.file != decl.file)
+}
+
+fn paths_same_location(left: &Path, right: &Path) -> bool {
+    let left = fs::canonicalize(left).unwrap_or_else(|_| normalize_path_lexically(left));
+    let right = fs::canonicalize(right).unwrap_or_else(|_| normalize_path_lexically(right));
+    left == right
 }
 
 /// Whether `path` contains a real (non-stub) `# <ID>: …` declaration of `id` —
