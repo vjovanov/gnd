@@ -383,7 +383,7 @@ jobs:
         run: cargo publish -p grund-core --locked
 
       - name: Wait for grund-core to index
-        if: steps.state.outputs.core_published == 'false' && steps.state.outputs.grund_published == 'false'
+        if: steps.state.outputs.grund_published == 'false'
         shell: bash
         run: |
           set -euo pipefail

@@ -25,6 +25,16 @@ cd "$(dirname "$0")/.."
 repo="$PWD"
 pgo_dir="$repo/target/pgo-data"
 profdata="$pgo_dir/merged.profdata"
+host="$(rustc -vV | awk '/^host:/ { print $2 }')"
+
+rustc_path() {
+  local path="$1"
+  if [[ "$host" == *windows* ]] && command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$path"
+  else
+    printf '%s\n' "$path"
+  fi
+}
 
 # llvm-profdata ships in the active toolchain's llvm-tools-preview component.
 llvm_profdata="$(find "$(rustc --print sysroot)" -type f -name 'llvm-profdata*' | head -n1)"
@@ -36,11 +46,14 @@ fi
 rm -rf "$pgo_dir"
 mkdir -p "$pgo_dir"
 
+pgo_dir_rustc="$(rustc_path "$pgo_dir")"
+profdata_rustc="$(rustc_path "$profdata")"
+
 echo "==> 1/3  build instrumented binary (-Cprofile-generate)"
-RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Cprofile-generate=$pgo_dir" cargo build --release --locked
+RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Cprofile-generate=$pgo_dir_rustc" cargo build --release --locked
 
 exe_suffix=""
-case "$(rustc -vV | awk '/^host:/ { print $2 }')" in
+case "$host" in
   *windows*) exe_suffix=".exe" ;;
 esac
 grund="$repo/target/release/grund$exe_suffix"
@@ -65,7 +78,7 @@ set -e
 "$llvm_profdata" merge -o "$profdata" "$pgo_dir"/*.profraw
 
 echo "==> 3/3  rebuild optimized (-Cprofile-use)"
-RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Cprofile-use=$profdata -Cllvm-args=-pgo-warn-missing-function" cargo build --release --locked
+RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Cprofile-use=$profdata_rustc -Cllvm-args=-pgo-warn-missing-function" cargo build --release --locked
 
 echo "==> done: $grund"
 "$grund" --version
