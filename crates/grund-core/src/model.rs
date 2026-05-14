@@ -287,14 +287,14 @@ fn default_kind_file(prefix: &str) -> Option<&'static str> {
 /// §FS-id.2).
 fn default_kind_title(prefix: &str) -> Option<&'static str> {
     match prefix {
-        "GND" => Some("Grund"),
-        "GOAL" => Some("Goal"),
-        "FS" => Some("Functional spec"),
-        "AR" => Some("Architectural spec"),
-        "DA" => Some("Architectural decision"),
-        "DF" => Some("Functional decision"),
-        "E2E" => Some("End-to-end test"),
-        "RM" => Some("Roadmap milestone"),
+        "GND" => Some("Reason for existence"),
+        "GOAL" => Some("Outcomes the project is trying to achieve"),
+        "FS" => Some("User-visible behavior and requirements"),
+        "AR" => Some("System design and technical structure"),
+        "DA" => Some("Architecture decisions and tradeoffs"),
+        "DF" => Some("Product behavior decisions and tradeoffs"),
+        "E2E" => Some("Executable user scenarios"),
+        "RM" => Some("Planned milestones and sequencing"),
         _ => None,
     }
 }

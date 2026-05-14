@@ -94,16 +94,16 @@ A passing text check prints `success` and exits 0. Findings go to stdout as `<pa
 
 Every fact in a `grund` repo has a stable ID. The default kinds (configurable):
 
-| Kind   | What it is              | Where it lives                                 |
-|--------|-------------------------|------------------------------------------------|
-| `GND`  | the project's reason for being (the *grund*) | `docs/grund.md` (one declaration, all of it inline) |
-| `GOAL` | goal                    | `docs/goals.md` (one file, all goals inline) |
-| `FS`   | functional spec         | `docs/functional-spec/` — external behavior    |
-| `AR`   | architectural spec      | `docs/architecture/` — **or inline in a class / module doc-comment** |
-| `DF`   | functional decision     | `docs/decisions/functional/` (append-only)     |
-| `DA`   | architectural decision  | `docs/decisions/architectural/` (append-only)  |
-| `E2E`  | end-to-end test         | `e2e/cases/<id>/` (the test *is* the body)     |
-| `RM`   | roadmap milestone       | `docs/roadmap.md`                              |
+| Kind   | What it is                                  | Where it lives                                 |
+|--------|---------------------------------------------|------------------------------------------------|
+| `GND`  | reason for existence                        | `docs/grund.md` (one declaration, all of it inline) |
+| `GOAL` | outcomes the project is trying to achieve   | `docs/goals.md` (one file, all goals inline) |
+| `FS`   | user-visible behavior and requirements      | `docs/functional-spec/`                        |
+| `AR`   | system design and technical structure       | `docs/architecture/` — **or inline in a class / module doc-comment** |
+| `DF`   | product behavior decisions and tradeoffs    | `docs/decisions/functional/` (append-only)     |
+| `DA`   | architecture decisions and tradeoffs        | `docs/decisions/architectural/` (append-only)  |
+| `E2E`  | executable user scenarios                   | `e2e/cases/<id>/` (the test *is* the body)     |
+| `RM`   | planned milestones and sequencing           | `docs/roadmap.md`                              |
 
 **ID format:**
 

@@ -157,11 +157,11 @@ title = "Architecture decision"
 
     let agents = fs::read_to_string(target.join("AGENTS.md")).expect("read AGENTS.md");
     assert!(
-        agents.contains("| `FS` | `specs` | Product spec |"),
+        agents.contains("- [FS](specs): Product spec"),
         "AGENTS.md should describe configured spec homes:\n{agents}"
     );
     assert!(
-        agents.contains("| `ADR` | `records/adr` | Architecture decision |"),
+        agents.contains("- [ADR](records/adr): Architecture decision"),
         "AGENTS.md should describe configured decision homes:\n{agents}"
     );
     assert!(

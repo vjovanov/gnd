@@ -18,48 +18,48 @@ slug_pattern = "[a-z][a-z0-9-]*"
 [[kinds]]
 prefix = "GND"
 file = "docs/grund.md"
-title = "Grund"
+title = "Reason for existence"
 
 [[kinds]]
 prefix = "GOAL"
 file = "docs/goals.md"
-title = "Goal"
+title = "Outcomes the project is trying to achieve"
 
 [[kinds]]
 prefix = "FS"
 folder = "docs/functional-spec"
-title = "Functional spec"
+title = "User-visible behavior and requirements"
 
 [[kinds]]
 prefix = "AR"
 folder = "docs/architecture"
-title = "Architectural spec"
+title = "System design and technical structure"
 
 # DF before DA, matching the canonical default kind order (FS-config.3.4, templates/grund.toml).
 [[kinds]]
 prefix = "DF"
 folder = "docs/decisions/functional"
-title = "Functional decision"
+title = "Product behavior decisions and tradeoffs"
 
 [[kinds]]
 prefix = "DA"
 folder = "docs/decisions/architectural"
-title = "Architectural decision"
+title = "Architecture decisions and tradeoffs"
 
 [[kinds]]
 prefix = "E2E"
 folder = "e2e/cases"
-title = "End-to-end test"
+title = "Executable user scenarios"
 
 [[kinds]]
 prefix = "RM"
 file = "docs/roadmap.md"
-title = "Roadmap milestone"
+title = "Planned milestones and sequencing"
 
 [[kinds]]
 prefix = "DISC"
 folder = "docs/discussions"
-title = "Discussion"
+title = "Design discussions and proposals"
 
 [scan]
 include = ["docs", "e2e", "src", "crates"]

@@ -64,37 +64,43 @@ fn agents_template_substitutions(name: &str, config: &Config) -> Vec<(&'static s
         ("{BARE_TOKEN_NOTE}", bare_note),
         ("{MARKER}", marker.to_string()),
         ("{TRIGGER}", config.trigger.clone()),
-        ("{DECLARATION_TABLE}", declaration_table(config)),
+        ("{DECLARATION_MAP}", declaration_map(config)),
     ]
 }
 
-fn markdown_cell(raw: &str) -> String {
-    raw.replace('|', r"\|")
+fn markdown_link_label(raw: &str) -> String {
+    raw.replace('\\', r"\\")
+        .replace('[', r"\[")
+        .replace(']', r"\]")
 }
 
-fn code_span(raw: &str) -> String {
-    format!("`{}`", raw.replace('`', "\\`"))
+fn markdown_link_destination(raw: &str) -> String {
+    if raw
+        .chars()
+        .any(|ch| ch.is_whitespace() || matches!(ch, '(' | ')' | '<' | '>'))
+    {
+        format!("<{}>", raw.replace('\\', r"\\").replace('>', r"\>"))
+    } else {
+        raw.to_string()
+    }
 }
 
-fn declaration_table(config: &Config) -> String {
-    let mut lines = vec![
-        "| Kind | Home | Purpose |".to_string(),
-        "|---|---|---|".to_string(),
-    ];
+fn declaration_map(config: &Config) -> String {
+    let mut lines = Vec::new();
     for kind in &config.kinds {
-        let home = kind
-            .file
-            .as_deref()
-            .or(kind.folder.as_deref())
-            .map(code_span)
-            .unwrap_or_else(|| "inline / configured by convention".to_string());
+        let prefix = markdown_link_label(&kind.prefix);
         let title = kind.title.as_deref().unwrap_or("Declaration");
-        lines.push(format!(
-            "| `{}` | {} | {} |",
-            markdown_cell(&kind.prefix),
-            home,
-            markdown_cell(title)
-        ));
+        if let Some(home) = kind.file.as_deref().or(kind.folder.as_deref()) {
+            lines.push(format!(
+                "- [{prefix}]({}): {title}",
+                markdown_link_destination(home)
+            ));
+        } else {
+            lines.push(format!(
+                "- `{}`: {title} (inline / configured by convention)",
+                kind.prefix.replace('`', "\\`")
+            ));
+        }
     }
     lines.join("\n")
 }

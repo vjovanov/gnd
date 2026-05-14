@@ -100,42 +100,42 @@ The defaults declare the canonical eight, in this order:
 [[kinds]]
 prefix = "GND"
 file   = "docs/grund.md"
-title  = "Grund"
+title  = "Reason for existence"
 
 [[kinds]]
 prefix = "GOAL"
 file   = "docs/goals.md"
-title  = "Goal"
+title  = "Outcomes the project is trying to achieve"
 
 [[kinds]]
 prefix = "FS"
 folder = "docs/functional-spec"
-title  = "Functional spec"
+title  = "User-visible behavior and requirements"
 
 [[kinds]]
 prefix = "AR"
 folder = "docs/architecture"
-title  = "Architectural spec"
+title  = "System design and technical structure"
 
 [[kinds]]
 prefix = "DF"
 folder = "docs/decisions/functional"
-title  = "Functional decision"
+title  = "Product behavior decisions and tradeoffs"
 
 [[kinds]]
 prefix = "DA"
 folder = "docs/decisions/architectural"
-title  = "Architectural decision"
+title  = "Architecture decisions and tradeoffs"
 
 [[kinds]]
 prefix = "E2E"
 folder = "e2e/cases"
-title  = "End-to-end test"
+title  = "Executable user scenarios"
 
 [[kinds]]
 prefix = "RM"
 file   = "docs/roadmap.md"
-title  = "Roadmap milestone"
+title  = "Planned milestones and sequencing"
 ```
 
 `GND` is the H1 of the single file `docs/grund.md` (the project's reason for being — one declaration, all of it inline); `GOAL` declarations are H2 headings inside the single file `docs/goals.md` (one file, all goals inline); `RM` declarations are likewise H2 headings inside the single file `docs/roadmap.md` (one file, all milestones inline) — those three are single-file kinds (`file = "<path>"`); `FS`, `AR`, `DF`, and `DA` declarations are the H1 of a file in their `folder` (an `AR` declaration may instead live inline in a source doc-comment with an optional stub in `folder` — [§AR-scanner.4](../architecture/AR-scanner.md#4-inline-declarations-in-language-doc-comments)); `E2E` declarations are case directories under `folder` rather than heading lines — [§AR-scanner.6](../architecture/AR-scanner.md#6-e2e-case-declarations). A single-file kind can always be broken up later by swapping `file = "<path>"` for `folder = "<dir>"` and moving the document into that folder — the schema models the transition as exchanging one key for the other, not setting both. A project that overrides this list replaces the defaults entirely — there is no merge. To extend rather than replace, copy the defaults and add to them.

@@ -16,42 +16,42 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 [[kinds]]
 prefix = "GND"
 file = "docs/grund.md"
-title = "Grund"
+title = "Reason for existence"
 
 [[kinds]]
 prefix = "GOAL"
 file = "docs/goals.md"
-title = "Goal"
+title = "Outcomes the project is trying to achieve"
 
 [[kinds]]
 prefix = "FS"
 folder = "docs/functional-spec"
-title = "Functional spec"
+title = "User-visible behavior and requirements"
 
 [[kinds]]
 prefix = "AR"
 folder = "docs/architecture"
-title = "Architectural spec"
+title = "System design and technical structure"
 
 [[kinds]]
 prefix = "DF"
 folder = "docs/decisions/functional"
-title = "Functional decision"
+title = "Product behavior decisions and tradeoffs"
 
 [[kinds]]
 prefix = "DA"
 folder = "docs/decisions/architectural"
-title = "Architectural decision"
+title = "Architecture decisions and tradeoffs"
 
 [[kinds]]
 prefix = "E2E"
 folder = "e2e/cases"
-title = "End-to-end test"
+title = "Executable user scenarios"
 
 [[kinds]]
 prefix = "RM"
 file = "docs/roadmap.md"
-title = "Roadmap milestone"
+title = "Planned milestones and sequencing"
 
 [scan]
 include = ["docs", "e2e", "src"]
