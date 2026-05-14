@@ -1,1 +1,1 @@
-# AR-checker: [src/lib.rs](src/lib.rs)
+# AR-checker: [src/checker.rs](src/checker.rs)

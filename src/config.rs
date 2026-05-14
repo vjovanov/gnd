@@ -1,0 +1,495 @@
+/// Discover and load the effective config: walk upward from `start` for the
+/// nearest `.agents/grund.toml` (§FS-config.1), parse it over the defaults
+/// (§FS-config.2), or fall back to the pure defaults if none is found
+/// (§GOAL-zero-config).
+fn load_config(start: &Path) -> Result<Config> {
+    let start_dir = if start.is_file() {
+        start.parent().unwrap_or(Path::new(".")).to_path_buf()
+    } else {
+        start.to_path_buf()
+    };
+    // Resolve to an absolute path before walking up, mirroring how `cargo` finds
+    // `Cargo.toml` (§FS-config.1): a relative `.` or `subdir/` must still discover
+    // a `.agents/grund.toml` in an ancestor directory.
+    let walk_start = fs::canonicalize(&start_dir).unwrap_or(start_dir);
+    let mut cursor = Some(walk_start.as_path());
+    while let Some(dir) = cursor {
+        let candidate = dir.join(".agents").join("grund.toml");
+        if candidate.exists() {
+            let mut config = Config::default_for(dir.to_path_buf());
+            config.cli_base = walk_start.clone();
+            // Report config errors against a stable relative path, never the
+            // absolute discovered path (§FS-errors.4: deterministic, no absolute
+            // paths outside the configured root).
+            let report_path = candidate
+                .strip_prefix(dir)
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|_| candidate.clone());
+            parse_config_file(&candidate, &report_path, &mut config)?;
+            return Ok(config);
+        }
+        cursor = dir.parent();
+    }
+    // Zero-config (§GOAL-zero-config): the "project root" is the current working
+    // directory, never the path that happened to be passed on the command line —
+    // so `[scan] include` resolves against the repo and `grund check src/` scopes
+    // *into* it instead of looking for `src/docs`, `src/e2e`, `src/src`. Reports
+    // stay relative to `cli_base` (the resolved path arg) when
+    // `[output] relative_paths = false` (§FS-config.3.6).
+    let root = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| fs::canonicalize(&cwd).ok())
+        .unwrap_or_else(|| walk_start.clone());
+    let mut config = Config::default_for(root);
+    config.cli_base = walk_start;
+    Ok(config)
+}
+
+/// Parse one `.agents/grund.toml` over `config` — the schema of §FS-config.3 and its
+/// subsections (`[reference]` 3.1, `[id]` 3.2/3.3, `[[kinds]]` 3.4, `[scan]` 3.5,
+/// `[output]` 3.6, `[fmt.cross_refs]` 3.7). Any unknown section/key or malformed
+/// value is a hard error reported as `path:line:` (§FS-config.4.3, §FS-errors.2.1).
+fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) -> Result<()> {
+    let text = fs::read_to_string(read_path)
+        .with_context(|| format!("read {}", format_path(report_path)))?;
+    // Everything below reports problems against the stable relative path.
+    let path = report_path;
+    let mut section = String::new();
+    let mut grammar_dirty = false;
+    let mut parsed_kinds: Vec<KindConfig> = Vec::new();
+    let mut current_kind: Option<KindConfig> = None;
+    let mut kinds_block_seen = false;
+    for (idx, raw_line) in text.lines().enumerate() {
+        let line_no = idx + 1;
+        let line = strip_comment(raw_line).trim();
+        if line.is_empty() {
+            continue;
+        }
+        if line.starts_with('[') && line.ends_with(']') {
+            let is_array_table = line.starts_with("[[") && line.ends_with("]]");
+            section = line.trim_matches(['[', ']']).to_string();
+            match section.as_str() {
+                "reference" | "scan" | "output" | "id" | "fmt.cross_refs" => {}
+                "kinds" => {
+                    if !is_array_table {
+                        bail_config(
+                            path,
+                            line_no,
+                            "expected `[[kinds]]` (array of tables)".to_string(),
+                        )?;
+                    }
+                    // Flush any open kind entry, then start a new one.
+                    if let Some(prefix) = current_kind.take() {
+                        parsed_kinds.push(prefix);
+                    }
+                    current_kind = Some(KindConfig {
+                        prefix: String::new(),
+                        folder: None,
+                        title: None,
+                    });
+                    kinds_block_seen = true;
+                }
+                other => bail_config(path, line_no, format!("unknown config section `{other}`"))?,
+            }
+            continue;
+        }
+
+        let Some((key, value)) = line.split_once('=') else {
+            bail_config(path, line_no, "expected `key = value`".to_string())?;
+            unreachable!();
+        };
+        let key = key.trim();
+        let value = value.trim();
+        match (section.as_str(), key) {
+            ("", "grund_config_version") => {
+                if value != "1" {
+                    bail_config(
+                        path,
+                        line_no,
+                        format!(
+                            "unsupported config version `{value}` \
+                             (this grund understands grund_config_version = 1; \
+                             upgrade grund if the config is newer)"
+                        ),
+                    )?;
+                }
+            }
+            ("", "project_name") => {
+                parse_string(path, line_no, value)?;
+            }
+            ("reference", "marker") => config.marker = parse_string(path, line_no, value)?,
+            ("reference", "trigger") => config.trigger = parse_string(path, line_no, value)?,
+            ("reference", "strict") => config.strict = parse_bool(path, line_no, value)?,
+            ("reference", "require_grounding") => {
+                config.require_grounding = parse_bool(path, line_no, value)?
+            }
+            ("id", "format") => {
+                config.id_format = parse_string(path, line_no, value)?;
+                grammar_dirty = true;
+            }
+            ("id", "section_separator") => {
+                config.section_separator = parse_string(path, line_no, value)?;
+                grammar_dirty = true;
+            }
+            ("id", "number_pattern") => {
+                config.number_pattern = parse_string(path, line_no, value)?;
+                grammar_dirty = true;
+            }
+            ("id", "slug_pattern") => {
+                config.slug_pattern = parse_string(path, line_no, value)?;
+                grammar_dirty = true;
+            }
+            ("kinds", "prefix") => {
+                let prefix = parse_string(path, line_no, value)?;
+                if let Some(slot) = current_kind.as_mut() {
+                    slot.prefix = prefix;
+                } else {
+                    bail_config(
+                        path,
+                        line_no,
+                        "`prefix` outside of [[kinds]] block".to_string(),
+                    )?;
+                }
+            }
+            ("kinds", "folder") => {
+                let folder = parse_string(path, line_no, value)?;
+                if let Some(slot) = current_kind.as_mut() {
+                    slot.folder = Some(folder);
+                } else {
+                    bail_config(
+                        path,
+                        line_no,
+                        "`folder` outside of [[kinds]] block".to_string(),
+                    )?;
+                }
+            }
+            ("kinds", "title") => {
+                let title = parse_string(path, line_no, value)?;
+                if let Some(slot) = current_kind.as_mut() {
+                    slot.title = Some(title);
+                } else {
+                    bail_config(
+                        path,
+                        line_no,
+                        "`title` outside of [[kinds]] block".to_string(),
+                    )?;
+                }
+            }
+            ("scan", "include") => config.include = Some(parse_string_list(path, line_no, value)?),
+            ("scan", "exclude") => config.exclude = parse_string_list(path, line_no, value)?,
+            ("scan", "extensions") => config.extensions = parse_string_list(path, line_no, value)?,
+            ("scan", "comment_prefixes") => {
+                config.comment_prefixes = parse_string_list(path, line_no, value)?;
+                grammar_dirty = true;
+            }
+            ("scan", "docstring_python") => {
+                config.docstring_python = parse_bool(path, line_no, value)?;
+            }
+            ("scan", "respect_gitignore") => {
+                config.respect_gitignore = parse_bool(path, line_no, value)?;
+            }
+            ("output", "format") => {
+                let format = parse_string(path, line_no, value)?;
+                if !matches!(format.as_str(), "text" | "json") {
+                    bail_config(path, line_no, "unsupported output format".to_string())?;
+                }
+                config.output_format = format;
+            }
+            ("output", "color") => {
+                // Reserved — colored output is not yet implemented (§FS-config.6,
+                // §FS-errors.3): the value is inert today, but it is still validated
+                // against the documented `auto | always | never` set so a typo here
+                // fails on load like any other enum knob, rather than being silently
+                // accepted and then ignored when the feature lands.
+                let color = parse_string(path, line_no, value)?;
+                if !matches!(color.as_str(), "auto" | "always" | "never") {
+                    bail_config(
+                        path,
+                        line_no,
+                        format!(
+                            "unknown [output] color `{color}` (expected auto, always, or never)"
+                        ),
+                    )?;
+                }
+            }
+            ("output", "relative_paths") => {
+                config.relative_paths = parse_bool(path, line_no, value)?;
+            }
+            ("fmt.cross_refs", "enabled") => {
+                config.fmt_cross_refs_enabled = parse_bool(path, line_no, value)?;
+            }
+            ("fmt.cross_refs", "anchor_format") => {
+                let format = parse_string(path, line_no, value)?;
+                if !matches!(
+                    format.as_str(),
+                    "github" | "gitlab" | "mkdocs" | "pandoc" | "none"
+                ) {
+                    bail_config(path, line_no, "unknown md link anchor format".to_string())?;
+                }
+                config.cross_ref_anchor_format = format;
+            }
+            _ => bail_config(path, line_no, format!("unknown config key `{key}`"))?,
+        }
+    }
+    if let Some(prefix) = current_kind.take() {
+        parsed_kinds.push(prefix);
+    }
+    if config.strict && config.marker.is_empty() {
+        return Err(anyhow!(
+            "{}: reference.strict requires a non-empty marker",
+            format_path(path)
+        ));
+    }
+    if kinds_block_seen {
+        // [[kinds]] replaces defaults entirely, per §FS-config.3.4.
+        if parsed_kinds.iter().any(|p| p.prefix.is_empty()) {
+            return Err(anyhow!(
+                "{}: every [[kinds]] entry must declare a `prefix`",
+                format_path(path)
+            ));
+        }
+        if parsed_kinds.is_empty() {
+            return Err(anyhow!(
+                "{}: at least one [[kinds]] entry must declare a `prefix`",
+                format_path(path)
+            ));
+        }
+        // Reject kinds whose prefix is itself a prefix of another kind's prefix
+        // (§FS-config.3.4 — would make tokenization ambiguous).
+        for (i, a) in parsed_kinds.iter().enumerate() {
+            for (j, b) in parsed_kinds.iter().enumerate() {
+                if i != j
+                    && a.prefix.len() <= b.prefix.len()
+                    && b.prefix.starts_with(a.prefix.as_str())
+                {
+                    return Err(anyhow!(
+                        "{}: kinds `{}` and `{}` collide (one is a prefix of the other)",
+                        format_path(path),
+                        a.prefix,
+                        b.prefix
+                    ));
+                }
+            }
+        }
+        config.kinds = parsed_kinds;
+    }
+    if grammar_dirty || kinds_block_seen {
+        config
+            .rebuild_grammar()
+            .with_context(|| format!("{}: invalid [id] grammar", format_path(path)))?;
+    }
+    Ok(())
+}
+
+/// Drop a trailing `#`-comment from a `.agents/grund.toml` line (§FS-config.3).
+fn strip_comment(line: &str) -> &str {
+    // A `#` inside a quoted string is not a comment marker. Walk the line and stop at the
+    // first unquoted `#`; otherwise return the line unchanged.
+    let bytes = line.as_bytes();
+    let mut in_string = false;
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'"' if !is_escaped(bytes, i) => in_string = !in_string,
+            b'#' if !in_string => return &line[..i],
+            _ => {}
+        }
+        i += 1;
+    }
+    line
+}
+
+fn is_escaped(bytes: &[u8], pos: usize) -> bool {
+    let mut count = 0;
+    let mut j = pos;
+    while j > 0 && bytes[j - 1] == b'\\' {
+        count += 1;
+        j -= 1;
+    }
+    count % 2 == 1
+}
+
+/// Fail config parsing with a `path:line: message` error — the located-finding
+/// shape applied to a malformed `.agents/grund.toml` (§FS-config.4.3, §FS-errors.2.1).
+fn bail_config<T>(path: &Path, line: usize, message: String) -> Result<T> {
+    Err(anyhow!("{}:{}: {}", format_path(path), line, message))
+}
+
+fn parse_string(path: &Path, line: usize, value: &str) -> Result<String> {
+    if !(value.starts_with('"') && value.ends_with('"') && value.len() >= 2) {
+        return bail_config(path, line, "expected string".to_string());
+    }
+    let inner = &value[1..value.len() - 1];
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('\\') => out.push('\\'),
+            Some('"') => out.push('"'),
+            Some('n') => out.push('\n'),
+            Some('t') => out.push('\t'),
+            Some('r') => out.push('\r'),
+            Some(other) => {
+                return bail_config(
+                    path,
+                    line,
+                    format!("invalid escape sequence `\\{other}` in string"),
+                );
+            }
+            None => {
+                return bail_config(path, line, "trailing backslash in string".to_string());
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn parse_bool(path: &Path, line: usize, value: &str) -> Result<bool> {
+    match value {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        _ => bail_config(path, line, "expected boolean".to_string()),
+    }
+}
+
+fn parse_string_list(path: &Path, line: usize, value: &str) -> Result<Vec<String>> {
+    if !value.starts_with('[') || !value.ends_with(']') {
+        return bail_config(path, line, "expected string list".to_string());
+    }
+    let inner = value[1..value.len() - 1].trim();
+    if inner.is_empty() {
+        return Ok(Vec::new());
+    }
+    inner
+        .split(',')
+        .map(|part| parse_string(path, line, part.trim()))
+        .collect()
+}
+
+fn command_config(args: &[String]) -> ExitCode {
+    let Some(action) = args.first().map(|arg| arg.as_str()) else {
+        eprintln!("error: expected `config validate` or `config show`");
+        return ExitCode::from(2);
+    };
+    if !matches!(action, "validate" | "show") {
+        if action.starts_with('-') {
+            eprintln!("error: unknown flag `{action}`");
+        } else {
+            eprintln!("error: unknown config command `{action}`");
+            eprintln!("expected: config validate, config show");
+        }
+        return ExitCode::from(2);
+    }
+
+    let mut path: Option<PathBuf> = None;
+    for arg in &args[1..] {
+        if arg.starts_with('-') {
+            eprintln!("error: unknown flag `{arg}`");
+            return ExitCode::from(2);
+        }
+        if path.is_some() {
+            eprintln!("error: config {action} takes at most one path argument");
+            return ExitCode::from(2);
+        }
+        path = Some(PathBuf::from(arg));
+    }
+    let path = path.unwrap_or_else(|| ".".into());
+
+    match action {
+        "validate" => match load_config(&path) {
+            Ok(_) => ExitCode::SUCCESS,
+            Err(err) => {
+                eprintln!("error: {err:#}");
+                ExitCode::FAILURE
+            }
+        },
+        "show" => match load_config(&path) {
+            Ok(config) => {
+                println!("grund_config_version = 1");
+                println!();
+                println!("[reference]");
+                println!("marker = \"{}\"", config.marker);
+                println!("trigger = \"{}\"", config.trigger);
+                println!("strict = {}", config.strict);
+                println!("require_grounding = {}", config.require_grounding);
+                println!();
+                println!("[id]");
+                println!("format = \"{}\"", config.id_format);
+                println!("section_separator = \"{}\"", config.section_separator);
+                // `number_pattern` / `slug_pattern` each govern one `[id] format`
+                // placeholder — under a format that omits the placeholder the pattern
+                // is dead config, so don't print it.
+                if config.id_format.contains("{number}") {
+                    println!(
+                        "number_pattern = \"{}\"",
+                        escape_toml_basic(&config.number_pattern)
+                    );
+                }
+                if config.id_format.contains("{slug}") {
+                    println!(
+                        "slug_pattern = \"{}\"",
+                        escape_toml_basic(&config.slug_pattern)
+                    );
+                }
+                println!();
+                for kind in &config.kinds {
+                    println!("[[kinds]]");
+                    println!("prefix = \"{}\"", escape_toml_basic(&kind.prefix));
+                    if let Some(folder) = &kind.folder {
+                        println!("folder = \"{}\"", escape_toml_basic(folder));
+                    }
+                    if let Some(title) = &kind.title {
+                        println!("title = \"{}\"", escape_toml_basic(title));
+                    }
+                    println!();
+                }
+                println!("[scan]");
+                println!(
+                    "include = {}",
+                    format_toml_string_list(config.include.as_deref().unwrap_or(&[]))
+                );
+                println!("exclude = {}", format_toml_string_list(&config.exclude));
+                println!(
+                    "extensions = {}",
+                    format_toml_string_list(&config.extensions)
+                );
+                println!(
+                    "comment_prefixes = {}",
+                    format_toml_string_list(&config.comment_prefixes)
+                );
+                println!("docstring_python = {}", config.docstring_python);
+                println!("respect_gitignore = {}", config.respect_gitignore);
+                println!();
+                println!("[output]");
+                println!("format = \"{}\"", config.output_format);
+                println!("color = \"auto\"");
+                println!("relative_paths = {}", config.relative_paths);
+                println!();
+                println!("[fmt.cross_refs]");
+                println!("enabled = {}", config.fmt_cross_refs_enabled);
+                println!("anchor_format = \"{}\"", config.cross_ref_anchor_format);
+                ExitCode::SUCCESS
+            }
+            Err(err) => {
+                eprintln!("error: {err:#}");
+                ExitCode::from(2)
+            }
+        },
+        _ => unreachable!(),
+    }
+}
+
+fn format_toml_string_list(values: &[String]) -> String {
+    format!(
+        "[{}]",
+        values
+            .iter()
+            .map(|value| format!("\"{}\"", escape_toml_basic(value)))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
