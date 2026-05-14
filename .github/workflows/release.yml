@@ -1,0 +1,338 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading v"
+        required: true
+      publish_crates:
+        description: "Publish grund-core and grund to crates.io"
+        type: boolean
+        default: false
+      create_github_release:
+        description: "Create or update the GitHub release and upload artifacts"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  verify:
+    name: verify release inputs
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      publish_crates: ${{ steps.mode.outputs.publish_crates }}
+      create_github_release: ${{ steps.mode.outputs.create_github_release }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME}"
+            version="${tag#v}"
+          else
+            version="${{ inputs.version }}"
+            tag="v${version}"
+          fi
+
+          case "$version" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *)
+              echo "error: version must look like 0.1.0, got '$version'" >&2
+              exit 1
+              ;;
+          esac
+
+          root_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "grund") | .version')"
+          core_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "grund-core") | .version')"
+
+          if [ "$root_version" != "$version" ]; then
+            echo "error: Cargo.toml version is $root_version, expected $version" >&2
+            exit 1
+          fi
+          if [ "$core_version" != "$version" ]; then
+            echo "error: grund-core version is $core_version, expected $version" >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve release mode
+        id: mode
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            publish_crates="true"
+            create_github_release="true"
+          else
+            publish_crates="${{ inputs.publish_crates }}"
+            create_github_release="${{ inputs.create_github_release }}"
+          fi
+
+          if { [ "$publish_crates" = "true" ] || [ "$create_github_release" = "true" ]; } && [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            echo "error: publishing or creating a GitHub release must run from the v${{ steps.version.outputs.version }} tag" >&2
+            exit 1
+          fi
+
+          echo "publish_crates=$publish_crates" >> "$GITHUB_OUTPUT"
+          echo "create_github_release=$create_github_release" >> "$GITHUB_OUTPUT"
+
+      - name: Check registry names
+        run: bash scripts/check-registry-names.sh
+
+  build-linux-gnu-pgo:
+    name: PGO binary (linux glibc 2.17)
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build PGO release binary in manylinux2014
+        run: |
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            quay.io/pypa/manylinux2014_x86_64:latest \
+            bash -lc '
+              set -euo pipefail
+              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+              source "$HOME/.cargo/env"
+              rustup component add llvm-tools-preview
+              bash scripts/pgo-build.sh
+            '
+
+      - name: Self-check PGO release binary
+        run: |
+          set -euo pipefail
+          out="$(./target/release/grund check . --format json)"
+          if [ -n "$out" ]; then
+            echo "PGO grund self-check wrote unexpected stdout:" >&2
+            printf '%s\n' "$out" >&2
+            exit 1
+          fi
+
+      - name: Package binary
+        id: package
+        run: |
+          set -euo pipefail
+
+          version="${{ needs.verify.outputs.version }}"
+          base="grund-${version}-x86_64-unknown-linux-gnu"
+          dir="dist/${base}"
+          mkdir -p "$dir"
+
+          cp ./target/release/grund "$dir/"
+          cp README.md LICENSE "$dir/"
+
+          archive="${base}.tar.gz"
+          tar -czf "$archive" -C dist "$base"
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$archive" > "${archive}.sha256"
+          else
+            shasum -a 256 "$archive" > "${archive}.sha256"
+          fi
+
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.archive }}
+          path: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.archive }}.sha256
+          if-no-files-found: error
+
+  build-native-pgo:
+    name: PGO binary (${{ matrix.os }})
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-15-intel
+          - macos-15
+          - windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-release-pgo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-release-pgo-
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
+
+      - name: Build PGO release binary
+        shell: bash
+        run: bash scripts/pgo-build.sh
+
+      - name: Self-check PGO release binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="./target/release/grund"
+          if [[ "$(rustc -vV | awk '/^host:/ { print $2 }')" == *windows* ]]; then
+            bin="${bin}.exe"
+          fi
+
+          out="$("$bin" check . --format json)"
+          if [ -n "$out" ]; then
+            echo "PGO grund self-check wrote unexpected stdout:" >&2
+            printf '%s\n' "$out" >&2
+            exit 1
+          fi
+
+      - name: Package binary
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          host="$(rustc -vV | awk '/^host:/ { print $2 }')"
+          version="${{ needs.verify.outputs.version }}"
+          base="grund-${version}-${host}"
+          dir="dist/${base}"
+          mkdir -p "$dir"
+
+          bin="./target/release/grund"
+          if [[ "$host" == *windows* ]]; then
+            bin="${bin}.exe"
+          fi
+
+          cp "$bin" "$dir/"
+          cp README.md LICENSE "$dir/"
+
+          archive="${base}.tar.gz"
+          tar -czf "$archive" -C dist "$base"
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$archive" > "${archive}.sha256"
+          else
+            shasum -a 256 "$archive" > "${archive}.sha256"
+          fi
+
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.archive }}
+          path: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.archive }}.sha256
+          if-no-files-found: error
+
+  publish-crates:
+    name: publish crates.io packages
+    needs:
+      - verify
+      - build-linux-gnu-pgo
+      - build-native-pgo
+    if: needs.verify.outputs.publish_crates == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify crates.io token
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "error: CARGO_REGISTRY_TOKEN secret is required to publish crates" >&2
+            exit 1
+          fi
+
+      - name: Publish grund-core
+        run: cargo publish -p grund-core --locked
+
+      - name: Wait for grund-core to index
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.verify.outputs.version }}"
+          for attempt in $(seq 1 30); do
+            if cargo search grund-core --limit 1 | grep -q "^grund-core = \"$version\""; then
+              exit 0
+            fi
+            echo "grund-core $version not indexed yet; waiting (${attempt}/30)"
+            sleep 10
+          done
+          echo "error: timed out waiting for grund-core $version to appear in the crates.io index" >&2
+          exit 1
+
+      - name: Publish grund
+        run: cargo publish -p grund --locked
+
+  github-release:
+    name: publish GitHub release
+    needs:
+      - verify
+      - build-linux-gnu-pgo
+      - build-native-pgo
+      - publish-crates
+    if: always() && needs.verify.outputs.create_github_release == 'true' && needs.build-linux-gnu-pgo.result == 'success' && needs.build-native-pgo.result == 'success' && (needs.publish-crates.result == 'success' || needs.publish-crates.result == 'skipped')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Create or update release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${{ needs.verify.outputs.tag }}"
+          version="${{ needs.verify.outputs.version }}"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release-artifacts/* --clobber
+          else
+            gh release create "$tag" release-artifacts/* \
+              --verify-tag \
+              --title "grund ${version}" \
+              --notes "PGO-built release binaries for Linux, macOS, and Windows. Install from crates.io with: cargo install grund"
+          fi

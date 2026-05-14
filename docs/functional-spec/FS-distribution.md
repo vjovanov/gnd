@@ -97,15 +97,19 @@ The Python binding is built with `PyO3` and packaged with `maturin`. Wheels are 
 
 ## 4. Release process
 
-A single release tag triggers parallel jobs that:
+The implemented release workflow publishes the Cargo CLI today and builds downloadable PGO binaries for every supported desktop CI platform. A `vX.Y.Z` tag, or a manual run from that tag, triggers `.github/workflows/release.yml`; the workflow verifies the tag matches both Cargo package versions, re-runs the live registry-name guard from [§RM-distribution-naming](../roadmap.md#rm-distribution-naming-verify-package-names-before-first-publish), then builds and self-checks profile-guided-optimized binaries on Linux, macOS Intel, macOS Apple Silicon, and Windows. The Linux GNU binary is built on GitHub inside a `manylinux2014_x86_64` container so the release artifact targets an old glibc baseline instead of inheriting whatever glibc happens to ship on `ubuntu-latest`.
+
+The distributed `grund` binaries are profile-guided-optimized: each platform build runs `scripts/pgo-build.sh`, which builds an instrumented binary, runs the [§AR-benchmarks](../architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands) workload (the commands agents and CI invoke most) against `grund`'s own conformant tree to record a profile, then rebuilds against it. The rationale, and why the benchmark workload is also the PGO training corpus, is [§DA-pgo-release](../decisions/architectural/DA-pgo-release.md#da-pgo-release-distributed-binaries-are-pgo-built-trained-on-the-benchmark-workload). PGO is not part of development builds or push/PR CI; it is a release-packaging step, and an explicit benchmarking step when comparing the optimized release artifact. A `cargo install grund` from source is LTO-optimized but not PGO'd — `cargo install` runs no custom build step — and is byte-for-byte behavior-identical to the distributed binary; only its performance differs.
+
+After every platform binary passes its self-check, the workflow publishes `grund-core` and then `grund` to crates.io when crate publishing is enabled. The dependency order is fixed: `grund-core` publishes first, the workflow waits for the crates.io index to expose that version, and only then publishes the `grund` CLI crate that depends on it. GitHub release artifacts are uploaded only after the platform PGO builds pass and, when enabled, crates.io publishing succeeds.
+
+The future full-ecosystem release keeps the same shape but adds the remaining packages after their frontends exist:
 
 1. Publish the `grund-core`, `grund`, and `grund-lsp` crates to crates.io (in dependency order: `grund-core` first).
 2. Build per-platform Node binaries and publish `grund-cli` and `grund-lsp` to npm.
 3. Build per-platform Python wheels and publish `grund` and `grund-lsp` to PyPI.
 
-All artifacts must succeed for a release to be considered complete. Versions across the CLI and the LSP move together within a release; `grund-lsp` pins its `grund-core` dependency to the same version the CLI ships, so a CLI/LSP version mismatch in editors is structurally impossible.
-
-The distributed `grund` binary is profile-guided-optimized: each release build runs `scripts/pgo-build.sh`, which builds an instrumented binary, runs the [§AR-benchmarks](../architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands) workload (the commands agents and CI invoke most) against `grund`'s own conformant tree to record a profile, then rebuilds against it. The rationale, and why the benchmark workload is also the PGO training corpus, is [§DA-pgo-release](../decisions/architectural/DA-pgo-release.md#da-pgo-release-distributed-binaries-are-pgo-built-trained-on-the-benchmark-workload). This is wired for the crates.io `grund` binary today and extends to the prebuilt npm and PyPI CLI binaries as those land. The manual **Pre-release checks** workflow must pass before publish; it runs the PGO build and self-checks the resulting release binary. PGO is not part of development builds or push/PR CI; it is a release-packaging step, and an explicit benchmarking step when comparing the optimized release artifact. A `cargo install grund` from source is LTO-optimized but not PGO'd — `cargo install` runs no custom build step — and is byte-for-byte behavior-identical to the distributed binary; only its performance differs.
+All artifacts must succeed for a full ecosystem release to be considered complete. Versions across the CLI and the LSP move together within a release; `grund-lsp` pins its `grund-core` dependency to the same version the CLI ships, so a CLI/LSP version mismatch in editors is structurally impossible.
 
 ## 5. What we do not promise
 

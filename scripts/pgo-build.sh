@@ -39,7 +39,11 @@ mkdir -p "$pgo_dir"
 echo "==> 1/3  build instrumented binary (-Cprofile-generate)"
 RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Cprofile-generate=$pgo_dir" cargo build --release --locked
 
-grund="$repo/target/release/grund"
+exe_suffix=""
+case "$(rustc -vV | awk '/^host:/ { print $2 }')" in
+  *windows*) exe_suffix=".exe" ;;
+esac
+grund="$repo/target/release/grund$exe_suffix"
 
 echo "==> 2/3  training run — the §AR-benchmarks workload"
 # Keep this list in sync with benches/instructions.rs. Exit codes are irrelevant
