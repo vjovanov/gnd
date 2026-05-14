@@ -88,6 +88,7 @@ notice_external_json_name() {
   esac
 }
 
+check_claimed_json_name "crates.io" "grund-core" "https://crates.io/api/v1/crates/grund-core"
 check_claimed_json_name "crates.io" "grund" "https://crates.io/api/v1/crates/grund"
 check_claimed_json_name "crates.io" "grund-lsp" "https://crates.io/api/v1/crates/grund-lsp"
 check_claimed_json_name "npm" "grund-cli" "https://registry.npmjs.org/grund-cli"

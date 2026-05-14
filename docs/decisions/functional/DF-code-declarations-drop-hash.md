@@ -77,7 +77,7 @@ Landing now:
 - [§AR-scanner.2.1](../../architecture/AR-scanner.md#21-declaration-detection) describes both regex branches and how heading-level is inferred when the declaration line has no `#+` to count (it defaults to depth `1`).
 - [§FS-show.2.3](../../functional-spec/FS-show.md#23-inline-declarations-in-code-and-doc-comments) documents the multi-declaration-per-comment shape with a Rust example, surfacing a capability the scanner already had.
 - New e2e fixtures cover (a) a single declaration in code in the new form (`show-inline-rust-no-hash`), (b) two declarations in one doc-comment (`show-inline-rust-multi-decl`).
-- The project's own [src/checker.rs](../../../src/checker.rs) declaration is migrated to the new form as the first dogfood.
+- The project's own [crates/grund-core/src/checker.rs](../../../crates/grund-core/src/checker.rs) declaration is migrated to the new form as the first dogfood.
 
 Follow-ups (each tracked above as *(follow-up)*):
 

@@ -4,7 +4,7 @@ The `check` command walks a repo and reports every violation of the grund refere
 
 ## 1. Inputs
 
-- Optional path argument; defaults to the current directory. May be a directory or a single file (`grund check src/scanner.rs` scopes the scan to one file but still discovers `.agents/grund.toml` by walking up — [§FS-config.1](FS-config.md#1-file-location-and-discovery)).
+- Optional path argument; defaults to the current directory. May be a directory or a single file (`grund check crates/grund-core/src/scanner.rs` scopes the scan to one file but still discovers `.agents/grund.toml` by walking up — [§FS-config.1](FS-config.md#1-file-location-and-discovery)).
 - The walked tree may contain markdown (`.md`) and source files (Rust, Go, Java, TS, Python, etc.).
 - Optional `.agents/grund.toml` configuring marker, trigger, kinds, and skip lists per [§GOAL-configurable](../goals/goals.md#goal-configurable-every-default-is-overridable) ([§FS-config](FS-config.md#fs-config-grund-reads-a-toml-config-file-under-agents)).
 - `--watch` is reserved for the planned resident checker (§6) and is not accepted by the current CLI.
@@ -87,7 +87,7 @@ The same `<KIND>-<NNN>-<slug>` declared as a heading in more than one file. Repo
 
 ### 3.4 Broken inline-spec stub
 
-A `docs/` file whose H1 has the stub shape `# <ID>: [<text>](<path>)` where either the path does not exist, or the file at that path contains no inline declaration of the same ID.
+A `docs/` file whose H1 has the stub shape `# <ID>: [<text>](<path>)` where either the path does not exist, or the file at that path contains no inline declaration of the same ID. Relative stub links resolve as normal Markdown links first — relative to the stub file's directory — so `lychee` and rendered docs see the same target. If that path does not exist, `grund` falls back to resolving the path relative to the config root for compatibility with older stubs that wrote repo-root paths.
 
 ### 3.5 Invalid agent entrypoint init block
 

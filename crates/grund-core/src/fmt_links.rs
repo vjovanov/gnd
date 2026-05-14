@@ -136,11 +136,7 @@ fn markdown_link_target(
         .or_else(|| decls.first())?;
     let home = if let Some(stub) = stub {
         let target = stub.defined_in.as_ref()?;
-        if target.is_absolute() {
-            target.clone()
-        } else {
-            config.root.join(target)
-        }
+        resolve_stub_target(&config.root, &stub.file, target)
     } else {
         home_decl.file.clone()
     };

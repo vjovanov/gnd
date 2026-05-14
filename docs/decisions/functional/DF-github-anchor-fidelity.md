@@ -32,7 +32,7 @@ Fidelity is held by two checks: the curated-heading e2e fixture [§FS-fmt.6.8](.
 
 ## 4. Consequences
 
-- `anchor_slug_github` in `src/lib.rs` is rewritten to the algorithm above; its doc-comment cites this record.
+- `anchor_slug_github` in `crates/grund-core/src/fmt_links.rs` is rewritten to the algorithm above; its doc-comment cites this record.
 - [§DF-md-link-anchor-strategy.2.3](DF-md-link-anchor-strategy.md#23-renderer-profiles)'s `github`/`gitlab` bullet is annotated to point here; its "collapse consecutive `-`" wording is corrected by this record rather than rewritten in place (decisions are append-only).
 - [§FS-fmt.6.2](../../functional-spec/FS-fmt.md#62-form)'s anchor bullet states the no-collapse rule and cites this record; [§FS-fmt.6.8](../../functional-spec/FS-fmt.md#68-measurable)'s curated-heading note calls out the punctuation-closes-up cases.
 - New e2e case `fmt-cross-refs-profile-github` covers the curated `github` heading set.

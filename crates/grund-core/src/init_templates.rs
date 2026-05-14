@@ -1,14 +1,14 @@
 // The scaffold templates `grund init` writes are embedded in the binary; the
 // reference copies live under `templates/` in the source tree (§FS-init.2.1).
-const AGENTS_TEMPLATE: &str = include_str!("../templates/AGENTS.md");
-const GRUND_TOML_TEMPLATE: &str = include_str!("../templates/grund.toml");
-const GRUND_DOC_TEMPLATE: &str = include_str!("../templates/grund.md");
-const GOALS_TEMPLATE: &str = include_str!("../templates/goals.md");
-const E2E_README_TEMPLATE: &str = include_str!("../templates/e2e-README.md");
-const FS_README_TEMPLATE: &str = include_str!("../templates/functional-spec-README.md");
-const AS_README_TEMPLATE: &str = include_str!("../templates/architecture-README.md");
-const GITKEEP_TEMPLATE: &str = include_str!("../templates/gitkeep.md");
-const AGENT_SETUP_INSTRUCTIONS: &str = include_str!("../skills/grund-init/SKILL.md");
+const AGENTS_TEMPLATE: &str = include_str!("../assets/templates/AGENTS.md");
+const GRUND_TOML_TEMPLATE: &str = include_str!("../assets/templates/grund.toml");
+const GRUND_DOC_TEMPLATE: &str = include_str!("../assets/templates/grund.md");
+const GOALS_TEMPLATE: &str = include_str!("../assets/templates/goals.md");
+const E2E_README_TEMPLATE: &str = include_str!("../assets/templates/e2e-README.md");
+const FS_README_TEMPLATE: &str = include_str!("../assets/templates/functional-spec-README.md");
+const AS_README_TEMPLATE: &str = include_str!("../assets/templates/architecture-README.md");
+const GITKEEP_TEMPLATE: &str = include_str!("../assets/templates/gitkeep.md");
+const AGENT_SETUP_INSTRUCTIONS: &str = include_str!("../assets/skills/grund-init/SKILL.md");
 const AGENTS_BLOCK_VERSION: u32 = 3;
 const CANONICAL_AGENT_ENTRYPOINT: &str = "AGENTS.md";
 const COMPANION_AGENT_ENTRYPOINTS: &[&str] = &[
@@ -182,20 +182,6 @@ fn is_symlink_to(path: &Path, target: &Path) -> Result<bool> {
         path.parent().unwrap_or_else(|| Path::new(".")).join(link)
     };
     Ok(normalize_path_lexically(&resolved) == normalize_path_lexically(target))
-}
-
-fn normalize_path_lexically(path: &Path) -> PathBuf {
-    let mut normalized = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                normalized.pop();
-            }
-            other => normalized.push(other.as_os_str()),
-        }
-    }
-    normalized
 }
 
 /// The config that `grund init` will leave governing `target`, which the generated

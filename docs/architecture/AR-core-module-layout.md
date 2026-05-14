@@ -1,10 +1,10 @@
 # AR-core-module-layout: core implementation is split by category
 
-The current Rust crate is still the single implementation crate described by [§AR-bindings](AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms), but its source layout should already match the same category boundaries the later `grund-core` split needs. A single large `src/lib.rs` hides ownership and makes spec-to-code citations harder to place.
+The core implementation lives in `crates/grund-core/src/`, while the root `src/main.rs` is the thin published `grund` CLI entrypoint described by [§AR-bindings](AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms). Inside `grund-core`, the source layout should match the same category boundaries the later LSP and binding frontends need. A single large crate root hides ownership and makes spec-to-code citations harder to place.
 
 ## 1. Module categories
 
-`src/lib.rs` stays the crate entrypoint and re-export surface for the CLI-facing `main_entry`, while implementation code lives in smaller category files under `src/`.
+`crates/grund-core/src/lib.rs` stays the crate entrypoint and re-export surface for the CLI-facing `main_entry`, while implementation code lives in smaller category files under `crates/grund-core/src/`.
 
 The categories are:
 
@@ -25,7 +25,7 @@ The categories are:
 
 ## 2. Refactor boundary
 
-Splitting `src/lib.rs` by these categories is an architectural refactor only: it must not change CLI output, diagnostics, scan behavior, template bytes, or public entrypoints. The first split may keep crate-private implementation details crate-private; exposing a stable library API is a separate distribution step under [§AR-bindings](AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms).
+Splitting `crates/grund-core/src/lib.rs` by these categories is an architectural refactor only: it must not change CLI output, diagnostics, scan behavior, template bytes, or public entrypoints. The first split may keep crate-private implementation details crate-private; exposing a stable library API is a separate distribution step under [§AR-bindings](AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms).
 
 ## 3. File size
 

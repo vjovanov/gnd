@@ -1,19 +1,17 @@
 grund_config_version = 1
-project_name = "grund"
+project_name = "{NAME}"
 
 [reference]
 marker = "§"
 trigger = "$$"
-strict = true
-require_grounding = true
+strict = false
+require_grounding = false
 
 [id]
-# Slug-only IDs — see FS-config.3.2. Slugs must be unique within a kind.
-# Slug must start with a letter so digit-prefixed tokens (e.g. `FS-001`
-# in illustrative prose) are not picked up as citations.
-format = "{kind}-{slug}"
+format = "{kind}-{number}-{slug}"
 section_separator = "."
-slug_pattern = "[a-z][a-z0-9-]*"
+number_pattern = "\\d+"
+slug_pattern = "[a-z0-9][a-z0-9-]*"
 
 [[kinds]]
 prefix = "GND"
@@ -35,7 +33,6 @@ prefix = "AR"
 folder = "docs/architecture"
 title = "Architectural spec"
 
-# DF before DA, matching the canonical default kind order (FS-config.3.4, templates/grund.toml).
 [[kinds]]
 prefix = "DF"
 folder = "docs/decisions/functional"
@@ -56,17 +53,9 @@ prefix = "RM"
 folder = "docs"
 title = "Roadmap milestone"
 
-[[kinds]]
-prefix = "DISC"
-folder = "docs/discussions"
-title = "Discussion"
-
 [scan]
-include = ["docs", "e2e", "src", "crates"]
-# `repo` / `expected.repo`: the e2e fixture trees under `e2e/cases/*/` are test
-# inputs, not this project's code — keep them out of the host scan so strict mode
-# and `require_grounding` (above) apply to grund's own sources, not the fixtures.
-exclude = ["target", "node_modules", ".git", "dist", "build", ".venv", "repo", "expected.repo", "assets"]
+include = ["docs", "e2e", "src"]
+exclude = ["target", "node_modules", ".git", "dist", "build", ".venv"]
 extensions = ["md", "rs", "go", "java", "kt", "ts", "tsx", "js", "py", "c", "cpp", "swift", "scala", "rb", "php", "cs"]
 comment_prefixes = ["//", "#", ";", "--", "*", "/*"]
 docstring_python = true
@@ -78,5 +67,5 @@ color = "auto"
 relative_paths = true
 
 [fmt.cross_refs]
-enabled = true
+enabled = false
 anchor_format = "github"

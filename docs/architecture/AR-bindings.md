@@ -1,8 +1,24 @@
 # AR-bindings: target shape for exposing the Rust engine on three platforms
 
-Implements the planned distribution shape in [§FS-distribution](../functional-spec/FS-distribution.md#fs-distribution-grund-distribution-targets). Target state: the repo is a Cargo workspace with one core library and four frontends — three for batch use (CLI, Node, Python) and one for editor use (LSP). The current implementation is still a single Rust crate; this architectural spec describes the split that must happen before the LSP and language bindings ship.
+Implements the planned distribution shape in [§FS-distribution](../functional-spec/FS-distribution.md#fs-distribution-grund-distribution-targets). Target state: the repo is a Cargo workspace with one core library and four frontends — three for batch use (CLI, Node, Python) and one for editor use (LSP). The split starts with the release-blocking boundary: `grund-core` is a real workspace crate, and the published `grund` CLI package depends on it. The later frontend crates (`grund-lsp`, `grund-node`, `grund-py`) build on that boundary.
 
 ## 1. Target workspace layout
+
+Current shipped split:
+
+```
+grund/
+├── Cargo.toml          # workspace root and published `grund` CLI package
+├── src/main.rs         # thin binary entrypoint; delegates to `grund-core`
+├── crates/
+│   └── grund-core/     # scanner + checker + show + fmt + config + shared CLI dispatcher
+├── docs/
+└── e2e/
+```
+
+This first step keeps the existing CLI behavior byte-identical while giving `grund-lsp` a package it can depend on. `grund-core` temporarily still carries the shared CLI dispatcher and text/JSON rendering helpers because those are the stable API the current `grund` binary calls. The follow-up `grund-cli` crate move is a cleanup: it moves argument parsing, `println!`/`eprintln!`, and exit-code mapping out of `grund-core` without changing the public CLI.
+
+Final frontend layout:
 
 ```
 grund/

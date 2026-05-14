@@ -64,7 +64,7 @@ jobs:
         run: pre-commit run --all-files
 
       - name: cargo build
-        run: cargo build --all-targets --locked
+        run: cargo build --workspace --all-targets --locked
 
       - name: grund self-check
         shell: bash
@@ -102,7 +102,7 @@ jobs:
       # covers the file-content / config-validation contract for `grund init`. So
       # `cargo test` runs the full e2e suite plus the unit tests in src/main.rs.
       - name: cargo test
-        run: cargo test --all-targets --locked
+        run: cargo test --workspace --all-targets --locked
 
   # Instruction-counting benchmarks for the hot CLI commands (§AR-benchmarks /
   # §AR-ci.5). Kept out of the `test` matrix because the harness runs `grund` under

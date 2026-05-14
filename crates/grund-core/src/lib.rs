@@ -8,10 +8,9 @@ use std::path::{Component, Path, PathBuf};
 use std::process::ExitCode;
 use unicode_normalization::UnicodeNormalization;
 
-// §AR-core-module-layout.1: keep the crate root as the entrypoint while the
-// implementation is split into category files. `include!` keeps this first
-// refactor behavior-preserving; a later crate/API split can add true module
-// boundaries under §AR-bindings.
+// §AR-bindings.1: `grund-core` is the shared implementation crate used by the
+// published `grund` CLI and, next, the optional LSP server. The category files
+// are still included flat to keep this first package split behavior-preserving.
 include!("grammar.rs");
 include!("model.rs");
 include!("config.rs");

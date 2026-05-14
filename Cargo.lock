@@ -99,8 +99,15 @@ dependencies = [
 name = "grund"
 version = "0.1.0"
 dependencies = [
- "anyhow",
+ "grund-core",
  "iai-callgrind",
+]
+
+[[package]]
+name = "grund-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
  "ignore",
  "once_cell",
  "regex",

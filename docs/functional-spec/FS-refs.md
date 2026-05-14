@@ -31,7 +31,7 @@ One line per citation site on **stdout**, in the located-finding shape ([§FS-er
 ```
 $ grund refs FS-check.1
 docs/functional-spec/FS-show.md:11: §FS-check.1
-src/scanner.rs:142: FS-check.1
+crates/grund-core/src/scanner.rs:142: FS-check.1
 ```
 
 `<message>` is the citation token exactly as it appears in the source — marker-prefixed or bare, with its section suffix — so the reader sees the form on disk. The lines *are* the result, so `grund refs <ID> | …` and `grund refs <ID> > out.txt` work the way they do for `grund list` — no `2>&1` needed (§2). Exit `0` always when the scan succeeds, regardless of how many citations were found.
@@ -42,7 +42,7 @@ NDJSON on stdout — one object per citation, matching the `Citation` shape ([§
 
 ```json
 {"path":"docs/functional-spec/FS-show.md","line":11,"column":42,"id":"FS-check","section":"1","marker":true,"text":"§FS-check.1"}
-{"path":"src/scanner.rs","line":142,"column":12,"id":"FS-check","section":"1","marker":false,"text":"FS-check.1"}
+{"path":"crates/grund-core/src/scanner.rs","line":142,"column":12,"id":"FS-check","section":"1","marker":false,"text":"FS-check.1"}
 ```
 
 `section` is `null` for a bare-ID citation with no section coordinate.
@@ -54,7 +54,7 @@ NDJSON on stdout — one object per citation, matching the `Citation` shape ([§
 ```
 $ grund refs FS-check --summary
 docs/functional-spec/FS-show.md: 3 (lines 11, 142, 200)
-src/scanner.rs: 1 (line 142)
+crates/grund-core/src/scanner.rs: 1 (line 142)
 ```
 
 The shape is `<path>: <count> (lines <l1>, <l2>, …)` — the count is the number of citation sites from exactly the citation set §3.1 lists (so `--summary` honours `[reference] strict`, the string-literal carve-out, and doc-comment citations the same way), while the line list is the sorted, de-duplicated set of source lines that contain those citations. If two citations appear on line 10, the count includes both but the line list contains `10` once: `path: 2 (line 10)`. This makes `grund refs <ID> --summary | wc -l` the number of files that lean on `<ID>` while the line list still points an editor at every line that contains at least one site. With `--section`, the aggregate is over citations of that section only. An ID with no citations prints nothing and exits `0` — same as §3.1, and the "neither declared nor cited" `note:` on stderr (§2) is unaffected. `--format json` together with `--summary`: NDJSON, one object per file, `{"path":<path>,"count":<n>,"lines":[<unique l1>,<unique l2>,…]}`, same order; the per-citation object form (§3.2) is what you get *without* `--summary`. Exit codes (§4) are unchanged — `--summary` is a rendering of the same scan result, not a different query.

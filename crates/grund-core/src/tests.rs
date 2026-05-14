@@ -228,6 +228,98 @@ mod tests {
     }
 
     #[test]
+    fn stub_resolution_prefers_markdown_relative_target() {
+        let root = test_root("stub_resolution_prefers_markdown_relative_target");
+        write(
+            &root.join("docs/architecture/AR-001-router.md"),
+            "# AR-001-router: [router](../../crates/grund-core/src/router.rs)\n",
+        );
+        write(
+            &root.join("crates/grund-core/src/router.rs"),
+            "/// AR-001-router: Router\n///\n/// ## 1. Shape\npub struct Router;\n",
+        );
+        write(
+            &root.join("src/router.rs"),
+            "pub struct Router;\n",
+        );
+
+        let config = Config::default_for(root.clone());
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+
+        assert!(
+            !report
+                .errors
+                .iter()
+                .any(|error| matches!(error.code, "broken-stub" | "duplicate")),
+            "markdown-relative inline-spec stub should not be broken or duplicate: {:?}",
+            report
+                .errors
+                .iter()
+                .map(|error| (&error.code, &error.message))
+                .collect::<Vec<_>>()
+        );
+
+        let id = Id {
+            kind: "AR".to_string(),
+            num: Some(1),
+            slug: Some("router".to_string()),
+        };
+        let shown = show_declaration(&config, &findings, &id, None, ShowMode::Default, false)
+            .expect("show inline declaration");
+
+        assert_eq!(
+            canonical_test_path(&shown.path),
+            canonical_test_path(&root.join("crates/grund-core/src/router.rs")),
+            "show should follow the Markdown-relative stub target, not the repo-root fallback"
+        );
+    }
+
+    #[test]
+    fn stub_resolution_keeps_repo_root_fallback_for_old_stubs() {
+        let root = test_root("stub_resolution_keeps_repo_root_fallback_for_old_stubs");
+        write(
+            &root.join("docs/architecture/AR-001-router.md"),
+            "# AR-001-router: [router](src/router.rs)\n",
+        );
+        write(
+            &root.join("src/router.rs"),
+            "/// AR-001-router: Router\n///\n/// ## 1. Shape\npub struct Router;\n",
+        );
+
+        let config = Config::default_for(root.clone());
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+
+        assert!(
+            !report
+                .errors
+                .iter()
+                .any(|error| error.code == "broken-stub"),
+            "repo-root fallback should keep older stubs valid: {:?}",
+            report
+                .errors
+                .iter()
+                .map(|error| (&error.code, &error.message))
+                .collect::<Vec<_>>()
+        );
+
+        let id = Id {
+            kind: "AR".to_string(),
+            num: Some(1),
+            slug: Some("router".to_string()),
+        };
+        let shown = show_declaration(&config, &findings, &id, None, ShowMode::Default, false)
+            .expect("show inline declaration through fallback");
+
+        assert_eq!(
+            canonical_test_path(&shown.path),
+            canonical_test_path(&root.join("src/router.rs")),
+            "show should keep following repo-root-relative legacy stubs"
+        );
+    }
+
+    #[test]
     fn diagnostics_render_custom_id_format() {
         let root = test_root("diagnostics_render_custom_id_format");
         write(

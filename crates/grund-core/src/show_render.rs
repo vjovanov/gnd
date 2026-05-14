@@ -32,11 +32,7 @@ fn show_declaration(
         return show_e2e_case(config, id, case, section, mode);
     }
     let file = if let Some(target) = &decl.defined_in {
-        if target.is_absolute() {
-            target.clone()
-        } else {
-            root.join(target)
-        }
+        resolve_stub_target(root, &decl.file, target)
     } else {
         decl.file.clone()
     };

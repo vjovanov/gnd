@@ -171,11 +171,7 @@ fn check(findings: &Findings, config: &Config) -> Report {
             let Some(target) = &decl.defined_in else {
                 continue;
             };
-            let resolved = if target.is_absolute() {
-                target.clone()
-            } else {
-                config.root.join(target)
-            };
+            let resolved = resolve_stub_target(&config.root, &decl.file, target);
             if !resolved.exists() {
                 report.errors.push(Diagnostic {
                     code: "broken-stub",
@@ -412,11 +408,7 @@ fn is_stub_for_inline_decl(root: &Path, decl: &Declaration, decls: &[Declaration
     let Some(target) = &decl.defined_in else {
         return false;
     };
-    let resolved = if target.is_absolute() {
-        target.clone()
-    } else {
-        root.join(target)
-    };
+    let resolved = resolve_stub_target(root, &decl.file, target);
     decls
         .iter()
         .any(|other| other.file == resolved && other.file != decl.file)
@@ -441,4 +433,3 @@ fn file_declares_inline_home(path: &Path, id: &Id, grammar: &Grammar) -> Result<
     }
     Ok(false)
 }
-

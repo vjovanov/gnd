@@ -32,6 +32,6 @@ When a kind crosses 999, `grund id` emits `FS-1000-…` and the repo is **perman
 
 ## 6. Consequences
 
-- `command_id` in `src/lib.rs` keeps `let mut width = 3usize;` as the default, overridable by `--width`.
+- `command_id` in `crates/grund-core/src/id.rs` keeps `let mut width = 3usize;` as the default, overridable by `--width`.
 - [§FS-id.1](../../functional-spec/FS-id.md#1-inputs)'s `--width` bullet carries the [§DF-id-number-width](DF-id-number-width.md#df-id-number-width-grund-id-zero-pads-minted-numbers-to-a-default-width-of-3) citation.
 - No change to the `[id]` config schema, `templates/grund.toml`, or `grund config show` — the width is deliberately not a config key (§5).

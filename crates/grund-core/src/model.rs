@@ -319,6 +319,38 @@ struct ShowOutput {
     sections: Vec<ShowSection>,
 }
 
+fn resolve_stub_target(root: &Path, stub_file: &Path, target: &Path) -> PathBuf {
+    if target.is_absolute() {
+        return target.to_path_buf();
+    }
+    let stub_file = if stub_file.is_absolute() {
+        stub_file.to_path_buf()
+    } else {
+        root.join(stub_file)
+    };
+    let markdown_relative =
+        normalize_path_lexically(&stub_file.parent().unwrap_or(root).join(target));
+    if markdown_relative.exists() {
+        markdown_relative
+    } else {
+        normalize_path_lexically(&root.join(target))
+    }
+}
+
+fn normalize_path_lexically(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            other => normalized.push(other.as_os_str()),
+        }
+    }
+    normalized
+}
+
 /// Pull an `Id` out of a `Grammar` regex match — the `kind` / `num` / `slug`
 /// capture groups the `[id] format` defined (§FS-config.3.2, §AR-scanner.2.1).
 fn parse_id(caps: &regex::Captures) -> Option<Id> {

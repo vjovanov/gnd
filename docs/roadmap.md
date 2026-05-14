@@ -40,11 +40,11 @@ Remaining: a generated large synthetic fixture — the "large conformant repo" f
 
 ## RM-core-cli-split: split grund-core from grund-cli
 
-Workspace split before bindings ship. `src/lib.rs` is currently a single module that mixes scanner, checker, show, fmt, init, config parsing, argument handling, and rendering, with a thin `src/main.rs` calling into it.
+Workspace split before bindings ship. The first boundary is in place: `crates/grund-core` is a real workspace crate and the root `grund` binary depends on it. The remaining cleanup is to move CLI-only argument parsing, rendering, and exit-code mapping out of `grund-core` into a dedicated `grund-cli` frontend crate.
 
 ### 1. What
 
-`grund-core` library crate: config loading, scanner, checker, `show` body extraction, `fmt` planning, `refs` filtering, report data structures. `grund-cli` binary crate: argument parsing, rendering (text/JSON), exit-code mapping, help text. Today's `src/lib.rs` / `src/main.rs` are decomposed into these two crates with no behavior change.
+Done: `grund-core` library crate exists and owns the current scanner/checker/show/fmt/config implementation. The published root `grund` package is a thin binary that calls into it. Remaining: `grund-cli` frontend crate for argument parsing, rendering (text/JSON), exit-code mapping, and help text, leaving `grund-core` as the engine-only library.
 
 ### 2. Why now
 
