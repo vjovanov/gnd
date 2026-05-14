@@ -28,6 +28,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Use a fine-grained PAT so the bump push is authenticated as the
+          # token owner (repository admin), which the main-branch ruleset
+          # exempts via its bypass list. GITHUB_TOKEN cannot bypass rulesets
+          # that require a pull request, so a plain `git push origin main`
+          # would be rejected once protection is enabled.
+          token: ${{ secrets.RELEASE_PAT }}
 
       - name: Resolve current and next versions
         id: versions
