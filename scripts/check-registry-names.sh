@@ -3,9 +3,9 @@ set -euo pipefail
 
 # Pre-release package-name guard for §RM-distribution-naming.
 # Claimed future package names must be either available or already owned by this
-# repository. The bare "grund" name — a dormant low-use squat on npm, currently
-# appearing free on PyPI (§DA-rename-to-grund) — is reported as a notice so the
-# release manager can revisit FS-distribution if either of those changes.
+# repository. The bare "grund" name on npm — a dormant low-use squat
+# (§DA-rename-to-grund / §DA-pypi-uses-grund-as-the-package-name) — is reported
+# as a notice so the release manager can revisit FS-distribution if it changes.
 
 ua="grund-release-name-check/0.1"
 repo_pattern='github.com[/:]vjovanov/grund'
@@ -92,8 +92,7 @@ check_claimed_json_name "crates.io" "grund" "https://crates.io/api/v1/crates/gru
 check_claimed_json_name "crates.io" "grund-lsp" "https://crates.io/api/v1/crates/grund-lsp"
 check_claimed_json_name "npm" "grund-cli" "https://registry.npmjs.org/grund-cli"
 check_claimed_json_name "npm" "grund-lsp" "https://registry.npmjs.org/grund-lsp"
-check_claimed_json_name "pypi" "grund-cli" "https://pypi.org/pypi/grund-cli/json"
+check_claimed_json_name "pypi" "grund" "https://pypi.org/pypi/grund/json"
 check_claimed_json_name "pypi" "grund-lsp" "https://pypi.org/pypi/grund-lsp/json"
 
 notice_external_json_name "npm" "grund" "https://registry.npmjs.org/grund"
-notice_external_json_name "pypi" "grund" "https://pypi.org/pypi/grund/json"

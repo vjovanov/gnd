@@ -51,6 +51,7 @@ for _ in 1 2 3; do
   "$grund" list "$repo"                    >/dev/null 2>&1
   "$grund" show FS-check --brief "$repo"   >/dev/null 2>&1
   "$grund" show FS-check "$repo"           >/dev/null 2>&1
+  "$grund" show FS-check --full "$repo"    >/dev/null 2>&1
   "$grund" refs GOAL-fast-feedback "$repo" >/dev/null 2>&1
   "$grund" cover "$repo"                   >/dev/null 2>&1
   "$grund" fmt --check "$repo"             >/dev/null 2>&1

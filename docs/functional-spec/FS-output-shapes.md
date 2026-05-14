@@ -62,19 +62,18 @@ Fields:
 - `section` is the requested section path as a string, or `null` for a whole declaration.
 - `body` is exactly the text-mode body, including trailing newline when text mode would print one.
 - `path` and `line` point at the declaration or selected section start.
-- `sections`, present for `show --outline --format=json` and `show --brief --format=json`, is the ordered outline slice as objects with `path`, `title`, and `depth`.
-- `head`, present for `show --brief --format=json`, is exactly the `--head` slice as a string.
+- `sections`, present for `show --toc --format=json`, is the ordered section-map slice as objects with `path`, `title`, and `depth`.
 
-`show --outline --format=json` example:
+`show --toc --format=json` example:
 
 ```json
-{"id":"FS-001-alpha","section":null,"body":"## 1. First\n### 1.1 Child\n","path":"docs/functional-spec/FS-001-alpha.md","line":1,"sections":[{"path":"1","title":"First","depth":1},{"path":"1.1","title":"Child","depth":2}]}
+{"id":"FS-001-alpha","section":null,"body":"Alpha overview.\n\n## 1. First\n### 1.1 Child\n","path":"docs/functional-spec/FS-001-alpha.md","line":1,"sections":[{"path":"1","title":"First","depth":1},{"path":"1.1","title":"Child","depth":2}]}
 ```
 
-`show --brief --format=json` adds `head`:
+`show --brief --format=json` keeps the normal `show` object shape and narrows only `body`:
 
 ```json
-{"id":"FS-001-alpha","section":null,"body":"Alpha overview.\n\n## 1. First\n","path":"docs/functional-spec/FS-001-alpha.md","line":1,"sections":[{"path":"1","title":"First","depth":1}],"head":"Alpha overview.\n"}
+{"id":"FS-001-alpha","section":null,"body":"# FS-001-alpha: Alpha\n\nAlpha overview.\n","path":"docs/functional-spec/FS-001-alpha.md","line":1}
 ```
 
 For an E2E case, `show --format=json` uses the E2E manifest shape from [§FS-show.2.4](FS-show.md#24-e2e-cases):

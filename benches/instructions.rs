@@ -11,9 +11,10 @@
 //! The benched subcommands are the ones agents and CI invoke on every loop:
 //!
 //! - `check` — every save / commit / push; the headline operation.
-//! - `list` / `show --brief` / `show` / `refs` — the agent grounding workflow
-//!   (discover IDs, read the brief lead-prose-plus-section-map slice, read a
-//!   full declaration body, see a declaration's blast radius).
+//! - `list` / `show --brief` / `show` / `show --full` / `refs` — the agent
+//!   grounding workflow (discover IDs, preview the title plus first paragraph,
+//!   read the lead-default slice, escalate to a full declaration body, see a
+//!   declaration's blast radius).
 //! - `cover` — what the co-change recipe / CI consume.
 //! - `fmt --check` — the pre-commit / CI normalization gate.
 //!
@@ -43,9 +44,9 @@ const GRUND: &str = env!("CARGO_BIN_EXE_grund");
 #[cfg(feature = "bench")]
 const REPO: &str = env!("CARGO_MANIFEST_DIR");
 
-/// A representative declared ID with a substantial body — what `grund show`
-/// reads in full, and what `grund show --brief` reduces to lead prose plus a
-/// section map, when an agent grounds itself before editing.
+/// A representative declared ID with a substantial body — enough to exercise
+/// the brief preview, lead-default read, and full recursive body in the show
+/// ladder when an agent grounds itself before editing.
 #[cfg(feature = "bench")]
 const SHOW_ID: &str = "FS-check";
 /// A heavily-cited goal — `grund refs` over it walks the whole tree and returns
@@ -67,8 +68,7 @@ fn list() -> Command {
     Command::new(GRUND).args(["list", REPO]).build()
 }
 
-// `grund show <ID> --brief <repo>` — the lead prose plus section map; the
-// grounding read AGENTS.md / CLAUDE.md tell agents to do first.
+// `grund show <ID> --brief <repo>` — title plus first paragraph.
 #[cfg(feature = "bench")]
 #[binary_benchmark]
 fn show_brief() -> Command {
@@ -77,11 +77,20 @@ fn show_brief() -> Command {
         .build()
 }
 
-// `grund show <ID> <repo>` — one full declaration body.
+// `grund show <ID> <repo>` — the lead-default declaration read.
 #[cfg(feature = "bench")]
 #[binary_benchmark]
 fn show() -> Command {
     Command::new(GRUND).args(["show", SHOW_ID, REPO]).build()
+}
+
+// `grund show <ID> --full <repo>` — one full declaration body.
+#[cfg(feature = "bench")]
+#[binary_benchmark]
+fn show_full() -> Command {
+    Command::new(GRUND)
+        .args(["show", SHOW_ID, "--full", REPO])
+        .build()
 }
 
 // `grund refs <ID> <repo>` — every citation site of an ID.
@@ -108,7 +117,7 @@ fn fmt_check() -> Command {
 #[cfg(feature = "bench")]
 binary_benchmark_group!(
     name = commands;
-    benchmarks = check, list, show_brief, show, refs, cover, fmt_check
+    benchmarks = check, list, show_brief, show, show_full, refs, cover, fmt_check
 );
 
 #[cfg(feature = "bench")]

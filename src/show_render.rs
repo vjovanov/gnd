@@ -65,7 +65,7 @@ fn show_declaration(
 }
 
 /// Render an e2e case as a `grund show` body: the invocation, expected exit, and
-/// fixture list (or just the invocation with `--head`), plus the JSON shape — the
+/// fixture list (or just the invocation with `--brief`), plus the JSON shape — the
 /// case manifest of §FS-show.2.4. E2E declarations have no sections, so any
 /// `.<section>` is "section not found".
 fn show_e2e_case(
@@ -219,8 +219,8 @@ fn extract_declaration_body(
                 in_decl = true;
                 line_style_comment = is_line_style_comment_line(scan_line);
                 output_line = lineno;
-                // `md` format keeps the heading verbatim — including for `--head`,
-                // which then prints heading + lead prose (§FS-show.3.1).
+                // `md` format keeps the heading verbatim — including for `--brief`,
+                // which then prints heading + first paragraph (§FS-show.3.1).
                 if include_heading {
                     lines.push(clean_body_line(scan_line, is_md || in_py_docstring));
                 }
@@ -250,7 +250,7 @@ fn extract_declaration_body(
             let sec = caps.name("sec").map(|m| m.as_str()).unwrap_or("");
             let depth = sec.split('.').count();
             match section {
-                // Whole-declaration head: stop at the first numbered subsection.
+                // Whole-declaration lead: stop at the first numbered subsection.
                 None => {
                     if mode == ShowMode::Default {
                         break;
@@ -278,9 +278,9 @@ fn extract_declaration_body(
                         continue;
                     }
                     // Inside the target section: a sibling-or-shallower heading
-                    // ends it (§FS-show.2.2); in `--head` mode any further numbered
+                    // ends it (§FS-show.2.2); in default mode any further numbered
                     // heading — including a child — ends the section's lead prose
-                    // (§FS-show.2.1.1). Before the target section is found, keep
+                    // (§FS-show.2.2). Before the target section is found, keep
                     // scanning past unrelated headings.
                     if found_section && (mode == ShowMode::Default || depth <= target_depth) {
                         break;

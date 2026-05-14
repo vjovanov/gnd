@@ -1,4 +1,4 @@
-/// # AR-checker: how grund validates the scanner's findings
+/// AR-checker: how grund validates the scanner's findings
 ///
 /// The checker takes the `Findings` produced by §AR-scanner and produces a
 /// `Report`. It implements the rules in §FS-check.

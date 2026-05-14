@@ -14,7 +14,9 @@
 2. **Re-read before you edit.** `grund show <ID>.<section>` pulls just that subsection into context — no full-file reads, no token bloat.
 3. **No dangling pointers.** `grund check` validates that every cited ID resolves — in `.md`, Rust `///`, Java doc-comments, Python docstrings, Go `//`, JSDoc, every doc-comment form `grund` knows about.
 
-Off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) only handle `.md` and only validate `[text](url)`. A `§FS-events.4` cited from `src/bus.rs` is invisible to them. That gap is what `grund` exists to close.
+Off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) only handle `.md` and only validate `[text](url)`. A `§FS-events.4` cited from `src/bus.rs` is invisible to them. That gap is what `grund` exists to close: Lychee checks whether Markdown links still open; `grund` checks whether your code still knows why it exists. Lychee is the link checker; `grund` is the intent checker. Both belong in CI; they guard different failure modes. [§GND-grund.1](docs/grund.md#1-what-grund-does-about-it)
+
+The benchmark badge is a local throughput snapshot. The release regression meter is the instruction-counting harness: same binary, same repo, same number, so CI gets a stable performance signal instead of a noisy stopwatch guess. [§AR-benchmarks](docs/architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands), [§DA-benchmark-instruction-counting](docs/decisions/architectural/DA-benchmark-instruction-counting.md#da-benchmark-instruction-counting-the-performance-harness-counts-instructions-not-wall-clock-seconds)
 
 ## 0. Specify your intent
 
@@ -56,13 +58,15 @@ A receiver that falls behind the broadcaster is disconnected, not blocked.
 The sender never waits on a slow consumer.
 ```
 
-`grund show` returns *just* that subsection — well under 200 lines for the common case — so the agent pulls one fact into context instead of an entire file. Its companions:
+`grund show` returns *just* the useful slice — well under 200 lines for the common case — so the agent pulls one fact into context instead of an entire file. Its ladder:
 
-- `grund show <ID>` — the whole declaration body
-- `grund show <ID> --head` — the lead paragraph only
+- `grund show <ID>` — the lead prose, cut at the first child section; the cheap default for a bare citation
+- `grund show <ID> --toc` — the lead plus the section map, for choosing the next subsection
+- `grund show <ID> --brief` — heading plus first paragraph only, for hover-sized previews
+- `grund show <ID> --full` — the full declaration body when the narrower reads are not enough
 - `grund show <ID> --format json` — for tooling
 
-That's the "cheap grounding" half of the workflow: every agent fetches the same bytes for the same ID, every time.
+`grund refs <ID> --summary` gives the blast radius one file per line before a full citation dump, and `grund list --kind FS,AR` keeps discovery scoped. That's the "cheap grounding" half of the workflow: every agent fetches the same bytes for the same ID, every time.
 
 ## 3. Check for dangling pointers
 

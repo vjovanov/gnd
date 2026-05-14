@@ -52,8 +52,8 @@ Error output is part of the contract. Non-zero cases should keep `expected.stder
 - `fmt` skips declaration headings and fenced Markdown
 - `show` full Markdown declaration
 - `show` Markdown section extraction
-- `show --head`
-- `show --outline` / `show --brief` in text, Markdown, and JSON, including empty-half separator behavior, empty output, E2E manifests, and mode mutex errors
+- `show` lead default
+- `show --toc` / `show --brief` in text, Markdown, and JSON, including empty lead handling, empty output, E2E manifests, and mode mutex errors
 - `show` missing ID failure (with recovery hint)
 - `show` missing section failure (with recovery hint)
 - `refs --summary` in text and JSON, including duplicate citations on one line and section-filtered summaries

@@ -35,7 +35,19 @@ A single linear pass over each file's lines, performing three jobs simultaneousl
 
 ### 2.1 Declaration detection
 
-A regex matches heading lines of the form `<comment-prefix>? #{1,N} <ID>[:…]` where `<ID>` is the configured `[id]` grammar ([§FS-config.3.2](../functional-spec/FS-config.md#32-id--id-grammar)) with `{kind}` drawn from a configured `[[kinds]]` prefix. The heading may sit at any markdown level: file-form `GND`/`FS`/`AR`/`DF`/`DA` declarations are H1 (`# FS-… :`), `GOAL` and `RM` declarations are H2 inside `docs/goals/goals.md` and `docs/roadmap.md` respectively, and an inline declaration in a doc-comment is whatever level the author wrote (`# AR-… ` is "level 1" *within* the comment block). When the regex matches, the line opens a new "current declaration" context and the **declaration heading level** `L` (the count of `#`) is recorded on it. (`E2E` declarations are the exception — they are directories, not heading lines; see §6.)
+A regex matches declaration lines in either of two shapes:
+
+1. **Markdown-form** — `<comment-prefix>? #{1,N} <ID>[:…]`: a `#`-prefixed heading at any markdown level, optionally itself sitting inside a comment marker. This is how `.md` files declare (`# FS-foo:`) and also how inline declarations in doc-comments were written historically (`/// # AR-foo:`).
+2. **Code-form** — `<comment-prefix> <ID>[:…]`: a doc-comment-prefixed line with the ID directly after the marker, no `#` prefix. Decided in [§DF-code-declarations-drop-hash](../decisions/functional/DF-code-declarations-drop-hash.md#df-code-declarations-drop-hash-code-resident-declarations-may-drop-the--prefix). The comment prefix is **required** in this form — without a `#` or a doc-comment marker, a line `FS-foo: anything` in markdown prose is not a declaration.
+
+`<ID>` is the configured `[id]` grammar ([§FS-config.3.2](../functional-spec/FS-config.md#32-id--id-grammar)) with `{kind}` drawn from a configured `[[kinds]]` prefix. The heading may sit at any markdown level when written in markdown-form: file-form `GND`/`FS`/`AR`/`DF`/`DA` declarations are H1 (`# FS-… :`), `GOAL` and `RM` declarations are H2 inside `docs/goals/goals.md` and `docs/roadmap.md` respectively, and an inline declaration in a doc-comment is whatever level the author wrote (`# AR-… ` is "level 1" *within* the comment block).
+
+When the regex matches, the line opens a new "current declaration" context and the **declaration heading level** `L` is recorded:
+
+- Markdown-form: `L` is the count of `#` on the line (`#` → 1, `##` → 2, …).
+- Code-form: `L` defaults to `1`. The declaration is conceptually a "level-1" heading inside the doc-comment block — its sections are still numbered `## 1. …`, `### 1.1 …`, etc., one or more `#` deeper than the declaration line.
+
+Both forms record the same `Declaration` struct downstream; consumers (`grund show`, `grund check`, `grund refs`) do not care which shape the source used. (`E2E` declarations are the exception — they are directories, not heading lines; see §6.)
 
 ### 2.2 Section detection
 

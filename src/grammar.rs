@@ -198,9 +198,19 @@ impl Grammar {
         let sec_suffix = format!(r"(?:{}{})?", sep_quoted, SEC_GROUP);
 
         let comment_prefix = comment_prefix_regex(comment_prefixes);
+        // Declaration grammar — accepts two shapes (§AR-scanner.2.1):
+        //   1. Markdown-form: optional comment prefix, then `#+`, then ID. The `#` is
+        //      mandatory; this is what every `.md` declaration uses, and what code
+        //      doc-comments used historically (`/// # AR-foo:`).
+        //   2. Code-form (§DF-code-declarations-drop-hash): comment prefix required,
+        //      `#` optional. So `/// AR-foo: title` matches, but a bare prose line
+        //      `AR-foo: title` in markdown does not.
+        // Both shapes capture into `hashes`; in code-form the group is empty/None and
+        // the scanner defaults the heading level to 1 (§AR-scanner.2.1).
         let decl_re = Regex::new(&format!(
-            r"^\s*(?:{})?\s*(?P<hashes>#+)\s+{}\b",
-            comment_prefix, id_pat
+            r"^\s*(?:{prefix}\s+(?:(?P<hashes>#+)\s+)?|(?P<mdhashes>#+)\s+){id}\b",
+            prefix = comment_prefix,
+            id = id_pat
         ))?;
         let section_re = Regex::new(&format!(
             r"^\s*(?:{})?\s*(?P<hashes>#+)\s+{}\.?\s+\S",

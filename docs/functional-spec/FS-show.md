@@ -77,6 +77,23 @@ When the ID's home is in code (per [§FS-check.3.4](FS-check.md#34-broken-inline
 
 The scanner recognizes the same doc-comment forms enumerated in [§AR-scanner.4](../architecture/AR-scanner.md#4-inline-declarations-in-language-doc-comments) — Javadoc, JSDoc/TSDoc, Doxygen, KDoc, Scaladoc, PHPDoc, Rustdoc (`///`, `//!`, `/** … */`), C# XML doc comments, Go's `// …` doc blocks, Ruby `#` comments, and Python `""" … """` docstrings. This means an architectural spec can live directly in the class-level Javadoc, and `grund show AR-<event-bus>` returns the rendered Javadoc lead — same content the optional LSP server shows on hover ([§FS-lsp.1.2](FS-lsp.md#12-hover-preview)). The stub at `docs/architecture/AR-<event-bus>.md` is a single-line H1 — `# AR-<event-bus>: [<path>](<path>)` — pointing at the file.
 
+A code-resident declaration may be written in two shapes — `<comment-marker> # <ID>: <title>` (historical) or `<comment-marker> <ID>: <title>` (preferred, no `#`). Both parse identically; the new shape is decided in [§DF-code-declarations-drop-hash](../decisions/functional/DF-code-declarations-drop-hash.md#df-code-declarations-drop-hash-code-resident-declarations-may-drop-the--prefix). `grund fmt --strip-decl-hash` migrates the historical form to the preferred form mechanically.
+
+A single doc-comment may declare **multiple** IDs — most usefully an `AR-` and an `FS-` co-located on the same class — and each gets its own body. The scanner ends each declaration's block at the next declaration line in either direction (§2.3.1.3 below):
+
+```rust
+/// AR-router: In-process event router
+///
+/// Implements the publish-subscribe contract from §FS-events.
+///
+/// FS-router-priority: Routes are matched in declared priority order
+///
+/// Ties broken by registration order; see §DF-router-tiebreak.
+pub struct Router { ... }
+```
+
+`grund show AR-router` returns the first body; `grund show FS-router-priority` returns the second. Multi-declaration comments compose with every slice flag (`--brief`, default, `--toc`, `--full`) because each is just a normal declaration the scanner happens to have found in the same doc-comment.
+
 #### 2.3.1 What counts as the "comment block"
 
 Extraction is precisely defined so that the implementation has no freedom and the same input produces the same output across editor, CLI, and binding callers.

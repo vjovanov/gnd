@@ -10,10 +10,10 @@
 | cargo    | `grund-lsp`           | Optional LSP server binary ([§FS-lsp](FS-lsp.md#fs-lsp-grund-will-ship-an-optional-lsp-server)). Depends on `grund-core`.              |
 | npm      | `grund-cli`           | Prebuilt CLI binary + thin Node API surface (via `napi-rs`).              |
 | npm      | `grund-lsp`           | Optional LSP server binary, prebuilt per platform.                        |
-| PyPI     | `grund-cli`           | Prebuilt CLI wheel + Python API surface (via `PyO3` / `maturin`).         |
+| PyPI     | `grund`               | Prebuilt CLI wheel + Python API surface (via `PyO3` / `maturin`).         |
 | PyPI     | `grund-lsp`           | Optional LSP server, distributed via wheel (`pipx install grund-lsp`).      |
 
-On crates.io the crate is `grund` — the library (`grund-core`) plus the `grund` binary — alongside `grund-lsp`. On npm and PyPI the published CLI is `grund-cli`: one name that reads identically on both registries and as "the package that installs the `grund` command", with `grund-lsp` as the server slot on each. The installed binary is `grund` no matter how it was installed, and the Python import module is `grund`. The tool was renamed from its pre-release working title `gnd` to `grund` ([§DA-rename-to-grund](../decisions/architectural/DA-rename-to-grund.md#da-rename-to-grund-rename-gnd-to-grund-before-first-publish)); that rename also voids the registry-collision reasoning in [§DA-reference-checker-name](../decisions/architectural/DA-reference-checker-name.md#da-reference-checker-name-name-for-the-spec-reference-checker-tool) and [§DA-pypi-package-name](../decisions/architectural/DA-pypi-package-name.md#da-pypi-package-name-pypi-uses-gnd-cli-as-the-package-name), which were about the old name (`grund` itself is clean on crates.io and PyPI; the unscoped `grund` on npm is a dormant low-use squat). Every one of these names — and the still-unreserved LSP slots — is re-verified against the live registries by [§RM-distribution-naming](../roadmap.md#rm-distribution-naming-verify-package-names-before-first-publish) before the first publish, which may collapse the PyPI package to the bare `grund` if it is still free.
+On crates.io the crate is `grund` — the library (`grund-core`) plus the `grund` binary — alongside `grund-lsp`. On PyPI the CLI package is also `grund`: the wheel installs the `grund` command and exposes the Python import module `grund`. On npm the published CLI package is `grund-cli` because the unscoped `grund` package is externally occupied; it still installs the `grund` command. `grund-lsp` is the optional server slot on each registry. The tool was renamed from its pre-release working title `gnd` to `grund` ([§DA-rename-to-grund](../decisions/architectural/DA-rename-to-grund.md#da-rename-to-grund-rename-gnd-to-grund-before-first-publish)); the final PyPI name is set by [§DA-pypi-uses-grund-as-the-package-name](../decisions/architectural/DA-pypi-uses-grund-as-the-package-name.md#da-pypi-uses-grund-as-the-package-name-pypi-uses-grund-as-the-package-name), which records why PyPI uses the bare name while npm keeps `grund-cli`. Every one of these names — and the still-unreserved LSP slots — is re-verified against the live registries by [§RM-distribution-naming](../roadmap.md#rm-distribution-naming-verify-package-names-before-first-publish) before the first publish.
 
 The CLI install on each registry does **not** transitively pull in `grund-lsp` — they are independent published packages, per [§DA-lsp-optional](../decisions/architectural/DA-lsp-optional.md#da-lsp-optional-lsp-server-ships-as-a-separate-optional-binary). A user who only runs `grund check` in CI installs the CLI alone; a user who wants editor integration installs `grund-lsp` separately and configures their editor to launch it ([§FS-lsp.2](FS-lsp.md#2-installation-and-lifecycle)).
 
@@ -53,9 +53,10 @@ Finding {
 
 ShowOpts {
   section: string?    // dotted section path, e.g. "3.1.2"
-  mode:    "full" | "head" | "outline" | "brief"
-                      // the same mutually exclusive show modes as §FS-show.1
-                      // default: "full"
+  mode:    "lead" | "brief" | "toc" | "full"
+                      // the same mutually exclusive show ladder as §FS-show.1;
+                      // "lead" is the CLI's no-flag default
+                      // default: "lead"
   format:  "text" | "md" | "json"
 }
 ```
@@ -82,7 +83,7 @@ const body = await show('FS-check', { mode: 'brief' });
 
 The Node binding is built with `napi-rs`. Native binaries are prebuilt for the platforms covered by `napi-rs` (macOS arm64/x64, Linux x64/arm64, Windows x64). Source builds are supported as a fallback.
 
-### 3.3 Python (`grund-cli` PyPI package)
+### 3.3 Python (`grund` PyPI package)
 
 ```python
 from grund import check, show
@@ -91,7 +92,7 @@ report = check("./repo")
 body = show("FS-check", mode="brief")
 ```
 
-The Python binding is built with `PyO3` and packaged with `maturin`. Wheels are built for CPython 3.10+ across the platforms covered by `cibuildwheel`. The distribution package is named `grund-cli`; the import module is `grund` ([§DA-pypi-package-name](../decisions/architectural/DA-pypi-package-name.md#da-pypi-package-name-pypi-uses-gnd-cli-as-the-package-name) — that record predates the rename and used the old name; [§RM-distribution-naming](../roadmap.md#rm-distribution-naming-verify-package-names-before-first-publish) re-confirms the live names).
+The Python binding is built with `PyO3` and packaged with `maturin`. Wheels are built for CPython 3.10+ across the platforms covered by `cibuildwheel`. The distribution package and import module are both named `grund` ([§DA-pypi-uses-grund-as-the-package-name](../decisions/architectural/DA-pypi-uses-grund-as-the-package-name.md#da-pypi-uses-grund-as-the-package-name-pypi-uses-grund-as-the-package-name)).
 
 ## 4. Release process
 
@@ -99,7 +100,7 @@ A single release tag triggers parallel jobs that:
 
 1. Publish the `grund-core`, `grund`, and `grund-lsp` crates to crates.io (in dependency order: `grund-core` first).
 2. Build per-platform Node binaries and publish `grund-cli` and `grund-lsp` to npm.
-3. Build per-platform Python wheels and publish `grund-cli` and `grund-lsp` to PyPI.
+3. Build per-platform Python wheels and publish `grund` and `grund-lsp` to PyPI.
 
 All artifacts must succeed for a release to be considered complete. Versions across the CLI and the LSP move together within a release; `grund-lsp` pins its `grund-core` dependency to the same version the CLI ships, so a CLI/LSP version mismatch in editors is structurally impossible.
 

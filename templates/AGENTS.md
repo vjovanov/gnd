@@ -21,7 +21,7 @@ A `{MARKER}<ID>` is a pointer to a fact, not a file path. Resolve it with `grund
 
 ### Declarations and citations
 
-Declarations are heading lines `# {ID_EXAMPLE}: …` in markdown, or the same shape in a doc-comment (Javadoc, JSDoc, Rustdoc, Python docstring, Go `//`). An inline source declaration can be represented by a one-line stub in the configured kind home: `# <ID>: [<path>](<path>)`.
+Declarations are heading lines `# {ID_EXAMPLE}: …` in markdown. In a code doc-comment (Rustdoc, Javadoc, JSDoc, Python docstring, Go `//`, …) drop the `#` — write `/// {ID_EXAMPLE}: …` directly. One doc-comment may declare multiple IDs (e.g. an `AR-` and an `FS-` on the same class) — each gets its own body. An inline source declaration is reachable from the configured kind home via a one-line stub: `# <ID>: [<path>](<path>)`.
 
 ### Rules
 
