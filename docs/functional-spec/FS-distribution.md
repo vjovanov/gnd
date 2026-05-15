@@ -1,6 +1,6 @@
 # FS-distribution: grund distribution targets
 
-`grund` is written in Rust; the target distribution is **all three** major language ecosystems — cargo, npm, and PyPI — with idiomatic API bindings on each. The check engine stays a single shared library; only the surfaces differ. Today the Cargo CLI is implemented and installable from git; registry publication, the npm and PyPI bindings, and the optional `grund-lsp` server are tracked in `docs/roadmap.md` and gated by [§RM-distribution-naming](../roadmap.md#rm-distribution-naming-verify-package-names-before-first-publish). Serves [§GOAL-multi-language](../goals.md#goal-multi-language-same-engine-three-platforms) and [§GOAL-friendliness-first](../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible).
+`grund` is written in Rust; the target distribution is **all three** major language ecosystems — cargo, npm, and PyPI — with idiomatic API bindings on each. The check engine stays a single shared library; only the surfaces differ. Today the Cargo CLI is published to crates.io as `grund`; the npm and PyPI bindings, and the optional `grund-lsp` server, are tracked in `docs/roadmap.md`. Serves [§GOAL-multi-language](../goals.md#goal-multi-language-same-engine-three-platforms) and [§GOAL-friendliness-first](../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible).
 
 ## 1. Targets
 
