@@ -170,10 +170,10 @@ For an agent reviewing a code change, the loop is mechanical: list the `§…` c
 ## Install
 
 ```bash
-cargo install --git https://github.com/vjovanov/grund
+cargo install grund
 ```
 
-That puts the `grund` binary on your `PATH`. npm and PyPI bindings are planned — see [`FS-distribution`](docs/functional-spec/FS-distribution.md).
+That installs the `grund` binary from the [`grund` crate on crates.io](https://crates.io/crates/grund) onto your `PATH`. npm and PyPI bindings are planned — see [`FS-distribution`](docs/functional-spec/FS-distribution.md).
 
 ## Set up a repo
 
