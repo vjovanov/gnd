@@ -17,6 +17,13 @@ fn is_scannable(path: &Path, config: &Config) -> bool {
 /// (§AR-scanner.2.3, §FS-check.1.1) — skipping fenced code blocks and, outside
 /// Markdown, bare ID-shaped tokens inside string literals (§FS-fmt.2.3.1) and any
 /// bare token at all under `[reference] strict` (§FS-config.3.1).
+///
+/// One citation regex is used for every scan; whether a match is qualified
+/// (marker + `<alias>/<ID>`) or unqualified (marker + `<ID>`) is determined by
+/// whether the `<namespace>` capture fired (§AR-workspace.3.1). The alias
+/// prefix is only honoured when the marker precedes it — an unmarked
+/// `<alias>/<ID>` in prose is text, never a qualified citation
+/// (§FS-workspace.1, §AR-workspace.3.1).
 fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()> {
     let text = fs::read_to_string(path)?;
     let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
@@ -104,7 +111,14 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
 
         for caps in config.grammar.citation_re.captures_iter(scan_line) {
             let Some(full) = caps.get(0) else { continue };
+            let namespace = caps.name("namespace").map(|m| m.as_str().to_string());
             let has_marker = scan_line[..full.start()].ends_with(&config.marker);
+            // §FS-workspace.1, §AR-workspace.3.1: an unmarked `alias/ID` is text,
+            // not a citation. The slash is part of the visual token; we do not
+            // fall back to recognising the trailing ID as a bare citation.
+            if namespace.is_some() && !has_marker {
+                continue;
+            }
             if config.strict && !has_marker {
                 continue;
             }
@@ -125,6 +139,7 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
             };
             let text = scan_line[start..full.end()].to_string();
             findings.citations.push(Citation {
+                namespace,
                 id,
                 section: caps.name("sec").map(|m| m.as_str().to_string()),
                 file: path.to_path_buf(),
@@ -345,6 +360,17 @@ fn walk_scannable_files(
         if !scan_root.exists() {
             continue;
         }
+        let canonical_scan_root =
+            fs::canonicalize(&scan_root).unwrap_or_else(|_| scan_root.to_path_buf());
+        // §AR-workspace.6: a root scan starts outside member namespaces; an
+        // included path at or below a member boundary belongs to the member scan.
+        if config
+            .workspace_boundary_roots
+            .iter()
+            .any(|root| canonical_scan_root.starts_with(root))
+        {
+            continue;
+        }
         if scan_root.is_file() {
             if is_scannable(&scan_root, config) {
                 files.push(scan_root);
@@ -362,9 +388,28 @@ fn walk_scannable_files(
                 .parents(false);
         }
         let excluded = config.exclude.clone();
+        // §AR-workspace.6: precompute the boundary path components once,
+        // expressed relative to the canonical scan root. The walker filter is
+        // then a single component-suffix compare — no per-entry `canonicalize`
+        // syscall, no allocation in the hot path.
+        let boundary_suffixes: Vec<PathBuf> = config
+            .workspace_boundary_roots
+            .iter()
+            .filter_map(|root| root.strip_prefix(&canonical_scan_root).ok())
+            .map(Path::to_path_buf)
+            .collect();
+        let scan_root_for_filter = scan_root.clone();
         builder.filter_entry(move |e| {
             if e.depth() == 0 {
                 return true;
+            }
+            if e.file_type().is_some_and(|file_type| file_type.is_dir())
+                && let Ok(relative) = e.path().strip_prefix(&scan_root_for_filter)
+                && boundary_suffixes
+                    .iter()
+                    .any(|suffix| relative == suffix.as_path())
+            {
+                return false;
             }
             if e.file_type().is_some_and(|file_type| file_type.is_dir()) {
                 let Some(name) = e.path().file_name().and_then(|name| name.to_str()) else {

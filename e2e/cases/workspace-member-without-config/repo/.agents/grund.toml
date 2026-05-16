@@ -1,0 +1,14 @@
+grund_config_version = 1
+project_name = "root"
+
+[reference]
+marker = "§"
+strict = true
+
+[scan]
+include = ["docs"]
+respect_gitignore = false
+
+[workspace]
+members = ["apps/api"]
+include_root = true

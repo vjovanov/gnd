@@ -57,7 +57,7 @@ fn command_refs(args: &[String]) -> ExitCode {
         eprintln!("error: refs requires an ID");
         return ExitCode::from(2);
     };
-    let config = match load_config(&path) {
+    let config = match resolve_workspace_config(&path, path_provided) {
         Ok(config) => config,
         Err(err) => {
             eprintln!("error: {err:#}");
@@ -100,6 +100,10 @@ fn command_refs(args: &[String]) -> ExitCode {
     let mut citations = findings
         .citations
         .iter()
+        // §FS-workspace.8, §AR-workspace.8: `grund refs` is project-local in
+        // v1 — `§alias/<ID>` is a citation of *another* project's `<ID>`, not
+        // of the local one. Skip qualified citations entirely.
+        .filter(|citation| citation.namespace.is_none())
         .filter(|citation| citation.id == id)
         .filter(|citation| {
             section

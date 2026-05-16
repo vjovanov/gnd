@@ -59,7 +59,7 @@ fn command_id(args: &[String]) -> ExitCode {
         .get(2)
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
-    let config = match load_config(&path) {
+    let config = match resolve_workspace_config(&path, path_provided) {
         Ok(config) => config,
         Err(err) => {
             eprintln!("error: {err:#}");

@@ -31,7 +31,7 @@ fn command_cover(args: &[String]) -> ExitCode {
         }
         idx += 1;
     }
-    let config = match load_config(&path) {
+    let config = match resolve_workspace_config(&path, path_provided) {
         Ok(config) => config,
         Err(err) => {
             eprintln!("error: {err:#}");
@@ -56,6 +56,12 @@ fn command_cover(args: &[String]) -> ExitCode {
         by_file.entry(file.clone()).or_default();
     }
     for citation in &findings.citations {
+        // §FS-workspace.8, §AR-workspace.8: `grund cover` is project-local in
+        // v1; a `§alias/<ID>` in this file refers to another project's
+        // declaration and would distort the per-file local citation map.
+        if citation.namespace.is_some() {
+            continue;
+        }
         by_file
             .entry(citation.file.clone())
             .or_default()

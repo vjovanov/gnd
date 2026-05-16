@@ -92,7 +92,7 @@ fn command_show(args: &[String]) -> ExitCode {
         eprintln!("error: show requires an ID");
         return ExitCode::from(2);
     };
-    let config = match load_config(&path) {
+    let config = match resolve_workspace_config(&path, path_provided) {
         Ok(config) => config,
         Err(err) => {
             eprintln!("error: {err:#}");

@@ -59,10 +59,19 @@ static AGENTS_BLOCK_LEGACY_END: Lazy<Regex> =
 /// shape of a declaration heading or a citation. Built once per config load.
 /// Realizes §FS-config.3.1, §FS-config.3.2, §FS-config.3.3 and the regex-not-a-parser
 /// stance of §AR-scanner.5.
+/// The pattern an alias must match before the `/` of a qualified citation
+/// (§FS-workspace.1, §AR-workspace.2). One canonical place — also referenced by
+/// the config-load alias validator (`is_valid_project_alias` in `config.rs`).
+const PROJECT_ALIAS_PATTERN: &str = "[a-z][a-z0-9-]*";
+
 #[derive(Clone)]
 struct Grammar {
     decl_re: Regex,
     section_re: Regex,
+    /// One citation regex, capturing an optional `<namespace>/` prefix
+    /// (§FS-workspace.1, §AR-workspace.3.1). The scanner decides whether to
+    /// emit a qualified citation based on whether the marker `§` precedes the
+    /// match; this regex never has two modes.
     citation_re: Regex,
     id_input_re: Regex,
 }
@@ -216,7 +225,13 @@ impl Grammar {
             r"^\s*(?:{})?\s*(?P<hashes>#+)\s+{}\.?\s+\S",
             comment_prefix, SEC_GROUP
         ))?;
-        let citation_re = Regex::new(&format!(r"\b{}{}", id_pat, sec_suffix))?;
+        // §FS-workspace.1: the optional `<alias>/` namespace prefix is part of
+        // the citation grammar, not a separate parser pass. The scanner gates
+        // it on the marker (§AR-workspace.3.1) — without `§`, a `slug/ID`
+        // token is treated as text, not a citation.
+        let namespace_prefix = format!(r"(?:(?P<namespace>{})/)?", PROJECT_ALIAS_PATTERN);
+        let citation_re =
+            Regex::new(&format!(r"\b{}{}{}", namespace_prefix, id_pat, sec_suffix))?;
         let id_input_re = Regex::new(&format!(r"^{}{}$", id_pat, sec_suffix))?;
 
         Ok(Self {

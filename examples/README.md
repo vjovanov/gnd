@@ -4,8 +4,15 @@ Self-contained mini-repos demonstrating each ID scheme `grund` supports.
 Each subfolder is shaped like an `e2e/cases/<name>/` directory — `repo/`
 holds the fixture, and `expected.exit`/`expected.stdout`/`expected.stderr`
 record the contract — so each example doubles as a regression fixture.
-`tests/examples.rs` runs `grund <repo>` against every one of them on `cargo
+The e2e test runner also runs `grund <repo>` against every example on `cargo
 test`, so the snippets below cannot drift from what the tool actually does.
+
+Examples are maintained as user-facing walkthroughs for canonical `grund`
+workflows, per [FS-examples](../docs/functional-spec/FS-examples.md).
+Each example README should name the use-case it teaches, show the command to
+run, explain the expected output, and call out the practical trade-offs.
+Runnable examples share the same golden-output runner as `e2e/cases/`; the
+examples tree should not grow a parallel test harness.
 
 ## ID schemes
 
@@ -18,6 +25,12 @@ test`, so the snippets below cannot drift from what the tool actually does.
 Each subfolder's `README.md` lists the trade-offs for that scheme. The
 top-level project [README](../README.md#4-the-structure-that-gets-cited)
 summarizes when to reach for each.
+
+## Workflows
+
+| Folder                                                       | Use-case                                                 |
+|--------------------------------------------------------------|----------------------------------------------------------|
+| [`workspace/`](workspace/)                                   | Cross-project citation in a monorepo ([§FS-workspace](../docs/functional-spec/FS-workspace.md)) |
 
 ## Run an example
 

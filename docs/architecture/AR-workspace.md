@@ -1,0 +1,253 @@
+# AR-workspace: how the resolver, config loader, and scanner compose across projects
+
+The workspace surface ([§DF-subproject-namespaces](../decisions/functional/DF-subproject-namespaces.md#df-subproject-namespaces-alias-namespace-model-for-sub-projects-and-external-repos), [§FS-workspace](../functional-spec/FS-workspace.md#fs-workspace-grund-validates-cross-project-citations-in-a-workspace)) adds **one
+extra dimension** to the existing single-project pipeline: a citation may now
+carry a namespace. Every other moving part — the scanner, the config loader,
+the checker — must keep its single-project contract intact and let the new
+dimension flow through unchanged. This document fixes the layering so that the
+next command to gain qualified-ID behaviour (`show`, `refs`, `list`,
+completions) composes with it, instead of re-implementing it.
+
+The bug cluster that motivated this doc was three slips of the same kind:
+two scanner modes that disagreed on what `path/ID` means; alias validation
+gated on which section happened to be present in a config file; a
+silent-skip behaviour at member scope that contradicted [§DF-subproject-namespaces](../decisions/functional/DF-subproject-namespaces.md#df-subproject-namespaces-alias-namespace-model-for-sub-projects-and-external-repos) §3.6.
+All three came from the same shape — *workspace-only branches sitting
+alongside the single-project path* — and all three are ruled out by the
+invariants below.
+
+## 1. Layering
+
+The pipeline is four layers, top to bottom:
+
+```text
+┌────────────────────────────────────────────────────────────────┐
+│ CLI (check_cmd, refs, show, list, …)                           │
+│   - decides workspace vs single-project run                    │
+│   - assembles the project map and current alias                │
+├────────────────────────────────────────────────────────────────┤
+│ Resolver (target_findings_for_citation)                        │
+│   - one function that maps a Citation to its target Findings   │
+│   - the only place that knows what "qualified" means at runtime│
+├────────────────────────────────────────────────────────────────┤
+│ Checker (check_with_workspace)                                 │
+│   - rules from §FS-check / §AR-checker, namespace-agnostic     │
+│   - calls the resolver; does not branch on "is workspace?"    │
+├────────────────────────────────────────────────────────────────┤
+│ Scanner (scan_file, scan_tree) — §AR-scanner                   │
+│   - one citation regex; emits Citation { namespace, … }        │
+│   - one tree walk; obeys workspace_boundary_roots              │
+└────────────────────────────────────────────────────────────────┘
+```
+
+No layer reads a layer above it. The scanner never asks "am I in a
+workspace?"; the checker never asks "what alias am I?"; the CLI never reaches
+into a regex.
+
+## 2. Single citation grammar
+
+There is exactly one citation regex in the engine, defined in `grammar.rs`:
+
+```text
+\b(?:(?P<namespace>[a-z][a-z0-9-]*)/)?<ID>(?:<sep><section>)?
+```
+
+The optional `<namespace>` capture is part of the grammar ([§FS-workspace.1](../functional-spec/FS-workspace.md#1-citation-syntax)),
+not a second parser pass. A scanner that toggles between "qualified" and
+"unqualified" regexes invites the bug we hit on the first slice: two modes that
+look equivalent on the happy path, but disagree on the edges (a bare
+`path/<ID>` token; a literal slash inside a string; a markdown link
+destination). One regex, one capture group, one decision rule downstream.
+
+## 3. The scanner: marker-anchored qualification
+
+### 3.1 The rule
+
+A qualified citation requires the citation marker `§`. The scanner emits
+`Citation { namespace: Some(_) }` only when the regex captured a `<namespace>`
+group *and* the byte immediately preceding the match is the marker.
+
+|                              | marker present (`§…`) | marker absent      |
+|------------------------------|-----------------------|--------------------|
+| `<§>alias/<ID>` / `alias/<ID>`| qualified citation    | text (skip)        |
+| `<§><ID>` / `<ID>`            | unqualified citation  | bare ID in non-strict mode only; otherwise skip ([§AR-scanner.2.3](AR-scanner.md#23-citation-detection)) |
+
+This is the rule that rules out the v1 regression where, under
+`[reference] strict = false`, the bare token `path/<ID>` in prose was promoted
+to a qualified citation and produced a spurious `unknown project alias`
+error. The marker is the only signal the scanner uses for "the writer meant
+this as a citation."
+
+### 3.2 The scanner never branches on workspace
+
+The scanner does not know whether it is running for a single-project repo or
+a workspace member. It produces a uniform stream of `Citation` records, and
+the workspace machinery lives one layer up.
+
+The only workspace-shaped knob the scanner reads is
+`workspace_boundary_roots` — a list of canonical paths the tree walk must
+*not* descend into ([§AR-workspace.6](AR-workspace.md#6-the-workspace-boundary)). It exists because a root-project scan
+must not absorb member declarations; it is consulted as a directory filter
+during the walk, never as a per-citation rule.
+
+## 4. The resolver: one function
+
+`target_findings_for_citation(cite, local, workspace) -> Option<&Findings>` is
+the single function any command calls to map a citation to the project it
+resolves against:
+
+- `cite.namespace == None` → resolves against `local` (the current project).
+- `cite.namespace == Some(name)` → resolves against `workspace[name]`, or
+  `None` if the alias is unknown.
+
+Every consumer of citations — the checker (dangling, missing-section,
+ungrounded), and any future qualified `show` / `refs` / `list` — must go
+through this function. The bug shape it rules out is a command that learns
+qualified IDs but resolves them slightly differently from `check`, leaving the
+editor jump and the CI verdict out of sync.
+
+A `None` return value at the resolver is never a silent skip; the calling
+rule turns it into a located diagnostic (`unknown project alias <name>` at
+the citation site).
+
+## 5. The config: one parse, one validation pass
+
+### 5.1 One loader, one parser
+
+There is one `parse_config_file(read_path, report_path, config)` and one
+`load_config_at(root) -> Config` helper. Every entry point — upward discovery
+from `cli_base` ([§FS-config.1](../functional-spec/FS-config.md#1-file-location-and-discovery)) and direct loading at a known workspace member
+root ([§FS-workspace.2](../functional-spec/FS-workspace.md#2-workspace-configuration)) — funnels through them. There is no separate "load a
+member config" path that duplicates parsing logic; the only difference
+between the two entry points is whether they walk upward first.
+
+### 5.2 Validation runs once, at the right layer
+
+Every post-parse invariant runs on every config load, never gated on
+"did this section appear in the same file." The bug this rules out is the v1
+slip where the `project_name` slug check fired only when `[workspace]` was
+also present in the same file, so a member's `project_name` slipped through
+load and only blew up in a different command.
+
+For an invariant to live at the loader, the constraint must be universal — it
+must hold for *every* shape of config the loader can return:
+
+- The `[workspace] members` list shape (no absolute paths, no `..`, no
+  multi-segment globs) is universal: a member entry never has a valid
+  alternative reading. Checked at load.
+- `project_name` is *not* universal. [§FS-config.3](../functional-spec/FS-config.md#3-schema) makes it free-form metadata
+  when the project is standalone, and only an alias when it participates in a
+  workspace. The slug check therefore lives in `derive_alias`
+  (§5.3) — the one place that already needs to know "this is being used as
+  an alias." Putting it earlier would force `grund init`'s `--name`, which
+  predates workspaces, to write only sluggable names.
+
+The principle: an invariant runs *once*, at the layer where its precondition
+is universally true — never duplicated across layers, never gated on a sibling
+section's presence.
+
+### 5.3 Alias derivation has one canonical source
+
+The workspace alias for a project is, in order:
+
+1. The project's own `project_name` (validated as a slug at config load).
+2. For a member, the basename of the member directory (also validated as a slug
+   before use).
+3. For the workspace root with no `project_name`, the literal `root`
+   ([§FS-workspace.3](../functional-spec/FS-workspace.md#3-aliases), [§DF-subproject-namespaces](../decisions/functional/DF-subproject-namespaces.md#df-subproject-namespaces-alias-namespace-model-for-sub-projects-and-external-repos) §3.3).
+
+This ordering is implemented in *one* place. Commands ask for "the alias of
+this `ProjectScan`" rather than re-deriving it from a config + path pair on
+their own.
+
+## 6. The workspace boundary
+
+When `grund check` runs at a workspace root, the **root scan must not enter
+member namespaces**. That means both ordinary descent into a member directory
+and a root `[scan] include` that names a path inside a member are skipped.
+Otherwise the root absorbs the member's declarations into its own namespace,
+breaks alias uniqueness, and silently re-creates the cross-project dependency
+model that [§DF-subproject-namespaces](../decisions/functional/DF-subproject-namespaces.md#df-subproject-namespaces-alias-namespace-model-for-sub-projects-and-external-repos) rejected (§3.2).
+
+The mechanism is a list of canonical member roots set on the root `Config`
+before the walk; the scanner skips any scan root at or below one of those
+boundaries, and its `WalkBuilder` filter prunes entries whose relative path
+matches a boundary. Boundary roots are computed once per workspace run, not per
+directory entry, so the per-entry cost is one path comparison and no
+`canonicalize` syscall.
+
+Members are scanned recursively as independent projects. A member that declares
+its own `[workspace]` block is rejected before scanning (§6.1).
+
+### 6.1 Nested workspaces are rejected
+
+A member config carrying its own `[workspace]` block is not silently
+flattened — it is a load-time error. Recursive workspace nesting would
+require resolver semantics this slice does not pin (priority on duplicate
+aliases across nesting levels; which `current_alias` a checker run uses;
+whether parent-of-parent aliases are reachable). Until those questions are
+specified, the safe default is to refuse the configuration loudly.
+
+## 7. Standalone members fail loud, not silent
+
+A `grund check` invoked at a member root cannot resolve qualified citations
+to the workspace or to siblings — there is no project map. Per
+[§DF-subproject-namespaces](../decisions/functional/DF-subproject-namespaces.md#df-subproject-namespaces-alias-namespace-model-for-sub-projects-and-external-repos) §3.6 and [§FS-workspace.5](../functional-spec/FS-workspace.md#5-command-scope), every such unresolved
+qualified citation is an `unknown project alias <name>` error at the
+citation site.
+
+This is the architecturally honest default: the resolver returns `None` for
+the unknown alias, and the caller — a single rule, in one place — turns
+`None` into a diagnostic. The opt-in to downgrade these to warnings
+(`[reference] cross_project_when_standalone = "warn"`) is deferred follow-up
+([§DF-subproject-namespaces](../decisions/functional/DF-subproject-namespaces.md#df-subproject-namespaces-alias-namespace-model-for-sub-projects-and-external-repos) §3.6); when it lands, it changes one branch in
+the checker, not the scanner, not the loader, not the resolver shape.
+
+## 8. Downstream commands compose, not duplicate
+
+Query commands (`show`, `refs`, `list`, completions) and the formatter
+(`fmt --cross-refs`) currently treat citations as project-local
+([§FS-workspace.8](../functional-spec/FS-workspace.md#8-other-commands)). They are nonetheless built on the same `Citation`
+records the scanner produces, so adding qualified-ID support to them is a
+matter of:
+
+1. Calling `scan_tree` (or `scan_tree` with workspace boundary roots set, when
+   inside a workspace run).
+2. Routing citations through `target_findings_for_citation`.
+3. Filtering on `cite.namespace.is_none()` until the command's qualified-ID
+   semantics are specified.
+
+No command re-implements the resolver, the citation regex, or the alias
+derivation. Where a command needs project-local-only behaviour (e.g. today's
+`grund refs FS-x` skips `<§>api/FS-x`), it filters at the consumer end — never
+by switching the scanner into a different mode.
+
+## 9. Test contracts
+
+The architecture is observable. Each invariant above has a fixture or unit
+test that fails if the invariant is broken:
+
+| Invariant                                        | Test or fixture |
+|--------------------------------------------------|---|
+| Single regex, marker-anchored                    | `marked_qualified_citation_is_recognised_unmarked_one_is_text` (`crates/grund-core/src/tests.rs`); `e2e/cases/non-strict-bare-slash-not-citation` |
+| Resolver returns `None` ⇒ diagnostic, never skip | `e2e/cases/workspace-unknown-alias`; `e2e/cases/workspace-standalone-cross-project` |
+| Alias check fires at use, both for `project_name` and the basename fallback | `e2e/cases/workspace-invalid-auto-alias`; `e2e/cases/workspace-duplicate-auto-alias` |
+| Missing section on a qualified citation reports at the citation site | `e2e/cases/workspace-cross-project-missing-section` |
+| Nested workspace rejected                        | `e2e/cases/workspace-member-with-nested-workspace` |
+| Boundary skips member from root scan in `check`  | `workspace_boundary_root_is_not_scanned_as_parent_content` / `workspace_boundary_nested_scan_root_is_not_scanned_as_parent_content` (`crates/grund-core/src/tests.rs`); `e2e/cases/workspace-cross-project-valid` |
+| Boundary skips member from root scan in non-`check` commands | `e2e/cases/workspace-list-respects-boundary` |
+| Member without its own config falls back to canonical defaults | `e2e/cases/workspace-member-without-config` |
+| Glob expansion                                   | `e2e/cases/workspace-glob-members` |
+| Cross-member citations resolve in both directions | `e2e/cases/workspace-cross-member-citations` |
+| Same local ID in two members is not a duplicate  | `e2e/cases/workspace-same-id-different-projects` |
+| Single-project repo flags stray `<§>alias/<ID>`  | `e2e/cases/cross-project-citation-without-workspace` |
+| `config show` round-trips `[workspace]`          | `e2e/cases/config-show-workspace-roundtrip` |
+| `check --format json` shape in a workspace       | `e2e/cases/workspace-check-json` |
+| `cover` / `list` skip qualified citations        | `e2e/cases/cover-ignore-qualified-project-local`; `e2e/cases/list-ignore-qualified-project-local`; `e2e/cases/refs-ignore-qualified-project-local`; `e2e/cases/fmt-cross-refs-ignore-qualified-project-local` |
+| `[workspace] members` shape rejected at load     | `e2e/cases/workspace-member-absolute-path`; `e2e/cases/workspace-member-parent-segment`; `e2e/cases/workspace-member-multi-glob` |
+| `[[workspace]]` array-table form rejected        | `e2e/cases/workspace-section-as-array-table` |
+| Unknown key under `[workspace]` rejected         | `e2e/cases/workspace-unknown-key` |
+| Member missing on disk fails workspace expansion | `e2e/cases/workspace-member-missing-on-disk` |
+
+These are the contracts a future change must keep green; if a change cannot
+keep one of them green, the change is breaking the layering — not the test.

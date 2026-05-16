@@ -40,11 +40,13 @@ Behavior every subcommand inherits.
 
 Concrete fixtures that keep the command specs readable while pinning exact examples.
 
+- [§FS-examples](FS-examples.md#fs-examples-examples-teach-canonical-user-workflows) — maintained user-facing examples for canonical workflows
 - [§FS-init-fixtures](FS-init-fixtures.md#fs-init-fixtures-concrete-init-fixtures) — concrete `grund init` transcripts and final tree expectations
 
 ## Configuration and scope
 
 - [§FS-config](FS-config.md#fs-config-grund-reads-a-toml-config-file-under-agents) — reads a TOML config file under `.agents/`
+- [§FS-workspace](FS-workspace.md#fs-workspace-grund-validates-cross-project-citations-in-a-workspace) — validates cross-project citations in a workspace
 - [§FS-non-goals](FS-non-goals.md#fs-non-goals-what-grund-will-deliberately-not-do) — what `grund` will deliberately not do
 
 ---

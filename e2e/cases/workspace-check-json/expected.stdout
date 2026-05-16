@@ -1,0 +1,3 @@
+{"severity":"warning","path":"apps/api/docs/functional-spec/FS-session.md","line":1,"code":"unused","message":"declared but never cited: FS-session","sites":null}
+{"severity":"warning","path":"docs/functional-spec/FS-root.md","line":1,"code":"unused","message":"declared but never cited: FS-root","sites":null}
+{"severity":"error","path":"docs/functional-spec/FS-root.md","line":3,"code":"dangling","message":"unknown reference api/FS-missing","sites":null}

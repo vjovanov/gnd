@@ -59,7 +59,7 @@ fn command_complete_ids(args: &[String]) -> ExitCode {
     // Completion is called on every tab press. Config or scan failures must not
     // smear diagnostics across the prompt; explicit flag misuse above is still a
     // normal CLI error because it is a bug in the installed completion script.
-    let config = match load_config(&path) {
+    let config = match resolve_workspace_config(&path, path_provided) {
         Ok(config) => config,
         Err(_) => return ExitCode::SUCCESS,
     };

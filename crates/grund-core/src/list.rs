@@ -52,7 +52,7 @@ fn command_list(args: &[String]) -> ExitCode {
         }
         idx += 1;
     }
-    let config = match load_config(&path) {
+    let config = match resolve_workspace_config(&path, path_provided) {
         Ok(config) => config,
         Err(err) => {
             eprintln!("error: {err:#}");
@@ -85,6 +85,12 @@ fn command_list(args: &[String]) -> ExitCode {
 
     let mut ref_counts: BTreeMap<&Id, usize> = BTreeMap::new();
     for citation in &findings.citations {
+        // §FS-workspace.8, §AR-workspace.8: `grund list` is project-local in
+        // v1; qualified citations target another project's namespace and
+        // don't count toward this project's reference totals.
+        if citation.namespace.is_some() {
+            continue;
+        }
         *ref_counts.entry(&citation.id).or_insert(0) += 1;
     }
 

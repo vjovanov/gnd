@@ -86,6 +86,15 @@
 ///   dangling references on the active file's citations) against a cached scan.
 /// - Tests can feed synthetic `Findings` directly to the checker without disk I/O.
 fn check(findings: &Findings, config: &Config) -> Report {
+    check_with_workspace(findings, config, None, &BTreeMap::new())
+}
+
+fn check_with_workspace(
+    findings: &Findings,
+    config: &Config,
+    current_alias: Option<&str>,
+    workspace: &BTreeMap<String, &Findings>,
+) -> Report {
     let mut report = Report::default();
     // §FS-check.3.5: an `AGENTS.md` whose managed block is out of date (or newer
     // than this binary) is a check error.
@@ -135,7 +144,7 @@ fn check(findings: &Findings, config: &Config) -> Report {
         let Some(expected) = single_file_home_for_kind(config, &id.kind) else {
             continue;
         };
-        let expected_path = PathBuf::from(&expected);
+        let expected_path = config.root.join(&expected);
         for decl in decls {
             if decl.is_stub {
                 continue;
@@ -157,13 +166,34 @@ fn check(findings: &Findings, config: &Config) -> Report {
     }
 
     for cite in &findings.citations {
-        // §FS-check.3.1: a citation whose ID is declared nowhere is dangling.
-        let Some(decls) = findings.declarations.get(&cite.id) else {
+        let Some(target_findings) = target_findings_for_citation(cite, findings, workspace) else {
+            // `target_findings_for_citation` only returns `None` when the
+            // namespace is present and unknown — so the namespace is always
+            // Some here (§AR-workspace.4).
+            let namespace = cite
+                .namespace
+                .as_deref()
+                .expect("resolver only returns None for qualified citations");
+            report.errors.push(Diagnostic {
+                code: "unknown-project",
+                path: Some(cite.file.clone()),
+                line: Some(cite.line),
+                message: format!("unknown project alias {namespace}"),
+                sites: Vec::new(),
+            });
+            continue;
+        };
+        // §FS-check.3.1 / §FS-workspace.4: a citation whose ID is declared
+        // nowhere in its target namespace is dangling.
+        let Some(decls) = target_findings.declarations.get(&cite.id) else {
             report.errors.push(Diagnostic {
                 code: "dangling",
                 path: Some(cite.file.clone()),
                 line: Some(cite.line),
-                message: format!("unknown reference {}", render_id(config, &cite.id)),
+                message: format!(
+                    "unknown reference {}",
+                    render_qualified_id(config, cite.namespace.as_deref(), &cite.id)
+                ),
                 sites: Vec::new(),
             });
             continue;
@@ -179,7 +209,7 @@ fn check(findings: &Findings, config: &Config) -> Report {
                     line: Some(cite.line),
                     message: format!(
                         "missing section {}{}{}",
-                        render_id(config, &cite.id),
+                        render_qualified_id(config, cite.namespace.as_deref(), &cite.id),
                         config.section_separator,
                         sec
                     ),
@@ -233,7 +263,23 @@ fn check(findings: &Findings, config: &Config) -> Report {
 
     // §FS-check.4.1: a declaration nothing cites is a warning, not an error —
     // except E2E cases, which are proof artifacts, not citation targets.
-    let cited: BTreeSet<&Id> = findings.citations.iter().map(|c| &c.id).collect();
+    let mut cited: BTreeSet<&Id> = findings
+        .citations
+        .iter()
+        .filter(|cite| cite.namespace.is_none())
+        .map(|c| &c.id)
+        .collect();
+    if let Some(alias) = current_alias {
+        for project_findings in workspace.values() {
+            cited.extend(
+                project_findings
+                    .citations
+                    .iter()
+                    .filter(|cite| cite.namespace.as_deref() == Some(alias))
+                    .map(|cite| &cite.id),
+            );
+        }
+    }
     for (id, decls) in &findings.declarations {
         if id.kind == "E2E" {
             continue;
@@ -266,7 +312,7 @@ fn check(findings: &Findings, config: &Config) -> Report {
         let mut grounded_files: BTreeSet<&Path> = findings
             .citations
             .iter()
-            .filter(|cite| findings.declarations.contains_key(&cite.id))
+            .filter(|cite| citation_resolves(cite, findings, workspace))
             .map(|cite| cite.file.as_path())
             .collect();
         grounded_files.extend(
@@ -299,6 +345,27 @@ fn check(findings: &Findings, config: &Config) -> Report {
     sort_diagnostics(&mut report.errors);
     sort_diagnostics(&mut report.warnings);
     report
+}
+
+fn target_findings_for_citation<'a>(
+    cite: &Citation,
+    local: &'a Findings,
+    workspace: &BTreeMap<String, &'a Findings>,
+) -> Option<&'a Findings> {
+    match cite.namespace.as_deref() {
+        Some(namespace) => workspace.get(namespace).copied(),
+        None => Some(local),
+    }
+}
+
+fn citation_resolves(
+    cite: &Citation,
+    local: &Findings,
+    workspace: &BTreeMap<String, &Findings>,
+) -> bool {
+    target_findings_for_citation(cite, local, workspace)
+        .map(|findings| findings.declarations.contains_key(&cite.id))
+        .unwrap_or(false)
 }
 
 /// Put diagnostics in the one fixed order `grund` ever prints them in — by path, then

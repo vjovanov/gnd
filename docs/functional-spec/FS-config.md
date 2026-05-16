@@ -27,7 +27,7 @@ grund_config_version = 1
 project_name = "Example" # optional metadata written by `grund init`
 ```
 
-`project_name` is metadata only. `grund` accepts and preserves it in generated config, but no checker, scanner, formatter, or query behavior depends on it.
+`project_name` is free-form metadata. When the project participates in a workspace (its own config sets `[workspace]`, or its directory is listed as a member by a parent), `project_name` is also the project's workspace alias — but only when it matches the alias grammar in [§FS-workspace.1](FS-workspace.md#1-citation-syntax). A `project_name` that is not a valid alias is not a load-time error; it errors loudly at workspace expansion with `invalid workspace project alias <name>`. Outside any workspace context `project_name` is purely metadata: no checker, scanner, formatter, or query behavior depends on it.
 
 ### 3.1 `[reference]` — citation form
 
@@ -180,6 +180,16 @@ anchor_format = "github"   # default; one of github | gitlab | mkdocs | pandoc |
 ```
 
 The full contract for this block — what `enabled` does, the named `anchor_format` profiles, and when the cross-reference pass runs — lives in [§FS-fmt.6.7](FS-fmt.md#67-configurability) and [§DF-md-link-anchor-strategy](../decisions/functional/DF-md-link-anchor-strategy.md#df-md-link-anchor-strategy-heading-text-slugs-re-derived-on-every-fmt-pass). It is part of the schema here because the generated `.agents/grund.toml` ([§FS-init.2.4](FS-init.md#24-generated-agentsgrundtoml)) writes every key in this section explicitly. `[fmt.cross_refs]` is the home for cross-reference settings; today `grund fmt --cross-refs` only emits the Markdown inline-link form ([§FS-fmt.6](FS-fmt.md#6-cross-reference-emission-with---cross-refs)), so `anchor_format` is the only knob — a future markup family adds its settings under this same block ([§FS-fmt.6.7](FS-fmt.md#67-configurability)), additively, with no `grund_config_version` bump (§5).
+
+### 3.8 `[workspace]` — sub-project namespaces
+
+```toml
+[workspace]
+members      = ["apps/api", "packages/*"]
+include_root = true
+```
+
+`members` and `include_root` are specified by [§FS-workspace](FS-workspace.md#fs-workspace-grund-validates-cross-project-citations-in-a-workspace). The table is optional; without it the repository is a single project exactly as before. Unknown keys under `[workspace]` are errors like any other config typo.
 
 ## 4. Validation and inspection
 

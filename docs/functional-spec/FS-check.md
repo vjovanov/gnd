@@ -7,6 +7,7 @@ The `check` command walks a repo and reports every violation of the grund refere
 - Optional path argument; defaults to the current directory. May be a directory or a single file (`grund check crates/grund-core/src/scanner.rs` scopes the scan to one file but still discovers `.agents/grund.toml` by walking up — [§FS-config.1](FS-config.md#1-file-location-and-discovery)).
 - The walked tree may contain markdown (`.md`) and source files (Rust, Go, Java, TS, Python, etc.).
 - Optional `.agents/grund.toml` configuring marker, trigger, kinds, and skip lists per [§GOAL-configurable](../goals.md#goal-configurable-every-default-is-overridable) ([§FS-config](FS-config.md#fs-config-grund-reads-a-toml-config-file-under-agents)).
+- Optional `[workspace]` config; when present and `check` is run at the workspace root, `check` validates alias-qualified cross-project citations per [§FS-workspace](FS-workspace.md#fs-workspace-grund-validates-cross-project-citations-in-a-workspace).
 - `--watch` is reserved for the planned resident checker (§6) and is not accepted by the current CLI.
 - `--require-grounding` — turn the grounding check (§3.6) on for this run regardless of `[reference] require_grounding` in `.agents/grund.toml` ([§FS-config.3.1](FS-config.md#31-reference--citation-form)). It only ever *adds* the check; it cannot switch off a config that already sets it.
 - `--format text|json` — output shape, per [§FS-errors.5](FS-errors.md#5-json-format). The global flags `--version` and `--help` are handled before any scan ([§FS-cli](FS-cli.md#fs-cli-grunds-command-line-surface-conventions)).
@@ -114,6 +115,10 @@ docs/notes.md:42: GOAL-foo must be declared in docs/goals.md (single-file kind)
 ```
 
 Stubs (`# <ID>: [<text>](<path>)`) are exempt — they are pointers from a kind's home folder to an inline declaration elsewhere, which is a multi-file-kind feature; a single-file kind has no stubs because there is no folder to redirect from. This is the canonical mechanism that keeps `GND`, `GOAL`, and `RM` declarations consolidated in their respective documents, and what makes "one file, all goals inline" a checked invariant rather than a convention.
+
+### 3.8 Cross-project citation failure
+
+In a workspace run, an alias-qualified citation whose alias is unknown, whose target declaration is missing, or whose target section is missing is reported at the citation site. The namespace and resolution rules live in [§FS-workspace.4](FS-workspace.md#4-resolution).
 
 ## 4. Warnings
 

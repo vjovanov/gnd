@@ -140,6 +140,125 @@ mod tests {
         );
     }
 
+    /// §FS-workspace.1, §AR-workspace.3.1: a marker-prefixed qualified
+    /// citation (`<§>alias/<ID>`) is recognised; an unmarked `alias/<ID>` in
+    /// prose is text. There is one scan mode, not two.
+    #[test]
+    fn marked_qualified_citation_is_recognised_unmarked_one_is_text() {
+        let root = test_root("marked_qualified_citation_is_recognised_unmarked_one_is_text");
+        let body = format!(
+            "# FS-login: Login\n\nMarked qualified: {marker}api/FS-login.\nBare path-shaped token: api/FS-login is just prose.\n",
+            marker = "§"
+        );
+        write(&root.join("docs/functional-spec/FS-login.md"), &body);
+
+        let mut config = Config::default_for(root.clone());
+        config.id_format = "{kind}-{slug}".into();
+        config.slug_pattern = "[a-z][a-z0-9-]*".into();
+        config.rebuild_grammar().expect("rebuild grammar");
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+
+        assert_eq!(findings.citations.len(), 1, "exactly one citation expected");
+        let cite = &findings.citations[0];
+        assert_eq!(cite.namespace.as_deref(), Some("api"));
+        assert_eq!(cite.line, 3);
+    }
+
+    /// §AR-workspace.3.1: in non-strict mode, an unmarked `path/<ID>` must
+    /// not be silently promoted to a qualified citation. Was a regression on
+    /// the first workspace slice; this test pins the marker-anchored rule.
+    #[test]
+    fn non_strict_bare_token_with_slash_prefix_is_not_a_citation() {
+        let root = test_root("non_strict_bare_token_with_slash_prefix_is_not_a_citation");
+        write(
+            &root.join("docs/functional-spec/FS-login.md"),
+            "# FS-login: Login\n\nA bare path-looking token api/FS-other in prose.\n",
+        );
+
+        let mut config = Config::default_for(root.clone());
+        config.id_format = "{kind}-{slug}".into();
+        config.slug_pattern = "[a-z][a-z0-9-]*".into();
+        config.strict = false;
+        config.rebuild_grammar().expect("rebuild grammar");
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+
+        assert!(
+            findings.citations.is_empty(),
+            "non-strict mode must not turn `path/FS-x` in prose into a citation"
+        );
+    }
+
+    #[test]
+    fn workspace_root_scope_requires_canonical_root_for_explicit_path() {
+        let root =
+            canonical_test_path(&test_root("workspace_root_scope_requires_canonical_root_for_explicit_path"));
+        let subdir = root.join("apps/api");
+        std::fs::create_dir_all(&subdir).expect("create subdir");
+        let config = Config::default_for(root.clone());
+
+        assert!(is_workspace_root_scope(&config, Path::new("."), false));
+        assert!(is_workspace_root_scope(&config, &root, true));
+        assert!(
+            !is_workspace_root_scope(&config, &subdir, true),
+            "an explicit subdirectory scope must not be promoted to workspace root"
+        );
+    }
+
+    #[test]
+    fn workspace_boundary_root_is_not_scanned_as_parent_content() {
+        let root = test_root("workspace_boundary_root_is_not_scanned_as_parent_content");
+        write(
+            &root.join("apps/api/docs/functional-spec/FS-child.md"),
+            "# FS-child: Child\n",
+        );
+
+        let mut config = Config::default_for(root.clone());
+        config.id_format = "{kind}-{slug}".into();
+        config.slug_pattern = "[a-z][a-z0-9-]*".into();
+        config.include = Some(vec!["apps/api".into()]);
+        config.workspace_boundary_roots = vec![canonical_test_path(&root.join("apps/api"))];
+        config.rebuild_grammar().expect("rebuild grammar");
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+
+        assert!(
+            findings.declarations.is_empty(),
+            "a scan root that is exactly a workspace member boundary must be skipped"
+        );
+    }
+
+    /// §AR-workspace.6: the root namespace must not absorb member
+    /// declarations even when `[scan] include` points below a member root.
+    #[test]
+    fn workspace_boundary_nested_scan_root_is_not_scanned_as_parent_content() {
+        let root = test_root("workspace_boundary_nested_scan_root_is_not_scanned_as_parent_content");
+        let root_doc = format!(
+            "# FS-root: Root\n\nThe root has a local citation to {marker}FS-child.\n",
+            marker = "§"
+        );
+        write(
+            &root.join("docs/functional-spec/FS-root.md"),
+            &root_doc,
+        );
+        write(
+            &root.join("apps/api/docs/functional-spec/FS-child.md"),
+            "# FS-child: Child\n",
+        );
+
+        let mut config = Config::default_for(root.clone());
+        config.id_format = "{kind}-{slug}".into();
+        config.slug_pattern = "[a-z][a-z0-9-]*".into();
+        config.include = Some(vec!["docs".into(), "apps/api/docs".into()]);
+        config.workspace_boundary_roots = vec![canonical_test_path(&root.join("apps/api"))];
+        config.rebuild_grammar().expect("rebuild grammar");
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+
+        assert!(
+            report.errors.iter().any(|error| error.code == "dangling"),
+            "a root include below a workspace member boundary must not import member declarations"
+        );
+    }
+
     #[test]
     fn require_grounding_accepts_inline_declaration() {
         let root = test_root("require_grounding_accepts_inline_declaration");
