@@ -1,5 +1,5 @@
 # Existing agents
 
-<!-- grund:init:agents:v0 begin -->
+## Grounding with grund (v0)
+
 old managed block
-<!-- grund:init:agents:v0 end -->

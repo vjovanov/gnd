@@ -436,7 +436,7 @@ fn check_agent_block_path(path: &Path, report: &mut Report) {
     };
     if let Some(block) = find_agents_block(&text) {
         let line = line_for_byte_index(&text, block.start);
-        if block.legacy || block.version < AGENTS_BLOCK_VERSION {
+        if block.version < AGENTS_BLOCK_VERSION {
             report.errors.push(Diagnostic {
                 code: "agents-init",
                 path: Some(path.to_path_buf()),
@@ -461,27 +461,13 @@ fn check_agent_block_path(path: &Path, report: &mut Report) {
         }
         return;
     }
-    if AGENTS_BLOCK_LEGACY_BEGIN.is_match(&text) {
-        let line = AGENTS_BLOCK_LEGACY_BEGIN
-            .find(&text)
-            .map(|m| line_for_byte_index(&text, m.start()))
-            .unwrap_or(1);
-        report.errors.push(Diagnostic {
-            code: "agents-init",
-            path: Some(path.to_path_buf()),
-            line: Some(line),
-            message: "malformed grund init block".to_string(),
-            sites: Vec::new(),
-        });
-    } else {
-        report.errors.push(Diagnostic {
-            code: "agents-init",
-            path: Some(path.to_path_buf()),
-            line: Some(1),
-            message: format!("missing grund init block v{}", AGENTS_BLOCK_VERSION),
-            sites: Vec::new(),
-        });
-    }
+    report.errors.push(Diagnostic {
+        code: "agents-init",
+        path: Some(path.to_path_buf()),
+        line: Some(1),
+        message: format!("missing grund init block v{}", AGENTS_BLOCK_VERSION),
+        sites: Vec::new(),
+    });
 }
 
 fn line_for_byte_index(text: &str, byte_index: usize) -> usize {

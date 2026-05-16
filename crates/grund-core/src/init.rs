@@ -254,7 +254,7 @@ fn update_agents_text(
     label: &str,
 ) -> Result<(String, AgentsUpdateResult)> {
     if let Some(existing_block) = find_agents_block(existing) {
-        if !existing_block.legacy && existing_block.version > AGENTS_BLOCK_VERSION {
+        if existing_block.version > AGENTS_BLOCK_VERSION {
             return Err(anyhow!(
                 "{label} contains newer grund init block v{}; this binary supports v{}",
                 existing_block.version,
@@ -271,12 +271,6 @@ fn update_agents_text(
             AgentsUpdateResult::Updated
         };
         return Ok((updated, result));
-    }
-
-    if AGENTS_BLOCK_LEGACY_BEGIN.is_match(existing) {
-        return Err(anyhow!(
-            "{label} contains a legacy grund init block start without a matching end"
-        ));
     }
 
     let separator = if existing.is_empty() || existing.ends_with("\n\n") {
@@ -300,13 +294,11 @@ struct AgentsBlock {
     start: usize,
     end: usize,
     version: u32,
-    legacy: bool,
 }
 
 /// Locate the managed block in `AGENTS.md`. The current marker is an H2 line
-/// (`## Agent instructions (grund-agents vN)`); the block runs until the next H1
-/// or H2 (or EOF). Legacy `<!-- grund:init:agents:vN begin -->`…`end` blocks are
-/// also recognized so `init` can upgrade them in place (§FS-init.2.3.2).
+/// (`## Grounding with grund (vN)`); the block runs until the next H1 or H2 (or
+/// EOF) (§FS-init.2.3).
 fn find_agents_block(text: &str) -> Option<AgentsBlock> {
     if let Some(caps) = AGENTS_BLOCK_H2.captures(text) {
         let begin_match = caps.get(0)?;
@@ -327,23 +319,9 @@ fn find_agents_block(text: &str) -> Option<AgentsBlock> {
             start: begin_match.start(),
             end,
             version,
-            legacy: false,
         });
     }
-    let begin = AGENTS_BLOCK_LEGACY_BEGIN.captures(text)?;
-    let begin_match = begin.get(0)?;
-    let version = begin.name("version")?.as_str().parse::<u32>().ok()?;
-    let end_match = AGENTS_BLOCK_LEGACY_END.find(&text[begin_match.end()..])?;
-    let mut end = begin_match.end() + end_match.end();
-    if text[end..].starts_with('\n') {
-        end += 1;
-    }
-    Some(AgentsBlock {
-        start: begin_match.start(),
-        end,
-        version,
-        legacy: true,
-    })
+    None
 }
 
 /// The default project name when `--name` is omitted: the basename of `<path>`

@@ -31,6 +31,8 @@ The explanation must be self-contained: a user should not need to inspect `tests
 
 ## 4. Maintenance contract
 
+The root `README.md` is the concise public guide to shipped behavior. Any functional change that affects users must update `README.md` alongside the most-specific functional spec point, so the advertised workflow and the grounded contract do not drift.
+
 Runnable examples must stay executable and regression-tested. If an example has `expected.exit`, `expected.stdout`, and `expected.stderr`, those files are the golden contract for the documented command. A behavior change that affects a canonical workflow must update the corresponding example explanation and golden output in the same change.
 
 When a new canonical workflow becomes part of the README or functional spec, the examples tree must either gain a maintained example for it or explicitly link to an existing example that already teaches it. Removing an example requires either removing the advertised workflow or replacing the example with an equivalent maintained path.

@@ -34,7 +34,7 @@ AGENTS.md
 .agents/grund.toml
 ```
 
-`AGENTS.md` contains exactly one managed block with `<!-- grund:init:agents:v1 begin -->` and `<!-- grund:init:agents:v1 end -->`. `.agents/grund.toml` is the default generated config from [§FS-init.2.4](FS-init.md#24-generated-agentsgrundtoml), including `grund_config_version = 1`, `project_name`, `[reference]`, `[id]`, every default `[[kinds]]`, `[scan]`, `[output]`, and `[fmt.cross_refs]`.
+`AGENTS.md` contains exactly one H2-managed block headed `## Grounding with grund (v1)`. `.agents/grund.toml` is the default generated config from [§FS-init.2.4](FS-init.md#24-generated-agentsgrundtoml), including `grund_config_version = 1`, `project_name`, `[reference]`, `[id]`, every default `[[kinds]]`, `[scan]`, `[output]`, and `[fmt.cross_refs]`.
 
 ## 2. Docs form
 
