@@ -11,7 +11,7 @@
 - **Sub-projects in one tree.** Monorepos that hold several independent grund projects under one repository root, where each sub-project should keep its own short, local citation form but the whole tree should still check cleanly in CI.
 - **Cross-repo citation.** Neighboring repositories in the same organization should be referenceable by stable name, not by URL or filesystem path, with the same correctness guarantees as local citations.
 
-The design discussion ([§DISC-subproject-namespaces](../../discussions/proposals/2026-05-16-subproject-namespaces.md#disc-subproject-namespaces-sub-project-and-cross-repo-citation-namespaces)) explored four shapes:
+Before this decision, the design space had four viable shapes:
 
 1. **One global namespace** with project prefixes baked into every ID (`api-FS-login`).
 2. **Kind-prefix renaming** that overloads the existing ID grammar (`§PM-FS-refunds`).
@@ -75,7 +75,6 @@ Making `check` workspace-aware first is the narrowest correctness slice: it lets
 - Qualified `show`, `refs`, `list`, completions, neighboring repositories, lockfiles, and any `grund sync`-style command remain follow-up work.
 - The `[reference] cross_project_when_standalone` opt-in (§3.6) remains follow-up work; today the only configurable axis is "error". Any future relaxation must explicitly remain between *error* and *warning*.
 - The reusable architecture for the workspace surface is fixed in [§AR-workspace](../../architecture/AR-workspace.md#ar-workspace-how-the-resolver-config-loader-and-scanner-compose-across-projects) — one citation grammar, one config loader, one resolver, one validation pass. Subsequent commands that learn qualified IDs must compose with that layering rather than re-implement it.
-- The discussion proposal [§DISC-subproject-namespaces](../../discussions/proposals/2026-05-16-subproject-namespaces.md#disc-subproject-namespaces-sub-project-and-cross-repo-citation-namespaces) is marked **Resolved**, linking here.
 
 ## 5. Alternatives considered
 

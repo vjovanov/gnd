@@ -42,12 +42,6 @@ mod tests {
         "## Grounding with grund (v1)"
     }
 
-    fn legacy_v2_block() -> String {
-        format!(
-            "<!-- grund:init:agents:v2 begin -->\n# demo — agent instructions\n\nlegacy body\n<!-- grund:init:agents:v2 end -->",
-        )
-    }
-
     #[test]
     fn explicit_file_scope_ignores_unrelated_findings() {
         let root = test_root("explicit_file_scope_ignores_unrelated_findings");
@@ -540,21 +534,20 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     }
 
     #[test]
-    fn agents_update_replaces_legacy_v2_block_in_place() {
-        // §FS-init.2.3.2: a v2 HTML-comment block is recognized and upgraded to
-        // the current marker form, with surrounding content preserved.
+    fn agents_update_replaces_old_h2_block_in_place() {
+        // §FS-init.2.3: an older H2-managed block is recognized and upgraded to
+        // the current render, with surrounding content preserved.
         let existing = format!(
-            "# Existing agents\n\n{}\n\n# Local notes\n",
-            legacy_v2_block()
+            "# Existing agents\n\n## Grounding with grund (v0)\n\nold body\n\n# Local notes\n"
         );
         let (updated, result) =
-            update_agents_text(&existing, &current_block(), "AGENTS.md").expect("update v2 block");
+            update_agents_text(&existing, &current_block(), "AGENTS.md").expect("update old block");
 
         assert_eq!(result, AgentsUpdateResult::Updated);
         assert!(updated.starts_with("# Existing agents\n\n"));
         assert!(updated.ends_with("\n\n# Local notes\n"));
         assert_eq!(updated.matches(current_marker()).count(), 1);
-        assert!(!updated.contains("grund:init:agents:v2"));
+        assert!(!updated.contains("## Grounding with grund (v0)"));
     }
 
     #[test]
@@ -581,13 +574,12 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
     #[test]
     fn agents_update_handles_crlf_line_endings() {
-        // §FS-init.2.3.2: a CRLF-encoded AGENTS.md with a legacy v2 block sandwiched
+        // §FS-init.2.3.2: a CRLF-encoded AGENTS.md with an old managed block sandwiched
         // between user-authored sections must still be detected and upgraded, with
         // surrounding CRLF preserved.
-        let v2_crlf = legacy_v2_block().replace('\n', "\r\n");
-        let existing = format!("# Existing agents\r\n\r\n{v2_crlf}\r\n\r\n# Local notes\r\n");
+        let existing = "# Existing agents\r\n\r\n## Grounding with grund (v0)\r\n\r\nold body\r\n\r\n# Local notes\r\n";
         let (updated, result) = update_agents_text(&existing, &current_block(), "AGENTS.md")
-            .expect("update CRLF legacy block");
+            .expect("update CRLF old block");
 
         assert_eq!(result, AgentsUpdateResult::Updated);
         assert!(
@@ -595,11 +587,11 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
             "CRLF prefix must be preserved verbatim"
         );
         assert!(
-            updated.ends_with("\r\n\r\n# Local notes\r\n"),
+            updated.ends_with("\n# Local notes\r\n"),
             "CRLF suffix must be preserved verbatim"
         );
         assert_eq!(updated.matches(current_marker()).count(), 1);
-        assert!(!updated.contains("grund:init:agents:v2"));
+        assert!(!updated.contains("## Grounding with grund (v0)"));
     }
 
     #[test]

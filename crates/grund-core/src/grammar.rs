@@ -47,14 +47,6 @@ static AGENTS_BLOCK_H2: Lazy<Regex> = Lazy::new(|| {
 /// section. The block ends at this line's start, or at EOF if no such line follows.
 static AGENTS_SECTION_BOUNDARY: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?m)^#{1,2}[ \t]+\S").unwrap());
-/// Legacy v2 HTML-comment markers — recognized only so `init` can upgrade an
-/// existing v2 block to the current marker form (§FS-init.2.3.2). New blocks are
-/// never written in this form.
-static AGENTS_BLOCK_LEGACY_BEGIN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"<!--\s*grund:init:agents:v(?P<version>\d+)\s+begin\s*-->").unwrap());
-static AGENTS_BLOCK_LEGACY_END: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"<!--\s*grund:init:agents:v\d+\s+end\s*-->").unwrap());
-
 /// ID grammar compiled from [id].format + [[kinds]] — the single place that knows the
 /// shape of a declaration heading or a citation. Built once per config load.
 /// Realizes §FS-config.3.1, §FS-config.3.2, §FS-config.3.3 and the regex-not-a-parser
