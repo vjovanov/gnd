@@ -49,6 +49,7 @@ struct E2eCase {
 /// (§FS-config.3.1) and is what `grund fmt` upgrades a bare token from (§FS-fmt.2.2).
 #[derive(Debug)]
 struct Citation {
+    namespace: Option<String>,
     id: Id,
     section: Option<String>,
     file: PathBuf,
@@ -116,6 +117,7 @@ struct Config {
     /// `[output] relative_paths = false`, i.e. the base `grund` would use if no
     /// `.agents/grund.toml` were discovered (§FS-config.3.6).
     cli_base: PathBuf,
+    project_name: Option<String>,
     marker: String,
     trigger: String,
     strict: bool,
@@ -139,6 +141,10 @@ struct Config {
     kinds: Vec<KindConfig>,
     fmt_cross_refs_enabled: bool,
     cross_ref_anchor_format: String,
+    workspace_declared: bool,
+    workspace_members: Vec<String>,
+    workspace_include_root: bool,
+    workspace_boundary_roots: Vec<PathBuf>,
     grammar: Grammar,
 }
 
@@ -178,6 +184,7 @@ impl Config {
         Self {
             cli_base: root.clone(),
             root,
+            project_name: None,
             marker: "§".to_string(),
             trigger: "$$".to_string(),
             strict: false,
@@ -229,6 +236,10 @@ impl Config {
             kinds,
             fmt_cross_refs_enabled: false,
             cross_ref_anchor_format: "github".into(),
+            workspace_declared: false,
+            workspace_members: Vec::new(),
+            workspace_include_root: true,
+            workspace_boundary_roots: Vec::new(),
             grammar,
         }
     }
@@ -390,4 +401,11 @@ fn parse_id_arg(raw: &str, grammar: &Grammar) -> Result<(Id, Option<String>)> {
         .ok_or_else(|| anyhow!("invalid ID `{raw}`"))?;
     let id = parse_id(&caps).ok_or_else(|| anyhow!("invalid ID `{raw}`"))?;
     Ok((id, caps.name("sec").map(|m| m.as_str().to_string())))
+}
+
+fn render_qualified_id(config: &Config, namespace: Option<&str>, id: &Id) -> String {
+    match namespace {
+        Some(namespace) => format!("{}/{}", namespace, render_id(config, id)),
+        None => render_id(config, id),
+    }
 }

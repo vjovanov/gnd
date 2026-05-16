@@ -29,7 +29,7 @@ fn command_fmt(args: &[String]) -> ExitCode {
         eprintln!("error: --check and --write cannot be used together");
         return ExitCode::from(2);
     }
-    let config = match load_config(&path) {
+    let config = match resolve_workspace_config(&path, path_provided) {
         Ok(config) => config,
         Err(err) => {
             eprintln!("error: {err:#}");
@@ -219,7 +219,13 @@ fn replace_trigger(line: &str, config: &Config, is_md: bool) -> String {
 fn add_markers(line: &str, config: &Config, is_md: bool) -> String {
     let mut output = String::new();
     let mut cursor = 0;
-    for found in config.grammar.citation_re.find_iter(line) {
+    for caps in config.grammar.citation_re.captures_iter(line) {
+        let Some(found) = caps.get(0) else { continue };
+        // §FS-workspace.1: a `path/ID` token without a marker is text, not a
+        // citation — `fmt --marker` must not auto-promote it to `§path/ID`.
+        if caps.name("namespace").is_some() {
+            continue;
+        }
         if line[..found.start()].ends_with(&config.marker) {
             continue;
         }

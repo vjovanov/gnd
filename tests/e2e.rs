@@ -1,298 +1,39 @@
-use std::collections::BTreeSet;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::path::PathBuf;
 
-const CANONICAL_KINDS: &[&str] = &["GND", "GOAL", "FS", "AR", "DF", "DA", "E2E", "RM"];
+#[path = "support/case_runner.rs"]
+mod case_runner;
+
+use case_runner::CaseKind::{E2e, Example};
+use case_runner::{assert_case_is_deterministic, discover_e2e_cases, discover_examples, run_case};
 
 #[test]
 fn e2e_cases_match_expected_reports() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    for case in discover_cases(&manifest_dir) {
-        run_case(&manifest_dir, &case);
+    for case in discover_e2e_cases(&manifest_dir) {
+        run_case(&manifest_dir, &case, E2e);
     }
 }
 
 #[test]
 fn e2e_output_is_deterministic() {
-    // G-friendliness-first.3 / FS-non-goals.13: same input → same output, byte-for-byte.
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    for case in discover_cases(&manifest_dir) {
-        let name = case
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("<invalid case name>");
-        if is_mutating_case(&case) {
-            continue;
-        }
-        let args = command_args(&manifest_dir, &case, name);
-        let first = run_grund(&manifest_dir, &args, name);
-        let second = run_grund(&manifest_dir, &args, name);
-        assert_eq!(
-            first.status.code(),
-            second.status.code(),
-            "{name}: exit code differs between runs"
-        );
-        assert_eq!(
-            first.stdout, second.stdout,
-            "{name}: stdout differs between runs"
-        );
-        assert_eq!(
-            first.stderr, second.stderr,
-            "{name}: stderr differs between runs"
-        );
+    for case in discover_e2e_cases(&manifest_dir) {
+        assert_case_is_deterministic(&manifest_dir, &case);
     }
 }
 
-fn is_mutating_case(case: &Path) -> bool {
-    let command_file = case.join("command.args");
-    if !command_file.exists() {
-        return false;
-    }
-    let command = read_to_string(command_file);
-    command.contains("--write") || command.contains("{repo_copy}")
-}
-
-fn discover_cases(manifest_dir: &Path) -> Vec<PathBuf> {
-    let cases_dir = manifest_dir.join("e2e/cases");
-    let mut cases = fs::read_dir(&cases_dir)
-        .unwrap_or_else(|err| panic!("read {}: {err}", cases_dir.display()))
-        .map(|entry| entry.unwrap().path())
-        .filter(|path| path.is_dir())
-        .collect::<Vec<_>>();
-    cases.sort();
-    assert!(
-        !cases.is_empty(),
-        "expected at least one e2e case under {}",
-        cases_dir.display()
-    );
-    cases
-}
-
-fn run_grund(manifest_dir: &Path, args: &[String], name: &str) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_grund"))
-        .args(args)
-        .current_dir(manifest_dir)
-        .output()
-        .unwrap_or_else(|err| panic!("{name}: run grund: {err}"))
-}
-
-fn run_case(manifest_dir: &Path, case: &Path) {
-    let name = case
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("<invalid case name>");
-    assert_spec_refs(case, name);
-
-    let args = command_args(manifest_dir, case, name);
-    let output = run_grund(manifest_dir, &args, name);
-    let actual_exit = output.status.code().unwrap_or(-1);
-    let actual_stdout = String::from_utf8(output.stdout)
-        .unwrap_or_else(|err| panic!("{name}: stdout was not UTF-8: {err}"));
-    let actual_stderr = String::from_utf8(output.stderr)
-        .unwrap_or_else(|err| panic!("{name}: stderr was not UTF-8: {err}"));
-
-    if std::env::var_os("UPDATE_EXPECTED").is_some() {
-        write_expected(&case.join("expected.exit"), &format!("{actual_exit}\n"));
-        write_expected(&case.join("expected.stdout"), &actual_stdout);
-        write_expected(&case.join("expected.stderr"), &actual_stderr);
-        return;
-    }
-
-    let expected_exit = read_to_string(case.join("expected.exit"));
-    let expected_exit = expected_exit
-        .trim()
-        .parse::<i32>()
-        .unwrap_or_else(|err| panic!("{name}: parse expected.exit: {err}"));
-    assert_eq!(
-        actual_exit, expected_exit,
-        "{name}: exit code mismatch\nstdout:\n{actual_stdout}\nstderr:\n{actual_stderr}"
-    );
-
-    let expected_stdout = read_expected_output(case.join("expected.stdout"));
-    let expected_stderr = read_expected_output(case.join("expected.stderr"));
-    assert_expected_errors_are_concise(case, name, &expected_stderr);
-    assert_eq!(actual_stdout, expected_stdout, "{name}: stdout mismatch");
-    assert_eq!(actual_stderr, expected_stderr, "{name}: stderr mismatch");
-    assert_expected_repo(case, manifest_dir, name);
-}
-
-fn assert_expected_errors_are_concise(case: &Path, name: &str, stderr: &str) {
-    if read_to_string(case.join("expected.exit")).trim() == "0" {
-        return;
-    }
-    assert!(
-        !stderr.contains("error(s)") && !stderr.contains("warning(s)"),
-        "{name}: stderr should not include aggregate summaries"
-    );
-    for line in stderr.lines().filter(|line| !line.trim().is_empty()) {
-        assert!(
-            line.len() <= 180,
-            "{name}: stderr line is too long for a concise diagnostic: {line}"
-        );
+#[test]
+fn examples_are_e2e_cases() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    for case in discover_examples(&manifest_dir) {
+        run_case(&manifest_dir, &case, Example);
     }
 }
 
-fn write_expected(path: &Path, content: &str) {
-    // Preserve the "single newline = empty" convention for stdout/stderr so empty captures
-    // round-trip to a one-byte file rather than vanishing from the diff.
-    let is_exit = path.extension().and_then(|s| s.to_str()) == Some("exit");
-    let body = if content.is_empty() && !is_exit {
-        "\n".to_string()
-    } else {
-        content.to_string()
-    };
-    fs::write(path, body).unwrap_or_else(|err| panic!("write {}: {err}", path.display()));
-}
-
-fn command_args(manifest_dir: &Path, case: &Path, name: &str) -> Vec<String> {
-    let repo = case.join("repo");
-    let repo_arg = repo
-        .strip_prefix(manifest_dir)
-        .unwrap_or(&repo)
-        .to_string_lossy()
-        .into_owned();
-    let repo_copy = manifest_dir.join("target/e2e-work").join(name).join("repo");
-    let repo_copy_arg = repo_copy
-        .strip_prefix(manifest_dir)
-        .unwrap_or(&repo_copy)
-        .to_string_lossy()
-        .into_owned();
-    let command_file = case.join("command.args");
-    if !command_file.exists() {
-        return vec![repo_arg];
-    }
-
-    let command = read_to_string(command_file);
-    if command.contains("{repo_copy}") {
-        if let Some(parent) = repo_copy.parent() {
-            let _ = fs::remove_dir_all(parent);
-            fs::create_dir_all(parent)
-                .unwrap_or_else(|err| panic!("{name}: create {}: {err}", parent.display()));
-        }
-        copy_dir(&repo, &repo_copy);
-    }
-
-    command
-        .split_whitespace()
-        .map(|arg| {
-            if arg == "{repo}" {
-                repo_arg.clone()
-            } else if arg == "{repo_copy}" {
-                repo_copy_arg.clone()
-            } else {
-                arg.to_string()
-            }
-        })
-        .collect()
-}
-
-fn copy_dir(from: &Path, to: &Path) {
-    fs::create_dir_all(to).unwrap_or_else(|err| panic!("create {}: {err}", to.display()));
-    for entry in fs::read_dir(from).unwrap_or_else(|err| panic!("read {}: {err}", from.display())) {
-        let entry = entry.unwrap();
-        let source = entry.path();
-        let target = to.join(entry.file_name());
-        if source.is_dir() {
-            copy_dir(&source, &target);
-        } else {
-            fs::copy(&source, &target).unwrap_or_else(|err| {
-                panic!("copy {} to {}: {err}", source.display(), target.display())
-            });
-        }
-    }
-}
-
-fn assert_expected_repo(case: &Path, manifest_dir: &Path, name: &str) {
-    let expected = case.join("expected.repo");
-    if !expected.exists() {
-        return;
-    }
-    let actual = manifest_dir.join("target/e2e-work").join(name).join("repo");
-    assert!(
-        actual.exists(),
-        "{name}: expected.repo requires command.args to run against {{repo_copy}}"
-    );
-    let expected_files = relative_files(&expected);
-    let actual_files = relative_files(&actual);
-    assert_eq!(
-        actual_files, expected_files,
-        "{name}: final repo file list differs from expected.repo"
-    );
-    for rel in expected_files {
-        let expected_path = expected.join(&rel);
-        let actual_path = actual.join(&rel);
-        let expected_bytes = fs::read(&expected_path)
-            .unwrap_or_else(|err| panic!("{name}: read {}: {err}", expected_path.display()));
-        let actual_bytes = fs::read(&actual_path)
-            .unwrap_or_else(|err| panic!("{name}: read {}: {err}", actual_path.display()));
-        assert_eq!(
-            actual_bytes,
-            expected_bytes,
-            "{name}: final bytes differ for {}",
-            rel.display()
-        );
-    }
-}
-
-fn relative_files(root: &Path) -> BTreeSet<PathBuf> {
-    let mut files = BTreeSet::new();
-    collect_relative_files(root, root, &mut files);
-    files
-}
-
-fn collect_relative_files(root: &Path, dir: &Path, files: &mut BTreeSet<PathBuf>) {
-    for entry in fs::read_dir(dir).unwrap_or_else(|err| panic!("read {}: {err}", dir.display())) {
-        let entry = entry.unwrap();
-        let path = entry.path();
-        if path.is_dir() {
-            collect_relative_files(root, &path, files);
-        } else {
-            files.insert(path.strip_prefix(root).unwrap().to_path_buf());
-        }
-    }
-}
-
-fn assert_spec_refs(case: &Path, name: &str) {
-    let refs_path = case.join("spec.refs");
-    let refs = read_to_string(&refs_path);
-    let refs = refs
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .collect::<Vec<_>>();
-    assert!(
-        !refs.is_empty(),
-        "{name}: expected at least one spec reference in {}",
-        refs_path.display()
-    );
-    for reference in refs {
-        assert!(
-            has_canonical_kind_prefix(reference),
-            "{name}: spec.refs entry {reference} does not start with a canonical kind ({})",
-            CANONICAL_KINDS.join(", ")
-        );
-    }
-}
-
-fn has_canonical_kind_prefix(reference: &str) -> bool {
-    CANONICAL_KINDS.iter().any(|k| {
-        reference
-            .strip_prefix(k)
-            .is_some_and(|rest| rest.starts_with('-'))
-    })
-}
-
-fn read_to_string(path: impl AsRef<Path>) -> String {
-    let path = path.as_ref();
-    fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
-}
-
-fn read_expected_output(path: impl AsRef<Path>) -> String {
-    let output = read_to_string(path).replace("\r\n", "\n");
-    if output == "\n" {
-        String::new()
-    } else {
-        output
+#[test]
+fn example_output_is_deterministic() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    for case in discover_examples(&manifest_dir) {
+        assert_case_is_deterministic(&manifest_dir, &case);
     }
 }

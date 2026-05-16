@@ -11,6 +11,11 @@ fn wrap_markdown_links(line: &str, path: &Path, config: &Config, findings: &Find
         if !line[..full.start()].ends_with(&config.marker) {
             continue;
         }
+        // §FS-workspace.8, §AR-workspace.8: qualified-ID cross-ref rewriting
+        // is not part of v1 — leave `§alias/<ID>` untouched.
+        if caps.name("namespace").is_some() {
+            continue;
+        }
         if is_inside_inline_code(line, marker_start) {
             continue;
         }
@@ -78,6 +83,13 @@ fn flatten_cross_ref_links_line(line: &str, config: &Config) -> String {
         let Some(full) = caps.get(0) else { continue };
         let (cite_start, cite_end) = (full.start(), full.end());
         if !line[..cite_start].ends_with(marker) {
+            continue;
+        }
+        // §AR-workspace.8: cross-ref flattening is the inverse of
+        // `wrap_markdown_links`, which itself skips qualified citations
+        // (§FS-workspace.8). Skip them here too so the round-trip stays a
+        // no-op for `§alias/<ID>`.
+        if caps.name("namespace").is_some() {
             continue;
         }
         let Some(marker_start) = cite_start.checked_sub(marker.len()) else {

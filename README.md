@@ -85,10 +85,45 @@ src/bus.rs:7: unknown reference FS-events.4
 5. The `AGENTS.md` / `CLAUDE.md` entry-point block is up to date. *(stale init)*
 6. Declared-but-uncited IDs are flagged. *(unused — warning, not error; `E2E-` cases are exempt)*
 7. *(opt-in)* With `[reference] require_grounding = true`: every source file carries at least one citation. *(ungrounded source file)*
+8. *(workspace)* Alias-qualified citations resolve across configured sub-projects. *(cross-project references — see [§FS-workspace](docs/functional-spec/FS-workspace.md))*
 
 A passing text check prints `success` and exits 0. Findings go to stdout as `<path>:<line>: <message>` so editors and agents jump straight to the source, and `grund check | …` / `grund check --format=json | jq` work without redirection (the linter convention — only run-level `error:` lines, like an unreadable path, go to stderr). JSON output remains diagnostics-only, so a clean `grund check --format=json` prints nothing.
 
 `grund` does **not** check Markdown links, URLs, spelling, or grammar. Use [`lychee`](https://github.com/lycheeverse/lychee), `vale`, etc. for those.
+
+### Workspaces and sub-projects
+
+In a monorepo, keep each sub-project as its own local namespace and let the root
+config orchestrate them:
+
+```toml
+project_name = "root"
+
+[workspace]
+members = ["apps/api", "packages/*"]
+include_root = true
+```
+
+Local citations stay short:
+
+```markdown
+§FS-session
+```
+
+Cross-project citations add a stable alias before the ID:
+
+```markdown
+§api/FS-session
+§root/GOAL-compatibility
+```
+
+`grund check` at the workspace root validates the root project and every member,
+without letting root scans accidentally absorb member declarations, even if the
+root `[scan] include` names a path inside a member. Members without
+`.agents/grund.toml` use the canonical defaults, and a member that declares its
+own `[workspace]` block is rejected in v1. Cross-repository aliases (e.g.
+`§payments/FS-refunds` resolving to a neighboring repo) are not yet supported.
+See [§FS-workspace](docs/functional-spec/FS-workspace.md).
 
 ## 4. The structure that gets cited
 
@@ -108,18 +143,19 @@ Every fact in a `grund` repo has a stable ID. The default kinds (configurable):
 **ID format:**
 
 ```plaintext
-     ┌──────────── citation ───────────┐
-           ┌────────── ID ─────────────┐
-  [§] KIND - [number -] slug [.section]
-   │   │       │         │       │
-   │   │       │         │       └─ optional dotted path, arbitrary depth (.3, .3.1, …)
-   │   │       │         └───────── [a-z0-9][a-z0-9-]*  (default slug_pattern)
-   │   │       └─────────────────── optional ordinal (e.g., 001)
-   │   └─────────────────────────── G│FS│AR│DA│DF│E2E│RM│DISC
-   └─────────────────────────────── citation marker (writing only)
+     ┌─────────────────── citation ───────────────────┐
+                ┌──────────── ID ─────────────┐
+  [§] [alias /] KIND - [number -] slug [.section]
+   │     │        │       │         │       │
+   │     │        │       │         │       └─ optional dotted path, arbitrary depth (.3, .3.1, …)
+   │     │        │       │         └───────── [a-z0-9][a-z0-9-]*  (default slug_pattern)
+   │     │        │       └─────────────────── optional ordinal (e.g., 001)
+   │     │        └─────────────────────────── G│FS│AR│DA│DF│E2E│RM│DISC
+   │     └──────────────────────────────────── optional workspace project alias
+   └────────────────────────────────────────── citation marker (writing only)
 ```
 
-Three schemes are supported. Pick one per repo and keep it stable — mixing is unsupported because citations would look identical but resolve under different rules. Each has a runnable tiny repo under [`examples/`](examples/).
+Three schemes are supported. Pick one per repo and keep it stable — mixing is unsupported because citations would look identical but resolve under different rules. Each has a runnable tiny repo under [`examples/`](examples/), which are maintained as detailed walkthroughs for canonical user workflows ([§FS-examples](docs/functional-spec/FS-examples.md#fs-examples-examples-teach-canonical-user-workflows)).
 
 | Scheme                                     | Example             | Benefit                                                                                                          | Trade-off                                                                |
 |--------------------------------------------|---------------------|------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
@@ -129,7 +165,7 @@ Three schemes are supported. Pick one per repo and keep it stable — mixing is 
 
 Rule of thumb: pick `{kind}-{slug}` until rename churn or ID count starts to hurt; switch to `{kind}-{number}-{slug}` when it does.
 
-Citations use the marker `§`, e.g. `§FS-user-login.3.1`. Type `$$` in a `grund`-aware editor and it's rewritten to `§` automatically. Both marker and trigger are configurable in `.agents/grund.toml`.
+Citations use the marker `§`, e.g. `§FS-user-login.3.1`; in a workspace, `§api/FS-user-login.3.1` targets the `api` project. Type `$$` in a `grund`-aware editor and it's rewritten to `§` automatically. Both marker and trigger are configurable in `.agents/grund.toml`.
 
 **Specs can live inline in source.** Drop a one-line stub in `docs/architecture/AR-foo.md` whose H1 is `# AR-foo: [src/foo.rs](src/foo.rs)`, then declare the spec in the class doc-comment:
 

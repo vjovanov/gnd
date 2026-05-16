@@ -16,17 +16,7 @@ fn load_config(start: &Path) -> Result<Config> {
     while let Some(dir) = cursor {
         let candidate = dir.join(".agents").join("grund.toml");
         if candidate.exists() {
-            let mut config = Config::default_for(dir.to_path_buf());
-            config.cli_base = walk_start.clone();
-            // Report config errors against a stable relative path, never the
-            // absolute discovered path (§FS-errors.4: deterministic, no absolute
-            // paths outside the configured root).
-            let report_path = candidate
-                .strip_prefix(dir)
-                .map(Path::to_path_buf)
-                .unwrap_or_else(|_| candidate.clone());
-            parse_config_file(&candidate, &report_path, &mut config)?;
-            return Ok(config);
+            return load_config_at(dir, &walk_start);
         }
         cursor = dir.parent();
     }
@@ -42,6 +32,27 @@ fn load_config(start: &Path) -> Result<Config> {
         .unwrap_or_else(|| walk_start.clone());
     let mut config = Config::default_for(root);
     config.cli_base = walk_start;
+    Ok(config)
+}
+
+/// Load the config rooted at `root` (no upward walk), using `cli_base` for
+/// path rendering. The one shared loader both upward discovery (`load_config`)
+/// and direct workspace-member loading funnel through (§AR-workspace.5.1).
+fn load_config_at(root: &Path, cli_base: &Path) -> Result<Config> {
+    let root = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+    let mut config = Config::default_for(root.clone());
+    config.cli_base = cli_base.to_path_buf();
+    let candidate = root.join(".agents").join("grund.toml");
+    if candidate.exists() {
+        // Report config errors against a stable relative path, never the
+        // absolute discovered path (§FS-errors.4: deterministic, no absolute
+        // paths outside the configured root).
+        let report_path = candidate
+            .strip_prefix(&root)
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|_| candidate.clone());
+        parse_config_file(&candidate, &report_path, &mut config)?;
+    }
     Ok(config)
 }
 
@@ -69,7 +80,18 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
             let is_array_table = line.starts_with("[[") && line.ends_with("]]");
             section = line.trim_matches(['[', ']']).to_string();
             match section.as_str() {
-                "reference" | "scan" | "output" | "id" | "fmt.cross_refs" => {}
+                "reference" | "scan" | "output" | "id" | "fmt.cross_refs" | "workspace" => {
+                    if section == "workspace" && is_array_table {
+                        bail_config(
+                            path,
+                            line_no,
+                            "expected `[workspace]` (table)".to_string(),
+                        )?;
+                    }
+                    if section == "workspace" {
+                        config.workspace_declared = true;
+                    }
+                }
                 "kinds" => {
                     if !is_array_table {
                         bail_config(
@@ -116,7 +138,7 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
                 }
             }
             ("", "project_name") => {
-                parse_string(path, line_no, value)?;
+                config.project_name = Some(parse_string(path, line_no, value)?);
             }
             ("reference", "marker") => config.marker = parse_string(path, line_no, value)?,
             ("reference", "trigger") => config.trigger = parse_string(path, line_no, value)?,
@@ -241,6 +263,12 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
                 }
                 config.cross_ref_anchor_format = format;
             }
+            ("workspace", "members") => {
+                config.workspace_members = parse_string_list(path, line_no, value)?;
+            }
+            ("workspace", "include_root") => {
+                config.workspace_include_root = parse_bool(path, line_no, value)?;
+            }
             _ => bail_config(path, line_no, format!("unknown config key `{key}`"))?,
         }
     }
@@ -304,7 +332,38 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
             .rebuild_grammar()
             .with_context(|| format!("{}: invalid [id] grammar", format_path(path)))?;
     }
+    // §AR-workspace.5.2: every post-parse invariant runs on every config
+    // load, not gated on which section happened to appear. `project_name` is
+    // free-form metadata (§FS-config.3); the slug check against the alias
+    // grammar happens once, where it matters, at alias derivation in
+    // `command_check_workspace` (§AR-workspace.5.3). The workspace member
+    // list, by contrast, is shape-checked here — an entry like
+    // `members = ["/abs/path"]` is wrong before we even look at it.
+    for member in &config.workspace_members {
+        validate_workspace_member(path, member)?;
+    }
     Ok(())
+}
+
+fn validate_workspace_member(path: &Path, member: &str) -> Result<()> {
+    if member.is_empty()
+        || member.starts_with('/')
+        || member.split('/').any(|part| part.is_empty() || part == "." || part == "..")
+        || member.matches('*').count() > 1
+        || (member.contains('*') && !member.ends_with("/*"))
+    {
+        return Err(anyhow!(
+            "{}: invalid [workspace] member `{member}` (expected relative path or trailing /* glob)",
+            format_path(path)
+        ));
+    }
+    Ok(())
+}
+
+fn is_valid_project_alias(alias: &str) -> bool {
+    let mut chars = alias.chars();
+    matches!(chars.next(), Some(ch) if ch.is_ascii_lowercase())
+        && chars.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-')
 }
 
 /// Drop a trailing `#`-comment from a `.agents/grund.toml` line (§FS-config.3).
@@ -436,6 +495,9 @@ fn command_config(args: &[String]) -> ExitCode {
         "show" => match load_config(&path) {
             Ok(config) => {
                 println!("grund_config_version = 1");
+                if let Some(name) = &config.project_name {
+                    println!("project_name = \"{}\"", escape_toml_basic(name));
+                }
                 println!();
                 println!("[reference]");
                 println!("marker = \"{}\"", config.marker);
@@ -498,6 +560,15 @@ fn command_config(args: &[String]) -> ExitCode {
                 println!("[fmt.cross_refs]");
                 println!("enabled = {}", config.fmt_cross_refs_enabled);
                 println!("anchor_format = \"{}\"", config.cross_ref_anchor_format);
+                if config.workspace_declared {
+                    println!();
+                    println!("[workspace]");
+                    println!(
+                        "members = {}",
+                        format_toml_string_list(&config.workspace_members)
+                    );
+                    println!("include_root = {}", config.workspace_include_root);
+                }
                 ExitCode::SUCCESS
             }
             Err(err) => {

@@ -34,6 +34,7 @@ Declarations are heading lines `# FS-user-login: …` in markdown. In a code doc
 ### Rules
 
 - **Spec first.** For behavior or design changes, write or update the most-specific spec point before code.
+- **README is user-facing.** Any functional change that affects users must update `README.md` alongside the spec; treat it as the concise public guide to the shipped behavior.
 - **Cite as you write.** Place `§<ID>` at the point a claim or behavior is made — on the doc-comment for a whole behavior, inline beside the clause it enforces.
 - **Always cite the most-specific point.**
 - **Citations climb to reasons (grund.md).** Goals cite reasons, specs cite goals; architecture cites specs; code and executable tests cite specs.

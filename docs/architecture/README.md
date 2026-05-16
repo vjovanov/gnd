@@ -8,6 +8,7 @@ An architectural spec may live inline in the class- or module-level doc-comment 
 |---|---|
 | [§AR-scanner](AR-scanner.md#ar-scanner-how-grund-discovers-declarations-and-citations) | how `grund` discovers declarations and citations |
 | [§AR-checker](../../crates/grund-core/src/checker.rs) | how `grund` validates the scanner's findings — declared inline in `crates/grund-core/src/checker.rs` (stub: `AR-checker.md`) |
+| [§AR-workspace](AR-workspace.md#ar-workspace-how-the-resolver-config-loader-and-scanner-compose-across-projects) | how the resolver, config loader, and scanner compose across projects |
 | [§AR-core-module-layout](AR-core-module-layout.md#ar-core-module-layout-core-implementation-is-split-by-category) | how the current Rust implementation is split into category files |
 | [§AR-bindings](AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms) | how the same Rust engine is exposed on three platforms |
 | [§AR-lsp](AR-lsp.md#ar-lsp-how-the-lsp-server-is-built) | how the optional LSP server is built |

@@ -10,3 +10,4 @@ Current proposals:
 
 - [§DISC-link-support](proposals/2026-05-09-link-support.md#disc-link-support-link-support-as-a-derived-presentation-layer)
 - [§DISC-external-ticket-resolvers](proposals/2026-05-09-external-ticket-resolvers.md#disc-external-ticket-resolvers-external-ticket-resolvers)
+- [§DISC-subproject-namespaces](proposals/2026-05-16-subproject-namespaces.md#disc-subproject-namespaces-sub-project-and-cross-repo-citation-namespaces)
