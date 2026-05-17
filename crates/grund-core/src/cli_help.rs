@@ -347,7 +347,7 @@ fn print_subcommand_help(cmd: &str) {
                 "  --name NAME    project name to interpolate (default: derived from the directory)"
             );
             println!(
-                "  --force        reset a generated AGENTS.md / scaffold file to canonical (an existing .agents/grund.toml is left alone)"
+                "  --force        reset a generated AGENTS.md / scaffold file to canonical (companion entrypoints get only their managed block updated; .agents/grund.toml is left alone)"
             );
             println!(
                 "  --append       append the managed AGENTS.md block instead of replacing an older one"

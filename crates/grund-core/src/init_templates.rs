@@ -250,8 +250,9 @@ fn workspace_init_companion_agent_entrypoints(root: &Path) -> Vec<InitCompanionA
 fn requested_init_companion_agent_entrypoints(
     root: &Path,
     selection: &InitAgentEntrypointSelection,
-) -> Result<Vec<InitCompanionAgentEntrypoint>, (PathBuf, String)> {
+) -> Result<(bool, Vec<InitCompanionAgentEntrypoint>), (PathBuf, String)> {
     let mut paths = Vec::new();
+    let mut canonical_requested_by_symlink = false;
     let canonical = root.join(CANONICAL_AGENT_ENTRYPOINT);
     for entrypoint in COMPANION_AGENT_ENTRYPOINTS {
         if !entrypoint.agent.is_some_and(|agent| selection.includes(agent)) {
@@ -260,7 +261,10 @@ fn requested_init_companion_agent_entrypoints(
         let path = root.join(entrypoint.rel);
         if is_file_or_symlink(&path) {
             match is_symlink_to(&path, &canonical) {
-                Ok(true) => continue,
+                Ok(true) => {
+                    canonical_requested_by_symlink = true;
+                    continue;
+                }
                 Ok(false) => paths.push(InitCompanionAgentEntrypoint::Existing(path)),
                 Err(err) => return Err((path, format!("{err:#}"))),
             }
@@ -268,7 +272,7 @@ fn requested_init_companion_agent_entrypoints(
             paths.push(InitCompanionAgentEntrypoint::MissingAlias(path));
         }
     }
-    Ok(paths)
+    Ok((canonical_requested_by_symlink, paths))
 }
 
 fn is_file_or_symlink(path: &Path) -> bool {
