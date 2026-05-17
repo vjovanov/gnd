@@ -1,0 +1,3 @@
+docs/FS-root-thing.md:3: §beta/FS-beta-thing
+packages/alpha/docs/FS-alpha-thing.md:3: §beta/FS-beta-thing
+packages/beta/docs/FS-beta-overview.md:3: §FS-beta-thing

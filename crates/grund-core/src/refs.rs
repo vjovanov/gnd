@@ -57,14 +57,15 @@ fn command_refs(args: &[String]) -> ExitCode {
         eprintln!("error: refs requires an ID");
         return ExitCode::from(2);
     };
-    let config = match resolve_workspace_config(&path, path_provided) {
-        Ok(config) => config,
+    let context = match load_workspace_context(&path, path_provided) {
+        Ok(context) => context,
         Err(err) => {
             eprintln!("error: {err:#}");
             return ExitCode::from(2);
         }
     };
-    let (id, inline_section) = match parse_id_arg(&id_arg, &config.grammar) {
+    let current_config = &context.current_project().config;
+    let (alias, id, inline_section) = match parse_qualified_id_arg(&id_arg, &current_config.grammar) {
         Ok(parsed) => parsed,
         Err(err) => {
             // §FS-refs.1: an ID arg that does not match `[id] format` is a CLI-level
@@ -75,7 +76,7 @@ fn command_refs(args: &[String]) -> ExitCode {
             eprintln!("error: {err:#}");
             eprintln!(
                 "hint: this repo's [id] format is `{}` (run `grund config show`); `grund list` shows the IDs that exist",
-                config.id_format
+                current_config.id_format
             );
             return ExitCode::from(2);
         }
@@ -85,60 +86,138 @@ fn command_refs(args: &[String]) -> ExitCode {
         return ExitCode::from(2);
     }
     let section = section_override.or(inline_section);
-    let format = format_override.unwrap_or_else(|| config.output_format.clone());
+    // §FS-workspace.8.2: pick the *target* project — the alias arg's project
+    // in workspace mode, or the current project for an unqualified lookup.
+    let target_project = match alias.as_deref() {
+        Some(name) => match context.project_by_alias(name) {
+            Some(project) => project,
+            None => {
+                eprintln!("error: unknown project alias `{name}`");
+                if !context.workspace_loaded {
+                    eprintln!(
+                        "note: workspace aliases are defined in the root .agents/grund.toml under [workspace]"
+                    );
+                } else {
+                    let known = context.aliases().join(", ");
+                    eprintln!("known aliases: {known}");
+                }
+                return ExitCode::from(2);
+            }
+        },
+        None => context.current_project(),
+    };
+    let target_alias = target_project.alias.as_str();
+    let render_config = &target_project.config;
+    let format = format_override.unwrap_or_else(|| render_config.output_format.clone());
     if !matches!(format.as_str(), "text" | "json") {
         eprintln!("error: unsupported refs format `{format}`");
         return ExitCode::from(2);
     }
-    let (findings, scan_errors) = match scan_tree(&config, Some(&path), path_provided) {
-        Ok(out) => out,
-        Err(err) => {
-            eprintln!("error: {err:#}");
-            return ExitCode::from(2);
-        }
-    };
-    let mut citations = findings
-        .citations
-        .iter()
-        // §FS-workspace.8, §AR-workspace.8: `grund refs` is project-local in
-        // v1 — `§alias/<ID>` is a citation of *another* project's `<ID>`, not
-        // of the local one. Skip qualified citations entirely.
-        .filter(|citation| citation.namespace.is_none())
-        .filter(|citation| citation.id == id)
-        .filter(|citation| {
-            section
+    // §FS-workspace.8.2: a `§<alias>/<ID>` from sibling projects AND a
+    // local `§<ID>` from inside `<alias>` both cite the same declaration.
+    // Walk every project's citations and pick both forms.
+    struct Hit<'a> {
+        project: &'a WorkspaceProject,
+        citation: &'a Citation,
+    }
+    let mut hits: Vec<Hit> = Vec::new();
+    let mut had_scan_errors = false;
+    for project in &context.projects {
+        had_scan_errors |= !project.scan_errors.is_empty();
+        let is_target = std::ptr::eq(project, target_project);
+        for citation in &project.findings.citations {
+            // Same-project local citation: counts when this project IS the
+            // target. A `§<ID>` inside a different project resolves against
+            // that project, not the target.
+            let local_match = citation.namespace.is_none() && is_target;
+            // Cross-project citation: an explicit `§<target_alias>/<ID>`
+            // from anywhere in the workspace.
+            let qualified_match = citation
+                .namespace
                 .as_deref()
-                .map(|expected| citation.section.as_deref() == Some(expected))
-                .unwrap_or(true)
-        })
-        .collect::<Vec<_>>();
-    citations.sort_by(|a, b| {
-        (sort_path_key(&a.file), a.line, a.column).cmp(&(sort_path_key(&b.file), b.line, b.column))
+                .map(|ns| ns == target_alias)
+                .unwrap_or(false);
+            if !(local_match || qualified_match) {
+                continue;
+            }
+            if citation.id != id {
+                continue;
+            }
+            if let Some(expected) = section.as_deref() {
+                if citation.section.as_deref() != Some(expected) {
+                    continue;
+                }
+            }
+            hits.push(Hit { project, citation });
+        }
+    }
+    hits.sort_by(|a, b| {
+        (sort_path_key(&a.citation.file), a.citation.line, a.citation.column).cmp(&(
+            sort_path_key(&b.citation.file),
+            b.citation.line,
+            b.citation.column,
+        ))
     });
     // §FS-refs.2: zero citations is a normal answer, not an error — but if the ID
     // is *also* undeclared, the caller most likely fat-fingered it, so leave a
-    // breadcrumb on stderr without changing the exit code.
-    if citations.is_empty() && !findings.declarations.contains_key(&id) {
-        eprintln!(
-            "note: {} is neither declared nor cited — run `grund list` to see every declared ID",
-            render_id(&config, &id)
-        );
+    // breadcrumb on stderr without changing the exit code. In workspace mode the
+    // hint points at `--project <alias>` so the reader sees the namespace.
+    if hits.is_empty() && !target_project.findings.declarations.contains_key(&id) {
+        if context.workspace_loaded && alias.is_some() {
+            eprintln!(
+                "note: {}/{} is neither declared nor cited — run `grund list --project {}` to see {}'s declared IDs",
+                target_alias,
+                render_id(render_config, &id),
+                target_alias,
+                target_alias
+            );
+        } else {
+            eprintln!(
+                "note: {} is neither declared nor cited — run `grund list` to see every declared ID",
+                render_id(render_config, &id)
+            );
+        }
     }
     // §FS-refs.3: the citation list is the *result* of the query, so it goes to
     // stdout (text and JSON alike), like `grund list` / `grund cover` / `grund show` —
     // even though a line shares the `path:line: <text>` shape `check` uses for
     // diagnostics on stderr. Only the `note:` breadcrumb above stays on stderr.
+    // §FS-refs.3: the citation list is the *result* of the query, so it goes to
+    // stdout (text and JSON alike), like `grund list` / `grund cover` / `grund show` —
+    // even though a line shares the `path:line: <text>` shape `check` uses for
+    // diagnostics on stderr. Only the `note:` breadcrumb above stays on stderr.
+    // §FS-workspace.8.2: in workspace mode paths render relative to the
+    // workspace root so a `--summary` line points at the same file
+    // regardless of which member it lives in; each citation's project alias
+    // is attached to the JSON object as `"project"` (the citing project,
+    // not the target — the target is the query arg).
+    let render_path = |project: &WorkspaceProject, path: &Path| -> String {
+        if context.workspace_loaded {
+            display_path(&context.projects[context.current].config, path)
+        } else {
+            display_path(&project.config, path)
+        }
+    };
     if summary {
         let mut by_file: BTreeMap<PathBuf, (usize, BTreeSet<usize>)> = BTreeMap::new();
-        for citation in citations {
+        for hit in &hits {
             let entry = by_file
-                .entry(citation.file.clone())
+                .entry(hit.citation.file.clone())
                 .or_insert_with(|| (0, BTreeSet::new()));
             entry.0 += 1;
-            entry.1.insert(citation.line);
+            entry.1.insert(hit.citation.line);
         }
+        // Each entry's citing project (the file is unique, so the project is
+        // unique too — a file lives in exactly one project's tree, by the
+        // boundary rule §FS-workspace.6).
+        let project_for_file: BTreeMap<&PathBuf, &WorkspaceProject> = hits
+            .iter()
+            .map(|hit| (&hit.citation.file, hit.project))
+            .collect();
         let mut entries = by_file.iter().collect::<Vec<_>>();
-        entries.sort_by_key(|(file, _)| display_path(&config, file));
+        entries.sort_by_key(|(file, _)| {
+            render_path(project_for_file[file], file)
+        });
         if format == "json" {
             for (file, (count, lines)) in entries {
                 let lines_json = lines
@@ -146,12 +225,23 @@ fn command_refs(args: &[String]) -> ExitCode {
                     .map(|line| line.to_string())
                     .collect::<Vec<_>>()
                     .join(",");
-                println!(
-                    "{{\"path\":\"{}\",\"count\":{},\"lines\":[{}]}}",
-                    json_escape(&display_path(&config, file)),
-                    count,
-                    lines_json
-                );
+                let project = project_for_file[file];
+                if context.workspace_loaded {
+                    println!(
+                        "{{\"project\":\"{}\",\"path\":\"{}\",\"count\":{},\"lines\":[{}]}}",
+                        json_escape(&project.alias),
+                        json_escape(&render_path(project, file)),
+                        count,
+                        lines_json
+                    );
+                } else {
+                    println!(
+                        "{{\"path\":\"{}\",\"count\":{},\"lines\":[{}]}}",
+                        json_escape(&render_path(project, file)),
+                        count,
+                        lines_json
+                    );
+                }
             }
         } else {
             for (file, (count, lines)) in entries {
@@ -161,9 +251,10 @@ fn command_refs(args: &[String]) -> ExitCode {
                     .map(|line| line.to_string())
                     .collect::<Vec<_>>()
                     .join(", ");
+                let project = project_for_file[file];
                 println!(
                     "{}: {} ({} {})",
-                    display_path(&config, file),
+                    render_path(project, file),
                     count,
                     label,
                     lines_text
@@ -171,35 +262,49 @@ fn command_refs(args: &[String]) -> ExitCode {
             }
         }
     } else if format == "json" {
-        for citation in citations {
-            println!("{}", render_citation_json(&config, citation));
+        for hit in &hits {
+            let project_field = if context.workspace_loaded {
+                format!("\"project\":\"{}\",", json_escape(&hit.project.alias))
+            } else {
+                String::new()
+            };
+            println!(
+                "{{{}{}}}",
+                project_field,
+                citation_json_body(&hit.project.config, hit.citation, &render_path(hit.project, &hit.citation.file))
+            );
         }
     } else {
-        for citation in citations {
+        for hit in &hits {
             println!(
                 "{}:{}: {}",
-                display_path(&config, &citation.file),
-                citation.line,
-                citation.text
+                render_path(hit.project, &hit.citation.file),
+                hit.citation.line,
+                hit.citation.text
             );
         }
     }
-    if scan_errors.is_empty() {
+    if !had_scan_errors {
         ExitCode::SUCCESS
     } else {
         // Partial-scan semantics (§FS-refs.4 / §FS-check.2): the listed citations
         // are real but the view of the tree was incomplete.
-        for (file, message) in scan_errors {
-            eprintln!("error: {}: {}", display_path(&config, &file), message);
+        for project in &context.projects {
+            for (file, message) in &project.scan_errors {
+                eprintln!("error: {}: {}", display_path(&project.config, file), message);
+            }
         }
         ExitCode::from(2)
     }
 }
 
-fn render_citation_json(config: &Config, citation: &Citation) -> String {
+/// The shared body of a `refs --format json` per-citation object — everything
+/// after the optional `"project":"…",` prefix. Pulled out so both the
+/// workspace-aware and single-project code paths emit identical fields.
+fn citation_json_body(config: &Config, citation: &Citation, rendered_path: &str) -> String {
     format!(
-        "{{\"path\":\"{}\",\"line\":{},\"column\":{},\"id\":\"{}\",\"section\":{},\"marker\":{},\"text\":\"{}\"}}",
-        json_escape(&display_path(config, &citation.file)),
+        "\"path\":\"{}\",\"line\":{},\"column\":{},\"id\":\"{}\",\"section\":{},\"marker\":{},\"text\":\"{}\"",
+        json_escape(rendered_path),
         citation.line,
         citation.column,
         json_escape(&render_id(config, &citation.id)),
@@ -211,4 +316,8 @@ fn render_citation_json(config: &Config, citation: &Citation) -> String {
         citation.has_marker,
         json_escape(&citation.text)
     )
+}
+
+fn render_citation_json(config: &Config, citation: &Citation) -> String {
+    format!("{{{}}}", citation_json_body(config, citation, &display_path(config, &citation.file)))
 }
