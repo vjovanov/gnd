@@ -88,7 +88,7 @@ impl WorkspaceContext {
 /// — this helper is strictly the "load every project that's in scope" layer
 /// on top of it (§AR-workspace.5.1).
 fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceContext> {
-    let config = resolve_workspace_config(path, path_provided)?;
+    let config = resolve_workspace_config(path)?;
     // §FS-workspace.5 / §AR-workspace.6: workspace mode applies whenever
     // the discovered config carries `[workspace]` after member-scope
     // rewriting. A path that resolves member-local has already been
@@ -116,28 +116,43 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
     }
 
     let mut root_config = config;
-    let member_roots = expand_workspace_members(&root_config)?;
-    // Match `command_check_workspace` so a root-scope walk does not absorb
-    // member declarations (§AR-workspace.6).
-    root_config.workspace_boundary_roots = member_roots.clone();
     let render_root = root_config.root.clone();
     let render_config = root_config.clone();
+    // §FS-workspace.8 intro: the current project is the root iff
+    // `include_root = true` (the helper always emits the root first).
+    let current = root_config.workspace_include_root.then_some(0);
+    let projects = load_workspace_projects(&mut root_config)?;
+    Ok(WorkspaceContext {
+        projects,
+        current,
+        workspace_loaded: true,
+        render_root,
+        render_config,
+    })
+}
 
-    let mut projects: Vec<WorkspaceProject> = Vec::new();
-    let mut current: Option<usize> = None;
+/// Load every workspace project a workspace-mode command operates on:
+/// expand the configured members, derive each alias, scan each project, and
+/// reparse qualified citations against the full target list (§AR-workspace.5.1).
+///
+/// Returns one [`WorkspaceProject`] per project in the canonical order:
+/// the root first when `include_root = true`, then members in member-glob
+/// order. Mutates `root_config.workspace_boundary_roots` so any subsequent
+/// root scan respects the member boundary (§AR-workspace.6).
+fn load_workspace_projects(root_config: &mut Config) -> Result<Vec<WorkspaceProject>> {
+    let member_roots = expand_workspace_members(root_config)?;
+    root_config.workspace_boundary_roots = member_roots.clone();
+
+    // Stage 1: build the (alias, config) list. Failing fast on alias errors,
+    // empty workspaces, duplicates, nested workspaces, and missing members
+    // before any scan keeps misconfiguration cheap to diagnose.
+    let mut entries: Vec<(String, Config)> = Vec::new();
     if root_config.workspace_include_root {
-        let alias = derive_alias(&root_config, None, RootMode::Root).map_err(|err| {
-            let message = format!("{err} for {}", project_label(&root_config, &root_config.root));
-            project_name_error(&root_config, message)
+        let alias = derive_alias(root_config, None, RootMode::Root).map_err(|err| {
+            let message = format!("{err} for {}", project_label(root_config, &root_config.root));
+            project_name_error(root_config, message)
         })?;
-        current = Some(projects.len());
-        let (findings, scan_errors) = scan_tree(&root_config, Some(&root_config.root), true)?;
-        projects.push(WorkspaceProject {
-            alias,
-            config: root_config.clone(),
-            findings,
-            scan_errors,
-        });
+        entries.push((alias, root_config.clone()));
     }
     for member_root in member_roots {
         let member_config = load_config_at_with_report_base(
@@ -145,55 +160,65 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
             &root_config.cli_base,
             Some(&root_config.root),
         )?;
-        // §AR-workspace.6.1: nested workspaces are rejected at load — match
-        // `command_check_workspace` so query commands fail with the same
-        // shape (`unknown project alias` would mask the real issue).
+        // §AR-workspace.6.1: nested workspaces are rejected at load — not
+        // silently flattened, so the resolver invariants stay pinned.
         if member_config.workspace_declared {
             return Err(anyhow!(
                 "workspace member `{}` declares its own `[workspace]` block (nested workspaces are not supported)",
-                display_path(&root_config, &member_config.root)
+                display_path(root_config, &member_config.root)
             ));
         }
         let alias = derive_alias(&member_config, Some(&member_root), RootMode::Member)
             .map_err(|err| {
-                let message = format!("{err} for {}", project_label(&root_config, &member_root));
+                let message = format!("{err} for {}", project_label(root_config, &member_root));
                 if member_config.project_name_source.is_some() {
                     project_name_error(&member_config, message)
                 } else {
-                    workspace_members_error(&root_config, message)
+                    workspace_members_error(root_config, message)
                 }
             })?;
-        let (findings, scan_errors) = scan_tree(&member_config, Some(&member_config.root), true)?;
+        entries.push((alias, member_config));
+    }
+
+    if entries.is_empty() {
+        return Err(workspace_members_error(
+            root_config,
+            "workspace has no projects in scope (include_root = false and no members)"
+                .to_string(),
+        ));
+    }
+
+    // §FS-workspace.3 / §AR-workspace.5.3: duplicate aliases are caught at
+    // load — qualified citations have a single resolver target.
+    let mut seen: BTreeMap<String, PathBuf> = BTreeMap::new();
+    for (alias, config) in &entries {
+        if let Some(first) = seen.get(alias) {
+            return Err(workspace_members_error(
+                root_config,
+                format!(
+                    "duplicate workspace project alias `{alias}` ({})",
+                    duplicate_alias_sites(root_config, first, &config.root)
+                ),
+            ));
+        }
+        seen.insert(alias.clone(), config.root.clone());
+    }
+
+    // Stage 2: scan every project under its own config.
+    let mut projects: Vec<WorkspaceProject> = Vec::new();
+    for (alias, config) in entries {
+        let (findings, scan_errors) = scan_tree(&config, Some(&config.root), true)?;
         projects.push(WorkspaceProject {
             alias,
-            config: member_config,
+            config,
             findings,
             scan_errors,
         });
     }
-    // §FS-workspace.3 / §AR-workspace.5.3: duplicate aliases are caught at
-    // load — qualified citations have a single resolver target.
-    let mut seen: BTreeMap<String, PathBuf> = BTreeMap::new();
-    for project in &projects {
-        if let Some(first) = seen.get(&project.alias) {
-            return Err(workspace_members_error(
-                &root_config,
-                format!(
-                    "duplicate workspace project alias `{}` ({})",
-                    project.alias,
-                    duplicate_alias_sites(&root_config, first, &project.config.root)
-                ),
-            ));
-        }
-        seen.insert(project.alias.clone(), project.config.root.clone());
-    }
 
-    if projects.is_empty() {
-        return Err(workspace_members_error(
-            &root_config,
-            "workspace has no projects in scope (include_root = false and no members)".to_string(),
-        ));
-    }
+    // Stage 3: reparse qualified citations against the full target list —
+    // a `§<alias>/<ID>` resolves with the target project's grammar, not
+    // the citing project's (§FS-workspace.1, §AR-workspace.2).
     let targets = projects
         .iter()
         .map(|project| WorkspaceCitationTarget {
@@ -208,13 +233,7 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
             &targets,
         )?;
     }
-    Ok(WorkspaceContext {
-        projects,
-        current,
-        workspace_loaded: true,
-        render_root,
-        render_config,
-    })
+    Ok(projects)
 }
 
 /// Split a CLI ID argument that may carry a qualifying `<alias>/` prefix

@@ -279,14 +279,15 @@ fn parse_longest_id_prefix(raw: &str, grammar: &Grammar) -> Option<(Id, Option<S
         .find(|(_, ch)| ch.is_whitespace())
         .map(|(idx, _)| idx)
         .unwrap_or(raw.len());
-    let mut ends = raw[..search_end]
+    // `char_indices` already yields strictly increasing, unique byte offsets,
+    // and `search_end` is strictly greater than the last char-start it can
+    // emit — so the chained list is sorted and unique without further work.
+    let ends = raw[..search_end]
         .char_indices()
         .map(|(idx, _)| idx)
         .chain(std::iter::once(search_end))
         .filter(|end| *end > 0)
         .collect::<Vec<_>>();
-    ends.sort_unstable();
-    ends.dedup();
     for end in ends.into_iter().rev() {
         if let Ok((id, section)) = parse_id_arg(&raw[..end], grammar) {
             return Some((id, section, end));

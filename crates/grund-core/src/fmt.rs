@@ -177,11 +177,13 @@ fn fmt_tree(
                 line,
                 &path,
                 config,
-                add_marker,
-                cross_refs,
                 is_md,
-                findings.as_ref(),
-                workspace,
+                &FmtLineOpts {
+                    add_marker,
+                    cross_refs,
+                    findings: findings.as_ref(),
+                    workspace,
+                },
             );
             if new_line != line {
                 changes.push((path.clone(), idx + 1, label));
@@ -200,6 +202,16 @@ fn fmt_tree(
     Ok(changes)
 }
 
+/// The rewrites `fmt_line` runs and their inputs — grouped so `fmt_line` has
+/// one logical "what to rewrite" parameter instead of three flags plus two
+/// optional findings handles.
+struct FmtLineOpts<'a> {
+    add_marker: bool,
+    cross_refs: bool,
+    findings: Option<&'a Findings>,
+    workspace: Option<&'a WorkspaceContext>,
+}
+
 /// Apply the `fmt` rewrites to one line, in order: trigger→marker (§FS-fmt.2.1),
 /// then optionally bare→marker (§FS-fmt.2.2), then optionally Markdown-link wrapping
 /// (§FS-fmt.6) — returning the new line plus a label naming the most significant
@@ -208,23 +220,20 @@ fn fmt_line(
     line: &str,
     path: &Path,
     config: &Config,
-    add_marker: bool,
-    cross_refs: bool,
     is_md: bool,
-    findings: Option<&Findings>,
-    workspace: Option<&WorkspaceContext>,
+    opts: &FmtLineOpts<'_>,
 ) -> (String, &'static str) {
     let triggered = replace_trigger(line, config, is_md);
     let trigger_changed = triggered != line;
-    let marked = if add_marker {
+    let marked = if opts.add_marker {
         add_markers(&triggered, config, is_md)
     } else {
         triggered.clone()
     };
     let marker_changed = marked != triggered;
-    let final_line = if cross_refs && is_md {
-        match findings {
-            Some(findings) => wrap_markdown_links(&marked, path, config, findings, workspace),
+    let final_line = if opts.cross_refs && is_md {
+        match opts.findings {
+            Some(findings) => wrap_markdown_links(&marked, path, config, findings, opts.workspace),
             None => marked.clone(),
         }
     } else {
