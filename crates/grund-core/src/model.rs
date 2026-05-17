@@ -107,6 +107,12 @@ struct KindConfig {
     title: Option<String>,
 }
 
+#[derive(Clone)]
+struct ConfigLocation {
+    path: PathBuf,
+    line: usize,
+}
+
 /// The effective configuration: every `.agents/grund.toml` key (§FS-config.3) merged
 /// over the built-in defaults (§FS-config.2), plus the compiled `Grammar` and the
 /// `root` / `cli_base` paths the walk and the report use.
@@ -118,6 +124,7 @@ struct Config {
     /// `.agents/grund.toml` were discovered (§FS-config.3.6).
     cli_base: PathBuf,
     project_name: Option<String>,
+    project_name_source: Option<ConfigLocation>,
     marker: String,
     trigger: String,
     strict: bool,
@@ -143,6 +150,7 @@ struct Config {
     cross_ref_anchor_format: String,
     workspace_declared: bool,
     workspace_members: Vec<String>,
+    workspace_members_source: Option<ConfigLocation>,
     workspace_include_root: bool,
     workspace_boundary_roots: Vec<PathBuf>,
     grammar: Grammar,
@@ -185,6 +193,7 @@ impl Config {
             cli_base: root.clone(),
             root,
             project_name: None,
+            project_name_source: None,
             marker: "§".to_string(),
             trigger: "$$".to_string(),
             strict: false,
@@ -238,6 +247,7 @@ impl Config {
             cross_ref_anchor_format: "github".into(),
             workspace_declared: false,
             workspace_members: Vec::new(),
+            workspace_members_source: None,
             workspace_include_root: true,
             workspace_boundary_roots: Vec::new(),
             grammar,

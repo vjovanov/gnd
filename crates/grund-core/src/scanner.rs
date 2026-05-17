@@ -1,10 +1,15 @@
+/// A dotfile or dot-directory — same convention used by the scanner walker
+/// and by `expand_workspace_members` to skip `.git`, `.agents`, `.cache`, etc.
+fn is_hidden(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n.starts_with('.'))
+}
+
 /// Whether a file is one the scanner reads: a non-hidden name with an extension in
 /// `[scan] extensions` (§FS-config.3.5, §AR-scanner.1).
 fn is_scannable(path: &Path, config: &Config) -> bool {
-    let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-        return false;
-    };
-    if name.starts_with('.') {
+    if is_hidden(path) {
         return false;
     }
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
@@ -391,12 +396,10 @@ fn walk_scannable_files(
         // §AR-workspace.6: precompute the boundary path components once,
         // expressed relative to the canonical scan root. The walker filter is
         // then a single component-suffix compare — no per-entry `canonicalize`
-        // syscall, no allocation in the hot path. The suffix derived from
-        // `canonical_scan_root` is identical to the one derived from
-        // `scan_root` because `strip_prefix` only removes the root; the
-        // descendant portion is invariant under symlink resolution. So the
-        // inner walker compare against `scan_root_for_filter` matches the
-        // suffix table cleanly even when `scan_root` itself is a symlink.
+        // syscall, no allocation in the hot path. `strip_prefix` only removes
+        // the root, so the descendant suffix is invariant under symlink
+        // resolution — comparing against `scan_root_for_filter` works even if
+        // `scan_root` itself is a symlink.
         let boundary_suffixes: Vec<PathBuf> = config
             .workspace_boundary_roots
             .iter()
@@ -417,10 +420,13 @@ fn walk_scannable_files(
                 return false;
             }
             if e.file_type().is_some_and(|file_type| file_type.is_dir()) {
+                if is_hidden(e.path()) {
+                    return false;
+                }
                 let Some(name) = e.path().file_name().and_then(|name| name.to_str()) else {
                     return true;
                 };
-                return !name.starts_with('.') && !excluded.iter().any(|item| item == name);
+                return !excluded.iter().any(|item| item == name);
             }
             true
         });
