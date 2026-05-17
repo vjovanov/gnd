@@ -92,13 +92,9 @@ When the managed block and config are already current, `init` is a no-op on disk
 ```text
 exists AGENTS.md
 exists .agents/grund.toml
-
-next:
-  1. re-run with --docs to scaffold docs/ and e2e/ (or create those folders yourself) — until then `grund check` has nothing to scan
-  2. run `grund check` — a scaffolded tree is clean
-  3. allocate an ID:  ID=$(grund id FS "…")  then write  docs/functional-spec/$ID.md
-see AGENTS.md for the full workflow.
 ```
+
+The `next:` block is suppressed in this case ([§FS-init.2.2](FS-init.md#22-stdout--stderr)) — every reported path is `exists `, so the user already has a complete grund setup and there is no next step to teach.
 
 When `AGENTS.md` exists without a managed block and `--force` is not passed, `init` appends the block and reports:
 
@@ -117,10 +113,14 @@ A missing target directory is a CLI-level failure: exit `2`, stdout empty, stder
 error: target directory does not exist: <path>
 ```
 
-Passing `--force` and `--append` together is a CLI-level failure: exit `2`, stdout empty, stderr:
+An unknown flag is a CLI-level failure: exit `2`, stdout empty, stderr:
 
 ```text
-error: --force and --append are mutually exclusive
+error: unknown flag `<flag>`
 ```
 
 These failures leave the target tree unchanged.
+
+## 5. Dry-run preview
+
+`grund init --dry-run` reports exactly what a real run would do, without writing anything. Every line that a real run would prefix with `wrote `, `appended `, or `updated ` is reported with `would-write `, `would-append `, or `would-update ` instead; `exists ` lines are unchanged. The `next:` block prints under the same rule as a real run — suppressed when every reported path is `exists ` and no `would-…` lines were emitted (§FS-init.2.2). Exit code is `0` for a clean preview, `2` for a CLI-level error (e.g. missing target), the same as a real run.

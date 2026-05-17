@@ -1,21 +1,25 @@
 grund init — scaffold agent instructions + `.agents/grund.toml` (and, with --docs, the docs/ and e2e/ layout).
 Idempotent: re-running updates the managed agent-instructions block in place and leaves your edits alone.
 
-Usage:  grund init [PATH] [--docs] [--name NAME] [--force | --append] [--agents-md|--codex] [--claude] [--gemini] [--copilot]
+Usage:  grund init [PATH] [--docs] [--name NAME] [--force] [--dry-run] [--agents-md] [--claude] [--gemini] [--copilot] [--cursor] [--windsurf] [--zed]
 
 Options:
   --docs         also write docs/ (grund, goals, roadmap, changelog, spec READMEs) and e2e/
   --name NAME    project name to interpolate (default: derived from the directory)
-  --force        reset a generated AGENTS.md / scaffold file to canonical (companion entrypoints get only their managed block updated; .agents/grund.toml is left alone)
-  --append       append the managed AGENTS.md block instead of replacing an older one
-  --agents-md, --codex  create/update canonical AGENTS.md even when another entrypoint exists
+  --force        rewrite the canonical AGENTS.md and --docs scaffolds; .agents/grund.toml is never overwritten
+  --dry-run      report what would be written/appended/updated without touching any file
+  --agents-md    create/update canonical AGENTS.md even when another entrypoint exists
   --claude       create/update CLAUDE.md and .claude/CLAUDE.md
   --gemini       create/update GEMINI.md
   --copilot      create/update .github/copilot-instructions.md
+  --cursor       create/update .cursor/rules/grund.mdc (legacy .cursorrules is updated only if present)
+  --windsurf     create/update .windsurfrules
+  --zed          create/update .rules
 
-Exit:  0 written / updated / already current · 2 missing target, --force+--append, or unsupported newer block.
+Exit:  0 written / updated / already current · 2 missing target, unknown flag, or unsupported newer block.
 
 Examples:
   grund init --docs                  # full first-time scaffold
+  grund init --dry-run               # preview without writing
   grund init --name "My Service"      # auto-detect entrypoint, else AGENTS.md
   grund init --claude --gemini        # create/update both agent entrypoints

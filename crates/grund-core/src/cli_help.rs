@@ -336,7 +336,7 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!(
-                "Usage:  grund init [PATH] [--docs] [--name NAME] [--force | --append] [--agents-md|--codex] [--claude] [--gemini] [--copilot]"
+                "Usage:  grund init [PATH] [--docs] [--name NAME] [--force] [--dry-run] [--agents-md] [--claude] [--gemini] [--copilot] [--cursor] [--windsurf] [--zed]"
             );
             println!();
             println!("Options:");
@@ -347,24 +347,30 @@ fn print_subcommand_help(cmd: &str) {
                 "  --name NAME    project name to interpolate (default: derived from the directory)"
             );
             println!(
-                "  --force        reset a generated AGENTS.md / scaffold file to canonical (companion entrypoints get only their managed block updated; .agents/grund.toml is left alone)"
+                "  --force        rewrite the canonical AGENTS.md and --docs scaffolds; .agents/grund.toml is never overwritten"
             );
             println!(
-                "  --append       append the managed AGENTS.md block instead of replacing an older one"
+                "  --dry-run      report what would be written/appended/updated without touching any file"
             );
             println!(
-                "  --agents-md, --codex  create/update canonical AGENTS.md even when another entrypoint exists"
+                "  --agents-md    create/update canonical AGENTS.md even when another entrypoint exists"
             );
             println!("  --claude       create/update CLAUDE.md and .claude/CLAUDE.md");
             println!("  --gemini       create/update GEMINI.md");
             println!("  --copilot      create/update .github/copilot-instructions.md");
+            println!(
+                "  --cursor       create/update .cursor/rules/grund.mdc (legacy .cursorrules is updated only if present)"
+            );
+            println!("  --windsurf     create/update .windsurfrules");
+            println!("  --zed          create/update .rules");
             println!();
             println!(
-                "Exit:  0 written / updated / already current · 2 missing target, --force+--append, or unsupported newer block."
+                "Exit:  0 written / updated / already current · 2 missing target, unknown flag, or unsupported newer block."
             );
             println!();
             println!("Examples:");
             println!("  grund init --docs                  # full first-time scaffold");
+            println!("  grund init --dry-run               # preview without writing");
             println!(
                 "  grund init --name \"My Service\"      # auto-detect entrypoint, else AGENTS.md"
             );

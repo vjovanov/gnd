@@ -16,26 +16,64 @@ const COMPANION_AGENT_ENTRYPOINTS: &[CompanionAgentEntrypoint] = &[
         rel: "AGENTS.override.md",
         workspace: None,
         agent: None,
+        discovery: true,
     },
     CompanionAgentEntrypoint {
         rel: "CLAUDE.md",
         workspace: Some(".claude"),
         agent: Some(AgentEntrypoint::Claude),
+        discovery: true,
     },
     CompanionAgentEntrypoint {
         rel: ".claude/CLAUDE.md",
         workspace: Some(".claude"),
         agent: Some(AgentEntrypoint::Claude),
+        discovery: true,
     },
     CompanionAgentEntrypoint {
         rel: "GEMINI.md",
         workspace: Some(".gemini"),
         agent: Some(AgentEntrypoint::Gemini),
+        discovery: true,
     },
     CompanionAgentEntrypoint {
         rel: ".github/copilot-instructions.md",
         workspace: None,
         agent: Some(AgentEntrypoint::Copilot),
+        discovery: true,
+    },
+    // §FS-init.2.1 / §FS-init.2.3: Cursor uses `.cursor/rules/*.mdc` files (the
+    // modern form) and a legacy `.cursorrules` single-file form. We create a
+    // grund-specific `.cursor/rules/grund.mdc` (won't collide with any other
+    // rule file) when `.cursor/` already exists or `--cursor` is passed; the
+    // legacy `.cursorrules` is only updated if it already exists, never
+    // created — the modern path is preferred for new adopters.
+    CompanionAgentEntrypoint {
+        rel: ".cursor/rules/grund.mdc",
+        workspace: Some(".cursor"),
+        agent: Some(AgentEntrypoint::Cursor),
+        discovery: true,
+    },
+    CompanionAgentEntrypoint {
+        rel: ".cursorrules",
+        workspace: None,
+        agent: None,
+        discovery: true,
+    },
+    CompanionAgentEntrypoint {
+        rel: ".windsurfrules",
+        workspace: None,
+        agent: Some(AgentEntrypoint::Windsurf),
+        discovery: true,
+    },
+    // §FS-init.2.3: `.rules` is too generic to attribute to Zed by filename
+    // alone, so we only touch it when the `.zed/` workspace already exists or
+    // `--zed` is explicit — discovery-by-file-existence is disabled.
+    CompanionAgentEntrypoint {
+        rel: ".rules",
+        workspace: Some(".zed"),
+        agent: Some(AgentEntrypoint::Zed),
+        discovery: false,
     },
 ];
 
@@ -44,6 +82,9 @@ enum AgentEntrypoint {
     Claude,
     Gemini,
     Copilot,
+    Cursor,
+    Windsurf,
+    Zed,
 }
 
 #[derive(Default)]
@@ -52,11 +93,20 @@ struct InitAgentEntrypointSelection {
     claude: bool,
     gemini: bool,
     copilot: bool,
+    cursor: bool,
+    windsurf: bool,
+    zed: bool,
 }
 
 impl InitAgentEntrypointSelection {
     fn any(&self) -> bool {
-        self.canonical || self.claude || self.gemini || self.copilot
+        self.canonical
+            || self.claude
+            || self.gemini
+            || self.copilot
+            || self.cursor
+            || self.windsurf
+            || self.zed
     }
 
     fn includes(&self, agent: AgentEntrypoint) -> bool {
@@ -64,6 +114,9 @@ impl InitAgentEntrypointSelection {
             AgentEntrypoint::Claude => self.claude,
             AgentEntrypoint::Gemini => self.gemini,
             AgentEntrypoint::Copilot => self.copilot,
+            AgentEntrypoint::Cursor => self.cursor,
+            AgentEntrypoint::Windsurf => self.windsurf,
+            AgentEntrypoint::Zed => self.zed,
         }
     }
 }
@@ -72,6 +125,11 @@ struct CompanionAgentEntrypoint {
     rel: &'static str,
     workspace: Option<&'static str>,
     agent: Option<AgentEntrypoint>,
+    /// Whether automatic mode should detect this entrypoint by file existence
+    /// alone. `false` for entrypoints whose filename is too generic to
+    /// attribute to a single tool (e.g. `.rules`) — those rely on the
+    /// workspace directory or an explicit agent flag instead.
+    discovery: bool,
 }
 
 enum InitCompanionAgentEntrypoint {
@@ -189,11 +247,16 @@ fn render_agents_md(name: &str, config: &Config) -> String {
 
 /// Existing companion agent entrypoints that should carry the same managed grund
 /// block as `AGENTS.md` (§FS-init.2.1). A symlink to `AGENTS.md` is already
-/// covered by the canonical file and is intentionally skipped.
+/// covered by the canonical file and is intentionally skipped. Entries with
+/// `discovery = false` (e.g. `.rules`) are excluded — their filename is too
+/// generic to attribute by file existence alone.
 fn companion_agent_entrypoints(root: &Path) -> Result<Vec<PathBuf>, (PathBuf, String)> {
     let mut paths = Vec::new();
     let canonical = root.join(CANONICAL_AGENT_ENTRYPOINT);
     for entrypoint in COMPANION_AGENT_ENTRYPOINTS {
+        if !entrypoint.discovery {
+            continue;
+        }
         let path = root.join(entrypoint.rel);
         if !is_file_or_symlink(&path) {
             continue;
@@ -208,13 +271,17 @@ fn companion_agent_entrypoints(root: &Path) -> Result<Vec<PathBuf>, (PathBuf, St
 }
 
 /// Companion entrypoints `grund init` should update or create (§FS-init.2.1).
-/// Existing companions are updated in place.
+/// Existing companions are updated in place. Entries with `discovery = false`
+/// are skipped — they are workspace- or flag-gated, never file-detected.
 fn existing_init_companion_agent_entrypoints(
     root: &Path,
 ) -> Result<Vec<InitCompanionAgentEntrypoint>, (PathBuf, String)> {
     let mut paths = Vec::new();
     let canonical = root.join(CANONICAL_AGENT_ENTRYPOINT);
     for entrypoint in COMPANION_AGENT_ENTRYPOINTS {
+        if !entrypoint.discovery {
+            continue;
+        }
         let path = root.join(entrypoint.rel);
         if is_file_or_symlink(&path) {
             match is_symlink_to(&path, &canonical) {

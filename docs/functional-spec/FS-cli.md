@@ -37,7 +37,7 @@ When both a global flag and a subcommand are present, the global flag wins: `gru
 
 ## 4. Errors with no source location
 
-An unknown subcommand (including `grund help <unknown>`), an unknown or malformed flag, or mutually-exclusive flags (e.g. [§FS-init](FS-init.md#fs-init-grund-bootstraps-a-new-grund-conformant-repo)'s `--append` with `--force`) are CLI-level errors: `error: <message>` on stderr, empty stdout, exit `2` ([§FS-errors.2.2](FS-errors.md#22-cli-level-message), [§FS-check.2.1.1](FS-check.md#211-cli-level-messages)). CI scripts grep for the leading `error:` to distinguish a launch-time failure from a clean run that found findings on stdout. A bare-word first argument that is neither a known subcommand nor an existing path gets the dual-reading message from §1; any following lines (`known commands: …`, the parenthetical hint) are part of that diagnostic, not separate findings.
+An unknown subcommand (including `grund help <unknown>`), an unknown or malformed flag, or mutually-exclusive flags are CLI-level errors: `error: <message>` on stderr, empty stdout, exit `2` ([§FS-errors.2.2](FS-errors.md#22-cli-level-message), [§FS-check.2.1.1](FS-check.md#211-cli-level-messages)). CI scripts grep for the leading `error:` to distinguish a launch-time failure from a clean run that found findings on stdout. A bare-word first argument that is neither a known subcommand nor an existing path gets the dual-reading message from §1; any following lines (`known commands: …`, the parenthetical hint) are part of that diagnostic, not separate findings.
 
 ## 5. Exit-code mapping is fixed
 

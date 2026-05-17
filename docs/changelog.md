@@ -24,9 +24,19 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 
 ## Unreleased
 
+### Added
+
+- [§FS-init.1](functional-spec/FS-init.md#1-inputs) / [§FS-init.2.2](functional-spec/FS-init.md#22-stdout--stderr): `grund init --dry-run` previews a run without writing any file. Every line a real run would print as `wrote `, `appended `, or `updated ` is reported with the `would-write `, `would-append `, or `would-update ` prefix instead; `exists ` lines and the `next:` block are unchanged.
+- [§FS-init.1](functional-spec/FS-init.md#1-inputs) / [§FS-init.2.1](functional-spec/FS-init.md#21-files-written-updated-or-left-in-place): `grund init` now ships with companion entrypoints for Cursor (`.cursor/rules/grund.mdc`, plus the legacy `.cursorrules`), Windsurf (`.windsurfrules`), and Zed (`.rules`), each with a matching `--cursor` / `--windsurf` / `--zed` flag. `.cursor/` and `.zed/` trigger automatic alias creation; `.windsurfrules` is existing-file-only in automatic mode because there is no workspace directory to key off. `.rules` is workspace- or flag-gated only — its filename is too generic to attribute to Zed by file existence alone.
+
 ### Changed
 
-- [§FS-init.1](functional-spec/FS-init.md#1-inputs) / [§FS-init.2.1](functional-spec/FS-init.md#21-files-written-updated-or-left-in-place) / [§FS-init.2.3](functional-spec/FS-init.md#23-generated-agent-entrypoints): `grund init` now preserves an existing repo's agent-entrypoint choice by default. A repo with only `CLAUDE.md` gets `CLAUDE.md` updated and no new `AGENTS.md`; if no known entrypoint exists, `.claude/` creates `CLAUDE.md` and `.claude/CLAUDE.md`, `.gemini/` creates `GEMINI.md`, and otherwise `AGENTS.md` is the fallback. Explicit flags (`--agents-md`/`--codex`, `--claude`, `--gemini`, `--copilot`) create or update multiple requested entrypoints. `AGENTS.override.md` and `.github/copilot-instructions.md` remain automatic existing-file-only because `.github/` is generic GitHub metadata, not a Copilot-specific signal.
+- [§FS-init.1](functional-spec/FS-init.md#1-inputs) / [§FS-init.2.1](functional-spec/FS-init.md#21-files-written-updated-or-left-in-place) / [§FS-init.2.3](functional-spec/FS-init.md#23-generated-agent-entrypoints): `grund init` now preserves an existing repo's agent-entrypoint choice by default. A repo with only `CLAUDE.md` gets `CLAUDE.md` updated and no new `AGENTS.md`; if no known entrypoint exists, `.claude/` creates `CLAUDE.md` and `.claude/CLAUDE.md`, `.gemini/` creates `GEMINI.md`, `.cursor/` creates `.cursor/rules/grund.mdc`, `.zed/` creates `.rules`, and otherwise `AGENTS.md` is the fallback. Explicit flags (`--agents-md`, `--claude`, `--gemini`, `--copilot`, `--cursor`, `--windsurf`, `--zed`) create or update multiple requested entrypoints. `AGENTS.override.md`, `.github/copilot-instructions.md`, `.cursorrules`, and `.windsurfrules` remain automatic existing-file-only.
+- [§FS-init.2.2](functional-spec/FS-init.md#22-stdout--stderr): `grund init` now suppresses the trailing `next:` guidance block when every reported path is `exists ` — the user already has a complete grund setup, so there is no next step to teach.
+
+### Removed
+
+- [§FS-init.1](functional-spec/FS-init.md#1-inputs): `grund init --append` is removed. It was an explicit no-op flag that only stated the default existing-entrypoint behavior; scripts that passed it no longer need it. The `--codex` alias of `--agents-md` is also removed — Codex uses `AGENTS.md` (the canonical fallback), not a Codex-specific file, so the alias suggested an asymmetry that did not exist. `--agents-md` remains the single flag name.
 
 ## 2. [0.1.0] — 2026-05-14
 

@@ -1,30 +1,35 @@
-/// `grund init [path] [--name N] [--docs] [--force|--append] [agent flags]` —
+/// `grund init [path] [--name N] [--docs] [--force] [--dry-run] [agent flags]` —
 /// scaffold a repo for `grund` (§FS-init.1): write or update the selected agent
 /// entrypoint(s) and `.agents/grund.toml` (and, with `--docs`, the `docs/`+`e2e/`
 /// tree, §FS-init.2.1), preserve an existing repo's agent-entrypoint choice by
 /// default (§FS-init.2.1), refuse to clobber edited scaffold files without
 /// `--force` — and never overwrite an existing `.agents/grund.toml` even with
 /// `--force`, since that file is the user's config (§FS-init.3) — print a `next:`
-/// block, and exit `2` on a missing target / CLI error / unsupported block
-/// version (§FS-init.4). Non-interactive — every choice is a flag
-/// (§FS-non-goals.10).
+/// block (suppressed when every reported path is `exists `, §FS-init.2.2), and
+/// exit `2` on a missing target / CLI error / unsupported block version
+/// (§FS-init.4). Non-interactive — every choice is a flag (§FS-non-goals.10).
+/// With `--dry-run`, every line is reported with a `would-` prefix and nothing
+/// is written to disk.
 fn command_init(args: &[String]) -> ExitCode {
     let mut path: Option<PathBuf> = None;
     let mut name: Option<String> = None;
     let mut docs = false;
     let mut force = false;
-    let mut append = false;
+    let mut dry_run = false;
     let mut agent_selection = InitAgentEntrypointSelection::default();
     let mut idx = 0;
     while idx < args.len() {
         match args[idx].as_str() {
             "--docs" => docs = true,
             "--force" => force = true,
-            "--append" => append = true,
-            "--agents-md" | "--codex" => agent_selection.canonical = true,
+            "--dry-run" => dry_run = true,
+            "--agents-md" => agent_selection.canonical = true,
             "--claude" => agent_selection.claude = true,
             "--gemini" => agent_selection.gemini = true,
             "--copilot" => agent_selection.copilot = true,
+            "--cursor" => agent_selection.cursor = true,
+            "--windsurf" => agent_selection.windsurf = true,
+            "--zed" => agent_selection.zed = true,
             "--name" => {
                 idx += 1;
                 if idx >= args.len() {
@@ -49,11 +54,6 @@ fn command_init(args: &[String]) -> ExitCode {
             }
         }
         idx += 1;
-    }
-
-    if force && append {
-        eprintln!("error: --force and --append cannot be used together");
-        return ExitCode::from(2);
     }
 
     let target = path.unwrap_or_else(|| PathBuf::from("."));
@@ -95,15 +95,21 @@ fn command_init(args: &[String]) -> ExitCode {
         }
     };
     let mut workflow_entrypoint = None;
+    // Track whether any path changed (or, under --dry-run, *would* change).
+    // The `next:` block is suppressed when every reported path is `exists `,
+    // since the user already has a complete grund setup (§FS-init.2.2).
+    let mut any_change = false;
     if agent_entrypoints.canonical {
-        if !write_or_update_canonical_agent_entrypoint(
+        match write_or_update_canonical_agent_entrypoint(
             &target,
             CANONICAL_AGENT_ENTRYPOINT,
             &agents_contents,
             &agents_block,
             force,
+            dry_run,
         ) {
-            return ExitCode::from(2);
+            Ok(changed) => any_change |= changed,
+            Err(()) => return ExitCode::from(2),
         }
         workflow_entrypoint = Some(CANONICAL_AGENT_ENTRYPOINT.to_string());
     }
@@ -120,9 +126,15 @@ fn command_init(args: &[String]) -> ExitCode {
         }
         match entrypoint {
             InitCompanionAgentEntrypoint::Existing(path) => {
-                match update_agents_block(&path, &agents_block, &rel) {
-                    Ok(AgentsUpdateResult::Appended) => eprintln!("appended {rel}"),
-                    Ok(AgentsUpdateResult::Updated) => eprintln!("updated {rel}"),
+                match update_agents_block(&path, &agents_block, &rel, dry_run) {
+                    Ok(AgentsUpdateResult::Appended) => {
+                        eprintln!("{} {rel}", verb_appended(dry_run));
+                        any_change = true;
+                    }
+                    Ok(AgentsUpdateResult::Updated) => {
+                        eprintln!("{} {rel}", verb_updated(dry_run));
+                        any_change = true;
+                    }
                     Ok(AgentsUpdateResult::Unchanged) => eprintln!("exists {rel}"),
                     Err(err) => {
                         eprintln!("error: update {}: {err}", path.display());
@@ -131,17 +143,21 @@ fn command_init(args: &[String]) -> ExitCode {
                 }
             }
             InitCompanionAgentEntrypoint::MissingAlias(path) => {
-                if let Some(parent) = path.parent()
+                if !dry_run
+                    && let Some(parent) = path.parent()
                     && let Err(err) = fs::create_dir_all(parent)
                 {
                     eprintln!("error: create {}: {err}", parent.display());
                     return ExitCode::from(2);
                 }
-                if let Err(err) = fs::write(&path, &agents_block) {
+                if !dry_run
+                    && let Err(err) = fs::write(&path, &agents_block)
+                {
                     eprintln!("error: write {}: {err}", path.display());
                     return ExitCode::from(2);
                 }
-                eprintln!("wrote {rel}");
+                eprintln!("{} {rel}", verb_wrote(dry_run));
+                any_change = true;
             }
         }
     }
@@ -157,17 +173,21 @@ fn command_init(args: &[String]) -> ExitCode {
     if config_dest.exists() {
         eprintln!("exists {config_rel}");
     } else {
-        if let Some(parent) = config_dest.parent()
+        if !dry_run
+            && let Some(parent) = config_dest.parent()
             && let Err(err) = fs::create_dir_all(parent)
         {
             eprintln!("error: create {}: {err}", parent.display());
             return ExitCode::from(2);
         }
-        if let Err(err) = fs::write(&config_dest, render_grund_toml(&resolved_name)) {
+        if !dry_run
+            && let Err(err) = fs::write(&config_dest, render_grund_toml(&resolved_name))
+        {
             eprintln!("error: write {}: {err}", config_dest.display());
             return ExitCode::from(2);
         }
-        eprintln!("wrote {config_rel}");
+        eprintln!("{} {config_rel}", verb_wrote(dry_run));
+        any_change = true;
     }
 
     let files: Vec<(&'static str, String)> = if docs { docs_scaffold() } else { Vec::new() };
@@ -177,45 +197,65 @@ fn command_init(args: &[String]) -> ExitCode {
             eprintln!("exists {rel}");
             continue;
         }
-        if let Some(parent) = dest.parent()
+        if !dry_run
+            && let Some(parent) = dest.parent()
             && let Err(err) = fs::create_dir_all(parent)
         {
             eprintln!("error: create {}: {err}", parent.display());
             return ExitCode::from(2);
         }
-        if let Err(err) = fs::write(&dest, contents) {
+        if !dry_run
+            && let Err(err) = fs::write(&dest, contents)
+        {
             eprintln!("error: write {}: {err}", dest.display());
             return ExitCode::from(2);
         }
-        eprintln!("wrote {rel}");
+        eprintln!("{} {rel}", verb_wrote(dry_run));
+        any_change = true;
     }
 
-    eprintln!();
-    eprintln!("next:");
-    if docs {
-        eprintln!("  1. run `grund check` — a freshly scaffolded tree is clean");
+    if any_change {
+        eprintln!();
+        eprintln!("next:");
+        if docs {
+            eprintln!("  1. run `grund check` — a freshly scaffolded tree is clean");
+            eprintln!(
+                "  2. allocate an ID:  ID=$(grund id FS \"…\")  then write  docs/functional-spec/$ID.md"
+            );
+            eprintln!("     (H1: `# <ID>: <one-line statement of the behavior>`)");
+            eprintln!(
+                "  3. cite it as §<ID> from the docs and e2e tests that depend on it, then `grund check` again"
+            );
+        } else {
+            eprintln!(
+                "  1. re-run with --docs to scaffold docs/ and e2e/ (or create those folders yourself) — until then `grund check` has nothing to scan"
+            );
+            eprintln!("  2. run `grund check` — a scaffolded tree is clean");
+            eprintln!(
+                "  3. allocate an ID:  ID=$(grund id FS \"…\")  then write  docs/functional-spec/$ID.md"
+            );
+        }
         eprintln!(
-            "  2. allocate an ID:  ID=$(grund id FS \"…\")  then write  docs/functional-spec/$ID.md"
-        );
-        eprintln!("     (H1: `# <ID>: <one-line statement of the behavior>`)");
-        eprintln!(
-            "  3. cite it as §<ID> from the docs and e2e tests that depend on it, then `grund check` again"
-        );
-    } else {
-        eprintln!(
-            "  1. re-run with --docs to scaffold docs/ and e2e/ (or create those folders yourself) — until then `grund check` has nothing to scan"
-        );
-        eprintln!("  2. run `grund check` — a scaffolded tree is clean");
-        eprintln!(
-            "  3. allocate an ID:  ID=$(grund id FS \"…\")  then write  docs/functional-spec/$ID.md"
+            "see {} for the full workflow.",
+            workflow_entrypoint.as_deref().unwrap_or(CANONICAL_AGENT_ENTRYPOINT)
         );
     }
-    eprintln!(
-        "see {} for the full workflow.",
-        workflow_entrypoint.as_deref().unwrap_or(CANONICAL_AGENT_ENTRYPOINT)
-    );
 
     ExitCode::SUCCESS
+}
+
+/// Stderr verb for a newly written file. `--dry-run` reports `would-write `
+/// instead of `wrote `; otherwise the verbs match a real run (§FS-init.2.2).
+fn verb_wrote(dry_run: bool) -> &'static str {
+    if dry_run { "would-write" } else { "wrote" }
+}
+
+fn verb_appended(dry_run: bool) -> &'static str {
+    if dry_run { "would-append" } else { "appended" }
+}
+
+fn verb_updated(dry_run: bool) -> &'static str {
+    if dry_run { "would-update" } else { "updated" }
 }
 
 struct SelectedInitAgentEntrypoints {
@@ -273,38 +313,55 @@ enum AgentsUpdateResult {
     Unchanged,
 }
 
+/// Returns `Ok(changed)` where `changed` indicates whether the run rewrote
+/// (or, under `--dry-run`, would rewrite) the canonical entrypoint — used to
+/// decide whether the `next:` block prints. `Err(())` signals an I/O failure
+/// already reported on stderr.
 fn write_or_update_canonical_agent_entrypoint(
     target: &Path,
     rel: &str,
     contents: &str,
     block: &str,
     force: bool,
-) -> bool {
+    dry_run: bool,
+) -> Result<bool, ()> {
     let dest = target.join(rel);
     if !force && dest.exists() {
-        match update_agents_block(&dest, block, rel) {
-            Ok(AgentsUpdateResult::Appended) => eprintln!("appended {rel}"),
-            Ok(AgentsUpdateResult::Updated) => eprintln!("updated {rel}"),
-            Ok(AgentsUpdateResult::Unchanged) => eprintln!("exists {rel}"),
+        match update_agents_block(&dest, block, rel, dry_run) {
+            Ok(AgentsUpdateResult::Appended) => {
+                eprintln!("{} {rel}", verb_appended(dry_run));
+                Ok(true)
+            }
+            Ok(AgentsUpdateResult::Updated) => {
+                eprintln!("{} {rel}", verb_updated(dry_run));
+                Ok(true)
+            }
+            Ok(AgentsUpdateResult::Unchanged) => {
+                eprintln!("exists {rel}");
+                Ok(false)
+            }
             Err(err) => {
                 eprintln!("error: update {}: {err}", dest.display());
-                return false;
+                Err(())
             }
         }
-        return true;
+    } else {
+        if !dry_run
+            && let Some(parent) = dest.parent()
+            && let Err(err) = fs::create_dir_all(parent)
+        {
+            eprintln!("error: create {}: {err}", parent.display());
+            return Err(());
+        }
+        if !dry_run
+            && let Err(err) = fs::write(&dest, contents)
+        {
+            eprintln!("error: write {}: {err}", dest.display());
+            return Err(());
+        }
+        eprintln!("{} {rel}", verb_wrote(dry_run));
+        Ok(true)
     }
-    if let Some(parent) = dest.parent()
-        && let Err(err) = fs::create_dir_all(parent)
-    {
-        eprintln!("error: create {}: {err}", parent.display());
-        return false;
-    }
-    if let Err(err) = fs::write(&dest, contents) {
-        eprintln!("error: write {}: {err}", dest.display());
-        return false;
-    }
-    eprintln!("wrote {rel}");
-    true
 }
 
 /// Append or update the managed block in an existing agent entrypoint on disk
@@ -312,11 +369,17 @@ fn write_or_update_canonical_agent_entrypoint(
 /// template/config even when the schema version already matches — but when that
 /// re-render is byte-identical to what is on disk the file is left untouched
 /// (`Unchanged`, reported as `exists `), so re-running `grund init` on an
-/// up-to-date repo writes nothing (§FS-init.2.2).
-fn update_agents_block(dest: &Path, block: &str, label: &str) -> Result<AgentsUpdateResult> {
+/// up-to-date repo writes nothing (§FS-init.2.2). Under `--dry-run`, the
+/// computed result is returned without writing.
+fn update_agents_block(
+    dest: &Path,
+    block: &str,
+    label: &str,
+    dry_run: bool,
+) -> Result<AgentsUpdateResult> {
     let existing = fs::read_to_string(dest)?;
     let (updated, result) = update_agents_text(&existing, block, label)?;
-    if result != AgentsUpdateResult::Unchanged {
+    if !dry_run && result != AgentsUpdateResult::Unchanged {
         fs::write(dest, updated)?;
     }
     Ok(result)
