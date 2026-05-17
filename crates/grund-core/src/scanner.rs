@@ -391,7 +391,12 @@ fn walk_scannable_files(
         // §AR-workspace.6: precompute the boundary path components once,
         // expressed relative to the canonical scan root. The walker filter is
         // then a single component-suffix compare — no per-entry `canonicalize`
-        // syscall, no allocation in the hot path.
+        // syscall, no allocation in the hot path. The suffix derived from
+        // `canonical_scan_root` is identical to the one derived from
+        // `scan_root` because `strip_prefix` only removes the root; the
+        // descendant portion is invariant under symlink resolution. So the
+        // inner walker compare against `scan_root_for_filter` matches the
+        // suffix table cleanly even when `scan_root` itself is a symlink.
         let boundary_suffixes: Vec<PathBuf> = config
             .workspace_boundary_roots
             .iter()

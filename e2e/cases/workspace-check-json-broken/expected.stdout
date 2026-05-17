@@ -1,0 +1,4 @@
+{"severity":"warning","path":"apps/api/docs/functional-spec/FS-session.md","line":1,"code":"unused","message":"declared but never cited: FS-session","sites":null}
+{"severity":"error","path":"apps/api/docs/functional-spec/FS-session.md","line":3,"code":"missing-section","message":"missing section root/FS-root.99","sites":null}
+{"severity":"error","path":"docs/functional-spec/FS-root.md","line":3,"code":"dangling","message":"unknown reference api/FS-missing","sites":null}
+{"severity":"error","path":"docs/functional-spec/FS-root.md","line":4,"code":"unknown-project","message":"unknown project alias unknown","sites":null}
