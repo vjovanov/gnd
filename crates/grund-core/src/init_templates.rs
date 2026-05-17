@@ -513,8 +513,11 @@ fn find_init_workspace_context(
     pending_project_name: Option<&str>,
 ) -> Option<Vec<InitWorkspaceProject>> {
     let root_config = find_init_workspace_root(target)?;
-    let target_canonical =
-        fs::canonicalize(target).unwrap_or_else(|_| target.to_path_buf());
+    // `expand_workspace_members` returns canonical member roots, so a
+    // non-canonical `target` would never match the self project on path
+    // equality and the self-exception in §FS-init.2.3.4.15 would silently
+    // misfire. Suppress the section rather than render a wrong self row.
+    let target_canonical = fs::canonicalize(target).ok()?;
     let member_roots = expand_workspace_members(&root_config).ok()?;
     let mut projects = Vec::new();
     if root_config.workspace_include_root {
@@ -577,8 +580,10 @@ fn find_init_workspace_context(
 /// §FS-workspace.6) must still see the workspace root above it
 /// (§FS-init.2.3.4.15).
 fn find_init_workspace_root(target: &Path) -> Option<Config> {
-    let canonical_target =
-        fs::canonicalize(target).unwrap_or_else(|_| target.to_path_buf());
+    // Without a canonical anchor we cannot reliably compare against the
+    // canonicalized member roots `expand_workspace_members` returns; bail
+    // out so the section is suppressed (§FS-init.2.3.4.15).
+    let canonical_target = fs::canonicalize(target).ok()?;
     let mut cursor: Option<&Path> = Some(&canonical_target);
     while let Some(dir) = cursor {
         let candidate = dir.join(".agents").join("grund.toml");
@@ -607,8 +612,13 @@ fn render_workspace_members_section(
     let Some(projects) = find_init_workspace_context(target, pending_project_name) else {
         return String::new();
     };
-    let target_canonical =
-        fs::canonicalize(target).unwrap_or_else(|_| target.to_path_buf());
+    // `find_init_workspace_context` already required `target` to canonicalize
+    // before it returned `Some`, so this call cannot fail in practice; bail
+    // out instead of falling back to a non-canonical path that would break
+    // the `is_self` comparison below.
+    let Ok(target_canonical) = fs::canonicalize(target) else {
+        return String::new();
+    };
     let mut bullets = Vec::with_capacity(projects.len());
     for project in &projects {
         let is_self = project.project_root == target_canonical;
