@@ -17,7 +17,7 @@ A `{MARKER}<ID>` is a pointer to a fact, not a file path. Resolve it with `grund
 
 `grund` scans: {SCAN_SCOPE}.
 
-{DECLARATION_MAP}
+{DECLARATION_MAP}{WORKSPACE_MEMBERS}
 
 ### Declarations and citations
 

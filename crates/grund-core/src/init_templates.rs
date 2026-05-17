@@ -161,7 +161,14 @@ fn canonical_template_text(template: &str) -> String {
 /// kinds show up in the kind set, and so on. Everything *not* substituted here is
 /// fixed for the block version. `{ID_SHAPE_SEC}` is listed before `{ID_SHAPE}`
 /// only for readability; neither placeholder is a substring of the other.
-fn agents_template_substitutions(name: &str, config: &Config) -> Vec<(&'static str, String)> {
+/// `target` is the directory whose `AGENTS.md` is being written; it's the anchor
+/// for the `{WORKSPACE_MEMBERS}` walk-up and for the relative path rendering
+/// inside that section (§FS-init.2.3.4.15).
+fn agents_template_substitutions(
+    name: &str,
+    config: &Config,
+    target: &Path,
+) -> Vec<(&'static str, String)> {
     let sep = config.section_separator.as_str();
     let marker = config.marker.as_str();
     let id_shape = config
@@ -196,6 +203,7 @@ fn agents_template_substitutions(name: &str, config: &Config) -> Vec<(&'static s
         ("{MARKER}", marker.to_string()),
         ("{TRIGGER}", config.trigger.clone()),
         ("{DECLARATION_MAP}", declaration_map(config)),
+        ("{WORKSPACE_MEMBERS}", render_workspace_members_section(target)),
     ]
 }
 
@@ -239,9 +247,11 @@ fn declaration_map(config: &Config) -> String {
 /// The managed block — just the H2 section that `init` appends to, or replaces
 /// inside, an existing `AGENTS.md` (§FS-init.2.3). The template *is* the block;
 /// the H2 line carrying the version is its own begin marker (§FS-init.2.3.1).
-fn render_agents_append_block(name: &str, config: &Config) -> String {
+/// `target` is the directory whose AGENTS.md the block will be written into —
+/// the anchor for the workspace-members walk-up (§FS-init.2.3.4.15).
+fn render_agents_append_block(name: &str, config: &Config, target: &Path) -> String {
     let mut rendered = canonical_template_text(AGENTS_TEMPLATE);
-    for (placeholder, value) in agents_template_substitutions(name, config) {
+    for (placeholder, value) in agents_template_substitutions(name, config, target) {
         rendered = rendered.replace(placeholder, &value);
     }
     rendered
@@ -250,11 +260,12 @@ fn render_agents_append_block(name: &str, config: &Config) -> String {
 /// The full generated `AGENTS.md` for a fresh repo — the H1 scaffolding line
 /// followed by the managed block (§FS-init.2.3). The H1 is *unmanaged* — `init`
 /// owns the block, not the title. Deterministic: same `grund` version, same
-/// `--name`, same effective config ⇒ byte-identical output (§FS-non-goals.13).
-fn render_agents_md(name: &str, config: &Config) -> String {
+/// `--name`, same effective config, same workspace state ⇒ byte-identical
+/// output (§FS-non-goals.13).
+fn render_agents_md(name: &str, config: &Config, target: &Path) -> String {
     format!(
         "# {name} — agent instructions\n\n{}",
-        render_agents_append_block(name, config)
+        render_agents_append_block(name, config, target)
     )
 }
 
@@ -440,4 +451,153 @@ fn render_grund_toml(name: &str) -> String {
 
 fn escape_toml_basic(raw: &str) -> String {
     raw.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+/// One resolved workspace project — the alias and canonical root — collected by
+/// [`find_init_workspace_context`] so the workspace-members renderer never has
+/// to talk to the config layer directly (§FS-init.2.3.4.15).
+struct InitWorkspaceProject {
+    alias: String,
+    project_root: PathBuf,
+}
+
+/// Walk up from `target` to the nearest ancestor whose `.agents/grund.toml`
+/// declares `[workspace]`, then expand its members and derive each alias the
+/// same way `grund check` does (§FS-workspace.2 / §FS-workspace.3). Returns the
+/// alias-sorted project list (root + members, subject to `include_root`) when
+/// `target` sits inside a workspace; `None` otherwise. Returns `None` rather
+/// than an error on any workspace configuration problem (missing member,
+/// duplicate alias, nested workspace, …) — init must not fail because a
+/// sibling member is misconfigured; the next `grund check` will surface the
+/// issue (§FS-init.2.3.4.15).
+fn find_init_workspace_context(target: &Path) -> Option<Vec<InitWorkspaceProject>> {
+    let root_config = find_init_workspace_root(target)?;
+    let member_roots = expand_workspace_members(&root_config).ok()?;
+    let mut projects = Vec::new();
+    if root_config.workspace_include_root {
+        let alias = derive_alias(&root_config, None, RootMode::Root).ok()?;
+        projects.push(InitWorkspaceProject {
+            alias,
+            project_root: root_config.root.clone(),
+        });
+    }
+    for member_root in &member_roots {
+        let member_config = load_config_at_with_report_base(
+            member_root,
+            &root_config.cli_base,
+            Some(&root_config.root),
+        )
+        .ok()?;
+        if member_config.workspace_declared {
+            // §FS-workspace.6: nested workspaces are rejected at load — bail
+            // out of the section silently and let `grund check` report it.
+            return None;
+        }
+        let alias = derive_alias(&member_config, Some(member_root), RootMode::Member).ok()?;
+        projects.push(InitWorkspaceProject {
+            alias,
+            project_root: member_root.clone(),
+        });
+    }
+    if projects.is_empty() {
+        return None;
+    }
+    projects.sort_by(|a, b| a.alias.cmp(&b.alias));
+    Some(projects)
+}
+
+/// Walk up from `target` for the nearest ancestor (or `target` itself) whose
+/// `.agents/grund.toml` declares `[workspace]`. Unlike [`load_config`], this
+/// helper does **not** stop at the first config it finds — a member with its
+/// own `.agents/grund.toml` (which cannot declare `[workspace]` per
+/// §FS-workspace.6) must still see the workspace root above it
+/// (§FS-init.2.3.4.15).
+fn find_init_workspace_root(target: &Path) -> Option<Config> {
+    let canonical_target =
+        fs::canonicalize(target).unwrap_or_else(|_| target.to_path_buf());
+    let mut cursor: Option<&Path> = Some(&canonical_target);
+    while let Some(dir) = cursor {
+        let candidate = dir.join(".agents").join("grund.toml");
+        if candidate.is_file()
+            && let Ok(config) = load_config_at(dir, &canonical_target)
+            && config.workspace_declared
+        {
+            return Some(config);
+        }
+        cursor = dir.parent();
+    }
+    None
+}
+
+/// Render the §FS-init.2.3.4.15 Workspace Members section, or the empty string
+/// when `target` is not inside a workspace. The leading `\n\n` is the
+/// separator from the preceding `### Project map` block — the template embeds
+/// `{DECLARATION_MAP}{WORKSPACE_MEMBERS}` with no other whitespace, so an empty
+/// value leaves the surrounding spacing unchanged.
+fn render_workspace_members_section(target: &Path) -> String {
+    let Some(projects) = find_init_workspace_context(target) else {
+        return String::new();
+    };
+    let target_canonical =
+        fs::canonicalize(target).unwrap_or_else(|_| target.to_path_buf());
+    let mut bullets = Vec::with_capacity(projects.len());
+    for project in &projects {
+        let is_self = project.project_root == target_canonical;
+        let agents_md_path = project.project_root.join("AGENTS.md");
+        // §FS-init.2.3.4.15 self exception: the project whose AGENTS.md is
+        // about to be written counts as initialized, even before the write
+        // completes — so a member-side init never marks itself "not yet
+        // initialized" in its own block.
+        let initialized = is_self || agents_md_path.exists();
+        let link = if initialized {
+            relative_link_path(&target_canonical, &agents_md_path)
+        } else {
+            let dir_rel = relative_link_path(&target_canonical, &project.project_root);
+            if dir_rel == "." {
+                "./".to_string()
+            } else {
+                format!("{dir_rel}/")
+            }
+        };
+        let suffix = if initialized { "" } else { " *(not yet initialized)*" };
+        bullets.push(format!(
+            "- `{alias}` → [{label}]({dest}){suffix}",
+            alias = project.alias,
+            label = markdown_link_label(&link),
+            dest = markdown_link_destination(&link),
+        ));
+    }
+    let mut out = String::from(
+        "\n\n### Workspace members\n\nCross-project citations use §alias/<ID>.\n\n",
+    );
+    out.push_str(&bullets.join("\n"));
+    out
+}
+
+/// Compute a relative POSIX-style path from `from_dir` to `to`. Both inputs
+/// must be absolute (canonicalized) paths. Used to render workspace member
+/// links from inside the AGENTS.md being written (§FS-init.2.3.4.15); Markdown
+/// links are always forward-slash regardless of platform.
+fn relative_link_path(from_dir: &Path, to: &Path) -> String {
+    let from = normalize_path_lexically(from_dir);
+    let to = normalize_path_lexically(to);
+    let from_components: Vec<_> = from.components().collect();
+    let to_components: Vec<_> = to.components().collect();
+    let common = from_components
+        .iter()
+        .zip(to_components.iter())
+        .take_while(|(a, b)| a == b)
+        .count();
+    let mut parts: Vec<String> = Vec::new();
+    for _ in &from_components[common..] {
+        parts.push("..".to_string());
+    }
+    for component in &to_components[common..] {
+        parts.push(component.as_os_str().to_string_lossy().into_owned());
+    }
+    if parts.is_empty() {
+        ".".to_string()
+    } else {
+        parts.join("/")
+    }
 }

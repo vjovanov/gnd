@@ -84,8 +84,8 @@ fn command_init(args: &[String]) -> ExitCode {
     // place, so the ID-shape / kind / marker prose matches `.agents/grund.toml`.
     let init_config = init_effective_config(&target);
 
-    let agents_contents = render_agents_md(&resolved_name, &init_config);
-    let agents_block = render_agents_append_block(&resolved_name, &init_config);
+    let agents_contents = render_agents_md(&resolved_name, &init_config, &target);
+    let agents_block = render_agents_append_block(&resolved_name, &init_config, &target);
 
     let agent_entrypoints = match selected_init_agent_entrypoints(&target, &agent_selection) {
         Ok(entrypoints) => entrypoints,
