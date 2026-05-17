@@ -16,6 +16,8 @@ The generated scripts complete top-level subcommands (`check`, `show`, `list`, `
 - explicit `show` form
 - `grund refs <ID>`
 
+For the first argument, the scripts offer subcommands and, once the typed prefix is non-empty and not a flag, also ask the dynamic helper for IDs. This completes both uppercase bare IDs (`FS-login`) and lowercase workspace aliases (`api/`) in the new bare-ID default while keeping an empty prompt cheap. For explicit `show` and `refs`, the first positional argument is always an ID slot, so the helper runs for any prefix.
+
 The scripts do not complete IDs for arbitrary shell words, citations inside files, or editor buffers. They also do not complete declaration bodies, markdown links, or external ticket IDs.
 
 ## 2. Internal dynamic helper
