@@ -446,6 +446,156 @@ fn init_is_byte_deterministic() {
 }
 
 #[test]
+fn init_dry_run_writes_no_files_and_reports_would_prefixes() {
+    // FS-init.1 / FS-init.2.2: --dry-run reports what a real run would do
+    // (would-write / would-append / would-update) and leaves the working tree
+    // untouched. Re-running without --dry-run then produces the same on-disk
+    // outcome as a single non-dry-run would.
+    let target = workdir("init_dry_run_writes_no_files_and_reports_would_prefixes");
+    let dry = run_grund(&["init", target.to_str().unwrap(), "--dry-run"], manifest_dir());
+    assert!(
+        dry.status.success(),
+        "init --dry-run failed: stderr={}",
+        String::from_utf8_lossy(&dry.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&dry.stderr);
+    assert!(
+        stderr.contains("would-write AGENTS.md")
+            && stderr.contains("would-write .agents/grund.toml"),
+        "dry-run should report `would-write …` for new files, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("\nwrote ") && !stderr.contains("\nappended "),
+        "dry-run must not use the real-run verbs, got:\n{stderr}"
+    );
+    assert!(
+        !target.join("AGENTS.md").exists() && !target.join(".agents/grund.toml").exists(),
+        "dry-run must not write anything to disk"
+    );
+
+    // Real run on the same target should now write the files cleanly.
+    let real = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
+    assert!(real.status.success());
+    assert!(target.join("AGENTS.md").is_file());
+    assert!(target.join(".agents/grund.toml").is_file());
+}
+
+#[test]
+fn init_dry_run_on_current_repo_suppresses_next_block() {
+    // FS-init.2.2: when every reported path is `exists ` (and no would-… lines
+    // were emitted), the `next:` guidance block is suppressed — the user has
+    // a complete setup, so there is nothing to teach. This holds for both
+    // real runs and dry-runs.
+    let target = workdir("init_dry_run_on_current_repo_suppresses_next_block");
+    let first = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
+    assert!(first.status.success());
+
+    let second = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
+    assert!(second.status.success());
+    let stderr = String::from_utf8_lossy(&second.stderr);
+    assert!(
+        stderr.contains("exists AGENTS.md") && stderr.contains("exists .agents/grund.toml"),
+        "second init should report `exists` for both managed paths, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("\nnext:") && !stderr.contains("see "),
+        "all-exists run must suppress the `next:` block, got:\n{stderr}"
+    );
+
+    let dry = run_grund(
+        &["init", target.to_str().unwrap(), "--dry-run"],
+        manifest_dir(),
+    );
+    assert!(dry.status.success());
+    let dry_stderr = String::from_utf8_lossy(&dry.stderr);
+    assert!(
+        !dry_stderr.contains("\nnext:") && !dry_stderr.contains("see "),
+        "all-exists dry-run must also suppress the `next:` block, got:\n{dry_stderr}"
+    );
+}
+
+#[test]
+fn init_cursor_workspace_creates_cursor_rules_alias() {
+    // FS-init.2.1 / FS-init.2.3: a present `.cursor/` workspace triggers
+    // creation of `.cursor/rules/grund.mdc` in automatic mode — the same
+    // pattern that `.claude/` and `.gemini/` use. The legacy `.cursorrules`
+    // is never auto-created.
+    let target = workdir("init_cursor_workspace_creates_cursor_rules_alias");
+    fs::create_dir_all(target.join(".cursor")).expect("create .cursor");
+
+    let output = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
+    assert!(
+        output.status.success(),
+        "init failed: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("wrote .cursor/rules/grund.mdc"),
+        "init should create `.cursor/rules/grund.mdc` when `.cursor/` exists, got:\n{stderr}"
+    );
+    assert!(
+        target.join(".cursor/rules/grund.mdc").is_file(),
+        ".cursor/rules/grund.mdc was not written"
+    );
+    assert!(
+        !target.join(".cursorrules").exists(),
+        "init must not auto-create legacy .cursorrules; modern path is preferred"
+    );
+    assert!(
+        !target.join("AGENTS.md").exists(),
+        "workspace-triggered Cursor alias should prevent the AGENTS.md fallback"
+    );
+}
+
+#[test]
+fn init_zed_rules_is_only_workspace_or_flag_gated() {
+    // FS-init.2.1 / FS-init.2.3: `.rules` is too generic a filename to
+    // attribute to Zed by existence alone — automatic mode must NOT pick it
+    // up. Only an explicit `--zed` flag, or a `.zed/` workspace directory,
+    // creates or updates `.rules`.
+    let target = workdir("init_zed_rules_is_only_workspace_or_flag_gated");
+    // Pre-existing `.rules` with no `.zed/` workspace: must be left strictly
+    // alone, and the AGENTS.md fallback kicks in instead.
+    fs::write(target.join(".rules"), "# Build rules, not Zed\n").expect("write .rules");
+
+    let output = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
+    assert!(
+        output.status.success(),
+        "init failed: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains(".rules"),
+        "automatic mode must not mention `.rules`, got:\n{stderr}"
+    );
+    assert_eq!(
+        fs::read_to_string(target.join(".rules")).unwrap(),
+        "# Build rules, not Zed\n",
+        "init must not touch a generic .rules file in automatic mode"
+    );
+    assert!(
+        target.join("AGENTS.md").is_file(),
+        "no Zed workspace → AGENTS.md is the fallback"
+    );
+
+    // Explicit `--zed` opts in.
+    let target2 = workdir("init_zed_rules_is_only_workspace_or_flag_gated_explicit");
+    let zed_output = run_grund(
+        &["init", target2.to_str().unwrap(), "--zed"],
+        manifest_dir(),
+    );
+    assert!(zed_output.status.success());
+    let zed_stderr = String::from_utf8_lossy(&zed_output.stderr);
+    assert!(
+        zed_stderr.contains("wrote .rules"),
+        "--zed should create .rules, got:\n{zed_stderr}"
+    );
+    assert!(target2.join(".rules").is_file());
+}
+
+#[test]
 fn init_preserves_lone_override_entrypoint_without_creating_agents_md() {
     // FS-init.2.1 / FS-init.2.3: AGENTS.override.md is the "automatic
     // existing-file-only" override channel. When it is the only known agent
