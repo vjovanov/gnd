@@ -2,18 +2,25 @@
 /// — the `--cross-refs` rewrite (§FS-fmt.6.2): re-derive an existing wrapper's URL,
 /// skip citations in inline code (§FS-fmt.6.4), and emit nothing when the target
 /// does not resolve (§FS-fmt.6.3).
-fn wrap_markdown_links(line: &str, path: &Path, config: &Config, findings: &Findings) -> String {
+///
+/// `workspace` is `None` for single-project runs (and for member-local
+/// runs in a workspace — §FS-workspace.8.5). When `Some`, a qualified
+/// `§<alias>/<ID>` resolves against the named project's findings, with
+/// the relative path crossing the workspace and the anchor computed
+/// against the target project's config (§FS-workspace.8.5).
+fn wrap_markdown_links(
+    line: &str,
+    path: &Path,
+    config: &Config,
+    findings: &Findings,
+    workspace: Option<&WorkspaceContext>,
+) -> String {
     let mut output = String::new();
     let mut cursor = 0;
     for caps in config.grammar.citation_re.captures_iter(line) {
         let Some(full) = caps.get(0) else { continue };
         let marker_start = full.start().saturating_sub(config.marker.len());
         if !line[..full.start()].ends_with(&config.marker) {
-            continue;
-        }
-        // §FS-workspace.8, §AR-workspace.8: qualified-ID cross-ref rewriting
-        // is not part of v1 — leave `§alias/<ID>` untouched.
-        if caps.name("namespace").is_some() {
             continue;
         }
         if is_inside_inline_code(line, marker_start) {
@@ -24,8 +31,28 @@ fn wrap_markdown_links(line: &str, path: &Path, config: &Config, findings: &Find
         }
         let Some(id) = parse_id(&caps) else { continue };
         let section = caps.name("sec").map(|m| m.as_str().to_string());
-        let Some(target) = markdown_link_target(path, &id, section.as_deref(), config, findings)
-        else {
+        // §FS-workspace.8.5: a qualified `§<alias>/<ID>` resolves against
+        // the named project in workspace mode; member-local runs (no
+        // workspace context) leave the citation untouched per §FS-workspace.8.5
+        // — neither creating a wrap nor stripping an existing one.
+        let target = match caps.name("namespace") {
+            Some(ns_match) => {
+                let Some(workspace) = workspace else { continue };
+                let Some(target_project) = workspace.project_by_alias(ns_match.as_str()) else {
+                    continue;
+                };
+                markdown_link_target_with_root(
+                    path,
+                    &id,
+                    section.as_deref(),
+                    &target_project.config,
+                    &target_project.findings,
+                    Some(&workspace.render_root),
+                )
+            }
+            None => markdown_link_target(path, &id, section.as_deref(), config, findings),
+        };
+        let Some(target) = target else {
             continue;
         };
         let marked_end = full.end();
@@ -140,6 +167,22 @@ fn markdown_link_target(
     config: &Config,
     findings: &Findings,
 ) -> Option<String> {
+    markdown_link_target_with_root(from_file, id, section, config, findings, None)
+}
+
+/// §FS-workspace.8.5: same as `markdown_link_target`, but with an explicit
+/// `path_root` override for relative-path computation. The target's `config`
+/// still drives anchor profile (§FS-fmt.6.7) and stub resolution, but the
+/// link path is anchored at `path_root` (the workspace root) when the
+/// citing file and the target's home live in different projects.
+fn markdown_link_target_with_root(
+    from_file: &Path,
+    id: &Id,
+    section: Option<&str>,
+    config: &Config,
+    findings: &Findings,
+    path_root: Option<&Path>,
+) -> Option<String> {
     let decls = findings.declarations.get(id)?;
     let stub = decls.iter().find(|decl| decl.is_stub);
     let home_decl = decls
@@ -152,7 +195,10 @@ fn markdown_link_target(
     } else {
         home_decl.file.clone()
     };
-    let rel = relative_url(from_file, &home, config);
+    let rel = match path_root {
+        Some(root) => relative_url_under(from_file, &home, root),
+        None => relative_url(from_file, &home, config),
+    };
     let is_md = home.extension().and_then(|e| e.to_str()) == Some("md");
     if !is_md || config.cross_ref_anchor_format == "none" {
         return Some(rel);
@@ -187,8 +233,16 @@ fn declaration_heading_text(decl: &Declaration, config: &Config) -> String {
 /// `../`-style relative path from one repo file to another — the link form
 /// `grund fmt --cross-refs` writes (§FS-fmt.6.2).
 fn relative_url(from_file: &Path, to_file: &Path, config: &Config) -> String {
-    let from_rel = from_file.strip_prefix(&config.root).unwrap_or(from_file);
-    let to_rel = to_file.strip_prefix(&config.root).unwrap_or(to_file);
+    relative_url_under(from_file, to_file, &config.root)
+}
+
+/// Same as `relative_url`, but uses an explicit project root for stripping —
+/// the workspace-root variant (§FS-workspace.8.5) so a citing file in one
+/// project can link to a target file in another project under the same
+/// workspace root with a single common-prefix walk.
+fn relative_url_under(from_file: &Path, to_file: &Path, root: &Path) -> String {
+    let from_rel = from_file.strip_prefix(root).unwrap_or(from_file);
+    let to_rel = to_file.strip_prefix(root).unwrap_or(to_file);
     let from_dir = from_rel.parent().unwrap_or(Path::new(""));
     let from_components = path_components(from_dir);
     let to_components = path_components(to_rel);

@@ -29,28 +29,77 @@ fn command_fmt(args: &[String]) -> ExitCode {
         eprintln!("error: --check and --write cannot be used together");
         return ExitCode::from(2);
     }
-    let config = match resolve_workspace_config(&path, path_provided) {
-        Ok(config) => config,
+    // §FS-workspace.8.5: a workspace-root run loads every member so that
+    // qualified `§<alias>/<ID>` citations can be wrapped; a member-local
+    // run (or a single-project repo) collapses to one project and the
+    // wrapper preserves any existing qualified wraps unchanged.
+    let context = match load_workspace_context(&path, path_provided) {
+        Ok(context) => context,
         Err(err) => {
             eprintln!("error: {err:#}");
             return ExitCode::from(2);
         }
     };
+    let config = context.current_project().config.clone();
     let cross_refs = cross_refs || (write && config.fmt_cross_refs_enabled);
-    let changes = match fmt_tree(
-        &config,
-        Some(&path),
-        path_provided,
-        marker,
-        cross_refs,
-        write,
-    ) {
-        Ok(changes) => changes,
-        Err(err) => {
-            eprintln!("error: {err:#}");
-            return ExitCode::from(2);
-        }
+    // §FS-workspace.8.5: a workspace-root run wraps qualified citations in
+    // *every* project's files — a heading rename in `api` must trigger a
+    // `fmt` diff in any sibling project that wrapped a citation of the
+    // renamed declaration. Walk each project's tree under its own config
+    // (each project's `[scan] include`, `[scan] exclude`, and anchor
+    // profile applies to its own files) but share one workspace handle so
+    // a qualified `§<alias>/<ID>` resolves through `WorkspaceContext`.
+    let workspace_for_wrap = if context.workspace_loaded {
+        Some(&context)
+    } else {
+        None
     };
+    let mut changes: Vec<(PathBuf, usize, &'static str)> = Vec::new();
+    // §FS-workspace.8.5: in workspace mode with no explicit path (or with
+    // `path == workspace root`), walk every project so cross-project wraps
+    // are emitted across the whole repo. An explicit path inside one
+    // project's tree narrows the walk to that project; the workspace
+    // context still lets `<§>alias/<ID>` resolve.
+    let walk_all_projects = context.workspace_loaded
+        && (!path_provided
+            || fs::canonicalize(&path)
+                .map(|canonical| canonical == config.root)
+                .unwrap_or(false));
+    if walk_all_projects {
+        for project in &context.projects {
+            match fmt_tree(
+                &project.config,
+                Some(&project.config.root),
+                true,
+                marker,
+                cross_refs,
+                write,
+                workspace_for_wrap,
+            ) {
+                Ok(mut project_changes) => changes.append(&mut project_changes),
+                Err(err) => {
+                    eprintln!("error: {err:#}");
+                    return ExitCode::from(2);
+                }
+            }
+        }
+    } else {
+        match fmt_tree(
+            &config,
+            Some(&path),
+            path_provided,
+            marker,
+            cross_refs,
+            write,
+            workspace_for_wrap,
+        ) {
+            Ok(project_changes) => changes = project_changes,
+            Err(err) => {
+                eprintln!("error: {err:#}");
+                return ExitCode::from(2);
+            }
+        }
+    }
     // §FS-fmt.3 / §FS-errors.1: the report is `fmt`'s output — on stdout, the
     // same stream `grund check`'s findings use, not the stderr transcript shape
     // `grund init` uses (§FS-errors.6). Only CLI-level `error:` lines go to stderr.
@@ -92,6 +141,7 @@ fn fmt_tree(
     add_marker: bool,
     cross_refs: bool,
     write: bool,
+    workspace: Option<&WorkspaceContext>,
 ) -> Result<Vec<(PathBuf, usize, &'static str)>> {
     let mut changes = Vec::new();
     // §FS-fmt.6.3: a wrap's URL is computed from the declaration's home file,
@@ -131,6 +181,7 @@ fn fmt_tree(
                 cross_refs,
                 is_md,
                 findings.as_ref(),
+                workspace,
             );
             if new_line != line {
                 changes.push((path.clone(), idx + 1, label));
@@ -161,6 +212,7 @@ fn fmt_line(
     cross_refs: bool,
     is_md: bool,
     findings: Option<&Findings>,
+    workspace: Option<&WorkspaceContext>,
 ) -> (String, &'static str) {
     let triggered = replace_trigger(line, config, is_md);
     let trigger_changed = triggered != line;
@@ -172,7 +224,7 @@ fn fmt_line(
     let marker_changed = marked != triggered;
     let final_line = if cross_refs && is_md {
         match findings {
-            Some(findings) => wrap_markdown_links(&marked, path, config, findings),
+            Some(findings) => wrap_markdown_links(&marked, path, config, findings, workspace),
             None => marked.clone(),
         }
     } else {
