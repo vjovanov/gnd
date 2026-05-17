@@ -175,6 +175,83 @@ title = "Architecture decision"
 }
 
 #[test]
+fn init_updates_existing_agent_entrypoint_without_creating_agents_md() {
+    // FS-init.2.1 / FS-init.2.3: automatic mode preserves an existing repo's
+    // agent-entrypoint choice instead of adding canonical AGENTS.md.
+    let target = workdir("init_updates_existing_agent_entrypoint_without_creating_agents_md");
+    fs::write(target.join("CLAUDE.md"), "# Claude notes\n").expect("write CLAUDE.md");
+
+    let output = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
+    assert!(
+        output.status.success(),
+        "init failed: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("appended CLAUDE.md"),
+        "init should append to existing CLAUDE.md, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("AGENTS.md") && !target.join("AGENTS.md").exists(),
+        "init should not create AGENTS.md when an existing agent entrypoint is present, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("see CLAUDE.md for the full workflow."),
+        "next block should point at the selected entrypoint, got:\n{stderr}"
+    );
+
+    let claude = fs::read_to_string(target.join("CLAUDE.md")).expect("read CLAUDE.md");
+    assert!(
+        claude.starts_with("# Claude notes\n\n## Grounding with grund (v1)\n"),
+        "CLAUDE.md should keep existing notes and append the managed block:\n{claude}"
+    );
+}
+
+#[test]
+fn init_agent_flags_create_requested_entrypoints() {
+    // FS-init.1 / FS-init.2.1: explicit agent flags create exactly the requested
+    // entrypoint families and do not add the automatic AGENTS.md fallback.
+    let target = workdir("init_agent_flags_create_requested_entrypoints");
+
+    let output = run_grund(
+        &[
+            "init",
+            target.to_str().unwrap(),
+            "--claude",
+            "--gemini",
+            "--copilot",
+        ],
+        manifest_dir(),
+    );
+    assert!(
+        output.status.success(),
+        "init failed: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    for rel in [
+        "CLAUDE.md",
+        ".claude/CLAUDE.md",
+        "GEMINI.md",
+        ".github/copilot-instructions.md",
+    ] {
+        assert!(
+            target.join(rel).is_file(),
+            "explicit init should create {rel}"
+        );
+        assert!(
+            stderr.contains(&format!("wrote {rel}")),
+            "stderr should report writing {rel}, got:\n{stderr}"
+        );
+    }
+    assert!(
+        !target.join("AGENTS.md").exists(),
+        "explicit companion-agent init should not add AGENTS.md"
+    );
+}
+
+#[test]
 fn init_creates_agent_aliases_when_agent_workspaces_exist() {
     // FS-init.2.1 / FS-init.2.3: missing neutral companion aliases are created
     // only when their owning agent-specific workspace already exists.
@@ -202,6 +279,10 @@ fn init_creates_agent_aliases_when_agent_workspaces_exist() {
             "{rel} should be a thin managed-block alias, got:\n{contents}"
         );
     }
+    assert!(
+        !target.join("AGENTS.md").exists(),
+        "workspace-triggered aliases should prevent the AGENTS.md fallback"
+    );
     assert!(
         !target.join("AGENTS.override.md").exists(),
         "AGENTS.override.md is an override file and should not be created as an alias"

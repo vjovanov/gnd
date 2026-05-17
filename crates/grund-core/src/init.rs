@@ -1,24 +1,30 @@
-/// `grund init [path] [--name N] [--docs] [--force|--append]` — scaffold a repo for
-/// `grund` (§FS-init.1): write `AGENTS.md` and `.agents/grund.toml` (and, with
-/// `--docs`, the `docs/`+`e2e/` tree, §FS-init.2.1), append/update the managed
-/// `AGENTS.md` block when the file already exists (§FS-init.2.3), refuse to clobber
-/// edited scaffold files without `--force` — and never overwrite an existing
-/// `.agents/grund.toml` even with `--force`, since that file is the user's config
-/// (§FS-init.3) — print a `next:` block, and exit `2` on a missing target / CLI
-/// error / unsupported block version (§FS-init.4). Non-interactive — every choice
-/// is a flag (§FS-non-goals.10).
+/// `grund init [path] [--name N] [--docs] [--force|--append] [agent flags]` —
+/// scaffold a repo for `grund` (§FS-init.1): write or update the selected agent
+/// entrypoint(s) and `.agents/grund.toml` (and, with `--docs`, the `docs/`+`e2e/`
+/// tree, §FS-init.2.1), preserve an existing repo's agent-entrypoint choice by
+/// default (§FS-init.2.1), refuse to clobber edited scaffold files without
+/// `--force` — and never overwrite an existing `.agents/grund.toml` even with
+/// `--force`, since that file is the user's config (§FS-init.3) — print a `next:`
+/// block, and exit `2` on a missing target / CLI error / unsupported block
+/// version (§FS-init.4). Non-interactive — every choice is a flag
+/// (§FS-non-goals.10).
 fn command_init(args: &[String]) -> ExitCode {
     let mut path: Option<PathBuf> = None;
     let mut name: Option<String> = None;
     let mut docs = false;
     let mut force = false;
     let mut append = false;
+    let mut agent_selection = InitAgentEntrypointSelection::default();
     let mut idx = 0;
     while idx < args.len() {
         match args[idx].as_str() {
             "--docs" => docs = true,
             "--force" => force = true,
             "--append" => append = true,
+            "--agents-md" | "--codex" => agent_selection.canonical = true,
+            "--claude" => agent_selection.claude = true,
+            "--gemini" => agent_selection.gemini = true,
+            "--copilot" => agent_selection.copilot = true,
             "--name" => {
                 idx += 1;
                 if idx >= args.len() {
@@ -74,37 +80,44 @@ fn command_init(args: &[String]) -> ExitCode {
         },
     };
 
-    // §FS-init.2.3: render `AGENTS.md` against the config `init` leaves in place,
-    // so the ID-shape / kind / marker prose in it matches `.agents/grund.toml`.
+    // §FS-init.2.3: render agent instructions against the config `init` leaves in
+    // place, so the ID-shape / kind / marker prose matches `.agents/grund.toml`.
     let init_config = init_effective_config(&target);
 
     let agents_contents = render_agents_md(&resolved_name, &init_config);
     let agents_block = render_agents_append_block(&resolved_name, &init_config);
 
-    if !write_or_update_canonical_agent_entrypoint(
-        &target,
-        CANONICAL_AGENT_ENTRYPOINT,
-        &agents_contents,
-        &agents_block,
-        force,
-    ) {
-        return ExitCode::from(2);
-    }
-
-    let companion_entrypoints = match init_companion_agent_entrypoints(&target) {
-        Ok(paths) => paths,
+    let agent_entrypoints = match selected_init_agent_entrypoints(&target, &agent_selection) {
+        Ok(entrypoints) => entrypoints,
         Err((path, message)) => {
             eprintln!("error: inspect {}: {message}", path.display());
             return ExitCode::from(2);
         }
     };
-    for entrypoint in companion_entrypoints {
+    let mut workflow_entrypoint = None;
+    if agent_entrypoints.canonical {
+        if !write_or_update_canonical_agent_entrypoint(
+            &target,
+            CANONICAL_AGENT_ENTRYPOINT,
+            &agents_contents,
+            &agents_block,
+            force,
+        ) {
+            return ExitCode::from(2);
+        }
+        workflow_entrypoint = Some(CANONICAL_AGENT_ENTRYPOINT.to_string());
+    }
+
+    for entrypoint in agent_entrypoints.companions {
         let path_ref = match &entrypoint {
             InitCompanionAgentEntrypoint::Existing(path)
             | InitCompanionAgentEntrypoint::MissingAlias(path) => path.as_path(),
         };
         let rel = path_ref.strip_prefix(&target).unwrap_or(path_ref).to_path_buf();
         let rel = format_path(&rel);
+        if workflow_entrypoint.is_none() {
+            workflow_entrypoint = Some(rel.clone());
+        }
         match entrypoint {
             InitCompanionAgentEntrypoint::Existing(path) => {
                 match update_agents_block(&path, &agents_block, &rel) {
@@ -137,7 +150,7 @@ fn command_init(args: &[String]) -> ExitCode {
     // customizes (kinds, marker, scan scope, …, §GOAL-configurable). `init` writes
     // the canonical template only when it is **absent**; an existing config is never
     // overwritten, not even with `--force`. `--force` targets the things `init`
-    // owns end to end — the managed `AGENTS.md` block and the `--docs` scaffold
+    // owns end to end — the managed agent-instructions block and the `--docs` scaffold
     // stubs — not the user's settings (§FS-init.3).
     let config_rel = ".agents/grund.toml";
     let config_dest = target.join(config_rel);
@@ -197,9 +210,52 @@ fn command_init(args: &[String]) -> ExitCode {
             "  3. allocate an ID:  ID=$(grund id FS \"…\")  then write  docs/functional-spec/$ID.md"
         );
     }
-    eprintln!("see AGENTS.md for the full workflow.");
+    eprintln!(
+        "see {} for the full workflow.",
+        workflow_entrypoint.as_deref().unwrap_or(CANONICAL_AGENT_ENTRYPOINT)
+    );
 
     ExitCode::SUCCESS
+}
+
+struct SelectedInitAgentEntrypoints {
+    canonical: bool,
+    companions: Vec<InitCompanionAgentEntrypoint>,
+}
+
+fn selected_init_agent_entrypoints(
+    target: &Path,
+    selection: &InitAgentEntrypointSelection,
+) -> Result<SelectedInitAgentEntrypoints, (PathBuf, String)> {
+    if selection.any() {
+        return Ok(SelectedInitAgentEntrypoints {
+            canonical: selection.canonical,
+            companions: requested_init_companion_agent_entrypoints(target, selection)?,
+        });
+    }
+
+    let canonical = target.join(CANONICAL_AGENT_ENTRYPOINT);
+    let canonical_exists = is_file_or_symlink(&canonical);
+    let existing_companions = existing_init_companion_agent_entrypoints(target)?;
+    if canonical_exists || !existing_companions.is_empty() {
+        return Ok(SelectedInitAgentEntrypoints {
+            canonical: canonical_exists,
+            companions: existing_companions,
+        });
+    }
+
+    let workspace_companions = workspace_init_companion_agent_entrypoints(target);
+    if !workspace_companions.is_empty() {
+        return Ok(SelectedInitAgentEntrypoints {
+            canonical: false,
+            companions: workspace_companions,
+        });
+    }
+
+    Ok(SelectedInitAgentEntrypoints {
+        canonical: true,
+        companions: Vec::new(),
+    })
 }
 
 /// What `init` did to an existing `AGENTS.md`'s managed block — `appended ` (no

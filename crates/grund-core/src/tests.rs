@@ -921,8 +921,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         fs::create_dir_all(root.join(".gemini")).expect("create .gemini");
         fs::create_dir_all(root.join(".github/workflows")).expect("create github metadata");
 
-        let companions =
-            init_companion_agent_entrypoints(&root).expect("discover init companions");
+        let companions = workspace_init_companion_agent_entrypoints(&root);
         let rels = companions
             .iter()
             .map(|entrypoint| match entrypoint {
@@ -965,6 +964,36 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
                 .iter()
                 .all(|error| error.code != "agents-init"),
             "project-owned AGENTS.md should not require a managed block without canonical AGENTS.md"
+        );
+    }
+
+    #[test]
+    fn check_validates_managed_companion_without_canonical_agents_md() {
+        let root =
+            test_root("check_validates_managed_companion_without_canonical_agents_md");
+        write(
+            &root.join("CLAUDE.md"),
+            "## Grounding with grund (v99)\n\nold block\n",
+        );
+        write(
+            &root.join("docs/functional-spec/FS-001-alpha.md"),
+            "# FS-001-alpha: Alpha\n",
+        );
+
+        let config = Config::default_for(root.clone());
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+        let expected_path = root.join("CLAUDE.md");
+
+        assert!(
+            report.errors.iter().any(|error| error.code == "agents-init"
+                && error.path.as_deref() == Some(expected_path.as_path())
+                && error.message.contains("unsupported grund init block v99")),
+            "managed companion entrypoint should be version-checked without AGENTS.md: {:?}",
+            report.errors
+                .iter()
+                .map(|error| (&error.path, &error.message))
+                .collect::<Vec<_>>()
         );
     }
 
