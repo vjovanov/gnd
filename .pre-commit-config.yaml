@@ -1,4 +1,5 @@
-# Run `grund check`, `grund fmt`, and `lychee` before every commit. With
+# Run the CI-equivalent local gate before every commit, and re-run the Rust test
+# suite before every push (§AR-ci.3). With
 # `[reference] require_grounding = true` in `.agents/grund.toml`, `grund check` also
 # enforces the grounding floor (§FS-check.3.6): every source file under
 # `[scan] include` must cite a declared ID. `[fmt.cross_refs] enabled = true`
@@ -16,14 +17,15 @@
 # One-time setup:
 #   pip install pre-commit
 #   cargo install lychee
-#   pre-commit install
-#   pre-commit install --hook-type commit-msg   # for the attribution hook below
+#   pre-commit install   # installs pre-commit, pre-push, and commit-msg hooks
+default_install_hook_types: [pre-commit, pre-push, commit-msg]
 repos:
   - repo: local
     hooks:
-      # `cargo fmt` and `cargo build` mirror the CI workflow's checks exactly
+      # `cargo fmt`, `cargo build`, and `cargo test` mirror the CI workflow's
+      # checks exactly
       # (§AR-ci.1, .github/workflows/ci.yml) so every commit is well-formatted
-      # and compiles cleanly before it leaves the developer's machine:
+      # and test-clean before it leaves the developer's machine:
       #   - `cargo fmt --all -- --check` matches the CI `cargo fmt --check` step.
       #   - `cargo build --workspace --all-targets --locked` with `RUSTFLAGS=-Dwarnings`
       #     matches the CI build step and its `RUSTFLAGS: "-D warnings"` env. The
@@ -32,36 +34,51 @@ repos:
       #     in pre-commit's argv split. Clippy is intentionally **not** part of
       #     CI (see .github/workflows/ci.yml), so it is intentionally not here
       #     either — match the CI gate, do not add a stricter one.
+      #   - `cargo test --workspace --all-targets --locked` matches the CI
+      #     `cargo test` step and also runs at pre-push so broken tests block
+      #     both commit-time and push-time workflows.
       - id: cargo-fmt-check
         name: cargo fmt --check
         entry: cargo fmt --all -- --check
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-commit]
       - id: cargo-build
         name: cargo build (warnings as errors)
         entry: env RUSTFLAGS=-Dwarnings cargo build --workspace --all-targets --locked
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-commit]
+      - id: cargo-test
+        name: cargo test
+        entry: cargo test --workspace --all-targets --locked
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit, pre-push]
       - id: grund-check
         name: grund check
         entry: cargo run --quiet -- check
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-commit]
       - id: grund-fmt
         name: grund fmt
         entry: cargo run --quiet -- fmt --write
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-commit]
       - id: lychee
         name: lychee
         entry: lychee --no-progress --include-fragments README.md docs examples
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-commit]
       - id: no-claude-attribution
         name: no Claude attribution boilerplate (staged files)
         entry: scripts/check-no-claude-attribution.sh
@@ -71,6 +88,7 @@ repos:
         # it blocks; exclude it so the hook does not flag itself.
         pass_filenames: true
         exclude: ^scripts/check-no-claude-attribution\.sh$
+        stages: [pre-commit]
       - id: no-claude-attribution-commit-msg
         name: no Claude attribution boilerplate (commit message)
         entry: scripts/check-no-claude-attribution.sh
