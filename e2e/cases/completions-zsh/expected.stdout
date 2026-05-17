@@ -1,9 +1,24 @@
 #compdef grund
 
 _grund_ids() {
-  local -a ids
-  ids=("${(@f)$(grund complete ids --prefix "$words[CURRENT]" 2>/dev/null)}")
-  _describe 'grund ids' ids
+  local -a raw bare aliases
+  raw=("${(@f)$(grund complete ids --prefix "$words[CURRENT]" 2>/dev/null)}")
+  for candidate in $raw; do
+    if [[ -z "$candidate" ]]; then
+      continue
+    fi
+    if [[ "$candidate" == */ ]]; then
+      aliases+=("$candidate")
+    else
+      bare+=("$candidate")
+    fi
+  done
+  if (( ${#aliases} > 0 )); then
+    compadd -S '' -a aliases
+  fi
+  if (( ${#bare} > 0 )); then
+    _describe 'grund ids' bare
+  fi
 }
 
 _grund() {

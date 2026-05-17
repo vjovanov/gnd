@@ -2,6 +2,12 @@
 _grund_complete_ids() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     mapfile -t COMPREPLY < <(grund complete ids --prefix "$cur" 2>/dev/null)
+    for candidate in "${COMPREPLY[@]}"; do
+        if [[ "$candidate" == */ ]]; then
+            compopt -o nospace 2>/dev/null
+            break
+        fi
+    done
 }
 
 _grund() {
