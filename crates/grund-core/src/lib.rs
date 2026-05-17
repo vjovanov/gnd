@@ -17,6 +17,7 @@ include!("config.rs");
 include!("scanner.rs");
 include!("checker.rs");
 include!("checker_cmd.rs");
+include!("workspace_context.rs");
 include!("output.rs");
 include!("show.rs");
 include!("show_render.rs");
