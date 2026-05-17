@@ -915,6 +915,36 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     }
 
     #[test]
+    fn init_discovers_missing_aliases_for_existing_agent_workspaces() {
+        let root = test_root("init_discovers_missing_aliases_for_existing_agent_workspaces");
+        fs::create_dir_all(root.join(".claude")).expect("create .claude");
+        fs::create_dir_all(root.join(".gemini")).expect("create .gemini");
+        fs::create_dir_all(root.join(".github/workflows")).expect("create github metadata");
+
+        let companions = workspace_init_companion_agent_entrypoints(&root);
+        let rels = companions
+            .iter()
+            .map(|entrypoint| match entrypoint {
+                InitCompanionAgentEntrypoint::Existing(path)
+                | InitCompanionAgentEntrypoint::MissingAlias(path) => path
+                    .strip_prefix(&root)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            rels,
+            vec![
+                "CLAUDE.md",
+                ".claude/CLAUDE.md",
+                "GEMINI.md"
+            ]
+        );
+    }
+
+    #[test]
     fn check_ignores_companion_agent_entrypoints_without_canonical_agents_md() {
         let root =
             test_root("check_ignores_companion_agent_entrypoints_without_canonical_agents_md");
@@ -934,6 +964,129 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
                 .iter()
                 .all(|error| error.code != "agents-init"),
             "project-owned AGENTS.md should not require a managed block without canonical AGENTS.md"
+        );
+    }
+
+    #[test]
+    fn check_validates_managed_companion_without_canonical_agents_md() {
+        let root =
+            test_root("check_validates_managed_companion_without_canonical_agents_md");
+        write(
+            &root.join("CLAUDE.md"),
+            "## Grounding with grund (v99)\n\nold block\n",
+        );
+        write(
+            &root.join("docs/functional-spec/FS-001-alpha.md"),
+            "# FS-001-alpha: Alpha\n",
+        );
+
+        let config = Config::default_for(root.clone());
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+        let expected_path = root.join("CLAUDE.md");
+
+        assert!(
+            report.errors.iter().any(|error| error.code == "agents-init"
+                && error.path.as_deref() == Some(expected_path.as_path())
+                && error.message.contains("unsupported grund init block v99")),
+            "managed companion entrypoint should be version-checked without AGENTS.md: {:?}",
+            report.errors
+                .iter()
+                .map(|error| (&error.path, &error.message))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn check_validates_managed_zed_rules_without_canonical_agents_md() {
+        // §FS-check.3.5 / §FS-init.2.1: `.rules` is not discovered by filename
+        // alone, but a managed block proves it is a grund-owned Zed companion
+        // and must still get init-block drift detection.
+        let root = test_root("check_validates_managed_zed_rules_without_canonical_agents_md");
+        write(
+            &root.join(".rules"),
+            "## Grounding with grund (v99)\n\nold block\n",
+        );
+        write(
+            &root.join("docs/functional-spec/FS-001-alpha.md"),
+            "# FS-001-alpha: Alpha\n",
+        );
+
+        let config = Config::default_for(root.clone());
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+        let expected_path = root.join(".rules");
+
+        assert!(
+            report.errors.iter().any(|error| error.code == "agents-init"
+                && error.path.as_deref() == Some(expected_path.as_path())
+                && error.message.contains("unsupported grund init block v99")),
+            "managed .rules should be version-checked without AGENTS.md: {:?}",
+            report.errors
+                .iter()
+                .map(|error| (&error.path, &error.message))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn check_validates_zed_workspace_rules_when_canonical_exists() {
+        // §FS-check.3.5 / §FS-init.2.1: in a Zed workspace, `.rules` is owned
+        // by the Zed companion path and must be validated when AGENTS.md exists.
+        let root = test_root("check_validates_zed_workspace_rules_when_canonical_exists");
+        write(&root.join("AGENTS.md"), &current_block());
+        write(&root.join(".zed/settings.json"), "{}\n");
+        write(&root.join(".rules"), "# Zed notes without a managed block\n");
+        write(
+            &root.join("docs/functional-spec/FS-001-alpha.md"),
+            "# FS-001-alpha: Alpha\n",
+        );
+
+        let config = Config::default_for(root.clone());
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+        let expected_path = root.join(".rules");
+
+        assert!(
+            report.errors.iter().any(|error| error.code == "agents-init"
+                && error.path.as_deref() == Some(expected_path.as_path())
+                && error.message.contains("missing grund init block v1")),
+            "Zed workspace .rules should be required to carry the managed block: {:?}",
+            report.errors
+                .iter()
+                .map(|error| (&error.path, &error.message))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn check_ignores_unmanaged_generic_rules_without_zed_workspace() {
+        // §FS-init.2.1: `.rules` is too generic to attribute to Zed by file
+        // existence alone, so a generic unmanaged file outside a `.zed/`
+        // workspace must not become a companion check target.
+        let root = test_root("check_ignores_unmanaged_generic_rules_without_zed_workspace");
+        write(&root.join("AGENTS.md"), &current_block());
+        write(&root.join(".rules"), "# Build rules, not Zed\n");
+        write(
+            &root.join("docs/functional-spec/FS-001-alpha.md"),
+            "# FS-001-alpha: Alpha\n",
+        );
+
+        let config = Config::default_for(root.clone());
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+        let generic_rules = root.join(".rules");
+
+        assert!(
+            report.errors.iter().all(|error| {
+                error.code != "agents-init"
+                    || error.path.as_deref() != Some(generic_rules.as_path())
+            }),
+            "generic .rules must not be validated as a Zed companion: {:?}",
+            report.errors
+                .iter()
+                .map(|error| (&error.path, &error.message))
+                .collect::<Vec<_>>()
         );
     }
 

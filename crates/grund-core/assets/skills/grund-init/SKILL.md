@@ -13,7 +13,7 @@ Guide the user through `grund` adoption. `grund init` itself is non-interactive,
 2. Present a short "detected repo shape" summary and recommended setup.
 3. Ask each setup/config question below. For every question, include the recommended value, repo evidence, pros, cons, and when to choose something else.
 4. Write `.agents/grund.toml` from the analysis before running `grund init`, so generated guidance reflects the repository's actual grammar, marker, strict mode, kinds, artifact folders, and scan scope.
-5. Run `grund init [path] [--name NAME] [--append|--force]`, adding `--docs` only when the repo is fresh or explicitly needs the canonical docs/e2e scaffold.
+5. Run `grund init [path] [--name NAME] [--force]`, adding `--docs` only when the repo is fresh or explicitly needs the canonical docs/e2e scaffold. Preview the run with `--dry-run` if the user wants to inspect what will change before committing.
 6. Run `grund config validate [path]` and `grund check [path]`.
 7. Summarize generated files, validation results, existing specs/artifacts found, and any follow-up cleanup.
 

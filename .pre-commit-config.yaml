@@ -17,9 +17,33 @@
 #   pip install pre-commit
 #   cargo install lychee
 #   pre-commit install
+#   pre-commit install --hook-type commit-msg   # for the attribution hook below
 repos:
   - repo: local
     hooks:
+      # `cargo fmt` and `cargo build` mirror the CI workflow's checks exactly
+      # (§AR-ci.1, .github/workflows/ci.yml) so every commit is well-formatted
+      # and compiles cleanly before it leaves the developer's machine:
+      #   - `cargo fmt --all -- --check` matches the CI `cargo fmt --check` step.
+      #   - `cargo build --workspace --all-targets --locked` with `RUSTFLAGS=-Dwarnings`
+      #     matches the CI build step and its `RUSTFLAGS: "-D warnings"` env. The
+      #     `env` prefix is just `/usr/bin/env` so the env var is applied to the
+      #     single cargo invocation without depending on shell-syntax expansion
+      #     in pre-commit's argv split. Clippy is intentionally **not** part of
+      #     CI (see .github/workflows/ci.yml), so it is intentionally not here
+      #     either — match the CI gate, do not add a stricter one.
+      - id: cargo-fmt-check
+        name: cargo fmt --check
+        entry: cargo fmt --all -- --check
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: cargo-build
+        name: cargo build (warnings as errors)
+        entry: env RUSTFLAGS=-Dwarnings cargo build --workspace --all-targets --locked
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: grund-check
         name: grund check
         entry: cargo run --quiet -- check
@@ -39,11 +63,23 @@ repos:
         pass_filenames: false
         always_run: true
       - id: no-claude-attribution
-        name: no Claude attribution boilerplate
+        name: no Claude attribution boilerplate (staged files)
         entry: scripts/check-no-claude-attribution.sh
         language: system
-        # Run against staged file content only — the script accepts the file
-        # list pre-commit passes. The script's own source documents the
-        # patterns it blocks; exclude it so the hook does not flag itself.
+        # Run against staged file content. The script accepts the file list
+        # pre-commit passes. The script's own source documents the patterns
+        # it blocks; exclude it so the hook does not flag itself.
         pass_filenames: true
         exclude: ^scripts/check-no-claude-attribution\.sh$
+      - id: no-claude-attribution-commit-msg
+        name: no Claude attribution boilerplate (commit message)
+        entry: scripts/check-no-claude-attribution.sh
+        language: system
+        # Same script, second stage. pre-commit passes the commit-message
+        # file as the single argument; the script greps it with the same
+        # patterns as the staged-files hook. Catches forbidden co-author
+        # and generated-by trailers that slip into commit messages even when no
+        # tracked file contains them.
+        stages: [commit-msg]
+        pass_filenames: true
+        always_run: true

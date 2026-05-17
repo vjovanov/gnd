@@ -6,8 +6,8 @@
 /// ## 1. Inputs and outputs
 ///
 /// - Input: `Findings` from the scanner, plus the repo root and config (needed
-///   to resolve stub-link paths, to read the `AGENTS.md` init block, and to know
-///   whether `[reference] require_grounding` is on).
+///   to resolve stub-link paths, to read managed agent-entrypoint init blocks,
+///   and to know whether `[reference] require_grounding` is on).
 /// - Output: a `Report` containing two ordered lists: `errors` and `warnings`.
 ///   Order is deterministic — sorted into the fixed report order of §FS-errors.4
 ///   and §FS-non-goals.9 — for §GOAL-friendliness-first.
@@ -54,8 +54,10 @@
 ///
 /// When `<root>/AGENTS.md` exists, verify its versioned `grund init` block (and the
 /// matching block in any non-symlink companion entrypoint that is present): a
-/// missing block, a malformed begin/end pair, an older version, or a newer
-/// unsupported version is one error at the entrypoint's line.
+/// missing block, an older version, or a newer unsupported version is one error at
+/// the entrypoint's line. When only companion entrypoints exist, validate the ones
+/// that already contain a managed block and leave project-owned unmanaged files
+/// alone.
 ///
 /// ### 2.7 Ungrounded source files — opt-in (§FS-check.3.6, §DF-require-grounding)
 ///
@@ -101,8 +103,8 @@ fn check_with_workspace(
     workspace: &BTreeMap<String, WorkspaceCheckTarget<'_>>,
 ) -> Report {
     let mut report = Report::default();
-    // §FS-check.3.5: an `AGENTS.md` whose managed block is out of date (or newer
-    // than this binary) is a check error.
+    // §FS-check.3.5: managed agent-entrypoint blocks that are out of date (or
+    // newer than this binary) are check errors.
     check_agents_block_version(&config.root, &mut report);
 
     // §FS-check.3.3: an ID with more than one non-stub home is a duplicate.
@@ -405,16 +407,20 @@ fn diagnostic_cmp(a: &Diagnostic, b: &Diagnostic) -> std::cmp::Ordering {
 /// Validate the managed agent-entrypoint blocks (§FS-check.3.5): the begin/end
 /// marker pair must be present and intact, and the `vN` version must match this
 /// binary — an older `vN` is "run `grund init`" (§FS-init.2.3), a newer one is
-/// fatal. `AGENTS.md` is canonical; known companion entrypoints are checked only
-/// when present and not symlinked to `AGENTS.md`.
+/// fatal. `AGENTS.md` is canonical; known companion entrypoints are checked when
+/// present and not symlinked to `AGENTS.md`.
 fn check_agents_block_version(root: &Path, report: &mut Report) {
     let canonical = root.join("AGENTS.md");
-    if !canonical.exists() {
-        return;
+    let canonical_exists = canonical.exists();
+    if canonical_exists {
+        check_agent_block_path(&canonical, report, true);
     }
-    let mut paths = vec![canonical];
     match companion_agent_entrypoints(root) {
-        Ok(companions) => paths.extend(companions),
+        Ok(companions) => {
+            for companion in companions {
+                check_agent_block_path(&companion, report, canonical_exists);
+            }
+        }
         Err((path, message)) => {
             report.errors.push(Diagnostic {
                 code: "io",
@@ -425,12 +431,9 @@ fn check_agents_block_version(root: &Path, report: &mut Report) {
             });
         }
     }
-    for path in paths {
-        check_agent_block_path(&path, report);
-    }
 }
 
-fn check_agent_block_path(path: &Path, report: &mut Report) {
+fn check_agent_block_path(path: &Path, report: &mut Report, require_block: bool) {
     if !path.exists() {
         return;
     }
@@ -473,6 +476,9 @@ fn check_agent_block_path(path: &Path, report: &mut Report) {
                 sites: Vec::new(),
             });
         }
+        return;
+    }
+    if !require_block {
         return;
     }
     report.errors.push(Diagnostic {

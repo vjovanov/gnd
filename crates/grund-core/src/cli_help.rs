@@ -34,7 +34,7 @@ fn print_help() {
         "  id       Next conflict-free ID for a new declaration.             e.g. grund id FS \"user login\""
     );
     println!(
-        "  init     Scaffold AGENTS.md + .agents/grund.toml; idempotent.     e.g. grund init --docs"
+        "  init     Scaffold agent instructions + .agents/grund.toml.        e.g. grund init --docs"
     );
     println!(
         "  config   Validate or show the effective .agents/grund.toml.       e.g. grund config show"
@@ -329,13 +329,15 @@ fn print_subcommand_help(cmd: &str) {
         }
         "init" => {
             println!(
-                "grund init — scaffold `AGENTS.md` + `.agents/grund.toml` (and, with --docs, the docs/ and e2e/ layout)."
+                "grund init — scaffold agent instructions + `.agents/grund.toml` (and, with --docs, the docs/ and e2e/ layout)."
             );
             println!(
-                "Idempotent: re-running updates the managed `AGENTS.md` block in place and leaves your edits alone."
+                "Idempotent: re-running updates the managed agent-instructions block in place and leaves your edits alone."
             );
             println!();
-            println!("Usage:  grund init [PATH] [--docs] [--name NAME] [--force | --append]");
+            println!(
+                "Usage:  grund init [PATH] [--docs] [--name NAME] [--force] [--dry-run] [--agents-md] [--claude] [--gemini] [--copilot] [--cursor] [--windsurf] [--zed]"
+            );
             println!();
             println!("Options:");
             println!(
@@ -345,21 +347,34 @@ fn print_subcommand_help(cmd: &str) {
                 "  --name NAME    project name to interpolate (default: derived from the directory)"
             );
             println!(
-                "  --force        reset an edited AGENTS.md / scaffold file to canonical (an existing .agents/grund.toml is left alone)"
+                "  --force        rewrite the canonical AGENTS.md and --docs scaffolds; .agents/grund.toml is never overwritten"
             );
             println!(
-                "  --append       append the managed AGENTS.md block instead of replacing an older one"
+                "  --dry-run      report what would be written/appended/updated without touching any file"
             );
+            println!(
+                "  --agents-md    create/update canonical AGENTS.md even when another entrypoint exists"
+            );
+            println!("  --claude       create/update CLAUDE.md and .claude/CLAUDE.md");
+            println!("  --gemini       create/update GEMINI.md");
+            println!("  --copilot      create/update .github/copilot-instructions.md");
+            println!(
+                "  --cursor       create/update .cursor/rules/grund.mdc (legacy .cursorrules is updated only if present)"
+            );
+            println!("  --windsurf     create/update .windsurfrules");
+            println!("  --zed          create/update .rules");
             println!();
             println!(
-                "Exit:  0 written / updated / already current · 2 missing target, --force+--append, or unsupported newer block."
+                "Exit:  0 written / updated / already current · 2 missing target, unknown flag, or unsupported newer block."
             );
             println!();
             println!("Examples:");
             println!("  grund init --docs                  # full first-time scaffold");
+            println!("  grund init --dry-run               # preview without writing");
             println!(
-                "  grund init --name \"My Service\"      # just AGENTS.md + .agents/grund.toml"
+                "  grund init --name \"My Service\"      # auto-detect entrypoint, else AGENTS.md"
             );
+            println!("  grund init --claude --gemini        # create/update both agent entrypoints");
         }
         "config" => {
             println!(
