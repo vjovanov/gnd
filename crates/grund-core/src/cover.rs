@@ -31,7 +31,7 @@ fn command_cover(args: &[String]) -> ExitCode {
         }
         idx += 1;
     }
-    let config = match resolve_workspace_config(&path, path_provided) {
+    let config = match resolve_workspace_config(&path) {
         Ok(config) => config,
         Err(err) => {
             eprintln!("error: {err:#}");

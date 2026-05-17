@@ -44,7 +44,7 @@ fn command_check(args: &[String]) -> ExitCode {
         eprintln!("error: unsupported check format `{format}`");
         return ExitCode::from(2);
     }
-    let mut config = match resolve_workspace_config(&path, path_provided) {
+    let mut config = match resolve_workspace_config(&path) {
         Ok(config) => config,
         Err(err) => {
             eprintln!("error: {err:#}");
@@ -111,152 +111,34 @@ fn command_check(args: &[String]) -> ExitCode {
     }
 }
 
-struct ProjectScan {
-    alias: String,
-    config: Config,
-    findings: Findings,
-    scan_errors: Vec<ScanError>,
-}
-
 fn command_check_workspace(
     mut root_config: Config,
     format_override: Option<String>,
     force_require_grounding: bool,
 ) -> ExitCode {
-    let member_roots = match expand_workspace_members(&root_config) {
-        Ok(roots) => roots,
+    let mut projects = match load_workspace_projects(&mut root_config) {
+        Ok(projects) => projects,
         Err(err) => {
             eprintln!("error: {err:#}");
             return ExitCode::from(2);
         }
     };
-    // §AR-workspace.6: a root-scope scan must not descend into member roots
-    // — otherwise the root namespace would absorb member declarations.
-    root_config.workspace_boundary_roots = member_roots.clone();
-    let mut projects = Vec::new();
-    if root_config.workspace_include_root {
-        let alias = match derive_alias(&root_config, None, RootMode::Root) {
-            Ok(alias) => alias,
-            Err(err) => {
-                let message = format!("{err} for {}", project_label(&root_config, &root_config.root));
-                eprintln!("error: {:#}", project_name_error(&root_config, message));
-                return ExitCode::from(2);
-            }
-        };
-        projects.push((alias, root_config.clone()));
-    }
-    for member_root in member_roots {
-        let mut member_config = match load_config_at_with_report_base(
-            &member_root,
-            &root_config.cli_base,
-            Some(&root_config.root),
-        ) {
-            Ok(config) => config,
-            Err(err) => {
-                eprintln!("error: {err:#}");
-                return ExitCode::from(2);
-            }
-        };
-        // §AR-workspace.6.1: nested workspaces are rejected at load — not
-        // silently flattened. A member declaring its own `[workspace]` is a
-        // hard configuration error so the resolver invariants remain pinned.
-        if member_config.workspace_declared {
-            eprintln!(
-                "error: workspace member `{}` declares its own `[workspace]` block (nested workspaces are not supported)",
-                display_path(&root_config, &member_config.root)
-            );
-            return ExitCode::from(2);
-        }
-        if force_require_grounding {
-            member_config.require_grounding = true;
-        }
-        let alias = match derive_alias(&member_config, Some(&member_root), RootMode::Member) {
-            Ok(alias) => alias,
-            Err(err) => {
-                let message = format!("{err} for {}", project_label(&root_config, &member_root));
-                let err = if member_config.project_name_source.is_some() {
-                    project_name_error(&member_config, message)
-                } else {
-                    workspace_members_error(&root_config, message)
-                };
-                eprintln!("error: {err:#}");
-                return ExitCode::from(2);
-            }
-        };
-        projects.push((alias, member_config));
-    }
-
-    if projects.is_empty() {
-        eprintln!(
-            "error: {:#}",
-            workspace_members_error(
-                &root_config,
-                "workspace has no projects in scope (include_root = false and no members)"
-                    .to_string(),
-            )
-        );
-        return ExitCode::from(2);
-    }
-
-    let mut seen_aliases: BTreeMap<String, PathBuf> = BTreeMap::new();
-    for (alias, config) in &projects {
-        if let Some(first_root) = seen_aliases.get(alias) {
-            eprintln!(
-                "error: {:#}",
-                workspace_members_error(
-                    &root_config,
-                    format!(
-                        "duplicate workspace project alias `{alias}` ({})",
-                        duplicate_alias_sites(&root_config, first_root, &config.root)
-                    ),
-                )
-            );
-            return ExitCode::from(2);
-        }
-        seen_aliases.insert(alias.clone(), config.root.clone());
-    }
-
-    let mut scanned = Vec::new();
-    for (alias, config) in projects {
-        let (findings, scan_errors) = match scan_tree(&config, Some(&config.root), true) {
-            Ok(out) => out,
-            Err(e) => {
-                eprintln!("error: {:#}", e);
-                return ExitCode::from(2);
-            }
-        };
-        scanned.push(ProjectScan {
-            alias,
-            config,
-            findings,
-            scan_errors,
-        });
-    }
-    let targets = scanned
-        .iter()
-        .map(|project| WorkspaceCitationTarget {
-            alias: project.alias.clone(),
-            config: project.config.clone(),
-        })
-        .collect::<Vec<_>>();
-    for project in &mut scanned {
-        if let Err(err) = reparse_qualified_citations_for_workspace(
-            &project.config,
-            &mut project.findings,
-            &targets,
-        ) {
-            eprintln!("error: {err:#}");
-            return ExitCode::from(2);
+    // §FS-check.3.5: `--require-grounding` propagates to every member's
+    // config. The flag only affects checking, not scanning, so applying it
+    // after the load is equivalent to setting it before.
+    if force_require_grounding {
+        for project in &mut projects {
+            project.config.require_grounding = true;
         }
     }
 
-    let workspace = scanned
+    let workspace = projects
         .iter()
         .map(|project| (project.alias.clone(), &project.findings))
         .collect::<BTreeMap<_, _>>();
     let mut report = Report::default();
     let mut had_scan_errors = false;
-    for project in &scanned {
+    for project in &projects {
         let mut project_report = check_with_workspace(
             &project.findings,
             &project.config,
@@ -319,21 +201,17 @@ fn is_workspace_root_scope(config: &Config, path: &Path, path_provided: bool) ->
 /// completions. The three steps are upward discovery, the member-scope
 /// rewrite, and boundary-root population — the last is what stops a root-scope
 /// scan from absorbing member declarations into the parent namespace.
-fn resolve_workspace_config(path: &Path, path_provided: bool) -> Result<Config> {
+fn resolve_workspace_config(path: &Path) -> Result<Config> {
     let mut config = load_config(path)?;
     config = config_for_member_scope(config, path)?;
-    apply_workspace_boundary(&mut config, path, path_provided)?;
+    apply_workspace_boundary(&mut config)?;
     Ok(config)
 }
 
 /// §AR-workspace.6: a workspace-declared scan must never descend into member
 /// roots. The boundary is the same list that `command_check_workspace`
 /// computes; setting it on the Config makes the scanner skip those subtrees.
-fn apply_workspace_boundary(
-    config: &mut Config,
-    _path: &Path,
-    _path_provided: bool,
-) -> Result<()> {
+fn apply_workspace_boundary(config: &mut Config) -> Result<()> {
     if !config.workspace_declared {
         return Ok(());
     }

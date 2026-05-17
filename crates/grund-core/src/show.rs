@@ -207,7 +207,7 @@ fn command_show(args: &[String]) -> ExitCode {
             // §FS-show.3.2: `text` and `json` flatten `--cross-refs` link wrappers
             // back to bare `§…` citations; `md` keeps the renderable form verbatim.
             if format != "md" {
-                output.body = flatten_cross_ref_links(&output.body, &config);
+                output.body = flatten_cross_ref_links(&output.body, config);
             }
             if format == "json" {
                 if let Some(json) = output.json {
@@ -235,13 +235,13 @@ fn command_show(args: &[String]) -> ExitCode {
                     }
                     println!(
                         "{{\"id\":\"{}\",\"section\":{},\"body\":\"{}\",\"path\":\"{}\",\"line\":{}{}}}",
-                        json_escape(&render_id(&config, &id)),
+                        json_escape(&render_id(config, &id)),
                         match section.as_deref() {
                             Some(section) => format!("\"{}\"", json_escape(section)),
                             None => "null".to_string(),
                         },
                         json_escape(&output.body),
-                        json_escape(&display_path(&config, &output.path)),
+                        json_escape(&display_path(config, &output.path)),
                         output.line,
                         extra
                     );
@@ -254,7 +254,7 @@ fn command_show(args: &[String]) -> ExitCode {
         Err(err) => {
             let message = format!("{err:#}");
             if format == "json" {
-                print_bare_query_json(&config, show_query_error_code(&message), &message);
+                print_bare_query_json(config, show_query_error_code(&message), &message);
             } else {
                 eprintln!("{message}");
                 if message.starts_with("ID not found:") {
@@ -264,7 +264,7 @@ fn command_show(args: &[String]) -> ExitCode {
                 } else if message.starts_with("section not found:") {
                     eprintln!(
                         "hint: run `grund show {} --toc` to print the lead with the section map",
-                        render_id(&config, &id)
+                        render_id(config, &id)
                     );
                 }
             }

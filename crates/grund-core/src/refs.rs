@@ -177,10 +177,10 @@ fn command_refs(args: &[String]) -> ExitCode {
             if citation.id != id {
                 continue;
             }
-            if let Some(expected) = section.as_deref() {
-                if citation.section.as_deref() != Some(expected) {
-                    continue;
-                }
+            if let Some(expected) = section.as_deref()
+                && citation.section.as_deref() != Some(expected)
+            {
+                continue;
             }
             hits.push(Hit { project, citation });
         }
