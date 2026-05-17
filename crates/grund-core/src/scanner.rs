@@ -29,7 +29,18 @@ fn is_scannable(path: &Path, config: &Config) -> bool {
 /// prefix is only honoured when the marker precedes it — an unmarked
 /// `<alias>/<ID>` in prose is text, never a qualified citation
 /// (§FS-workspace.1, §AR-workspace.3.1).
-fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()> {
+///
+/// In workspace mode the caller passes a non-empty `workspace_targets` so a
+/// `§<alias>/<ID>` token parses with the target project's grammar inline —
+/// one disk read for both unqualified and qualified citations
+/// (§AR-workspace.5.1). An empty slice falls back to the loose qualified
+/// parser used by member-local scans (§FS-workspace.5).
+fn scan_file(
+    path: &Path,
+    config: &Config,
+    findings: &mut Findings,
+    workspace_targets: &[WorkspaceCitationTarget],
+) -> Result<()> {
     let text = fs::read_to_string(path)?;
     let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
     let is_py = path.extension().and_then(|e| e.to_str()) == Some("py");
@@ -114,10 +125,17 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
             );
         }
 
+        let workspace_mode = !workspace_targets.is_empty();
         let mut qualified_marker_starts = BTreeSet::new();
         for caps in config.grammar.citation_re.captures_iter(scan_line) {
             let Some(full) = caps.get(0) else { continue };
             let namespace = caps.name("namespace").map(|m| m.as_str().to_string());
+            // In workspace mode, the qualified branch is parsed below with the
+            // target's grammar — let that pass own every `§<alias>/...` hit so
+            // we never emit one with the citing project's grammar.
+            if workspace_mode && namespace.is_some() {
+                continue;
+            }
             let has_marker = scan_line[..full.start()].ends_with(&config.marker);
             // §FS-workspace.1, §AR-workspace.3.1: an unmarked `alias/ID` is text,
             // not a citation. The slash is part of the visual token; we do not
@@ -165,15 +183,27 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
                 text,
             });
         }
-        scan_fallback_qualified_citations(
-            scan_line,
-            lineno,
-            path,
-            config,
-            is_md,
-            &qualified_marker_starts,
-            findings,
-        );
+        if workspace_mode {
+            scan_workspace_qualified_pass(
+                scan_line,
+                lineno,
+                path,
+                config,
+                is_md,
+                workspace_targets,
+                findings,
+            );
+        } else {
+            scan_fallback_qualified_citations(
+                scan_line,
+                lineno,
+                path,
+                config,
+                is_md,
+                &qualified_marker_starts,
+                findings,
+            );
+        }
     }
 
     if let Some(decl) = current.take() {
@@ -306,111 +336,64 @@ fn split_loose_section(token: &str) -> (&str, Option<&str>) {
     (&token[..suffix_start], Some(section))
 }
 
-/// Reparse marker-qualified workspace citations after every project config is
-/// loaded. The ordinary scan is intentionally project-local; this pass is the
-/// workspace layer promised by §FS-workspace.1 / §AR-workspace.2, where
-/// `§alias/ID` uses the target alias's `[id]` grammar rather than the citing
-/// project's grammar.
-fn reparse_qualified_citations_for_workspace(
-    config: &Config,
-    findings: &mut Findings,
-    targets: &[WorkspaceCitationTarget],
-) -> Result<()> {
-    if config.marker.is_empty() || targets.is_empty() {
-        return Ok(());
-    }
-    findings
-        .citations
-        .retain(|citation| citation.namespace.is_none());
-
-    let mut additions = Vec::new();
-    for file in findings.scanned_files.clone() {
-        scan_workspace_qualified_citations(&file, config, targets, &mut additions)
-            .with_context(|| format!("scan {}", file.display()))?;
-    }
-    findings.citations.extend(additions);
-    findings
-        .citations
-        .sort_by(|a, b| (sort_path_key(&a.file), a.line, a.column).cmp(&(
-            sort_path_key(&b.file),
-            b.line,
-            b.column,
-        )));
-    Ok(())
-}
-
-fn scan_workspace_qualified_citations(
+/// One line's worth of marker-qualified workspace citations: a `§<alias>/<ID>`
+/// token whose ID tail parses with the target project's grammar
+/// (§FS-workspace.1, §AR-workspace.2). Runs inline during `scan_file` in
+/// workspace mode so the file is read once, not twice.
+fn scan_workspace_qualified_pass(
+    scan_line: &str,
+    lineno: usize,
     path: &Path,
     config: &Config,
+    is_md: bool,
     targets: &[WorkspaceCitationTarget],
-    out: &mut Vec<Citation>,
-) -> Result<()> {
-    let text = fs::read_to_string(path)?;
-    let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
-    let is_py = path.extension().and_then(|e| e.to_str()) == Some("py");
-    let mut in_fence = false;
-    let mut in_py_docstring = false;
-
-    for (idx, line) in text.lines().enumerate() {
-        let lineno = idx + 1;
-        let trimmed = line.trim_start();
-        if is_md && (trimmed.starts_with("```") || trimmed.starts_with("~~~")) {
-            in_fence = !in_fence;
-            continue;
-        }
-        if in_fence {
-            continue;
-        }
-        if config.docstring_python
-            && is_py
-            && (trimmed.starts_with("\"\"\"") || trimmed.starts_with("'''"))
-        {
-            in_py_docstring = !in_py_docstring;
-            continue;
-        }
-        let scan_line = if in_py_docstring {
-            line.trim_start()
-        } else {
-            line
-        };
-        for (marker_start, _) in scan_line.match_indices(&config.marker) {
-            let token_start = marker_start + config.marker.len();
-            let Some(rest) = scan_line.get(token_start..) else {
-                continue;
-            };
-            let Some(prefix) = QUALIFIED_CITATION_PREFIX.captures(rest) else {
-                continue;
-            };
-            let Some(alias) = prefix.name("namespace").map(|m| m.as_str()) else {
-                continue;
-            };
-            let id_start = token_start + prefix.get(0).unwrap().end();
-            let Some(id_rest) = scan_line.get(id_start..) else {
-                continue;
-            };
-            let parsed = match targets.iter().find(|target| target.alias == alias) {
-                Some(target) => parse_longest_id_prefix(id_rest, &target.config.grammar),
-                None => targets
-                    .iter()
-                    .find_map(|target| parse_longest_id_prefix(id_rest, &target.config.grammar)),
-            };
-            let Some((id, section, id_len)) = parsed else {
-                continue;
-            };
-            let token_end = id_start + id_len;
-            out.push(Citation {
-                namespace: Some(alias.to_string()),
-                id,
-                section,
-                file: path.to_path_buf(),
-                line: lineno,
-                column: marker_start + 1,
-                has_marker: true,
-                text: scan_line[marker_start..token_end].to_string(),
-            });
-        }
+    findings: &mut Findings,
+) {
+    if config.marker.is_empty() || targets.is_empty() {
+        return;
     }
-    Ok(())
+    for (marker_start, _) in scan_line.match_indices(&config.marker) {
+        if is_inside_inline_code(scan_line, marker_start) {
+            continue;
+        }
+        if !is_md && is_inside_string_literal(scan_line, marker_start) {
+            continue;
+        }
+        let token_start = marker_start + config.marker.len();
+        let Some(rest) = scan_line.get(token_start..) else {
+            continue;
+        };
+        let Some(prefix) = QUALIFIED_CITATION_PREFIX.captures(rest) else {
+            continue;
+        };
+        let Some(alias) = prefix.name("namespace").map(|m| m.as_str()) else {
+            continue;
+        };
+        let id_start = token_start + prefix.get(0).unwrap().end();
+        let Some(id_rest) = scan_line.get(id_start..) else {
+            continue;
+        };
+        let parsed = match targets.iter().find(|target| target.alias == alias) {
+            Some(target) => parse_longest_id_prefix(id_rest, &target.config.grammar),
+            None => targets
+                .iter()
+                .find_map(|target| parse_longest_id_prefix(id_rest, &target.config.grammar)),
+        };
+        let Some((id, section, id_len)) = parsed else {
+            continue;
+        };
+        let token_end = id_start + id_len;
+        findings.citations.push(Citation {
+            namespace: Some(alias.to_string()),
+            id,
+            section,
+            file: path.to_path_buf(),
+            line: lineno,
+            column: marker_start + 1,
+            has_marker: true,
+            text: scan_line[marker_start..token_end].to_string(),
+        });
+    }
 }
 
 fn parse_longest_id_prefix(raw: &str, grammar: &Grammar) -> Option<(Id, Option<String>, usize)> {
@@ -751,22 +734,50 @@ type ScanError = (PathBuf, String);
 
 /// One full tree walk: scan every file (§AR-scanner.2) plus the e2e case
 /// directories (§AR-scanner.6), collecting unreadable files rather than aborting
-/// so `check` can report them and keep going (§FS-check.2).
+/// so `check` can report them and keep going (§FS-check.2). The wrapper around
+/// the workspace-aware variant with no targets — single-project scans and
+/// member-local scans share this path.
 fn scan_tree(
     config: &Config,
     scope: Option<&Path>,
     explicit_scope: bool,
 ) -> Result<(Findings, Vec<ScanError>)> {
+    scan_tree_with_workspace(config, scope, explicit_scope, &[])
+}
+
+/// Workspace-aware tree walk: `§<alias>/<ID>` citations parse with each
+/// target's grammar inline, so the workspace layer (§FS-workspace.1,
+/// §AR-workspace.2) never needs to re-read the files the initial scan
+/// already read.
+fn scan_tree_with_workspace(
+    config: &Config,
+    scope: Option<&Path>,
+    explicit_scope: bool,
+    workspace_targets: &[WorkspaceCitationTarget],
+) -> Result<(Findings, Vec<ScanError>)> {
     let mut findings = Findings::default();
     let mut errors = Vec::new();
     for file in walk_scannable_files(config, scope, explicit_scope)? {
-        match scan_file(&file, config, &mut findings) {
+        match scan_file(&file, config, &mut findings, workspace_targets) {
             Ok(()) => findings.scanned_files.push(file),
             Err(err) => errors.push((file, format!("{err:#}"))),
         }
     }
     if let Err(err) = scan_e2e_cases(config, scope, explicit_scope, &mut findings) {
         errors.push((config.root.join("e2e/cases"), format!("{err:#}")));
+    }
+    // §FS-workspace.1: when the citing-grammar pass and the target-grammar
+    // pass both fire on the same line they emit in source order *per pass*;
+    // sort once at the end so a workspace scan's per-line citation order
+    // matches the single-project scan's left-to-right invariant.
+    if !workspace_targets.is_empty() {
+        findings.citations.sort_by(|a, b| {
+            (sort_path_key(&a.file), a.line, a.column).cmp(&(
+                sort_path_key(&b.file),
+                b.line,
+                b.column,
+            ))
+        });
     }
     Ok((findings, errors))
 }

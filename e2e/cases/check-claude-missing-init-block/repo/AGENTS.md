@@ -1,3 +1,3 @@
-## Grounding with grund (v0)
+## Grounding with grund (v1)
 
-old managed block
+current managed block

@@ -66,15 +66,22 @@ fn command_fmt(args: &[String]) -> ExitCode {
                 .map(|canonical| canonical == config.root)
                 .unwrap_or(false));
     if walk_all_projects {
+        // Each project's findings were already produced by
+        // `load_workspace_context` at project.root (§AR-workspace.8) — pass
+        // them through so `fmt --cross-refs` does not re-scan every project.
         for project in &context.projects {
+            let opts = FmtRunOpts {
+                add_marker: marker,
+                cross_refs,
+                write,
+                workspace: workspace_for_wrap,
+                precomputed_findings: Some(&project.findings),
+            };
             match fmt_tree(
                 &project.config,
                 Some(&project.config.root),
                 true,
-                marker,
-                cross_refs,
-                write,
-                workspace_for_wrap,
+                &opts,
             ) {
                 Ok(mut project_changes) => changes.append(&mut project_changes),
                 Err(err) => {
@@ -84,15 +91,22 @@ fn command_fmt(args: &[String]) -> ExitCode {
             }
         }
     } else {
-        match fmt_tree(
-            &config,
-            Some(&path),
-            path_provided,
-            marker,
+        // Single-project / member-local / scope-narrowed: only reuse the
+        // context's findings when they cover the whole project (the
+        // implicit "." scope). A scope-narrow context scan is too thin for
+        // cross-file wrap targets, so let `fmt_tree` scan the project
+        // itself in that case.
+        let reusable_findings = (!path_provided)
+            .then(|| context.current_project().map(|project| &project.findings))
+            .flatten();
+        let opts = FmtRunOpts {
+            add_marker: marker,
             cross_refs,
             write,
-            workspace_for_wrap,
-        ) {
+            workspace: workspace_for_wrap,
+            precomputed_findings: reusable_findings,
+        };
+        match fmt_tree(&config, Some(&path), path_provided, &opts) {
             Ok(project_changes) => changes = project_changes,
             Err(err) => {
                 eprintln!("error: {err:#}");
@@ -134,24 +148,47 @@ fn command_fmt(args: &[String]) -> ExitCode {
 /// either write the changes back (`--write`) or just collect `(path, line, label)`
 /// for `--check`/dry-run (§FS-fmt.3). `--cross-refs` needs the full `Findings` first
 /// so a link is only emitted when its target resolves (§FS-fmt.6.3).
+/// What `fmt_tree` rewrites and against what context — grouped so the walk
+/// inputs (config + scope) and the rewrite knobs travel separately.
+struct FmtRunOpts<'a> {
+    add_marker: bool,
+    cross_refs: bool,
+    write: bool,
+    workspace: Option<&'a WorkspaceContext>,
+    /// Whole-project findings, when the caller has already produced them
+    /// (workspace-root `fmt` reuses each project's `WorkspaceContext` scan).
+    /// `None` falls back to `scan_tree_strict` inside `fmt_tree`.
+    precomputed_findings: Option<&'a Findings>,
+}
+
 fn fmt_tree(
     config: &Config,
     scope: Option<&Path>,
     explicit_scope: bool,
-    add_marker: bool,
-    cross_refs: bool,
-    write: bool,
-    workspace: Option<&WorkspaceContext>,
+    opts: &FmtRunOpts<'_>,
 ) -> Result<Vec<(PathBuf, usize, &'static str)>> {
     let mut changes = Vec::new();
+    let add_marker = opts.add_marker;
+    let cross_refs = opts.cross_refs;
+    let write = opts.write;
+    let workspace = opts.workspace;
+    let precomputed_findings = opts.precomputed_findings;
     // §FS-fmt.6.3: a wrap's URL is computed from the declaration's home file,
     // which may live anywhere in the project tree — not necessarily inside the
-    // scope being rewritten. Resolve against the full project so that
-    // `grund fmt --cross-refs path/to/file.md` wraps cross-file citations
-    // (without this, a one-file scope leaves every citation whose target is
-    // declared elsewhere silently unwrapped, breaking §FS-fmt.6.2).
-    let findings = if cross_refs {
+    // scope being rewritten. Reuse the caller's whole-project findings when
+    // they have them (workspace mode shares the `WorkspaceContext` scan
+    // across `fmt`'s rewrite walk — no second disk pass per project), and
+    // fall back to a strict project scan otherwise. The fallback preserves
+    // §FS-fmt.6.2 for `grund fmt --cross-refs path/to/file.md`, where the
+    // caller's findings are scope-narrow and a cross-file home would
+    // otherwise be invisible.
+    let owned_findings = if cross_refs && precomputed_findings.is_none() {
         Some(scan_tree_strict(config, None, false)?)
+    } else {
+        None
+    };
+    let findings_for_wrap: Option<&Findings> = if cross_refs {
+        precomputed_findings.or(owned_findings.as_ref())
     } else {
         None
     };
@@ -181,7 +218,7 @@ fn fmt_tree(
                 &FmtLineOpts {
                     add_marker,
                     cross_refs,
-                    findings: findings.as_ref(),
+                    findings: findings_for_wrap,
                     workspace,
                 },
             );

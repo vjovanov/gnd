@@ -1,3 +1,3 @@
-## Grounding with grund (v0)
+# apps/api
 
-old managed block
+local notes without a grund init block

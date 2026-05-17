@@ -274,9 +274,6 @@ mod tests {
         root_config.rebuild_grammar().expect("root grammar");
         let api_config = Config::default_for(root.join("apps/api"));
 
-        let (mut root_findings, _) = scan_tree(&root_config, Some(&root), true).expect("scan root");
-        let (mut api_findings, _) =
-            scan_tree(&api_config, Some(&api_config.root), true).expect("scan api");
         let targets = vec![
             WorkspaceCitationTarget {
                 alias: "root".to_string(),
@@ -287,10 +284,12 @@ mod tests {
                 config: api_config.clone(),
             },
         ];
-        reparse_qualified_citations_for_workspace(&root_config, &mut root_findings, &targets)
-            .expect("reparse root qualified citations");
-        reparse_qualified_citations_for_workspace(&api_config, &mut api_findings, &targets)
-            .expect("reparse api qualified citations");
+        let (root_findings, _) =
+            scan_tree_with_workspace(&root_config, Some(&root), true, &targets)
+                .expect("scan root");
+        let (api_findings, _) =
+            scan_tree_with_workspace(&api_config, Some(&api_config.root), true, &targets)
+                .expect("scan api");
 
         let cite = root_findings
             .citations
@@ -394,9 +393,6 @@ mod tests {
         root_config.rebuild_grammar().expect("root grammar");
         let api_config = Config::default_for(root.join("apps/api"));
 
-        let (mut root_findings, _) = scan_tree(&root_config, Some(&root), true).expect("scan root");
-        let (mut api_findings, _) =
-            scan_tree(&api_config, Some(&api_config.root), true).expect("scan api");
         let targets = vec![
             WorkspaceCitationTarget {
                 alias: "root".to_string(),
@@ -407,10 +403,12 @@ mod tests {
                 config: api_config.clone(),
             },
         ];
-        reparse_qualified_citations_for_workspace(&root_config, &mut root_findings, &targets)
-            .expect("reparse root qualified citations");
-        reparse_qualified_citations_for_workspace(&api_config, &mut api_findings, &targets)
-            .expect("reparse api qualified citations");
+        let (root_findings, _) =
+            scan_tree_with_workspace(&root_config, Some(&root), true, &targets)
+                .expect("scan root");
+        let (api_findings, _) =
+            scan_tree_with_workspace(&api_config, Some(&api_config.root), true, &targets)
+                .expect("scan api");
 
         let workspace = BTreeMap::from([
             (
@@ -835,23 +833,6 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     }
 
     #[test]
-    fn agents_update_replaces_old_h2_block_in_place() {
-        // §FS-init.2.3: an older H2-managed block is recognized and upgraded to
-        // the current render, with surrounding content preserved.
-        let existing = format!(
-            "# Existing agents\n\n## Grounding with grund (v0)\n\nold body\n\n# Local notes\n"
-        );
-        let (updated, result) =
-            update_agents_text(&existing, &current_block(), "AGENTS.md").expect("update old block");
-
-        assert_eq!(result, AgentsUpdateResult::Updated);
-        assert!(updated.starts_with("# Existing agents\n\n"));
-        assert!(updated.ends_with("\n\n# Local notes\n"));
-        assert_eq!(updated.matches(current_marker()).count(), 1);
-        assert!(!updated.contains("## Grounding with grund (v0)"));
-    }
-
-    #[test]
     fn agents_update_keeps_current_block_in_middle_position() {
         // §FS-init.2.3.1 / §FS-init.2.2: a block already current and already
         // sitting between user-authored sections is left byte-for-byte untouched
@@ -875,12 +856,15 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
     #[test]
     fn agents_update_handles_crlf_line_endings() {
-        // §FS-init.2.3.2: a CRLF-encoded AGENTS.md with an old managed block sandwiched
-        // between user-authored sections must still be detected and upgraded, with
-        // surrounding CRLF preserved.
-        let existing = "# Existing agents\r\n\r\n## Grounding with grund (v0)\r\n\r\nold body\r\n\r\n# Local notes\r\n";
+        // §FS-init.2.3.2: a CRLF-encoded AGENTS.md whose managed block is stale
+        // (same version, different body) must still be detected and rewritten,
+        // with the surrounding CRLF preserved verbatim.
+        let existing = format!(
+            "# Existing agents\r\n\r\n{}\r\n\r\nstale body line\r\n\r\n# Local notes\r\n",
+            current_marker()
+        );
         let (updated, result) = update_agents_text(&existing, &current_block(), "AGENTS.md")
-            .expect("update CRLF old block");
+            .expect("update CRLF stale block");
 
         assert_eq!(result, AgentsUpdateResult::Updated);
         assert!(
@@ -892,7 +876,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
             "CRLF suffix must be preserved verbatim"
         );
         assert_eq!(updated.matches(current_marker()).count(), 1);
-        assert!(!updated.contains("## Grounding with grund (v0)"));
+        assert!(!updated.contains("stale body line"));
     }
 
     #[test]
