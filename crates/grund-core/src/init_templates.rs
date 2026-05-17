@@ -265,11 +265,18 @@ fn render_agents_append_block(name: &str, config: &Config, target: &Path) -> Str
 /// owns the block, not the title. Deterministic: same `grund` version, same
 /// `--name`, same effective config, same workspace state ⇒ byte-identical
 /// output (§FS-non-goals.13).
+#[cfg(test)]
 fn render_agents_md(name: &str, config: &Config, target: &Path) -> String {
-    format!(
-        "# {name} — agent instructions\n\n{}",
-        render_agents_append_block(name, config, target)
-    )
+    let block = render_agents_append_block(name, config, target);
+    render_agents_md_from_block(name, &block)
+}
+
+/// Same shape as [`render_agents_md`] but takes a pre-rendered managed block,
+/// so `command_init` can render the block once and reuse it as both the full
+/// `AGENTS.md` body *and* the append/update payload — the workspace-members
+/// walk-up (§FS-init.2.3.4.15) only runs once per `init` invocation.
+fn render_agents_md_from_block(name: &str, block: &str) -> String {
+    format!("# {name} — agent instructions\n\n{block}")
 }
 
 /// Existing companion agent entrypoints that should carry the same managed grund
@@ -434,11 +441,13 @@ fn is_symlink_to(path: &Path, target: &Path) -> Result<bool> {
 
 /// The config that `grund init` will leave governing `target`, which the generated
 /// `AGENTS.md` must describe (§FS-init.2.3): an existing `target/.agents/grund.toml`
-/// if there is one, otherwise the defaults plus the `project_name` that `init` is
-/// about to write into `target/.agents/grund.toml` (§FS-init.2.4). We do **not**
-/// walk up to an ancestor's config here — `init` always writes a config *in*
-/// `target` when one is absent.
-fn init_effective_config(target: &Path, name: &str) -> Config {
+/// if there is one, otherwise the defaults plus the *pending* `project_name`
+/// that `init` is about to write into `target/.agents/grund.toml` (§FS-init.2.4).
+/// The `pending` in the name flags that the returned `Config` may carry a
+/// `project_name` that is not yet on disk — callers must not treat it as
+/// reflecting persisted state. We do **not** walk up to an ancestor's config
+/// here — `init` always writes a config *in* `target` when one is absent.
+fn init_pending_effective_config(target: &Path, name: &str) -> Config {
     let local_config = target.join(".agents").join("grund.toml");
     if local_config.is_file() {
         load_config(target).unwrap_or_else(|_| Config::default_for(target.to_path_buf()))
@@ -584,12 +593,11 @@ fn render_workspace_members_section(target: &Path, pending_project_name: Option<
         let link = if initialized {
             relative_link_path(&target_canonical, &agents_md_path)
         } else {
+            // `is_self` ⇒ `initialized`, so `project.project_root` differs
+            // from `target_canonical` here — `relative_link_path` never
+            // returns `.`, so the dir link always has a non-`.` body.
             let dir_rel = relative_link_path(&target_canonical, &project.project_root);
-            if dir_rel == "." {
-                "./".to_string()
-            } else {
-                format!("{dir_rel}/")
-            }
+            format!("{dir_rel}/")
         };
         let suffix = if initialized { "" } else { " *(not yet initialized)*" };
         bullets.push(format!(
