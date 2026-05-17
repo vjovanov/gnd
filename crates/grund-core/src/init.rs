@@ -82,10 +82,13 @@ fn command_init(args: &[String]) -> ExitCode {
 
     // §FS-init.2.3: render agent instructions against the config `init` leaves in
     // place, so the ID-shape / kind / marker prose matches `.agents/grund.toml`.
-    let init_config = init_effective_config(&target, &resolved_name);
+    let init_config = init_pending_effective_config(&target, &resolved_name);
 
-    let agents_contents = render_agents_md(&resolved_name, &init_config, &target);
+    // Render the managed block once and reuse it for both surfaces — the
+    // workspace-members walk-up (§FS-init.2.3.4.15) is non-trivial I/O for a
+    // large workspace and produces byte-identical output each time.
     let agents_block = render_agents_append_block(&resolved_name, &init_config, &target);
+    let agents_contents = render_agents_md_from_block(&resolved_name, &agents_block);
 
     let agent_entrypoints = match selected_init_agent_entrypoints(&target, &agent_selection) {
         Ok(entrypoints) => entrypoints,
