@@ -561,7 +561,7 @@ fn e2e_case_dir_name(config: &Config, rendered: &str) -> String {
 
 /// Read one e2e case directory into an `E2eCase` — `command.args` (defaulting to
 /// `check`), `expected.exit`, and the recursive fixture file list — the data
-/// `grund show E2E-<name>` renders (§FS-show.2.4).
+/// `grund E2E-<name>` renders (§FS-show.2.4).
 fn read_e2e_case(dir: &Path) -> Result<E2eCase> {
     let command_args = dir.join("command.args");
     let args = if command_args.is_file() {

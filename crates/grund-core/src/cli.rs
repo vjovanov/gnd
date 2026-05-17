@@ -30,10 +30,11 @@ fn restore_default_sigpipe() {
 fn restore_default_sigpipe() {}
 
 /// The CLI entry point: parse `argv`, dispatch to the matching `command_*`, and
-/// return its `ExitCode` (§FS-cli). `grund` with no subcommand — or with a leading
-/// flag or a path — is `grund check` (§FS-cli.1); `--version`/`--help` short-circuit
-/// to stdout, exit 0 (§FS-cli.2); an unknown command exits 2 and lists the known
-/// ones (§FS-cli.4). The exit-code mapping (0/1/2) is fixed (§FS-cli.5).
+/// return its `ExitCode` (§FS-cli). `grund <ID>` is the default ID query
+/// (§FS-cli.1); `grund` with no arguments prints help; `--version`/`--help`
+/// short-circuit to stdout, exit 0 (§FS-cli.2); help on an unknown command exits
+/// 2 and lists the known ones (§FS-cli.4). The exit-code mapping (0/1/2) is
+/// fixed (§FS-cli.5).
 pub fn main_entry() -> ExitCode {
     restore_default_sigpipe();
     let args = std::env::args().skip(1).collect::<Vec<_>>();
@@ -70,20 +71,19 @@ pub fn main_entry() -> ExitCode {
             Some(cmd) if SUBCOMMANDS.contains(&cmd) => print_subcommand_help(cmd),
             None | Some("--help" | "-h") => print_help(),
             Some(other) if other.starts_with('-') => print_help(),
-            Some(other) if Path::new(other).exists() => print_help(),
             Some(other) => {
-                eprintln!("error: unknown command or missing path: {other}");
+                eprintln!("error: unknown command: {other}");
                 eprintln!("known commands: {}", SUBCOMMANDS.join(", "));
-                eprintln!(
-                    "(a bare path is shorthand for `grund check <path>`; run `grund --help` for commands)"
-                );
                 return ExitCode::from(2);
             }
         }
         return ExitCode::SUCCESS;
     }
     match first {
-        None => command_check(&[]),
+        None => {
+            print_help();
+            ExitCode::SUCCESS
+        }
         Some("check") => command_check(&args[1..]),
         Some("show") => command_show(&args[1..]),
         Some("list") => command_list(&args[1..]),
@@ -96,21 +96,8 @@ pub fn main_entry() -> ExitCode {
         Some("agent-setup-instructions") => command_agent_setup_instructions(&args[1..]),
         Some("completions") => command_completions(&args[1..]),
         Some("complete") => command_complete(&args[1..]),
-        Some(other) if other.starts_with('-') => command_check(&args),
-        // Any first argument that is not a known subcommand is a path argument:
-        // `grund <path>` ≡ `grund check <path>` (§FS-cli.1). When that path doesn't
-        // exist the message names both readings, so a mistyped subcommand isn't
-        // misreported as a missing file (§FS-cli.1, §FS-cli.4).
-        Some(other) => {
-            if !Path::new(other).exists() {
-                eprintln!("error: unknown command or missing path: {other}");
-                eprintln!("known commands: {}", SUBCOMMANDS.join(", "));
-                eprintln!(
-                    "(a bare path is shorthand for `grund check <path>`; run `grund --help` for commands)"
-                );
-                return ExitCode::from(2);
-            }
-            command_check(&args)
-        }
+        // Any first argument that is not a known subcommand is an ID query
+        // (§FS-cli.1). Check is explicit as `grund check [path]`.
+        Some(_) => command_show_default(&args),
     }
 }

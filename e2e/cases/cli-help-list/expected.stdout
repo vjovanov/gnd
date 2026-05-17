@@ -1,6 +1,6 @@
 grund list — the ID catalog: every declared ID in the repo, with where it's
 declared and its one-line title. The complement of `grund refs` (which lists
-the citations of one ID) — `list` is the index of what you can `grund show`.
+the citations of one ID) — `list` is the index of what you can read with `grund <ID>`.
 
 Usage:  grund list [PATH] [--kind KIND[,KIND]...] [--unused] [--summary] [--format text|json]
 

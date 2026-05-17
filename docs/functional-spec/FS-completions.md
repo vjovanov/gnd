@@ -1,6 +1,6 @@
 # FS-completions: grund completes declared IDs in shells
 
-Shell completion makes the read loop cheap: after `grund list` tells a user what exists and `grund show <ID>` reads one body, the shell should complete `<ID>` without making the user copy it. This spec covers shell completion only; editor completion remains the LSP surface in [§FS-lsp.1.5](FS-lsp.md#15-capabilities-reserved-for-later).
+Shell completion makes the read loop cheap: after `grund list` tells a user what exists and `grund <ID>` reads one body, the shell should complete `<ID>` without making the user copy it. This spec covers shell completion only; editor completion remains the LSP surface in [§FS-lsp.1.5](FS-lsp.md#15-capabilities-reserved-for-later).
 
 ## 1. User-facing command
 
@@ -12,7 +12,8 @@ Prints a completion script for the requested shell on stdout, empty stderr, exit
 
 The generated scripts complete top-level subcommands (`check`, `show`, `list`, `refs`, `cover`, `fmt`, `id`, `init`, `config`, `agent-setup-instructions`, `completions`) and complete declared IDs in the first ID position of:
 
-- `grund show <ID>`
+- `grund <ID>` ([§FS-cli.1](FS-cli.md#1-the-default-subcommand))
+- explicit `show` form
 - `grund refs <ID>`
 
 The scripts do not complete IDs for arbitrary shell words, citations inside files, or editor buffers. They also do not complete declaration bodies, markdown links, or external ticket IDs.
@@ -31,13 +32,13 @@ It prints one candidate per line on stdout, sorted lexicographically and dedupli
 - `--prefix <prefix>` filters candidates by byte prefix. Without it, every candidate for the selected mode is printed.
 - Without `--sections`, candidates are declared IDs, rendered in the repo's configured `[id].format` ([§FS-config.3.2](FS-config.md#32-id--id-grammar)).
 - When `--prefix` already contains the configured `[id].section_separator`, section candidates are printed instead of bare IDs. `--sections` forces section-candidate mode even when the prefix has no separator.
-- Section candidates have the shape `<ID><section_separator><section>`, e.g. `FS-cli.1`, and come from the same section table `grund show` uses ([§FS-show.2.2](FS-show.md#22-section)).
+- Section candidates have the shape `<ID><section_separator><section>`, e.g. `FS-cli.1`, and come from the same section table the ID query uses ([§FS-show.2.2](FS-show.md#22-section)).
 
 Completion is invoked on every tab press, so config and scan failures are quiet: if config cannot be loaded or the tree cannot be scanned, the helper prints nothing and exits `0`. Invalid helper flags are still CLI errors (`2`) because they indicate a broken installed completion script.
 
 ## 3. Determinism
 
-The helper uses the same config discovery and scanner as `grund list`, `grund show`, and `grund refs`; a clean repo therefore has one shared declaration catalog across listing, retrieval, reverse lookup, and completion. Candidate ordering is deterministic for a given tree and config.
+The helper uses the same config discovery and scanner as `grund list`, `grund <ID>`, and `grund refs`; a clean repo therefore has one shared declaration catalog across listing, retrieval, reverse lookup, and completion. Candidate ordering is deterministic for a given tree and config.
 
 ## 4. Installation examples
 

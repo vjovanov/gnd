@@ -60,7 +60,7 @@ fn show_declaration(
     extract_declaration_body(&file, id, section, mode, include_heading, config)
 }
 
-/// Render an e2e case as a `grund show` body: the invocation, expected exit, and
+/// Render an e2e case as an ID-query body: the invocation, expected exit, and
 /// fixture list (or just the invocation with `--brief`), plus the JSON shape — the
 /// case manifest of §FS-show.2.4. E2E declarations have no sections, so any
 /// `.<section>` is "section not found".

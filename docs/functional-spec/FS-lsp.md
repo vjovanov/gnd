@@ -14,7 +14,7 @@ The minimum viable set — everything the server speaks at version 1.0.
 
 ### 1.2 Hover preview
 
-`textDocument/hover` on a citation returns the body `grund show <ID>` would print ([§FS-show.2.1](FS-show.md#21-whole-declaration-default)), or the body of the requested section if the citation includes one ([§FS-show.2.2](FS-show.md#22-section)). When the declaration's home is in source code (a stub points at `src/bus.rs`), the hover body is the comment-stripped prose per [§FS-show.2.3.2](FS-show.md#232-stripping-comment-markers) — the same content the CLI returns. There is no separate "IDE-only" rendering; hover and `grund show` produce the same bytes.
+`textDocument/hover` on a citation returns the body `grund <ID>` would print ([§FS-show.2.1](FS-show.md#21-whole-declaration-default)), or the body of the requested section if the citation includes one ([§FS-show.2.2](FS-show.md#22-section)). When the declaration's home is in source code (a stub points at `src/bus.rs`), the hover body is the comment-stripped prose per [§FS-show.2.3.2](FS-show.md#232-stripping-comment-markers) — the same content the CLI returns. There is no separate "IDE-only" rendering; hover and the ID query produce the same bytes.
 
 ### 1.3 Go-to-definition
 
@@ -67,7 +67,7 @@ Editor-side LSP configuration (server arguments, workspace folders) is the user'
 
 ## 4. Determinism and parity with the CLI
 
-Same input + same config → same diagnostics, same hover body, same definition target, byte-for-byte ([§FS-non-goals.13](FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)). An e2e fixture per LSP capability runs the same `e2e/cases/*` corpus through the LSP and the CLI and asserts the LSP's published diagnostics match the CLI's report and the LSP's hover body matches `grund show`.
+Same input + same config → same diagnostics, same hover body, same definition target, byte-for-byte ([§FS-non-goals.13](FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)). An e2e fixture per LSP capability runs the same `e2e/cases/*` corpus through the LSP and the CLI and asserts the LSP's published diagnostics match the CLI's report and the LSP's hover body matches `grund <ID>`.
 
 The LSP server does not have an "interactive" mode, a confirmation prompt, or any user-visible state that the CLI lacks ([§FS-non-goals.10](FS-non-goals.md#10-interactive-mode)). It is the same engine with a different transport.
 

@@ -1,4 +1,4 @@
-/// `grund refs <ID>[.<section>] [--summary] [--format text|json]` — the reverse of `grund show`:
+/// `grund refs <ID>[.<section>] [--summary] [--format text|json]` — the reverse of an ID query:
 /// list every place that cites the ID (§FS-refs.1, §FS-refs.2), scheme-aware where
 /// a grep cannot be. Shares the scanner with `check` so the two never disagree on
 /// what counts as a citation (§FS-refs.5). Empty results, including undeclared IDs
@@ -73,7 +73,7 @@ fn command_refs(args: &[String]) -> ExitCode {
         Err(err) => {
             // §FS-refs.1: an ID arg that does not match `[id] format` is a CLI-level
             // error (exit 2 — `refs` has no exit-`1` query-failure class, §FS-refs.4),
-            // but the hint is the same one `grund show` gives for the same stumble
+            // but the hint is the same one the ID query gives for the same stumble
             // (§FS-show.3) — the common surprise in a repo whose format differs from
             // the `{kind}-{slug}` `grund` itself uses.
             eprintln!("error: {err:#}");
@@ -213,7 +213,7 @@ fn command_refs(args: &[String]) -> ExitCode {
         }
     }
     // §FS-refs.3: the citation list is the *result* of the query, so it goes to
-    // stdout (text and JSON alike), like `grund list` / `grund cover` / `grund show` —
+    // stdout (text and JSON alike), like `grund list` / `grund cover` / ID queries —
     // even though a line shares the `path:line: <text>` shape `check` uses for
     // diagnostics on stderr. Only the `note:` breadcrumb above stays on stderr.
     // §FS-workspace.8.2: in workspace mode paths render relative to the

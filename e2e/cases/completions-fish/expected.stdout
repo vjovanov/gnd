@@ -5,5 +5,8 @@ function __grund_complete_ids
 end
 
 complete -c grund -f -n "__fish_use_subcommand" -a "check show list refs cover fmt id init config agent-setup-instructions completions"
+# Only scan for IDs when the prefix already looks like one (uppercase kind);
+# a lowercase or empty prefix is a subcommand and stays cheap.
+complete -c grund -f -k -n "__fish_use_subcommand; and string match -qr '^[A-Z]' -- (commandline -ct)" -a "(__grund_complete_ids)"
 complete -c grund -f -k -n "__fish_seen_subcommand_from show refs" -a "(__grund_complete_ids)"
 

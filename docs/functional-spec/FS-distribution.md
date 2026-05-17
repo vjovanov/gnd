@@ -24,7 +24,7 @@ The CLI install on each registry does **not** transitively pull in `grund-lsp` �
 
 The `grund` binary behaves identically regardless of how it was installed: the same flags, the same exit codes, the same byte-for-byte report format. Users on Linux, macOS, and Windows who run `grund .` against the same repo get the same answer.
 
-CLI reports use repo-relative logical paths with `/` as the separator, even on Windows. This applies to text reports, JSON fields, `sites`, `grund show` e2e fixture lists, stub-link targets, and generated cross-reference URLs; native platform paths may appear only in launch-time errors about paths outside the scanned repo, where there is no repo-relative path to print. The CI build/test matrix is the proof for this contract: every normal e2e case must pass on Linux, macOS, and Windows.
+CLI reports use repo-relative logical paths with `/` as the separator, even on Windows. This applies to text reports, JSON fields, `sites`, ID-query e2e fixture lists, stub-link targets, and generated cross-reference URLs; native platform paths may appear only in launch-time errors about paths outside the scanned repo, where there is no repo-relative path to print. The CI build/test matrix is the proof for this contract: every normal e2e case must pass on Linux, macOS, and Windows.
 
 ## 3. API surfaces
 
@@ -44,7 +44,7 @@ Finding {
   severity: "error" | "warning"
   code:     // a `check` finding — "dangling" | "missing-section" | "duplicate" | "broken-stub"
             //                   | "unused" | "ungrounded" | "agents-init" | "empty-scan" | "io"
-            // — or, on a failed `grund show` query (FS-show.3, rendered with this same shape on stderr,
+            // — or, on a failed ID query (FS-show.3, rendered with this same shape on stderr,
             //   path/line null) — "not-found" | "missing-section" | "broken-stub" | "ambiguous"
             //                   | "invalid-id" | "query-failed"
   path:     string?        // relative to config root (FS-config.3.6); null for a CLI-level error

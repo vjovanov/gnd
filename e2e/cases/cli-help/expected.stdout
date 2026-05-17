@@ -3,12 +3,13 @@ Checks ID-based citations (§<ID>.<section>) across Markdown docs and source-cod
 doc-comments, so every reader — human or AI — points at the same facts.
 
 Usage:
-  grund [check] [PATH] [OPTIONS]      check is the default — `grund PATH` means `grund check PATH`
+  grund <ID>[.<section>] [OPTIONS]    print one declaration body
+  grund check [PATH] [OPTIONS]        validate a repo or subtree
   grund <COMMAND> [ARGS] [OPTIONS]    run `grund <COMMAND> --help` for that command's options
 
 Commands:
-  check    Validate every reference in a repo (the default).        e.g. grund .
-  show     Print one declaration body for agent context.            e.g. grund show FS-login.3
+  show     Print one declaration body for agent context (default).  e.g. grund FS-login.3
+  check    Validate every reference in a repo.                      e.g. grund check .
   list     The ID catalog: every declared ID, path:line, title.     e.g. grund list --kind FS
   refs     List every citation of an ID, as path:line.              e.g. grund refs FS-login
   cover    Group the citation graph by scanned file.                e.g. grund cover --format json
@@ -20,5 +21,4 @@ Commands:
   completions  Print shell completion scripts.                      e.g. grund completions bash
 
 Options:  --format text|json   per-command (place after the subcommand); text is the default.
-          --version, -V        print version.       --help, -h   show this screen.
-Help and version go to stdout and exit 0.   Docs: docs/functional-spec/
+          --version, -V        print version.   --help, -h   show this screen.   Docs: docs/functional-spec/

@@ -166,7 +166,7 @@ fn collect_workspace_markdown_link_citations(
     }
 }
 
-/// Flatten `grund fmt --cross-refs` link wrappers in a body before `grund show`
+/// Flatten `grund fmt --cross-refs` link wrappers before an ID query
 /// prints it in `text` / `json` (§FS-show.3.2, §DF-show-cross-ref-flattening):
 /// `[§[alias/]<ID>.<section>](path#anchor)` → `§[alias/]<ID>.<section>`. The inverse of
 /// `wrap_markdown_links` (§FS-fmt.6.2) — the wrap shape is a `[` immediately

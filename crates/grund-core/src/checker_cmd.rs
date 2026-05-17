@@ -1,5 +1,5 @@
-/// `grund check [path] [--format text|json]` — the default subcommand (§FS-cli.1):
-/// scan the tree, run the checker (§FS-check), print the report, and exit `0` clean
+/// `grund check [path] [--format text|json]`: scan the tree, run the checker
+/// (§FS-check), print the report, and exit `0` clean
 /// / `1` on a finding / `2` on a CLI or I/O error (§FS-check.2.1, §FS-cli.5).
 fn command_check(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");

@@ -2,7 +2,7 @@
 
 Internals — *how* `grund` is built. One file per spec; each H1 is the declaration of an `AR-<slug>` ID and the body is its contract. Citations from elsewhere in the tree (`§AR-<slug>.<section>`) resolve into these files.
 
-An architectural spec may live inline in the class- or module-level doc-comment of the file it describes. A one-line stub here whose H1 is `# AR-<slug>: [<path>](<path>)` is **optional** — add it when you want the inline spec listed in this index alongside the file-form ones; omit it when the doc-comment alone is enough. `grund show` resolves the ID either way; with a stub it follows the link and strips comment markers. See `§AR-scanner.4` for the supported doc-comment forms. `§AR-checker` is the worked example: it lives in the doc-comment of `fn check` in [`crates/grund-core/src/checker.rs`](../../crates/grund-core/src/checker.rs), with the one-line stub at [`AR-checker.md`](AR-checker.md).
+An architectural spec may live inline in the class- or module-level doc-comment of the file it describes. A one-line stub here whose H1 is `# AR-<slug>: [<path>](<path>)` is **optional** — add it when you want the inline spec listed in this index alongside the file-form ones; omit it when the doc-comment alone is enough. `grund <ID>` resolves the ID either way; with a stub it follows the link and strips comment markers. See `§AR-scanner.4` for the supported doc-comment forms. `§AR-checker` is the worked example: it lives in the doc-comment of `fn check` in [`crates/grund-core/src/checker.rs`](../../crates/grund-core/src/checker.rs), with the one-line stub at [`AR-checker.md`](AR-checker.md).
 
 | ID | Subject |
 |---|---|

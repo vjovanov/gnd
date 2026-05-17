@@ -1,1 +1,24 @@
-success
+grund — ground your agents in the spec.
+Checks ID-based citations (§<ID>.<section>) across Markdown docs and source-code
+doc-comments, so every reader — human or AI — points at the same facts.
+
+Usage:
+  grund <ID>[.<section>] [OPTIONS]    print one declaration body
+  grund check [PATH] [OPTIONS]        validate a repo or subtree
+  grund <COMMAND> [ARGS] [OPTIONS]    run `grund <COMMAND> --help` for that command's options
+
+Commands:
+  show     Print one declaration body for agent context (default).  e.g. grund FS-login.3
+  check    Validate every reference in a repo.                      e.g. grund check .
+  list     The ID catalog: every declared ID, path:line, title.     e.g. grund list --kind FS
+  refs     List every citation of an ID, as path:line.              e.g. grund refs FS-login
+  cover    Group the citation graph by scanned file.                e.g. grund cover --format json
+  fmt      Rewrite `$$` triggers to `§`; --marker upgrades cites.   e.g. grund fmt --check
+  id       Next conflict-free ID for a new declaration.             e.g. grund id FS "user login"
+  init     Scaffold agent instructions + .agents/grund.toml.        e.g. grund init --docs
+  config   Validate or show the effective .agents/grund.toml.       e.g. grund config show
+  agent-setup-instructions  Print AI setup guide.                   e.g. grund agent-setup-instructions
+  completions  Print shell completion scripts.                      e.g. grund completions bash
+
+Options:  --format text|json   per-command (place after the subcommand); text is the default.
+          --version, -V        print version.   --help, -h   show this screen.   Docs: docs/functional-spec/

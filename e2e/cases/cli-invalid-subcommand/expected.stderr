@@ -1,3 +1,4 @@
-error: unknown command or missing path: bogus
-known commands: check, show, list, refs, cover, fmt, id, init, config, agent-setup-instructions, completions
-(a bare path is shorthand for `grund check <path>`; run `grund --help` for commands)
+invalid ID `bogus`
+hint: this repo's [id] format is `{kind}-{slug}` (run `grund config show`); `grund list` shows the IDs that exist
+hint: run `grund check bogus` to validate a path
+hint: run `grund --help` for the list of subcommands

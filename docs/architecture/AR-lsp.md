@@ -45,7 +45,7 @@ LSP over **stdio only**. No TCP, no Unix socket, no named pipe. Reasoning: stdio
 The LSP must produce the same diagnostics for the same workspace state as `grund check` does — byte-for-byte on the message text, position-for-position on the line numbers ([§FS-non-goals.13](../functional-spec/FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)). Parity is enforced by an e2e harness:
 
 - A test driver spawns `grund-lsp` as a child process, sends `initialize` with the workspace root pointing at an `e2e/cases/<id>/repo/` fixture, and asserts the published diagnostics match the case's `expected.stdout` and `expected.stderr` after format-translation (LSP diagnostic shape vs. CLI text shape).
-- A second sweep sends `textDocument/hover` for each citation in the fixture and asserts the hover body matches `grund show` for that ID.
+- A second sweep sends `textDocument/hover` for each citation in the fixture and asserts the hover body matches `grund <ID>` for that ID.
 - A third sweep sends `textDocument/definition` and asserts the resolved `path:line` matches the declaration recorded in the fixture's `Findings`.
 
 This is what makes the LSP "the same engine with a different transport" rather than a parallel implementation that could drift.

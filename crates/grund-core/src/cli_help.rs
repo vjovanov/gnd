@@ -7,17 +7,18 @@ fn print_help() {
     println!();
     println!("Usage:");
     println!(
-        "  grund [check] [PATH] [OPTIONS]      check is the default — `grund PATH` means `grund check PATH`"
+        "  grund <ID>[.<section>] [OPTIONS]    print one declaration body"
+    );
+    println!(
+        "  grund check [PATH] [OPTIONS]        validate a repo or subtree"
     );
     println!(
         "  grund <COMMAND> [ARGS] [OPTIONS]    run `grund <COMMAND> --help` for that command's options"
     );
     println!();
     println!("Commands:");
-    println!("  check    Validate every reference in a repo (the default).        e.g. grund .");
-    println!(
-        "  show     Print one declaration body for agent context.            e.g. grund show FS-login.3"
-    );
+    println!("  show     Print one declaration body for agent context (default).  e.g. grund FS-login.3");
+    println!("  check    Validate every reference in a repo.                      e.g. grund check .");
     println!(
         "  list     The ID catalog: every declared ID, path:line, title.     e.g. grund list --kind FS"
     );
@@ -49,8 +50,9 @@ fn print_help() {
     println!(
         "Options:  --format text|json   per-command (place after the subcommand); text is the default."
     );
-    println!("          --version, -V        print version.       --help, -h   show this screen.");
-    println!("Help and version go to stdout and exit 0.   Docs: docs/functional-spec/");
+    println!(
+        "          --version, -V        print version.   --help, -h   show this screen.   Docs: docs/functional-spec/"
+    );
 }
 
 /// Per-subcommand `--help` / `help <subcommand>` page (§FS-cli.2, §FS-cli.3): what
@@ -60,10 +62,10 @@ fn print_subcommand_help(cmd: &str) {
     match cmd {
         "check" => {
             println!(
-                "grund check — validate every ID citation across the repo (the default subcommand)."
+                "grund check — validate every ID citation across the repo."
             );
             println!();
-            println!("Usage:  grund [check] [PATH] [--require-grounding] [--format text|json]");
+            println!("Usage:  grund check [PATH] [--require-grounding] [--format text|json]");
             println!();
             println!(
                 "PATH defaults to `.`; config (`.agents/grund.toml`) is discovered by walking up from it."
@@ -73,7 +75,7 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!("Pointing grund at an explicit PATH scans exactly that file or directory.");
             println!(
-                "`grund PATH` is shorthand for `grund check PATH` — byte-for-byte equivalent."
+                "Path validation is explicit; `grund PATH` is parsed as an ID query."
             );
             println!();
             println!("Options:");
@@ -99,25 +101,25 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!("Examples:");
-            println!("  grund                    # check the whole repo");
-            println!("  grund docs/              # check one subtree");
-            println!("  grund --format json | jq # machine-readable diagnostics for CI");
+            println!("  grund check              # check the whole repo");
+            println!("  grund check docs/        # check one subtree");
+            println!("  grund check --format json | jq # machine-readable diagnostics for CI");
         }
         "show" => {
             println!(
                 "grund show — print one declaration's body by ID, so an agent pulls a single fact"
             );
-            println!("into context without loading the whole document.");
+            println!("into context without loading the whole document. `show` is the default command.");
             println!();
             println!(
-                "Usage:  grund show <ID>[.<section>] [PATH] [--section S] [--brief|--toc|--full] [--format text|md|json] [--path PATH]"
+                "Usage:  grund [show] <ID>[.<section>] [PATH] [--section S] [--brief|--toc|--full] [--format text|md|json] [--path PATH]"
             );
             println!();
             println!("Modes form an ordered ladder (each adds to the previous):");
-            println!("  --brief                heading + first paragraph    e.g. grund show --brief FS-login");
+            println!("  --brief                heading + first paragraph    e.g. grund --brief FS-login");
             println!("  (default)              + the rest of the lead, cut at the first child section");
-            println!("  --toc                  + the nested section map     e.g. grund show --toc FS-login");
-            println!("  --full                 + every subsection body      e.g. grund show --full FS-login");
+            println!("  --toc                  + the nested section map     e.g. grund --toc FS-login");
+            println!("  --full                 + every subsection body      e.g. grund --full FS-login");
             println!();
             println!("Other options:");
             println!("  --section S            show only that section path, e.g. --section 3.1");
@@ -131,10 +133,10 @@ fn print_subcommand_help(cmd: &str) {
             );
             println!();
             println!("Examples:");
-            println!("  grund show FS-login              # the lead — the cheap default");
-            println!("  grund show FS-login --toc        # lead + section map");
-            println!("  grund show FS-login.3.1          # the lead of that nested section");
-            println!("  grund show FS-login --full       # the whole declaration body");
+            println!("  grund FS-login                   # the lead — the cheap default");
+            println!("  grund FS-login --toc             # lead + section map");
+            println!("  grund FS-login.3.1               # the lead of that nested section");
+            println!("  grund FS-login --full            # the whole declaration body");
             println!();
             println!(
                 "ID not found? `grund list` shows every declared ID; `grund id <KIND> \"…\"` proposes a new one."
@@ -146,7 +148,7 @@ fn print_subcommand_help(cmd: &str) {
                 "declared and its one-line title. The complement of `grund refs` (which lists"
             );
             println!(
-                "the citations of one ID) — `list` is the index of what you can `grund show`."
+                "the citations of one ID) — `list` is the index of what you can read with `grund <ID>`."
             );
             println!();
             println!(
@@ -405,7 +407,7 @@ fn print_subcommand_help(cmd: &str) {
             println!("Usage:  grund completions <bash|zsh|fish>");
             println!();
             println!("The generated scripts complete subcommands and complete declared IDs for");
-            println!("`grund show <ID>` and `grund refs <ID>` by calling the hidden helper:");
+            println!("`grund <ID>`, explicit `show`, and `grund refs <ID>` by calling the hidden helper:");
             println!("`grund complete ids --prefix <word>`.");
             println!();
             println!("Install examples:");

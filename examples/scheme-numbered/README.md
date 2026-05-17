@@ -24,7 +24,7 @@ AR-014
 
 ## Cons
 
-- **Opaque in prose.** A reader skimming code or a PR sees `§FS-042` and has no idea what the claim is about until they `grund show`. This punishes drive-by review.
+- **Opaque in prose.** A reader skimming code or a PR sees `§FS-042` and has no idea what the claim is about until they resolve it. This punishes drive-by review.
 - **Memory load.** Maintainers learn the catalog by number; new contributors don't have that map.
 - **Search friction.** Grepping `§FS-` finds every cite uniformly, with no descriptive hint to triage.
 

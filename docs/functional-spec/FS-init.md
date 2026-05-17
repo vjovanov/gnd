@@ -92,7 +92,7 @@ Paths are relative to `<path>`. Stdout is always empty (consistent with [§GOAL-
 
 ### 2.3 Generated agent entrypoints
 
-The emitted agent guidance is a canonical managed block: it teaches the session-start workflow and rules listed in §2.3.4, rendered against the target repo's effective configuration. The block stays concise under [§GOAL-token-economy](../goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file): it teaches only the rules an agent needs before work begins, leaving detail to cited specs and `grund show` output. The canonical text for a given block version `vN` is embedded in the `grund` binary; the reference copy lives at `templates/AGENTS.md` in the `grund` source tree, and the `vN` marker (§2.3) is what versions it under [§GOAL-no-silent-breakage](../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — so changing the taught workflow is itself a block-version bump, carried by that mechanism, not a silent rewrite.
+The emitted agent guidance is a canonical managed block: it teaches the session-start workflow and rules listed in §2.3.4, rendered against the target repo's effective configuration. The block stays concise under [§GOAL-token-economy](../goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file): it teaches only the rules an agent needs before work begins, leaving detail to cited specs and `grund <ID>` output. The canonical text for a given block version `vN` is embedded in the `grund` binary; the reference copy lives at `templates/AGENTS.md` in the `grund` source tree, and the `vN` marker (§2.3) is what versions it under [§GOAL-no-silent-breakage](../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — so changing the taught workflow is itself a block-version bump, carried by that mechanism, not a silent rewrite.
 
 Several things in the block are *substituted in* rather than fixed for that `vN`, so the file describes the repo it is in: the project name from `--name` (interpolated into the scaffolding H1 emitted above the block for a fresh `AGENTS.md`), and the **effective ID grammar and artifact map** — taken from the `.agents/grund.toml` `init` leaves governing the target (an existing config in the target, or the defaults `init` is about to write, never an ancestor's). From that config the block fills in the ID shape (`<KIND>-<NNN>-<slug>`, `<KIND>-<slug>`, …, derived from `[id].format`), one worked example ID and citation, the `[id].section_separator`, the marker and `$$`-trigger from `[reference]`, the `KIND ∈ {…}` set from `[[kinds]]`, a raw-readable link list of each kind's configured declaration home and title, and a sentence on whether bare ID-shaped tokens count as citations (driven by `[reference].strict`). The contract this spec makes is the *determinism and versioning*, not a literal transcript: two `grund init` runs at the same `grund` version against trees with the same `--name` and the same effective config produce byte-identical managed blocks ([§FS-non-goals.13](FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)), and `grund check`'s agent-entrypoint validation ([§FS-check.3.5](FS-check.md#35-invalid-agent-entrypoint-init-block)) checks the marker line and the version, not a byte-diff against the canonical text.
 
@@ -135,15 +135,15 @@ The block identifies itself as the entrypoint for agents working in the project 
 
 ##### 2.3.4.2 Reference Scheme
 
-The block teaches the configured reference scheme: IDs have the configured shape, citations use the configured marker and optional section path, `grund check` validates citations, `grund list` discovers IDs, `grund show` reads cited declarations or sections, and `grund refs` reports what leans on a declaration.
+The block teaches the configured reference scheme: IDs have the configured shape, citations use the configured marker and optional section path, `grund check` validates citations, `grund list` discovers IDs, `grund <ID>` reads cited declarations or sections, and `grund refs` reports what leans on a declaration.
 
 ##### 2.3.4.3 Cheap Grounding
 
-The block teaches the cheap grounding ladder: use `grund show <ID>` as the first read for a bare citation, `grund show <ID> --toc` when section navigation is needed, `grund show <ID>.<section>` for section citations, `grund show <ID> --full` only when a narrower read is insufficient, `grund list --kind FS,AR` for scoped discovery, and `grund refs <ID> --summary` before a full back-reference listing.
+The block teaches the cheap grounding ladder: use `grund <ID>` as the first read for a bare citation, `grund <ID> --toc` when section navigation is needed, `grund <ID>.<section>` for section citations, `grund <ID> --full` only when a narrower read is insufficient, `grund list --kind FS,AR` for scoped discovery, and `grund refs <ID> --summary` before a full back-reference listing.
 
 ##### 2.3.4.4 Project Map
 
-The block describes the configured declaration homes from the effective `.agents/grund.toml` as a raw-readable Markdown link list (`- [KIND](home): Title`), so the generated instructions name and link the host repo's actual artifact layout instead of hard-coding the default layout or relying on table rendering. The scan scope (`[scan].include` / `[scan].exclude`) is *not* surfaced here — it is configuration an agent never needs to read inline, since `grund show`, `grund list`, and `grund refs` apply it transparently. When the effective config declares `[workspace]`, the sibling §2.3.4.15 block names the workspace projects; the Project Map itself describes the *current* project's declaration homes only and is unchanged in workspace mode.
+The block describes the configured declaration homes from the effective `.agents/grund.toml` as a raw-readable Markdown link list (`- [KIND](home): Title`), so the generated instructions name and link the host repo's actual artifact layout instead of hard-coding the default layout or relying on table rendering. The scan scope (`[scan].include` / `[scan].exclude`) is *not* surfaced here — it is configuration an agent never needs to read inline, since `grund <ID>`, `grund list`, and `grund refs` apply it transparently. When the effective config declares `[workspace]`, the sibling §2.3.4.15 block names the workspace projects; the Project Map itself describes the *current* project's declaration homes only and is unchanged in workspace mode.
 
 ##### 2.3.4.5 Declaration Forms
 
@@ -159,7 +159,7 @@ The code back-reference guidance tells agents to cite the most-specific spec poi
 
 ##### 2.3.4.8 Refresh Before Editing
 
-The rules tell agents to refresh the cited spec with `grund show` before editing code that already carries a `§<ID>` or `§<ID>.<section>` citation.
+The rules tell agents to refresh the cited spec with `grund <ID>` before editing code that already carries a `§<ID>` or `§<ID>.<section>` citation.
 
 ##### 2.3.4.9 Declaration Blast Radius
 

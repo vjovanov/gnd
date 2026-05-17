@@ -187,24 +187,24 @@ every command in this section:
   the first member. Completions, `show`, `refs`, and `list --project` all agree
   on this.
 
-### 8.1 `grund show`
+### 8.1 `grund <alias>/<ID>`
 
-`grund show <alias>/<ID>` reads a declaration in another workspace project. The
-body is rendered exactly as `grund show <ID>` renders it for a local declaration
+`grund <alias>/<ID>` reads a declaration in another workspace project. The
+body is rendered exactly as `grund <ID>` renders it for a local declaration
 ([§FS-show.2](FS-show.md#2-behavior)) — same slice rules (`--brief`, default, `--toc`, `--full`), same
 `text` vs `md` heading behavior, same section selection, same inline-code
 extraction ([§FS-show.2.3](FS-show.md#23-inline-declarations-in-code-and-doc-comments)). The alias prefix is a routing instruction; it
 changes which tree is scanned, not what is printed.
 
-- `grund show api/FS-login` — print the lead of `api`'s `FS-login`.
-- `grund show api/FS-login.3.1 --toc` — print the `3.1` section's lead plus its
+- `grund api/FS-login` — print the lead of `api`'s `FS-login`.
+- `grund api/FS-login.3.1 --toc` — print the `3.1` section's lead plus its
   nested heading map, against `api`'s declaration.
-- `grund show FS-login` invoked from inside `apps/api/` — print the member's
+- `grund FS-login` invoked from inside `apps/api/` — print the member's
   local `FS-login`. Unchanged from today; no workspace context is needed
   because the citation is local.
 
 Outside a workspace context — including a `<path>` argument that resolves
-member-local — `grund show api/FS-login` exits `2` with two stderr lines:
+member-local — `grund api/FS-login` exits `2` with two stderr lines:
 
 ```text
 error: unknown project alias `api`

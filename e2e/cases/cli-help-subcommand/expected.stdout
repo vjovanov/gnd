@@ -1,11 +1,11 @@
-grund check — validate every ID citation across the repo (the default subcommand).
+grund check — validate every ID citation across the repo.
 
-Usage:  grund [check] [PATH] [--require-grounding] [--format text|json]
+Usage:  grund check [PATH] [--require-grounding] [--format text|json]
 
 PATH defaults to `.`; config (`.agents/grund.toml`) is discovered by walking up from it.
 With no config, grund scans `docs/`, `e2e/`, and `src/`; set `[scan] include` to widen it.
 Pointing grund at an explicit PATH scans exactly that file or directory.
-`grund PATH` is shorthand for `grund check PATH` — byte-for-byte equivalent.
+Path validation is explicit; `grund PATH` is parsed as an ID query.
 
 Options:
   --format text|json   text (default) prints `success` or `path:line: message`; json emits NDJSON.
@@ -18,6 +18,6 @@ Findings go to stdout (the linter convention) — `grund check | …` and `grund
 Exit:  0 clean · 1 dangling / duplicate / unknown-section / ungrounded findings · 2 unreadable tree or CLI error.
 
 Examples:
-  grund                    # check the whole repo
-  grund docs/              # check one subtree
-  grund --format json | jq # machine-readable diagnostics for CI
+  grund check              # check the whole repo
+  grund check docs/        # check one subtree
+  grund check --format json | jq # machine-readable diagnostics for CI

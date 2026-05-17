@@ -1,6 +1,6 @@
 # FS-list: grund lists every declared ID
 
-The `list` subcommand prints the repo's ID catalog: every declaration, where it lives, and its one-line title — or, narrowed with `--kind`/`--summary`, just the slice an agent asked for. It is the index that `grund show` reads from and the broad counterpart of `grund refs` — `refs` answers "who cites *this* ID?", `list` answers "what IDs are there?". An agent that has been told to ground itself with `grund show <ID>` needs a way to discover the `<ID>`s; a human auditing a spec tree needs the same. Serves [§GOAL-friendliness-first](../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) (no `grep` for `^# [A-Z]+-` across the tree), [§GOAL-token-economy](../goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file), and the agent-grounding loop in [§GND-grund](../grund.md#gnd-grund-agents-stay-grounded-in-the-spec).
+The `list` subcommand prints the repo's ID catalog: every declaration, where it lives, and its one-line title — or, narrowed with `--kind`/`--summary`, just the slice an agent asked for. It is the index that `grund <ID>` reads from and the broad counterpart of `grund refs` — `refs` answers "who cites *this* ID?", `list` answers "what IDs are there?". An agent that has been told to ground itself with `grund <ID>` needs a way to discover the `<ID>`s; a human auditing a spec tree needs the same. Serves [§GOAL-friendliness-first](../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) (no `grep` for `^# [A-Z]+-` across the tree), [§GOAL-token-economy](../goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file), and the agent-grounding loop in [§GND-grund](../grund.md#gnd-grund-agents-stay-grounded-in-the-spec).
 
 ## 1. Inputs
 
@@ -23,13 +23,13 @@ grund list [<path>] [--kind <KIND>[,<KIND>…]]… [--unused] [--summary] [--for
 - **Order.** Declarations come out sorted by ID — kind, then number, then slug — the same stable order `check` reports diagnostics in ([§FS-errors.4](FS-errors.md#4-determinism)). The result is deterministic for a given tree.
 - **Stub-and-inline pairs collapse.** When an ID's home is an inline declaration in source code with a one-line stub under `docs/architecture/` pointing at it (the [§FS-check.3.4](FS-check.md#34-broken-inline-spec-stub) / [§FS-show.2.3](FS-show.md#23-inline-declarations-in-code-and-doc-comments) arrangement), `list` shows **one** line for that ID, naming the source file where the body lives — not two lines, one for the stub and one for the inline declaration. A *broken* stub (its target missing, or the target has no matching inline declaration) is not paired with anything, so it does appear, listed at the stub's own location with a `→ <target>` note; `check` reports the breakage in located form.
 - **Duplicate declarations.** When an ID is declared in more than one independent home — the [§FS-check.3.3](FS-check.md#33-duplicate-declaration) error — `list` prints one line per home, each flagged so the duplication is visible at a glance. `list` does not pick a winner; it shows the situation and leaves the located error to `check`.
-- **What it is not.** `list` does not print declaration *bodies* (that is `grund show`), and it does not list *citations* (that is `grund refs <ID>`). It does not modify anything. An ID that is cited but never declared does **not** appear in `list` — it has no declaration to catalog; `grund refs <ID>` and `grund check` are where a dangling citation surfaces.
+- **What it is not.** `list` does not print declaration *bodies* (that is `grund <ID>`), and it does not list *citations* (that is `grund refs <ID>`). It does not modify anything. An ID that is cited but never declared does **not** appear in `list` — it has no declaration to catalog; `grund refs <ID>` and `grund check` are where a dangling citation surfaces.
 
 ## 3. Outputs
 
 ### 3.1 `--format text` (default)
 
-One line per catalog entry on **stdout** (this is a result a caller consumes and pipes, like `grund show` / `grund id` / `grund config show`, not diagnostic output):
+One line per catalog entry on **stdout** (this is a result a caller consumes and pipes, like `grund <ID>` / `grund id` / `grund config show`, not diagnostic output):
 
 ```
 $ grund list
