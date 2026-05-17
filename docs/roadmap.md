@@ -199,13 +199,13 @@ The README (and landing page, if any) carries a "vs. link checkers" block whose 
 
 Done milestones leave their full record in `docs/changelog.md` (the `Implemented` block of the latest release). They keep a one-line declaration here so existing `§RM-…` citations still resolve — the changelog has the detail.
 
-## RM-require-grounding: the opt-in grounding floor
-
-Shipped. `[reference] require_grounding` (and `grund check --require-grounding`), the `ungrounded source file` error class, the inline-declaration exemption, Markdown skipped — see `docs/changelog.md`, [§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in), [§FS-config.3.1](functional-spec/FS-config.md#31-reference--citation-form), and [§DF-require-grounding](decisions/functional/DF-require-grounding.md#df-require-grounding-an-opt-in-check-that-every-source-file-cites-a-spec). The diff-aware co-change recipe is [§RM-cochange-gate](roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test).
-
 ## RM-init-workspace-members: `init` mentions workspace members
 
 Shipped. `grund init` now emits a `### Workspace members` section in the generated `AGENTS.md` whenever the effective config declares `[workspace]`, listing every resolved project (root + members) sorted by alias, with one discoverability line and a `*(not yet initialized)*` marker for members whose `AGENTS.md` does not yet exist — see `docs/changelog.md`, [§FS-init.2.3.4.15](functional-spec/FS-init.md#23415-workspace-members), and [§DISC-init-workspace-members](discussions/proposals/2026-05-17-init-workspace-members.md#disc-init-workspace-members-have-init-mention-workspace-members).
+
+## RM-require-grounding: the opt-in grounding floor
+
+Shipped. `[reference] require_grounding` (and `grund check --require-grounding`), the `ungrounded source file` error class, the inline-declaration exemption, Markdown skipped — see `docs/changelog.md`, [§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in), [§FS-config.3.1](functional-spec/FS-config.md#31-reference--citation-form), and [§DF-require-grounding](decisions/functional/DF-require-grounding.md#df-require-grounding-an-opt-in-check-that-every-source-file-cites-a-spec). The diff-aware co-change recipe is [§RM-cochange-gate](roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test).
 
 ## RM-e2e-corpus: the e2e/cases/* corpus and CI harness
 
