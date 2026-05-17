@@ -251,6 +251,45 @@ fn init_agent_flags_create_requested_entrypoints() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn init_agent_flag_updates_canonical_target_for_symlinked_entrypoint() {
+    // FS-init.2.1 / FS-init.2.3: a requested companion symlink to AGENTS.md is
+    // covered by updating the canonical target, even when --agents-md was not
+    // passed explicitly.
+    let target = workdir("init_agent_flag_updates_canonical_target_for_symlinked_entrypoint");
+    std::os::unix::fs::symlink("AGENTS.md", target.join("CLAUDE.md"))
+        .expect("create CLAUDE.md symlink");
+
+    let output = run_grund(
+        &["init", target.to_str().unwrap(), "--claude"],
+        manifest_dir(),
+    );
+    assert!(
+        output.status.success(),
+        "init failed: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("wrote AGENTS.md"),
+        "init should update the symlink target, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("wrote .claude/CLAUDE.md"),
+        "explicit --claude should still create the non-symlink Claude entrypoint, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("wrote CLAUDE.md") && !stderr.contains("appended CLAUDE.md"),
+        "init should not write through the CLAUDE.md symlink separately, got:\n{stderr}"
+    );
+    let agents = fs::read_to_string(target.join("AGENTS.md")).expect("read AGENTS.md");
+    assert!(
+        agents.contains("## Grounding with grund (v1)"),
+        "AGENTS.md should receive the managed block:\n{agents}"
+    );
+}
+
 #[test]
 fn init_creates_agent_aliases_when_agent_workspaces_exist() {
     // FS-init.2.1 / FS-init.2.3: missing neutral companion aliases are created
@@ -404,4 +443,50 @@ fn init_is_byte_deterministic() {
     let toml_a = fs::read(a.join(".agents/grund.toml")).unwrap();
     let toml_b = fs::read(b.join(".agents/grund.toml")).unwrap();
     assert_eq!(toml_a, toml_b, ".agents/grund.toml must be byte-identical");
+}
+
+#[test]
+fn init_preserves_lone_override_entrypoint_without_creating_agents_md() {
+    // FS-init.2.1 / FS-init.2.3: AGENTS.override.md is the "automatic
+    // existing-file-only" override channel. When it is the only known agent
+    // entrypoint present, automatic mode treats it as the existing repo's
+    // choice — its managed block is appended/updated and no canonical
+    // AGENTS.md is created. This locks in the behavior of the
+    // existing-companion branch in `selected_init_agent_entrypoints` so a
+    // future refactor cannot silently regress an adopter who is running
+    // `init` against a Codex-style override-only layout.
+    let target = workdir("init_preserves_lone_override_entrypoint_without_creating_agents_md");
+    fs::write(target.join("AGENTS.override.md"), "# Local override\n")
+        .expect("write AGENTS.override.md");
+
+    let output = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
+    assert!(
+        output.status.success(),
+        "init failed: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("appended AGENTS.override.md"),
+        "init should append managed block to lone AGENTS.override.md, got:\n{stderr}"
+    );
+    assert!(
+        !target.join("AGENTS.md").exists(),
+        "init must not create canonical AGENTS.md when only the override file is present"
+    );
+    assert!(
+        !stderr.contains("wrote AGENTS.md") && !stderr.contains("appended AGENTS.md"),
+        "stderr should not mention canonical AGENTS.md, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("see AGENTS.override.md for the full workflow."),
+        "next block should point at the selected entrypoint, got:\n{stderr}"
+    );
+
+    let override_contents =
+        fs::read_to_string(target.join("AGENTS.override.md")).expect("read override file");
+    assert!(
+        override_contents.starts_with("# Local override\n\n## Grounding with grund (v1)\n"),
+        "AGENTS.override.md should keep existing notes and append the managed block:\n{override_contents}"
+    );
 }

@@ -6,7 +6,7 @@ Usage:  grund init [PATH] [--docs] [--name NAME] [--force | --append] [--agents-
 Options:
   --docs         also write docs/ (grund, goals, roadmap, changelog, spec READMEs) and e2e/
   --name NAME    project name to interpolate (default: derived from the directory)
-  --force        reset a generated AGENTS.md / scaffold file to canonical (an existing .agents/grund.toml is left alone)
+  --force        reset a generated AGENTS.md / scaffold file to canonical (companion entrypoints get only their managed block updated; .agents/grund.toml is left alone)
   --append       append the managed AGENTS.md block instead of replacing an older one
   --agents-md, --codex  create/update canonical AGENTS.md even when another entrypoint exists
   --claude       create/update CLAUDE.md and .claude/CLAUDE.md

@@ -228,9 +228,11 @@ fn selected_init_agent_entrypoints(
     selection: &InitAgentEntrypointSelection,
 ) -> Result<SelectedInitAgentEntrypoints, (PathBuf, String)> {
     if selection.any() {
+        let (canonical_from_symlink, companions) =
+            requested_init_companion_agent_entrypoints(target, selection)?;
         return Ok(SelectedInitAgentEntrypoints {
-            canonical: selection.canonical,
-            companions: requested_init_companion_agent_entrypoints(target, selection)?,
+            canonical: selection.canonical || canonical_from_symlink,
+            companions,
         });
     }
 
