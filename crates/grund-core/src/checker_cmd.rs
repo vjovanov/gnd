@@ -266,12 +266,12 @@ fn is_workspace_root_scope(config: &Config, path: &Path, path_provided: bool) ->
 /// §AR-workspace.5.1, §AR-workspace.6, §AR-workspace.8: every CLI entry point
 /// that walks the tree funnels through this helper so workspace handling is
 /// identical across `check`, `fmt`, `refs`, `list`, `cover`, `show`, `id`, and
-/// completions. The three steps are upward discovery, the configless-member
+/// completions. The three steps are upward discovery, the member-scope
 /// rewrite, and boundary-root population — the last is what stops a root-scope
 /// scan from absorbing member declarations into the parent namespace.
 fn resolve_workspace_config(path: &Path, path_provided: bool) -> Result<Config> {
     let mut config = load_config(path)?;
-    config = config_for_configless_workspace_member(config, path)?;
+    config = config_for_member_scope(config, path)?;
     apply_workspace_boundary(&mut config, path, path_provided)?;
     Ok(config)
 }
@@ -291,10 +291,13 @@ fn apply_workspace_boundary(
     Ok(())
 }
 
-/// §FS-workspace.2 / §FS-workspace.5: upward discovery from a configless member
-/// finds the parent workspace config, but a member-scoped check still runs as an
-/// independent project rooted at that member and therefore uses member defaults.
-fn config_for_configless_workspace_member(mut config: Config, path: &Path) -> Result<Config> {
+/// §FS-workspace.2 / §FS-workspace.5: when the requested scope lies inside a
+/// configured workspace member, rewrite the resolved config so the run is
+/// rooted at the member rather than the workspace root. This applies whether
+/// the member has its own `.agents/grund.toml` or not — either way a
+/// member-scoped command runs as an independent project, with member defaults
+/// when no member config exists.
+fn config_for_member_scope(mut config: Config, path: &Path) -> Result<Config> {
     if !config.workspace_declared {
         return Ok(config);
     }
@@ -361,9 +364,22 @@ fn expand_workspace_members(config: &Config) -> Result<Vec<PathBuf>> {
             for entry in fs::read_dir(&parent)? {
                 let entry = entry?;
                 let path = entry.path();
-                if path.is_dir() {
-                    roots.push(fs::canonicalize(&path).unwrap_or(path));
+                if !path.is_dir() {
+                    continue;
                 }
+                // §AR-workspace.5.3: a glob like `packages/*` should not pull in
+                // hidden directories such as `.git`, `.agents`, or `.cache` as
+                // workspace members. Their basenames are also invalid aliases,
+                // so without this filter expansion would fail with a misleading
+                // `invalid workspace project alias .git` error.
+                if path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with('.'))
+                {
+                    continue;
+                }
+                roots.push(fs::canonicalize(&path).unwrap_or(path));
             }
         } else {
             let path = config.root.join(member);
