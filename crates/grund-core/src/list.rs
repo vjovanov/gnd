@@ -7,6 +7,7 @@ fn command_list(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
     let mut kind_filter: BTreeSet<String> = BTreeSet::new();
+    let mut project_filter: BTreeSet<String> = BTreeSet::new();
     let mut unused_only = false;
     let mut summary = false;
     let mut format_override: Option<String> = None;
@@ -25,6 +26,17 @@ fn command_list(args: &[String]) -> ExitCode {
             }
             other if other.starts_with("--kind=") => {
                 add_kind_filters(&mut kind_filter, other.trim_start_matches("--kind="));
+            }
+            "--project" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --project requires a value");
+                    return ExitCode::from(2);
+                }
+                add_project_filters(&mut project_filter, &args[idx]);
+            }
+            other if other.starts_with("--project=") => {
+                add_project_filters(&mut project_filter, other.trim_start_matches("--project="));
             }
             other if other.starts_with("--format=") => {
                 format_override = Some(other.trim_start_matches("--format=").to_string());
@@ -52,135 +64,260 @@ fn command_list(args: &[String]) -> ExitCode {
         }
         idx += 1;
     }
-    let config = match resolve_workspace_config(&path, path_provided) {
-        Ok(config) => config,
+    let context = match load_workspace_context(&path, path_provided) {
+        Ok(context) => context,
         Err(err) => {
             eprintln!("error: {err:#}");
             return ExitCode::from(2);
         }
     };
+    // §FS-workspace.8.3: `--project` is only meaningful in workspace mode —
+    // a member-local or standalone invocation has no alias namespace.
+    if !project_filter.is_empty() && !context.workspace_loaded {
+        eprintln!(
+            "error: --project requires workspace mode (no [workspace] block discovered)"
+        );
+        return ExitCode::from(2);
+    }
+    for alias in &project_filter {
+        if context.project_by_alias(alias).is_none() {
+            eprintln!("error: unknown project alias `{alias}`");
+            let known = context.aliases().join(", ");
+            if !known.is_empty() {
+                eprintln!("known aliases: {known}");
+            }
+            return ExitCode::from(2);
+        }
+    }
+    // Pick the render context for the catalog's path/format columns: the
+    // workspace root in workspace mode (so paths span members), otherwise
+    // the only project.
+    let config = context.current_project().config.clone();
     let format = format_override.unwrap_or_else(|| config.output_format.clone());
     if !matches!(format.as_str(), "text" | "json") {
         eprintln!("error: unsupported list format `{format}`");
         return ExitCode::from(2);
     }
+    // §FS-list.4: an unknown `--kind` is a CLI-level error. In workspace
+    // mode kinds may differ across projects (each project has its own
+    // `[[kinds]]`), so the validation widens — a kind only needs to exist
+    // in at least one project in scope.
     for kind in &kind_filter {
-        if !config
-            .kinds
+        let exists = context
+            .projects
             .iter()
-            .any(|candidate| &candidate.prefix == kind)
-        {
+            .filter(|project| project_filter.is_empty() || project_filter.contains(&project.alias))
+            .any(|project| {
+                project
+                    .config
+                    .kinds
+                    .iter()
+                    .any(|candidate| &candidate.prefix == kind)
+            });
+        if !exists {
             eprintln!("error: unknown kind `{kind}`");
-            eprintln!("known kinds: {}", kind_prefixes(&config.kinds).join(", "));
+            // Preserve each project's configured `[[kinds]]` order
+            // (§FS-list.4 takes its hint from `[[kinds]]`, not the
+            // alphabet); only deduplicate across projects.
+            let mut known: Vec<String> = Vec::new();
+            let mut seen: BTreeSet<String> = BTreeSet::new();
+            for project in &context.projects {
+                for k in &project.config.kinds {
+                    if seen.insert(k.prefix.clone()) {
+                        known.push(k.prefix.clone());
+                    }
+                }
+            }
+            eprintln!("known kinds: {}", known.join(", "));
             return ExitCode::from(2);
         }
-    }
-    let (findings, scan_errors) = match scan_tree(&config, Some(&path), path_provided) {
-        Ok(out) => out,
-        Err(err) => {
-            eprintln!("error: {err:#}");
-            return ExitCode::from(2);
-        }
-    };
-
-    let mut ref_counts: BTreeMap<&Id, usize> = BTreeMap::new();
-    for citation in &findings.citations {
-        // §FS-workspace.8, §AR-workspace.8: `grund list` is project-local in
-        // v1; qualified citations target another project's namespace and
-        // don't count toward this project's reference totals.
-        if citation.namespace.is_some() {
-            continue;
-        }
-        *ref_counts.entry(&citation.id).or_insert(0) += 1;
     }
 
     struct Entry<'a> {
+        project_alias: &'a str,
+        project_config: &'a Config,
         id: &'a Id,
         home: &'a Declaration,
         duplicate: bool,
         refs: usize,
     }
-    // `findings.declarations` is a BTreeMap keyed by `Id`, so the catalog comes
-    // out in the same stable order `grund check` reports diagnostics in.
     let mut entries: Vec<Entry> = Vec::new();
-    for (id, decls) in &findings.declarations {
-        if !kind_filter.is_empty() && !kind_filter.contains(&id.kind) {
+    let mut had_scan_errors = false;
+    for project in &context.projects {
+        if !project_filter.is_empty() && !project_filter.contains(&project.alias) {
             continue;
         }
-        let refs = ref_counts.get(id).copied().unwrap_or(0);
-        if unused_only && refs > 0 {
-            continue;
+        had_scan_errors |= !project.scan_errors.is_empty();
+        // Per-project reference counts. A `<§><alias>/<ID>` citation
+        // targets `<alias>`'s declaration, so it must be attributed to the
+        // *target* project's ref count, not the citing project's — that
+        // lets a workspace-root `grund list --unused` see members'
+        // declarations that only sibling projects cite.
+        let mut ref_counts: BTreeMap<&Id, usize> = BTreeMap::new();
+        for source in &context.projects {
+            for citation in &source.findings.citations {
+                let targets_this_project = match (&citation.namespace, std::ptr::eq(source, project)) {
+                    (Some(ns), _) => ns == &project.alias,
+                    (None, same) => same,
+                };
+                if !targets_this_project {
+                    continue;
+                }
+                *ref_counts.entry(&citation.id).or_insert(0) += 1;
+            }
         }
-        // `--unused` lists declarations nothing cites — but an E2E case is a proof
-        // artifact, exercised by being run, not a citation target (the same reason
-        // §FS-check.4.1 does not warn for uncited E2E cases). Bare `grund list --unused`
-        // therefore skips E2E so the actionable signal — uncited specs and decisions —
-        // is not buried under the whole case corpus; selecting E2E with `--kind`
-        // opts back in for an inventory, even in a multi-kind filter (§FS-list.1,
-        // §FS-list.3.1).
-        if unused_only && id.kind == "E2E" && !kind_filter.contains("E2E") {
-            continue;
-        }
-        // A stub paired with the inline declaration it points at is *one* home,
-        // not two — collapse it the way `show` does (§FS-show.2.2.1). What's left
-        // is one home in a healthy repo, more only when §FS-check.3.3 (duplicate
-        // declaration) applies.
-        let mut homes: Vec<&Declaration> = decls
-            .iter()
-            .filter(|decl| !is_stub_for_inline_decl(&config.root, decl, decls))
-            .collect();
-        homes.sort_by(|a, b| {
-            (sort_path_key(&a.file), a.line).cmp(&(sort_path_key(&b.file), b.line))
-        });
-        let duplicate = homes.len() > 1;
-        for home in homes {
-            entries.push(Entry {
-                id,
-                home,
-                duplicate,
-                refs,
+        for (id, decls) in &project.findings.declarations {
+            if !kind_filter.is_empty() && !kind_filter.contains(&id.kind) {
+                continue;
+            }
+            let refs = ref_counts.get(id).copied().unwrap_or(0);
+            if unused_only && refs > 0 {
+                continue;
+            }
+            // §FS-list.1 / §FS-check.4.1: `--unused` skips E2E cases by
+            // default; opting back in requires explicit `--kind E2E`.
+            if unused_only && id.kind == "E2E" && !kind_filter.contains("E2E") {
+                continue;
+            }
+            let mut homes: Vec<&Declaration> = decls
+                .iter()
+                .filter(|decl| !is_stub_for_inline_decl(&project.config.root, decl, decls))
+                .collect();
+            homes.sort_by(|a, b| {
+                (sort_path_key(&a.file), a.line).cmp(&(sort_path_key(&b.file), b.line))
             });
+            let duplicate = homes.len() > 1;
+            for home in homes {
+                entries.push(Entry {
+                    project_alias: project.alias.as_str(),
+                    project_config: &project.config,
+                    id,
+                    home,
+                    duplicate,
+                    refs,
+                });
+            }
         }
     }
+    // Sort entries: in workspace mode, by alias then ID; otherwise by ID.
+    // `findings.declarations` is already a BTreeMap so within a project
+    // entries come out sorted; the project-prefix sort here is what makes
+    // the workspace catalog deterministic across runs.
+    if context.workspace_loaded {
+        entries.sort_by(|a, b| {
+            (a.project_alias, a.id, sort_path_key(&a.home.file), a.home.line).cmp(&(
+                b.project_alias,
+                b.id,
+                sort_path_key(&b.home.file),
+                b.home.line,
+            ))
+        });
+    }
+
+    // §FS-workspace.8.3: in workspace mode the ID column is always
+    // qualified — even under `--project`. The helper renders `<ID>` outside
+    // workspace mode and `<alias>/<ID>` inside it.
+    let render_qualified = |entry: &Entry| -> String {
+        if context.workspace_loaded {
+            format!(
+                "{}/{}",
+                entry.project_alias,
+                render_id(entry.project_config, entry.id)
+            )
+        } else {
+            render_id(entry.project_config, entry.id)
+        }
+    };
 
     if summary {
-        let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
-        for entry in &entries {
-            *counts.entry(&entry.id.kind).or_insert(0) += 1;
-        }
-        if format == "json" {
-            for kind in &config.kinds {
-                let count = counts.get(kind.prefix.as_str()).copied().unwrap_or(0);
-                if count == 0 {
+        if context.workspace_loaded {
+            // §FS-workspace.8.3: per-(project, kind) summary in workspace
+            // mode. Project order follows `context.projects` (root first,
+            // then members in member-glob order); kinds inside each project
+            // follow the project's configured `[[kinds]]` order.
+            let mut counts: BTreeMap<(String, String), usize> = BTreeMap::new();
+            for entry in &entries {
+                *counts
+                    .entry((entry.project_alias.to_string(), entry.id.kind.clone()))
+                    .or_insert(0) += 1;
+            }
+            for project in &context.projects {
+                if !project_filter.is_empty() && !project_filter.contains(&project.alias) {
                     continue;
                 }
-                println!(
-                    "{{\"kind\":\"{}\",\"title\":\"{}\",\"home\":\"{}\",\"count\":{}}}",
-                    json_escape(&kind.prefix),
-                    json_escape(kind.title.as_deref().unwrap_or("Declaration")),
-                    json_escape(kind.folder.as_deref().unwrap_or("")),
-                    count
-                );
+                for kind in &project.config.kinds {
+                    let count = counts
+                        .get(&(project.alias.clone(), kind.prefix.clone()))
+                        .copied()
+                        .unwrap_or(0);
+                    if count == 0 {
+                        continue;
+                    }
+                    if format == "json" {
+                        println!(
+                            "{{\"project\":\"{}\",\"kind\":\"{}\",\"title\":\"{}\",\"home\":\"{}\",\"count\":{}}}",
+                            json_escape(&project.alias),
+                            json_escape(&kind.prefix),
+                            json_escape(kind.title.as_deref().unwrap_or("Declaration")),
+                            json_escape(kind.folder.as_deref().unwrap_or("")),
+                            count
+                        );
+                    } else {
+                        println!(
+                            "{:<10}  {:<4}  {:>3}  {}",
+                            project.alias,
+                            kind.prefix,
+                            count,
+                            kind.folder.as_deref().unwrap_or("")
+                        );
+                    }
+                }
             }
         } else {
-            for kind in &config.kinds {
-                let count = counts.get(kind.prefix.as_str()).copied().unwrap_or(0);
-                if count == 0 {
-                    continue;
+            let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+            for entry in &entries {
+                *counts.entry(&entry.id.kind).or_insert(0) += 1;
+            }
+            if format == "json" {
+                for kind in &config.kinds {
+                    let count = counts.get(kind.prefix.as_str()).copied().unwrap_or(0);
+                    if count == 0 {
+                        continue;
+                    }
+                    println!(
+                        "{{\"kind\":\"{}\",\"title\":\"{}\",\"home\":\"{}\",\"count\":{}}}",
+                        json_escape(&kind.prefix),
+                        json_escape(kind.title.as_deref().unwrap_or("Declaration")),
+                        json_escape(kind.folder.as_deref().unwrap_or("")),
+                        count
+                    );
                 }
-                println!(
-                    "{:<4}  {:>3}  {}",
-                    kind.prefix,
-                    count,
-                    kind.folder.as_deref().unwrap_or("")
-                );
+            } else {
+                for kind in &config.kinds {
+                    let count = counts.get(kind.prefix.as_str()).copied().unwrap_or(0);
+                    if count == 0 {
+                        continue;
+                    }
+                    println!(
+                        "{:<4}  {:>3}  {}",
+                        kind.prefix,
+                        count,
+                        kind.folder.as_deref().unwrap_or("")
+                    );
+                }
             }
         }
     } else if format == "json" {
         for entry in &entries {
+            let project_field = if context.workspace_loaded {
+                format!("\"project\":\"{}\",", json_escape(entry.project_alias))
+            } else {
+                String::new()
+            };
             println!(
-                "{{\"id\":\"{}\",\"kind\":\"{}\",\"path\":\"{}\",\"line\":{},\"title\":{},\"stub\":{},\"defines\":{},\"refs\":{},\"duplicate\":{}}}",
-                json_escape(&render_id(&config, entry.id)),
+                "{{{}\"id\":\"{}\",\"kind\":\"{}\",\"path\":\"{}\",\"line\":{},\"title\":{},\"stub\":{},\"defines\":{},\"refs\":{},\"duplicate\":{}}}",
+                project_field,
+                json_escape(&render_qualified(entry)),
                 json_escape(&entry.id.kind),
                 json_escape(&display_path(&config, &entry.home.file)),
                 entry.home.line,
@@ -204,12 +341,12 @@ fn command_list(args: &[String]) -> ExitCode {
     } else {
         let id_width = entries
             .iter()
-            .map(|entry| render_id(&config, entry.id).chars().count())
+            .map(|entry| render_qualified(entry).chars().count())
             .max()
             .unwrap_or(0)
             .min(40);
         for entry in &entries {
-            let id_text = render_id(&config, entry.id);
+            let id_text = render_qualified(entry);
             let location = format!(
                 "{}:{}",
                 display_path(&config, &entry.home.file),
@@ -240,15 +377,25 @@ fn command_list(args: &[String]) -> ExitCode {
         }
     }
 
-    if scan_errors.is_empty() {
+    if !had_scan_errors {
         ExitCode::SUCCESS
     } else {
         // Partial-scan semantics (§FS-check.2): the listed declarations are real
         // but the view of the tree was incomplete, so the catalog may be short.
-        for (file, message) in scan_errors {
-            eprintln!("error: {}: {}", display_path(&config, &file), message);
+        for project in &context.projects {
+            for (file, message) in &project.scan_errors {
+                eprintln!("error: {}: {}", display_path(&project.config, file), message);
+            }
         }
         ExitCode::from(2)
+    }
+}
+
+fn add_project_filters(project_filter: &mut BTreeSet<String>, raw: &str) {
+    for alias in raw.split(',') {
+        if !alias.is_empty() {
+            project_filter.insert(alias.to_string());
+        }
     }
 }
 

@@ -1,0 +1,3 @@
+alpha/FS-alpha-thing  packages/alpha/docs/FS-alpha-thing.md:1  A thing alpha provides
+beta/FS-beta-thing    packages/beta/docs/FS-beta-thing.md:1  A thing beta provides
+root/FS-root-thing    docs/FS-root-thing.md:1  Root concern
