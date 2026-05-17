@@ -17,30 +17,35 @@ const COMPANION_AGENT_ENTRYPOINTS: &[CompanionAgentEntrypoint] = &[
         workspace: None,
         agent: None,
         discovery: true,
+        create_on_request: true,
     },
     CompanionAgentEntrypoint {
         rel: "CLAUDE.md",
         workspace: Some(".claude"),
         agent: Some(AgentEntrypoint::Claude),
         discovery: true,
+        create_on_request: true,
     },
     CompanionAgentEntrypoint {
         rel: ".claude/CLAUDE.md",
         workspace: Some(".claude"),
         agent: Some(AgentEntrypoint::Claude),
         discovery: true,
+        create_on_request: true,
     },
     CompanionAgentEntrypoint {
         rel: "GEMINI.md",
         workspace: Some(".gemini"),
         agent: Some(AgentEntrypoint::Gemini),
         discovery: true,
+        create_on_request: true,
     },
     CompanionAgentEntrypoint {
         rel: ".github/copilot-instructions.md",
         workspace: None,
         agent: Some(AgentEntrypoint::Copilot),
         discovery: true,
+        create_on_request: true,
     },
     // §FS-init.2.1 / §FS-init.2.3: Cursor uses `.cursor/rules/*.mdc` files (the
     // modern form) and a legacy `.cursorrules` single-file form. We create a
@@ -53,18 +58,21 @@ const COMPANION_AGENT_ENTRYPOINTS: &[CompanionAgentEntrypoint] = &[
         workspace: Some(".cursor"),
         agent: Some(AgentEntrypoint::Cursor),
         discovery: true,
+        create_on_request: true,
     },
     CompanionAgentEntrypoint {
         rel: ".cursorrules",
         workspace: None,
-        agent: None,
+        agent: Some(AgentEntrypoint::Cursor),
         discovery: true,
+        create_on_request: false,
     },
     CompanionAgentEntrypoint {
         rel: ".windsurfrules",
         workspace: None,
         agent: Some(AgentEntrypoint::Windsurf),
         discovery: true,
+        create_on_request: true,
     },
     // §FS-init.2.3: `.rules` is too generic to attribute to Zed by filename
     // alone, so we only touch it when the `.zed/` workspace already exists or
@@ -74,6 +82,7 @@ const COMPANION_AGENT_ENTRYPOINTS: &[CompanionAgentEntrypoint] = &[
         workspace: Some(".zed"),
         agent: Some(AgentEntrypoint::Zed),
         discovery: false,
+        create_on_request: true,
     },
 ];
 
@@ -130,6 +139,10 @@ struct CompanionAgentEntrypoint {
     /// attribute to a single tool (e.g. `.rules`) — those rely on the
     /// workspace directory or an explicit agent flag instead.
     discovery: bool,
+    /// Whether an explicit agent flag creates this entrypoint when it is absent.
+    /// Legacy Cursor `.cursorrules` is updated when present but never created;
+    /// new Cursor installs use `.cursor/rules/grund.mdc` instead (§FS-init.2.1).
+    create_on_request: bool,
 }
 
 enum InitCompanionAgentEntrypoint {
@@ -247,23 +260,24 @@ fn render_agents_md(name: &str, config: &Config) -> String {
 
 /// Existing companion agent entrypoints that should carry the same managed grund
 /// block as `AGENTS.md` (§FS-init.2.1). A symlink to `AGENTS.md` is already
-/// covered by the canonical file and is intentionally skipped. Entries with
-/// `discovery = false` (e.g. `.rules`) are excluded — their filename is too
-/// generic to attribute by file existence alone.
+/// covered by the canonical file and is intentionally skipped. Generic
+/// non-discovery entrypoints (currently `.rules`) are included only when their
+/// workspace proves ownership or the file already carries a managed grund block.
 fn companion_agent_entrypoints(root: &Path) -> Result<Vec<PathBuf>, (PathBuf, String)> {
     let mut paths = Vec::new();
     let canonical = root.join(CANONICAL_AGENT_ENTRYPOINT);
     for entrypoint in COMPANION_AGENT_ENTRYPOINTS {
-        if !entrypoint.discovery {
-            continue;
-        }
         let path = root.join(entrypoint.rel);
         if !is_file_or_symlink(&path) {
             continue;
         }
         match is_symlink_to(&path, &canonical) {
             Ok(true) => continue,
-            Ok(false) => paths.push(path),
+            Ok(false) => {
+                if companion_entrypoint_selected_for_check(root, entrypoint, &path) {
+                    paths.push(path);
+                }
+            }
             Err(err) => return Err((path, format!("{err:#}"))),
         }
     }
@@ -271,22 +285,24 @@ fn companion_agent_entrypoints(root: &Path) -> Result<Vec<PathBuf>, (PathBuf, St
 }
 
 /// Companion entrypoints `grund init` should update or create (§FS-init.2.1).
-/// Existing companions are updated in place. Entries with `discovery = false`
-/// are skipped — they are workspace- or flag-gated, never file-detected.
+/// Existing companions are updated in place. Generic non-discovery entrypoints
+/// are not selected by filename alone, but they are selected when the owning
+/// workspace exists or when a previous `grund init` left a managed block there.
 fn existing_init_companion_agent_entrypoints(
     root: &Path,
 ) -> Result<Vec<InitCompanionAgentEntrypoint>, (PathBuf, String)> {
     let mut paths = Vec::new();
     let canonical = root.join(CANONICAL_AGENT_ENTRYPOINT);
     for entrypoint in COMPANION_AGENT_ENTRYPOINTS {
-        if !entrypoint.discovery {
-            continue;
-        }
         let path = root.join(entrypoint.rel);
         if is_file_or_symlink(&path) {
             match is_symlink_to(&path, &canonical) {
                 Ok(true) => continue,
-                Ok(false) => paths.push(InitCompanionAgentEntrypoint::Existing(path)),
+                Ok(false) => {
+                    if existing_init_companion_selected(root, entrypoint, &path) {
+                        paths.push(InitCompanionAgentEntrypoint::Existing(path));
+                    }
+                }
                 Err(err) => return Err((path, format!("{err:#}"))),
             }
         }
@@ -335,11 +351,42 @@ fn requested_init_companion_agent_entrypoints(
                 Ok(false) => paths.push(InitCompanionAgentEntrypoint::Existing(path)),
                 Err(err) => return Err((path, format!("{err:#}"))),
             }
-        } else {
+        } else if entrypoint.create_on_request {
             paths.push(InitCompanionAgentEntrypoint::MissingAlias(path));
         }
     }
     Ok((canonical_requested_by_symlink, paths))
+}
+
+fn companion_workspace_exists(root: &Path, entrypoint: &CompanionAgentEntrypoint) -> bool {
+    entrypoint
+        .workspace
+        .is_some_and(|workspace| root.join(workspace).is_dir())
+}
+
+fn existing_init_companion_selected(
+    root: &Path,
+    entrypoint: &CompanionAgentEntrypoint,
+    path: &Path,
+) -> bool {
+    entrypoint.discovery
+        || companion_workspace_exists(root, entrypoint)
+        || companion_has_managed_block(path)
+}
+
+fn companion_entrypoint_selected_for_check(
+    root: &Path,
+    entrypoint: &CompanionAgentEntrypoint,
+    path: &Path,
+) -> bool {
+    entrypoint.discovery
+        || companion_workspace_exists(root, entrypoint)
+        || companion_has_managed_block(path)
+}
+
+fn companion_has_managed_block(path: &Path) -> bool {
+    fs::read_to_string(path)
+        .is_ok_and(|text| find_agents_block(&text).is_some())
 }
 
 fn is_file_or_symlink(path: &Path) -> bool {
