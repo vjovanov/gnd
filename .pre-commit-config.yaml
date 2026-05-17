@@ -21,6 +21,29 @@
 repos:
   - repo: local
     hooks:
+      # `cargo fmt` and `cargo build` mirror the CI workflow's checks exactly
+      # (§AR-ci.1, .github/workflows/ci.yml) so every commit is well-formatted
+      # and compiles cleanly before it leaves the developer's machine:
+      #   - `cargo fmt --all -- --check` matches the CI `cargo fmt --check` step.
+      #   - `cargo build --workspace --all-targets --locked` with `RUSTFLAGS=-Dwarnings`
+      #     matches the CI build step and its `RUSTFLAGS: "-D warnings"` env. The
+      #     `env` prefix is just `/usr/bin/env` so the env var is applied to the
+      #     single cargo invocation without depending on shell-syntax expansion
+      #     in pre-commit's argv split. Clippy is intentionally **not** part of
+      #     CI (see .github/workflows/ci.yml), so it is intentionally not here
+      #     either — match the CI gate, do not add a stricter one.
+      - id: cargo-fmt-check
+        name: cargo fmt --check
+        entry: cargo fmt --all -- --check
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: cargo-build
+        name: cargo build (warnings as errors)
+        entry: env RUSTFLAGS=-Dwarnings cargo build --workspace --all-targets --locked
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: grund-check
         name: grund check
         entry: cargo run --quiet -- check
