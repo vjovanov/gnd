@@ -82,7 +82,7 @@ fn wrap_markdown_links(
 
 /// Flatten `grund fmt --cross-refs` link wrappers in a body before `grund show`
 /// prints it in `text` / `json` (§FS-show.3.2, §DF-show-cross-ref-flattening):
-/// `[§<ID>.<section>](path#anchor)` → `§<ID>.<section>`. The inverse of
+/// `[§[alias/]<ID>.<section>](path#anchor)` → `§[alias/]<ID>.<section>`. The inverse of
 /// `wrap_markdown_links` (§FS-fmt.6.2) — the wrap shape is a `[` immediately
 /// before a marker-prefixed citation token and `](…)` immediately after it,
 /// exactly what `grund fmt --cross-refs` emits and re-derives (§FS-fmt.6.3); that
@@ -112,13 +112,6 @@ fn flatten_cross_ref_links_line(line: &str, config: &Config) -> String {
         if !line[..cite_start].ends_with(marker) {
             continue;
         }
-        // §AR-workspace.8: cross-ref flattening is the inverse of
-        // `wrap_markdown_links`, which itself skips qualified citations
-        // (§FS-workspace.8). Skip them here too so the round-trip stays a
-        // no-op for `§alias/<ID>`.
-        if caps.name("namespace").is_some() {
-            continue;
-        }
         let Some(marker_start) = cite_start.checked_sub(marker.len()) else {
             continue;
         };
@@ -146,7 +139,7 @@ fn flatten_cross_ref_links_line(line: &str, config: &Config) -> String {
             continue;
         }
         output.push_str(&line[cursor..bracket_pos]);
-        output.push_str(&line[marker_start..cite_end]); // §<ID>[.<section>]
+        output.push_str(&line[marker_start..cite_end]); // §[alias/]<ID>[.<section>]
         cursor = close + 1;
     }
     output.push_str(&line[cursor..]);

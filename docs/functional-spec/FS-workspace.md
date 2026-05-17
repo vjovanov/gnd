@@ -153,14 +153,18 @@ every command in this section:
   workspace-aggregate, even when a workspace exists above it.
 - **The "current project" is what an unqualified ID resolves against** (§4):
   the root project at the workspace root, the member project inside a member
-  tree. Cross-project lookups always require the `<alias>/<ID>` form. There is
-  no `--all-projects` flag; the alias *is* the scope handle.
+  tree. When `include_root = false` and the command is invoked at the workspace
+  root, there is no current project; commands that accept a single ID reject an
+  unqualified `<ID>` and require `<alias>/<ID>` instead. Cross-project lookups
+  always require the `<alias>/<ID>` form. There is no `--all-projects` flag; the
+  alias *is* the scope handle.
 - **`include_root = false`** (§2): when the root project is excluded from the
   workspace, it has no catalog entry and its alias is not known. `<§>root/<ID>`
   (or whatever name `project_name` would have assigned) is treated as any other
   unknown alias by every command in this section — the root alias is not
-  silently reserved. Completions, `show`, `refs`, and `list --project` all
-  agree on this.
+  silently reserved. Output paths still render from the workspace root, not from
+  the first member. Completions, `show`, `refs`, and `list --project` all agree
+  on this.
 
 ### 8.1 `grund show`
 

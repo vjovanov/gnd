@@ -64,7 +64,10 @@ fn command_refs(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let current_config = &context.current_project().config;
+    let current_config = context
+        .current_project()
+        .map(|project| &project.config)
+        .unwrap_or_else(|| context.render_config());
     let (alias, id, inline_section) = match parse_qualified_id_arg(&id_arg, &current_config.grammar) {
         Ok(parsed) => parsed,
         Err(err) => {
@@ -104,7 +107,19 @@ fn command_refs(args: &[String]) -> ExitCode {
                 return ExitCode::from(2);
             }
         },
-        None => context.current_project(),
+        None => match context.current_project() {
+            Some(project) => project,
+            None => {
+                eprintln!(
+                    "error: unqualified ID requires a project alias when include_root = false"
+                );
+                let known = context.aliases().join(", ");
+                if !known.is_empty() {
+                    eprintln!("known aliases: {known}");
+                }
+                return ExitCode::from(2);
+            }
+        },
     };
     let target_alias = target_project.alias.as_str();
     let render_config = &target_project.config;
@@ -124,7 +139,12 @@ fn command_refs(args: &[String]) -> ExitCode {
     let mut had_scan_errors = false;
     for project in &context.projects {
         had_scan_errors |= !project.scan_errors.is_empty();
-        let is_target = std::ptr::eq(project, target_project);
+        // Workspace aliases are unique (§FS-workspace.3, enforced at
+        // load), so equality on the alias string is the canonical "is
+        // this the target project?" check — preferred over pointer
+        // identity so a future refactor that clones a project does not
+        // silently drop local hits.
+        let is_target = project.alias == target_alias;
         for citation in &project.findings.citations {
             // Same-project local citation: counts when this project IS the
             // target. A `§<ID>` inside a different project resolves against
@@ -182,10 +202,6 @@ fn command_refs(args: &[String]) -> ExitCode {
     // stdout (text and JSON alike), like `grund list` / `grund cover` / `grund show` —
     // even though a line shares the `path:line: <text>` shape `check` uses for
     // diagnostics on stderr. Only the `note:` breadcrumb above stays on stderr.
-    // §FS-refs.3: the citation list is the *result* of the query, so it goes to
-    // stdout (text and JSON alike), like `grund list` / `grund cover` / `grund show` —
-    // even though a line shares the `path:line: <text>` shape `check` uses for
-    // diagnostics on stderr. Only the `note:` breadcrumb above stays on stderr.
     // §FS-workspace.8.2: in workspace mode paths render relative to the
     // workspace root so a `--summary` line points at the same file
     // regardless of which member it lives in; each citation's project alias
@@ -193,7 +209,7 @@ fn command_refs(args: &[String]) -> ExitCode {
     // not the target — the target is the query arg).
     let render_path = |project: &WorkspaceProject, path: &Path| -> String {
         if context.workspace_loaded {
-            display_path(&context.projects[context.current].config, path)
+            display_path(context.render_config(), path)
         } else {
             display_path(&project.config, path)
         }

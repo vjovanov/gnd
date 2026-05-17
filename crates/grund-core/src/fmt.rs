@@ -40,7 +40,7 @@ fn command_fmt(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let config = context.current_project().config.clone();
+    let config = context.render_config().clone();
     let cross_refs = cross_refs || (write && config.fmt_cross_refs_enabled);
     // §FS-workspace.8.5: a workspace-root run wraps qualified citations in
     // *every* project's files — a heading rename in `api` must trigger a

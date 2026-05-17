@@ -92,7 +92,7 @@ fn command_list(args: &[String]) -> ExitCode {
     // Pick the render context for the catalog's path/format columns: the
     // workspace root in workspace mode (so paths span members), otherwise
     // the only project.
-    let config = context.current_project().config.clone();
+    let config = context.render_config().clone();
     let format = format_override.unwrap_or_else(|| config.output_format.clone());
     if !matches!(format.as_str(), "text" | "json") {
         eprintln!("error: unsupported list format `{format}`");
@@ -141,6 +141,27 @@ fn command_list(args: &[String]) -> ExitCode {
         duplicate: bool,
         refs: usize,
     }
+    // §FS-workspace.8.3: each citation belongs to exactly one target
+    // project — its `namespace` when qualified, the citing project when
+    // not — so a single pass over every project's citations builds the
+    // per-target lookup. Doing this once up front (rather than re-walking
+    // every project's citations per target) keeps the count linear in the
+    // total citation set, not quadratic in the project count.
+    let mut ref_counts_by_alias: BTreeMap<&str, BTreeMap<&Id, usize>> = BTreeMap::new();
+    for source in &context.projects {
+        for citation in &source.findings.citations {
+            let target_alias: &str = match &citation.namespace {
+                Some(ns) => ns.as_str(),
+                None => source.alias.as_str(),
+            };
+            *ref_counts_by_alias
+                .entry(target_alias)
+                .or_default()
+                .entry(&citation.id)
+                .or_insert(0) += 1;
+        }
+    }
+    let empty_ref_counts: BTreeMap<&Id, usize> = BTreeMap::new();
     let mut entries: Vec<Entry> = Vec::new();
     let mut had_scan_errors = false;
     for project in &context.projects {
@@ -153,19 +174,9 @@ fn command_list(args: &[String]) -> ExitCode {
         // *target* project's ref count, not the citing project's — that
         // lets a workspace-root `grund list --unused` see members'
         // declarations that only sibling projects cite.
-        let mut ref_counts: BTreeMap<&Id, usize> = BTreeMap::new();
-        for source in &context.projects {
-            for citation in &source.findings.citations {
-                let targets_this_project = match (&citation.namespace, std::ptr::eq(source, project)) {
-                    (Some(ns), _) => ns == &project.alias,
-                    (None, same) => same,
-                };
-                if !targets_this_project {
-                    continue;
-                }
-                *ref_counts.entry(&citation.id).or_insert(0) += 1;
-            }
-        }
+        let ref_counts: &BTreeMap<&Id, usize> = ref_counts_by_alias
+            .get(project.alias.as_str())
+            .unwrap_or(&empty_ref_counts);
         for (id, decls) in &project.findings.declarations {
             if !kind_filter.is_empty() && !kind_filter.contains(&id.kind) {
                 continue;

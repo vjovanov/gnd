@@ -20,7 +20,7 @@ So the dogfood produced a worse `grund show` output than the pitch advertises, p
 
 ### 2.1 What "a wrapper" is
 
-The same shape `grund fmt --cross-refs` emits and re-derives ([§FS-fmt.6.2](../../functional-spec/FS-fmt.md#62-form), [§FS-fmt.6.3](../../functional-spec/FS-fmt.md#63-idempotency-and-re-derive)): a `[` immediately before a marker-prefixed citation token, and `](` … `)` immediately after it. That `[§<ID>[.<section>]](<destination>)` collapses to just `§<ID>[.<section>]`. This is a textual inverse of the wrap pass, line by line — it parses no Markdown beyond that shape.
+The same shape `grund fmt --cross-refs` emits and re-derives ([§FS-fmt.6.2](../../functional-spec/FS-fmt.md#62-form), [§FS-fmt.6.3](../../functional-spec/FS-fmt.md#63-idempotency-and-re-derive)): a `[` immediately before a marker-prefixed citation token, and `](` … `)` immediately after it. That `[§[<alias>/]<ID>[.<section>]](<destination>)` collapses to just `§[<alias>/]<ID>[.<section>]`. This is a textual inverse of the wrap pass, line by line — it parses no Markdown beyond that shape.
 
 Nothing else is touched:
 

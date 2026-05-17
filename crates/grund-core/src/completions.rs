@@ -68,7 +68,10 @@ fn command_complete_ids(args: &[String]) -> ExitCode {
     // slash completes the current project's IDs and, in workspace mode,
     // also emits one trailing-slash candidate per known alias so the shell
     // can advance from `api` → `api/`.
-    let current_config = &context.current_project().config;
+    let current_config = context
+        .current_project()
+        .map(|project| &project.config)
+        .unwrap_or_else(|| context.render_config());
     if let Some(slash) = prefix.find('/') {
         let (alias_prefix, id_prefix) = prefix.split_at(slash);
         let id_prefix = &id_prefix[1..];
@@ -106,19 +109,21 @@ fn command_complete_ids(args: &[String]) -> ExitCode {
 
     let complete_sections = force_sections || prefix.contains(&current_config.section_separator);
     let mut candidates = BTreeSet::new();
-    for (id, decls) in &context.current_project().findings.declarations {
-        let rendered = render_id(current_config, id);
-        if complete_sections {
-            for decl in decls {
-                for section in decl.sections.keys() {
-                    candidates.insert(format!(
-                        "{}{}{}",
-                        rendered, current_config.section_separator, section
-                    ));
+    if let Some(current_project) = context.current_project() {
+        for (id, decls) in &current_project.findings.declarations {
+            let rendered = render_id(current_config, id);
+            if complete_sections {
+                for decl in decls {
+                    for section in decl.sections.keys() {
+                        candidates.insert(format!(
+                            "{}{}{}",
+                            rendered, current_config.section_separator, section
+                        ));
+                    }
                 }
+            } else {
+                candidates.insert(rendered);
             }
-        } else {
-            candidates.insert(rendered);
         }
     }
     if context.workspace_loaded {
