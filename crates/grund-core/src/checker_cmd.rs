@@ -138,7 +138,8 @@ fn command_check_workspace(
         let alias = match derive_alias(&root_config, None, RootMode::Root) {
             Ok(alias) => alias,
             Err(err) => {
-                eprintln!("error: {err}");
+                let message = format!("{err} for {}", project_label(&root_config, &root_config.root));
+                eprintln!("error: {:#}", project_name_error(&root_config, message));
                 return ExitCode::from(2);
             }
         };
@@ -168,19 +169,35 @@ fn command_check_workspace(
         let alias = match derive_alias(&member_config, Some(&member_root), RootMode::Member) {
             Ok(alias) => alias,
             Err(err) => {
-                eprintln!("error: {err}");
+                let message = format!("{err} for {}", project_label(&root_config, &member_root));
+                let err = if member_config.project_name_source.is_some() {
+                    project_name_error(&member_config, message)
+                } else {
+                    workspace_members_error(&root_config, message)
+                };
+                eprintln!("error: {err:#}");
                 return ExitCode::from(2);
             }
         };
         projects.push((alias, member_config));
     }
 
-    let mut seen_aliases = BTreeSet::new();
-    for (alias, _) in &projects {
-        if !seen_aliases.insert(alias.clone()) {
-            eprintln!("error: duplicate workspace project alias `{alias}`");
+    let mut seen_aliases: BTreeMap<String, PathBuf> = BTreeMap::new();
+    for (alias, config) in &projects {
+        if let Some(first_root) = seen_aliases.get(alias) {
+            eprintln!(
+                "error: {:#}",
+                workspace_members_error(
+                    &root_config,
+                    format!(
+                        "duplicate workspace project alias `{alias}` ({})",
+                        duplicate_alias_sites(&root_config, first_root, &config.root)
+                    ),
+                )
+            );
             return ExitCode::from(2);
         }
+        seen_aliases.insert(alias.clone(), config.root.clone());
     }
 
     let mut scanned = Vec::new();
@@ -356,27 +373,24 @@ fn expand_workspace_members(config: &Config) -> Result<Vec<PathBuf>> {
         if let Some(parent) = member.strip_suffix("/*") {
             let parent = config.root.join(parent);
             if !parent.is_dir() {
-                return Err(anyhow!(
-                    "workspace member glob parent does not exist: {}",
-                    display_path(config, &parent)
+                return Err(workspace_members_error(
+                    config,
+                    format!(
+                        "workspace member glob parent does not exist: {}",
+                        display_path(config, &parent)
+                    ),
                 ));
             }
             for entry in fs::read_dir(&parent)? {
                 let entry = entry?;
-                let path = entry.path();
-                if !path.is_dir() {
+                if !entry.file_type()?.is_dir() {
                     continue;
                 }
-                // §AR-workspace.5.3: a glob like `packages/*` should not pull in
-                // hidden directories such as `.git`, `.agents`, or `.cache` as
-                // workspace members. Their basenames are also invalid aliases,
-                // so without this filter expansion would fail with a misleading
-                // `invalid workspace project alias .git` error.
-                if path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .is_some_and(|name| name.starts_with('.'))
-                {
+                let path = entry.path();
+                // §AR-workspace.5.3: `packages/*` skips hidden dirs (`.git`,
+                // `.agents`, ...) — they are never workspace members and are
+                // not valid aliases either.
+                if is_hidden(&path) {
                     continue;
                 }
                 roots.push(fs::canonicalize(&path).unwrap_or(path));
@@ -384,9 +398,9 @@ fn expand_workspace_members(config: &Config) -> Result<Vec<PathBuf>> {
         } else {
             let path = config.root.join(member);
             if !path.is_dir() {
-                return Err(anyhow!(
-                    "workspace member does not exist: {}",
-                    display_path(config, &path)
+                return Err(workspace_members_error(
+                    config,
+                    format!("workspace member does not exist: {}", display_path(config, &path)),
                 ));
             }
             roots.push(fs::canonicalize(&path).unwrap_or(path));
@@ -402,10 +416,13 @@ fn reject_overlapping_workspace_members(config: &Config, roots: &[PathBuf]) -> R
     for (i, parent) in roots.iter().enumerate() {
         for (j, child) in roots.iter().enumerate() {
             if i != j && child.starts_with(parent) {
-                return Err(anyhow!(
-                    "workspace members overlap: `{}` contains `{}`",
-                    display_path(config, parent),
-                    display_path(config, child)
+                return Err(workspace_members_error(
+                    config,
+                    format!(
+                        "workspace members overlap: `{}` contains `{}`",
+                        display_path(config, parent),
+                        display_path(config, child)
+                    ),
                 ));
             }
         }
@@ -413,9 +430,62 @@ fn reject_overlapping_workspace_members(config: &Config, roots: &[PathBuf]) -> R
     Ok(())
 }
 
+fn workspace_members_error(config: &Config, message: String) -> anyhow::Error {
+    config_location_error(config.workspace_members_source.as_ref(), message)
+}
+
+fn project_name_error(config: &Config, message: String) -> anyhow::Error {
+    config_location_error(config.project_name_source.as_ref(), message)
+}
+
+fn config_location_error(source: Option<&ConfigLocation>, message: String) -> anyhow::Error {
+    if let Some(source) = source {
+        anyhow!("{}:{}: {message}", format_path(&source.path), source.line)
+    } else {
+        anyhow!("{message}")
+    }
+}
+
 enum RootMode {
     Root,
     Member,
+}
+
+/// Phrase a workspace project's identity for a launch-time error message: the
+/// root collapses to `workspace root`, members render as `workspace member
+/// `<rel-path>``. §GOAL-friendliness-first.1 — duplicate-alias and
+/// invalid-alias errors are CLI-level (no `path:line:`), so they have to name
+/// the source project in the message itself.
+fn project_label(root_config: &Config, project_root: &Path) -> String {
+    if project_root == root_config.root {
+        "workspace root".to_string()
+    } else {
+        format!(
+            "workspace member `{}`",
+            display_path(root_config, project_root)
+        )
+    }
+}
+
+/// Render the two colliding project roots for `duplicate workspace project
+/// alias`. When both are members we fold the shared `workspace member` prefix
+/// (`workspace members `a` and `b``); when one side is the root we keep the
+/// asymmetric pairing (`workspace root and workspace member `b``).
+fn duplicate_alias_sites(root_config: &Config, first: &Path, second: &Path) -> String {
+    let first_is_root = first == root_config.root;
+    let second_is_root = second == root_config.root;
+    if !first_is_root && !second_is_root {
+        return format!(
+            "workspace members `{}` and `{}`",
+            display_path(root_config, first),
+            display_path(root_config, second)
+        );
+    }
+    format!(
+        "{} and {}",
+        project_label(root_config, first),
+        project_label(root_config, second)
+    )
 }
 
 /// §AR-workspace.5.3: the single canonical place that derives a project's

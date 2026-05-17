@@ -139,6 +139,10 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
             }
             ("", "project_name") => {
                 config.project_name = Some(parse_string(path, line_no, value)?);
+                config.project_name_source = Some(ConfigLocation {
+                    path: path.to_path_buf(),
+                    line: line_no,
+                });
             }
             ("reference", "marker") => config.marker = parse_string(path, line_no, value)?,
             ("reference", "trigger") => config.trigger = parse_string(path, line_no, value)?,
@@ -265,6 +269,10 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
             }
             ("workspace", "members") => {
                 config.workspace_members = parse_string_list(path, line_no, value)?;
+                config.workspace_members_source = Some(ConfigLocation {
+                    path: path.to_path_buf(),
+                    line: line_no,
+                });
             }
             ("workspace", "include_root") => {
                 config.workspace_include_root = parse_bool(path, line_no, value)?;
@@ -339,13 +347,15 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
     // `command_check_workspace` (§AR-workspace.5.3). The workspace member
     // list, by contrast, is shape-checked here — an entry like
     // `members = ["/abs/path"]` is wrong before we even look at it.
-    for member in &config.workspace_members {
-        validate_workspace_member(path, member)?;
+    if let Some(source) = &config.workspace_members_source {
+        for member in &config.workspace_members {
+            validate_workspace_member(&source.path, source.line, member)?;
+        }
     }
     Ok(())
 }
 
-fn validate_workspace_member(path: &Path, member: &str) -> Result<()> {
+fn validate_workspace_member(path: &Path, line: usize, member: &str) -> Result<()> {
     let member_path = Path::new(member);
     if member.is_empty()
         || member_path.is_absolute()
@@ -369,8 +379,8 @@ fn validate_workspace_member(path: &Path, member: &str) -> Result<()> {
         || (member.contains('*') && !member.ends_with("/*"))
     {
         return Err(anyhow!(
-            "{}: invalid [workspace] member `{member}` (expected relative path or trailing /* glob)",
-            format_path(path)
+            "{}:{line}: invalid [workspace] member `{member}` (expected relative path or trailing /* glob)",
+            format_path(path),
         ));
     }
     Ok(())

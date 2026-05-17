@@ -135,11 +135,12 @@ must hold for *every* shape of config the loader can return:
 - The `[workspace] members` list shape (no native absolute paths, no
   Windows-style drive/UNC/backslash forms, no `..`, no multi-segment globs) is
   universal: a member entry never has a valid alternative reading. Checked at
-  load.
+  load, with diagnostics anchored at the `members` line.
 - Expanded member roots must not overlap. If `apps/api` and `apps/api/sub` are
   both members, scanning the parent can absorb the child namespace unless every
   member scan also carries a bespoke boundary table. Rejecting overlap keeps
-  workspace expansion simple and makes namespace boundaries explicit.
+  workspace expansion simple, makes namespace boundaries explicit, and reports
+  at the `members` line that introduced the conflicting roots.
 - `project_name` is *not* universal. [§FS-config.3](../functional-spec/FS-config.md#3-schema) makes it free-form metadata
   when the project is standalone, and only an alias when it participates in a
   workspace. The slug check therefore lives in `derive_alias`
@@ -163,7 +164,9 @@ The workspace alias for a project is, in order:
 
 This ordering is implemented in *one* place. Commands ask for "the alias of
 this `ProjectScan`" rather than re-deriving it from a config + path pair on
-their own.
+their own. Alias errors still obey [§GOAL-friendliness-first.1](../goals.md#1-hard-requirements): a bad explicit
+`project_name` points at that key, while a bad basename fallback or duplicate
+member alias points at the workspace `members` line that introduced the member.
 
 ## 6. The workspace boundary
 
