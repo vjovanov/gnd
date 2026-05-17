@@ -77,8 +77,8 @@ repos:
         language: system
         # Same script, second stage. pre-commit passes the commit-message
         # file as the single argument; the script greps it with the same
-        # patterns as the staged-files hook. Catches Co-Authored-By: Claude
-        # and 🤖-style trailers that slip into commit messages even when no
+        # patterns as the staged-files hook. Catches forbidden co-author
+        # and generated-by trailers that slip into commit messages even when no
         # tracked file contains them.
         stages: [commit-msg]
         pass_filenames: true
