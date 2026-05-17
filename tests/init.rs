@@ -252,6 +252,51 @@ fn init_agent_flags_create_requested_entrypoints() {
 }
 
 #[test]
+fn init_workspace_companion_only_marks_missing_self_agents_and_uses_marker() {
+    // §FS-init.2.3.4.15: a companion-only workspace init must not point the self
+    // row at a missing AGENTS.md, and its grammar hint must use the local marker.
+    let root = workdir("init_workspace_companion_only_marks_missing_self_agents_and_uses_marker");
+    fs::create_dir_all(root.join(".agents")).expect("create root config dir");
+    fs::write(
+        root.join(".agents/grund.toml"),
+        "project_name = \"root\"\n\n[workspace]\nmembers = [\"apps/api\"]\n",
+    )
+    .expect("write workspace config");
+    let api = root.join("apps/api");
+    fs::create_dir_all(api.join(".agents")).expect("create api config dir");
+    fs::write(
+        api.join(".agents/grund.toml"),
+        "[reference]\nmarker = \"@\"\nstrict = true\n",
+    )
+    .expect("write api config");
+
+    let output = run_grund(&["init", api.to_str().unwrap(), "--claude"], manifest_dir());
+    assert!(
+        output.status.success(),
+        "init failed: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !api.join("AGENTS.md").exists(),
+        "explicit companion-only init should not create AGENTS.md"
+    );
+
+    let claude = fs::read_to_string(api.join("CLAUDE.md")).expect("read CLAUDE.md");
+    assert!(
+        claude.contains("Cross-project citations use @alias/<ID>."),
+        "workspace citation hint should use the configured marker:\n{claude}"
+    );
+    assert!(
+        claude.contains("- `api` → [./](./) *(not yet initialized)*"),
+        "self row should link to the project directory until AGENTS.md exists:\n{claude}"
+    );
+    assert!(
+        !claude.contains("- `api` → [AGENTS.md](AGENTS.md)"),
+        "companion-only init must not link to a missing AGENTS.md:\n{claude}"
+    );
+}
+
+#[test]
 fn init_cursor_flag_updates_existing_legacy_cursorrules() {
     // FS-init.2.1 / FS-init.2.3: explicit --cursor creates/updates the modern
     // Cursor rule file and also updates legacy .cursorrules when it already

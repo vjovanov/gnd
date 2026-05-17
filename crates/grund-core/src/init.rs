@@ -80,16 +80,6 @@ fn command_init(args: &[String]) -> ExitCode {
         },
     };
 
-    // §FS-init.2.3: render agent instructions against the config `init` leaves in
-    // place, so the ID-shape / kind / marker prose matches `.agents/grund.toml`.
-    let init_config = init_pending_effective_config(&target, &resolved_name);
-
-    // Render the managed block once and reuse it for both surfaces — the
-    // workspace-members walk-up (§FS-init.2.3.4.15) is non-trivial I/O for a
-    // large workspace and produces byte-identical output each time.
-    let agents_block = render_agents_append_block(&resolved_name, &init_config, &target);
-    let agents_contents = render_agents_md_from_block(&resolved_name, &agents_block);
-
     let agent_entrypoints = match selected_init_agent_entrypoints(&target, &agent_selection) {
         Ok(entrypoints) => entrypoints,
         Err((path, message)) => {
@@ -97,6 +87,24 @@ fn command_init(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+
+    // §FS-init.2.3: render agent instructions against the config `init` leaves in
+    // place, so the ID-shape / kind / marker prose matches `.agents/grund.toml`.
+    let init_config = init_pending_effective_config(&target, &resolved_name);
+
+    // Render the managed block once and reuse it for both surfaces — the
+    // workspace-members walk-up (§FS-init.2.3.4.15) is non-trivial I/O for a
+    // large workspace and produces byte-identical output each time. The selected
+    // entrypoint plan determines whether a missing self `AGENTS.md` should be
+    // treated as about-to-exist; companion-only init must not link to a missing
+    // canonical entrypoint.
+    let agents_block = render_agents_append_block(
+        &resolved_name,
+        &init_config,
+        &target,
+        agent_entrypoints.canonical,
+    );
+    let agents_contents = render_agents_md_from_block(&resolved_name, &agents_block);
     let mut workflow_entrypoint = None;
     // Track whether any path changed (or, under --dry-run, *would* change).
     // The `next:` block is suppressed when every reported path is `exists `,
