@@ -18,7 +18,7 @@ e2e/cases/<case-name>/
 
 `expected.exit` contains `0`, `1`, or `2`. `expected.stdout` and `expected.stderr` are compared byte-for-byte, except that a file containing only one newline is treated as empty so empty golden files can be represented cleanly in patches.
 
-Most cases run `grund <repo>`. A case may override the command with `command.args`; use `{repo}` for the fixture repo path. For write-mode tests, use `{repo_copy}` so the harness copies the fixture under `target/e2e-work/` before running the command.
+Most cases run `grund check <repo>`. A case may override the command with `command.args`; use `{repo}` for the fixture repo path. For write-mode tests, use `{repo_copy}` so the harness copies the fixture under `target/e2e-work/` before running the command.
 
 Error output is part of the contract. Non-zero cases should keep `expected.stderr` concise: one actionable diagnostic per line, no aggregate footer, and no long explanatory prose that makes editor and agent consumption harder.
 
@@ -38,7 +38,7 @@ Error output is part of the contract. Non-zero cases should keep `expected.stder
 - config custom marker in strict mode
 - config include/exclude/extensions
 - explicit `check` subcommand
-- unknown-command / mistyped-path failure (dual-reading message)
+- default `show` shorthand and mistyped-path failure with explicit-check hint
 - top-level help output
 - per-subcommand help (`grund help check`, `grund help show`, `grund help list`)
 - `grund help <unknown>` failure

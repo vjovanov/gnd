@@ -68,7 +68,7 @@ fn list() -> Command {
     Command::new(GRUND).args(["list", REPO]).build()
 }
 
-// `grund show <ID> --brief <repo>` — title plus first paragraph.
+// `grund <ID> --brief <repo>` — title plus first paragraph.
 #[cfg(feature = "bench")]
 #[binary_benchmark]
 fn show_brief() -> Command {
@@ -77,14 +77,14 @@ fn show_brief() -> Command {
         .build()
 }
 
-// `grund show <ID> <repo>` — the lead-default declaration read.
+// `grund <ID> <repo>` — the lead-default declaration read.
 #[cfg(feature = "bench")]
 #[binary_benchmark]
 fn show() -> Command {
     Command::new(GRUND).args(["show", SHOW_ID, REPO]).build()
 }
 
-// `grund show <ID> --full <repo>` — one full declaration body.
+// `grund <ID> --full <repo>` — one full declaration body.
 #[cfg(feature = "bench")]
 #[binary_benchmark]
 fn show_full() -> Command {

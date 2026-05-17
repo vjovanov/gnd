@@ -110,7 +110,7 @@ Authors disambiguate by editing the title.
 ## 6. Exit codes
 
 - `0` — proposed ID emitted.
-- `1` — slug empty (§3) or collision detected (§5). These are query failures — `id` had a well-formed request but cannot return an ID — so they print a bare line on stderr, no `error:` prefix, the same convention `grund show` uses for `ID not found` ([§FS-errors.2.3](FS-errors.md#23-bare-query-failure)).
+- `1` — slug empty (§3) or collision detected (§5). These are query failures — `id` had a well-formed request but cannot return an ID — so they print a bare line on stderr, no `error:` prefix, the same convention ID queries use for `ID not found` ([§FS-errors.2.3](FS-errors.md#23-bare-query-failure)).
 - `2` — scan / I/O error, an unknown kind, an unknown `--format`, or any other CLI-level error ([§FS-cli.4](FS-cli.md#4-errors-with-no-source-location)). These print `error: <message>` on stderr — the prefix CI scripts grep for to tell a launch-time failure from a clean run.
 
 ## 7. What `id` does **not** do

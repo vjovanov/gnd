@@ -6,6 +6,26 @@
 /// (§FS-show.2.2). Ambiguous IDs and missing IDs/sections exit `1` with a hint
 /// (§FS-show.2.2.1, §FS-show.3).
 fn command_show(args: &[String]) -> ExitCode {
+    command_show_impl(args, false)
+}
+
+/// Default `grund <ID>` dispatch (§FS-cli.1): identical to explicit `show`,
+/// except invalid-ID diagnostics also remind users that path validation is now
+/// explicit as `grund check <path>`.
+fn command_show_default(args: &[String]) -> ExitCode {
+    command_show_impl(args, true)
+}
+
+/// `true` when an invalid `grund <word>` looks more like a typo'd subcommand
+/// than a botched ID — no `-` (the default `{kind}-{slug}` separator), no `/`
+/// (workspace alias), no `.` (section). For those inputs the default-show
+/// diagnostic adds a `grund --help` pointer so the typo lands somewhere
+/// useful (§FS-cli.1).
+fn looks_like_subcommand_typo(arg: &str) -> bool {
+    !arg.is_empty() && !arg.contains('-') && !arg.contains('/') && !arg.contains('.')
+}
+
+fn command_show_impl(args: &[String], default_invocation: bool) -> ExitCode {
     if args.is_empty() {
         eprintln!("error: show requires an ID");
         return ExitCode::from(2);
@@ -115,6 +135,12 @@ fn command_show(args: &[String]) -> ExitCode {
                     "hint: this repo's [id] format is `{}` (run `grund config show`); `grund list` shows the IDs that exist",
                     current_config.id_format
                 );
+                if default_invocation {
+                    eprintln!("hint: run `grund check {id_arg}` to validate a path");
+                    if looks_like_subcommand_typo(&id_arg) {
+                        eprintln!("hint: run `grund --help` for the list of subcommands");
+                    }
+                }
             }
             return ExitCode::FAILURE;
         }
@@ -128,6 +154,18 @@ fn command_show(args: &[String]) -> ExitCode {
         Some(name) => match context.project_by_alias(name) {
             Some(project) => project,
             None => {
+                if default_invocation && Path::new(&id_arg).exists() {
+                    eprintln!("invalid ID `{id_arg}`");
+                    eprintln!(
+                        "hint: this repo's [id] format is `{}` (run `grund config show`); `grund list` shows the IDs that exist",
+                        current_config.id_format
+                    );
+                    eprintln!("hint: run `grund check {id_arg}` to validate a path");
+                    if looks_like_subcommand_typo(&id_arg) {
+                        eprintln!("hint: run `grund --help` for the list of subcommands");
+                    }
+                    return ExitCode::FAILURE;
+                }
                 eprintln!("error: unknown project alias `{name}`");
                 if !context.workspace_loaded {
                     eprintln!(
@@ -136,6 +174,9 @@ fn command_show(args: &[String]) -> ExitCode {
                 } else {
                     let known = context.aliases().join(", ");
                     eprintln!("known aliases: {known}");
+                }
+                if default_invocation {
+                    eprintln!("hint: run `grund check {id_arg}` to validate a path");
                 }
                 return ExitCode::from(2);
             }
@@ -171,6 +212,12 @@ fn command_show(args: &[String]) -> ExitCode {
                     "hint: this repo's [id] format is `{}` (run `grund config show`); `grund list` shows the IDs that exist",
                     config.id_format
                 );
+                if default_invocation {
+                    eprintln!("hint: run `grund check {id_arg}` to validate a path");
+                    if looks_like_subcommand_typo(&id_arg) {
+                        eprintln!("hint: run `grund --help` for the list of subcommands");
+                    }
+                }
             }
             return ExitCode::FAILURE;
         }
@@ -263,7 +310,7 @@ fn command_show(args: &[String]) -> ExitCode {
                     );
                 } else if message.starts_with("section not found:") {
                     eprintln!(
-                        "hint: run `grund show {} --toc` to print the lead with the section map",
+                        "hint: run `grund {} --toc` to print the lead with the section map",
                         render_id(config, &id)
                     );
                 }

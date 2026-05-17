@@ -1,13 +1,13 @@
 grund show — print one declaration's body by ID, so an agent pulls a single fact
-into context without loading the whole document.
+into context without loading the whole document. `show` is the default command.
 
-Usage:  grund show <ID>[.<section>] [PATH] [--section S] [--brief|--toc|--full] [--format text|md|json] [--path PATH]
+Usage:  grund [show] <ID>[.<section>] [PATH] [--section S] [--brief|--toc|--full] [--format text|md|json] [--path PATH]
 
 Modes form an ordered ladder (each adds to the previous):
-  --brief                heading + first paragraph    e.g. grund show --brief FS-login
+  --brief                heading + first paragraph    e.g. grund --brief FS-login
   (default)              + the rest of the lead, cut at the first child section
-  --toc                  + the nested section map     e.g. grund show --toc FS-login
-  --full                 + every subsection body      e.g. grund show --full FS-login
+  --toc                  + the nested section map     e.g. grund --toc FS-login
+  --full                 + every subsection body      e.g. grund --full FS-login
 
 Other options:
   --section S            show only that section path, e.g. --section 3.1
@@ -17,9 +17,9 @@ Other options:
 Exit:  0 printed · 1 ID not found / ambiguous / broken stub / unknown section · 2 CLI error.
 
 Examples:
-  grund show FS-login              # the lead — the cheap default
-  grund show FS-login --toc        # lead + section map
-  grund show FS-login.3.1          # the lead of that nested section
-  grund show FS-login --full       # the whole declaration body
+  grund FS-login                   # the lead — the cheap default
+  grund FS-login --toc             # lead + section map
+  grund FS-login.3.1               # the lead of that nested section
+  grund FS-login --full            # the whole declaration body
 
 ID not found? `grund list` shows every declared ID; `grund id <KIND> "…"` proposes a new one.

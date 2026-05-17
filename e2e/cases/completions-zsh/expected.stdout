@@ -39,6 +39,11 @@ _grund() {
 
   if (( CURRENT == 2 )); then
     _describe 'grund command' commands
+    # Only scan for IDs when the prefix already looks like one (IDs start with
+    # an uppercase kind); a bare or lowercase prefix is a subcommand.
+    if [[ "$words[CURRENT]" =~ ^[A-Z] ]]; then
+      _grund_ids
+    fi
     return
   fi
 

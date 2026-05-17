@@ -8,10 +8,10 @@ This project uses [`grund`](https://github.com/vjovanov/grund): every spec, goal
 
 A `§<ID>` is a pointer to a fact, not a file path. Resolve it with `grund` and climb only as far as needed:
 
-- `grund show <ID>` — the lead (heading-less, cut at the first child section). The cheap first read for a bare `§<ID>` citation.
-- `grund show <ID> --toc` — the lead plus the nested section map. Use to choose which subsection to fetch next.
-- `grund show <ID> --full` — the entire body. Escalate to this when narrower reads aren't enough.
-- `grund show <ID> --brief` — heading + first paragraph only.
+- `grund <ID>` — the lead (heading-less, cut at the first child section). The cheap first read for a bare `§<ID>` citation.
+- `grund <ID> --toc` — the lead plus the nested section map. Use to choose which subsection to fetch next.
+- `grund <ID> --full` — the entire body. Escalate to this when narrower reads aren't enough.
+- `grund <ID> --brief` — heading + first paragraph only.
 - `grund refs <ID>` — every site that cites the ID; add `--summary` for one line per file. Run before renaming or moving a declaration.
 - `grund list` / `grund list --kind FS,AR` — discover IDs if you get lost
 

@@ -178,9 +178,9 @@ fn command_completions(args: &[String]) -> ExitCode {
     }
 }
 
-/// The bash completion script: subcommand + flag completion, with `grund show` /
-/// `grund refs` ID arguments wired to `grund complete ids` (§FS-completions.1,
-/// §FS-completions.2).
+/// The bash completion script: subcommand + flag completion, with ID queries,
+/// explicit `show`, and `refs` wired to `grund complete ids`
+/// (§FS-completions.1, §FS-completions.2).
 fn print_bash_completion() {
     // §FS-workspace.8.4: when any candidate ends in `/` (a workspace alias
     // continuation), call `compopt -o nospace` so a Tab from `api` advances
@@ -204,7 +204,14 @@ _grund() {{
     COMPREPLY=()
 
     if [[ $COMP_CWORD -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "check show list refs cover fmt id init config agent-setup-instructions completions" -- "$cur") )
+        local commands=($(compgen -W "check show list refs cover fmt id init config agent-setup-instructions completions" -- "$cur"))
+        # IDs always start with an uppercase kind (FS-…, GOAL-…), so the
+        # repo-scanning lookup only runs when the prefix already looks like one.
+        # Plain `gr<TAB>` and subcommand typos stay cheap.
+        if [[ "$cur" =~ ^[A-Z] ]]; then
+            _grund_complete_ids
+        fi
+        COMPREPLY=("${{commands[@]}}" "${{COMPREPLY[@]}}")
         return 0
     fi
 
@@ -271,6 +278,11 @@ _grund() {{
 
   if (( CURRENT == 2 )); then
     _describe 'grund command' commands
+    # Only scan for IDs when the prefix already looks like one (IDs start with
+    # an uppercase kind); a bare or lowercase prefix is a subcommand.
+    if [[ "$words[CURRENT]" =~ ^[A-Z] ]]; then
+      _grund_ids
+    fi
     return
   fi
 
@@ -300,6 +312,9 @@ function __grund_complete_ids
 end
 
 complete -c grund -f -n "__fish_use_subcommand" -a "check show list refs cover fmt id init config agent-setup-instructions completions"
+# Only scan for IDs when the prefix already looks like one (uppercase kind);
+# a lowercase or empty prefix is a subcommand and stays cheap.
+complete -c grund -f -k -n "__fish_use_subcommand; and string match -qr '^[A-Z]' -- (commandline -ct)" -a "(__grund_complete_ids)"
 complete -c grund -f -k -n "__fish_seen_subcommand_from show refs" -a "(__grund_complete_ids)"
 "#
     );

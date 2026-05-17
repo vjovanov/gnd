@@ -95,7 +95,7 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
     // rewritten by `config_for_member_scope` to drop `workspace_declared`,
     // so this flag is the single canonical "is this a workspace run?"
     // — independent of where in the workspace the user invoked the
-    // command, so `grund show alias/FS-x docs/`, `grund refs FS-y .`, and
+    // command, so `grund alias/FS-x docs/`, `grund refs FS-y .`, and
     // `grund fmt --cross-refs subdir/` all see the same workspace.
     if !config.workspace_declared {
         let (findings, scan_errors) = scan_tree(&config, Some(path), path_provided)?;

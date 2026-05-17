@@ -11,7 +11,7 @@
 
 0. **Specify your intent.** Declare the goal, spec, or decision as a `# <ID>: …` heading before any code or doc cites it.
 1. **Cite as you write.** Every code unit carries a `§<ID>` back to the spec section it implements (`§<KIND>-<slug>[.section]` — full grammar in [§4](#4-the-structure-that-gets-cited)).
-2. **Re-read before you edit.** `grund show <ID>.<section>` pulls just that subsection into context — no full-file reads, no token bloat.
+2. **Re-read before you edit.** `grund <ID>.<section>` pulls just that subsection into context — no full-file reads, no token bloat.
 3. **No dangling pointers.** `grund check` validates that every cited ID resolves — in `.md`, Rust `///`, Java doc-comments, Python docstrings, Go `//`, JSDoc, every doc-comment form `grund` knows about.
 
 Off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) only handle `.md` and only validate `[text](url)`. A `§FS-events.4` cited from `src/bus.rs` is invisible to them. That gap is what `grund` exists to close: Lychee checks whether Markdown links still open; `grund` checks whether your code still knows why it exists. Lychee is the link checker; `grund` is the intent checker. Both belong in CI; they guard different failure modes. [§GND-grund.1](docs/grund.md#1-what-grund-does-about-it)
@@ -51,18 +51,18 @@ pub struct EventBus {
 A citation is a pointer to a fact, not a file path. Resolve it without opening files:
 
 ```bash
-$ grund show FS-events.4
+$ grund FS-events.4
 A receiver that falls behind the broadcaster is disconnected, not blocked.
 The sender never waits on a slow consumer.
 ```
 
-`grund show` returns *just* the useful slice — well under 200 lines for the common case — so the agent pulls one fact into context instead of an entire file. Its ladder:
+`grund <ID>` returns *just* the useful slice — well under 200 lines for the common case — so the agent pulls one fact into context instead of an entire file. Its ladder:
 
-- `grund show <ID>` — the lead prose, cut at the first child section; the cheap default for a bare citation
-- `grund show <ID> --toc` — the lead plus the section map, for choosing the next subsection
-- `grund show <ID> --brief` — heading plus first paragraph only, for hover-sized previews
-- `grund show <ID> --full` — the full declaration body when the narrower reads are not enough
-- `grund show <ID> --format json` — for tooling
+- `grund <ID>` — the lead prose, cut at the first child section; the cheap default for a bare citation
+- `grund <ID> --toc` — the lead plus the section map, for choosing the next subsection
+- `grund <ID> --brief` — heading plus first paragraph only, for hover-sized previews
+- `grund <ID> --full` — the full declaration body when the narrower reads are not enough
+- `grund <ID> --format json` — for tooling
 
 `grund refs <ID> --summary` gives the blast radius one file per line before a full citation dump, and `grund list --kind FS,AR` keeps discovery scoped. That's the "cheap grounding" half of the workflow: every agent fetches the same bytes for the same ID, every time.
 
@@ -160,7 +160,7 @@ Three schemes are supported. Pick one per repo and keep it stable — mixing is 
 | Scheme                                     | Example             | Benefit                                                                                                          | Trade-off                                                                |
 |--------------------------------------------|---------------------|------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
 | `{kind}-{number}-{slug}` *(default)*       | `FS-014-user-login` | Number is the stable identifier; slug is descriptive and can be **renamed freely** without breaking citations.   | Two tokens to type; needs `grund id` to allocate the next number.        |
-| `{kind}-{number}` (RFC-style)              | `FS-014`            | Maximally stable — no slug to drift. Familiar from RFCs/PEPs/JEPs/ADRs.                                          | Opaque at the call site: `§FS-014` tells you nothing without `grund show`. |
+| `{kind}-{number}` (RFC-style)              | `FS-014`            | Maximally stable — no slug to drift. Familiar from RFCs/PEPs/JEPs/ADRs.                                          | Opaque at the call site: `§FS-014` tells you nothing without resolving it. |
 | `{kind}-{slug}` *(`grund` itself uses this)* | `FS-user-login`     | Self-describing — reads like English in prose and code. No number to allocate.                                   | Renaming a slug rewrites every citation. Slug must be unique per kind.   |
 
 Rule of thumb: pick `{kind}-{slug}` until rename churn or ID count starts to hurt; switch to `{kind}-{number}-{slug}` when it does.
@@ -177,9 +177,9 @@ Citations use the marker `§`, e.g. `§FS-user-login.3.1`; in a workspace, `§ap
 pub struct EventBus { /* … */ }
 ```
 
-`grund show AR-event-bus` follows the stub, strips the `///` markers, and prints the Rustdoc prose. The same goes for Javadoc, JSDoc, Python docstrings, Go doc blocks, KDoc, Doxygen — every comment form enumerated in `grund`'s scanner spec.
+`grund AR-event-bus` follows the stub, strips the `///` markers, and prints the Rustdoc prose. The same goes for Javadoc, JSDoc, Python docstrings, Go doc blocks, KDoc, Doxygen — every comment form enumerated in `grund`'s scanner spec.
 
-`grund` does this itself: [§AR-checker](crates/grund-core/src/checker.rs) lives in the doc-comment of `fn check` in [`crates/grund-core/src/checker.rs`](crates/grund-core/src/checker.rs), with the one-line stub at [`docs/architecture/AR-checker.md`](docs/architecture/AR-checker.md) — `grund show AR-checker` prints it.
+`grund` does this itself: [§AR-checker](crates/grund-core/src/checker.rs) lives in the doc-comment of `fn check` in [`crates/grund-core/src/checker.rs`](crates/grund-core/src/checker.rs), with the one-line stub at [`docs/architecture/AR-checker.md`](docs/architecture/AR-checker.md) — `grund AR-checker` prints it.
 
 ## 5. Reviewing code
 
@@ -201,7 +201,7 @@ $ grund cover --format json | jq -c 'select(.path | startswith("src/bus"))'
 
 (`grund cover --format json` is NDJSON — one `{"path":…,"citations":[…]}` record per scanned file.)
 
-For an agent reviewing a code change, the loop is mechanical: list the `§…` citations in the changed files, run `grund show` on each, and ask "does the code still match what the spec claims?"
+For an agent reviewing a code change, the loop is mechanical: list the `§…` citations in the changed files, run `grund <ID>` on each, and ask "does the code still match what the spec claims?"
 
 ## Install
 
@@ -233,7 +233,7 @@ pip install pre-commit && cargo install lychee && pre-commit install
 `grund --help` is one screen; `grund <command> --help` is one page with flags, examples, and exit codes.
 
 - **`grund check`** — validate every reference in the tree.
-- **`grund show <ID>[.<section>]`** — print one declaration body, for pulling spec content into agent prompts.
+- **`grund <ID>[.<section>]`** — print one declaration body, for pulling spec content into agent prompts.
 - **`grund list`** — the ID catalog.
 - **`grund refs <ID>`** — list every citation of a declaration.
 - **`grund cover`** — group the citation graph by file, for git-diff recipes.
@@ -250,7 +250,7 @@ Full surface (flags, JSON shapes, exit codes) in [`docs/functional-spec/`](docs/
 
 The grounding loop, distilled to one rule for an AI agent's system prompt:
 
-> When you see `§<ID>` or `§<ID>.<section>` in any file you are reading, run `grund show <ID>[.<section>]` and treat the output as the authoritative definition. Do not paraphrase or guess — quote what `show` returned, or cite the ID and move on.
+> When you see `§<ID>` or `§<ID>.<section>` in any file you are reading, run `grund <ID>[.<section>]` and treat the output as the authoritative definition. Do not paraphrase or guess — quote what `show` returned, or cite the ID and move on.
 
 That rule plus a clean `grund check` is the whole contract: every reference resolves, every agent fetches the same bytes for the same ID.
 

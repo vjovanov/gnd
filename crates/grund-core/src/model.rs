@@ -36,7 +36,7 @@ struct Declaration {
 
 /// An `e2e/cases/<name>/` directory treated as an `E2E-<name>` declaration
 /// (§AR-scanner.6) — its `command.args`, `expected.exit`, and fixture file list
-/// are what `grund show E2E-<name>` renders (§FS-show.2.4).
+/// are what `grund E2E-<name>` renders (§FS-show.2.4).
 #[derive(Debug)]
 struct E2eCase {
     dir: PathBuf,
@@ -81,7 +81,7 @@ struct Findings {
     scanned_files: Vec<PathBuf>,
 }
 
-/// `grund show` slice mode (§FS-show.1): each rung adds to the previous one —
+/// ID-query slice mode (§FS-show.1): each rung adds to the previous one —
 /// `--brief` is heading + first paragraph; `Default` adds the rest of the lead
 /// (cut at the first child section); `Toc` adds the nested section map; `Full`
 /// adds every subsection body. `Outline` is an internal-only mode used by `Toc`
@@ -354,7 +354,7 @@ struct Report {
     warnings: Vec<Diagnostic>,
 }
 
-/// What `grund show` resolved an ID to: the body text to print, the `path:line` it
+/// What an ID query resolved to: the body text to print, the `path:line` it
 /// came from, the section map (`--toc` only), and the pre-rendered JSON when
 /// `--format json` was asked for (§FS-show.3, §FS-errors.5).
 struct ShowOutput {
@@ -409,7 +409,7 @@ fn parse_id(caps: &regex::Captures) -> Option<Id> {
     Some(Id { kind, num, slug })
 }
 
-/// Parse a CLI `<ID>[.<section>]` argument (the form `grund show` / `grund refs` take,
+/// Parse a CLI `<ID>[.<section>]` argument (the form ID queries and `grund refs` take,
 /// §FS-show.1, §FS-refs.1) into an `Id` and an optional section path (§FS-config.3.3).
 fn parse_id_arg(raw: &str, grammar: &Grammar) -> Result<(Id, Option<String>)> {
     let caps = grammar

@@ -1,2 +1,2 @@
 section not found: FS-001-alpha.9
-hint: run `grund show FS-001-alpha --toc` to print the lead with the section map
+hint: run `grund FS-001-alpha --toc` to print the lead with the section map

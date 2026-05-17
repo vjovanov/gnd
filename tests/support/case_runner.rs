@@ -149,7 +149,7 @@ fn command_args(manifest_dir: &Path, case: &Path, name: &str) -> Vec<String> {
         .into_owned();
     let command_file = case.join("command.args");
     if !command_file.exists() {
-        return vec![repo_arg];
+        return vec!["check".to_string(), repo_arg];
     }
 
     let command = read_to_string(command_file);

@@ -23,7 +23,7 @@ static STUB_LINK_HEADING: Lazy<Regex> =
 /// by `grund fmt --cross-refs` (§DF-github-anchor-fidelity, §FS-fmt.6.2).
 static MD_INLINE_LINK: Lazy<Regex> = Lazy::new(|| Regex::new(r"\[([^\]]*)\]\([^)]*\)").unwrap());
 /// An HTML-tag-shaped span `<…>` — a renderer drops it from a heading's text
-/// (`## RM-show: grund show <ID>` slugs as `rm-show-grund-show`), so it must be removed
+/// (`## RM-read: grund <ID>` slugs as `rm-read-grund`), so it must be removed
 /// before slugging the heading (§DF-github-anchor-fidelity, §FS-fmt.6.2).
 static HTML_TAG: Lazy<Regex> = Lazy::new(|| Regex::new(r"<[^>]*>").unwrap());
 

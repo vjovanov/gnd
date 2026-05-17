@@ -12,9 +12,9 @@ Every benchmark scans this repository's own conformant tree (`CARGO_MANIFEST_DIR
 |---|---|---|
 | `check` | `grund check <repo>` | Every save (watch / LSP), every commit (pre-commit), every push (CI). The headline operation [§GOAL-fast-feedback](../goals.md#goal-fast-feedback-grund-must-be-as-fast-as-possible) exists for. |
 | `list` | `grund list <repo>` | An agent discovering the right `<ID>` before it cites one. |
-| `show --brief` | `grund show <ID> --brief <repo>` | An agent or LSP hover checking the title plus first paragraph. |
-| `show` | `grund show <ID> <repo>` | An agent grounding itself on a bare citation — the lead-default read AGENTS.md / CLAUDE.md tell it to do first, before editing the code that realizes a cited ID. |
-| `show --full` | `grund show <ID> --full <repo>` | An agent escalating to the full declaration body when the narrower slices are not enough. |
+| `show --brief` | `grund <ID> --brief <repo>` | An agent or LSP hover checking the title plus first paragraph. |
+| `show` | `grund <ID> <repo>` | An agent grounding itself on a bare citation — the lead-default read AGENTS.md / CLAUDE.md tell it to do first, before editing the code that realizes a cited ID. |
+| `show --full` | `grund <ID> --full <repo>` | An agent escalating to the full declaration body when the narrower slices are not enough. |
 | `refs` | `grund refs <ID> <repo>` | An agent checking a declaration's blast radius before changing or moving it. |
 | `cover` | `grund cover <repo>` | What the diff-aware co-change recipe ([§RM-cochange-gate](../roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test)) and CI consume. |
 | `fmt --check` | `grund fmt --check <repo>` | The pre-commit / CI normalization gate. |

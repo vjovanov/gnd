@@ -1,3 +1,2 @@
-error: unknown command or missing path: bogus
+error: unknown command: bogus
 known commands: check, show, list, refs, cover, fmt, id, init, config, agent-setup-instructions, completions
-(a bare path is shorthand for `grund check <path>`; run `grund --help` for commands)

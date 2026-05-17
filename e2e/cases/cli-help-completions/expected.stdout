@@ -3,7 +3,7 @@ grund completions — print a shell completion script for grund.
 Usage:  grund completions <bash|zsh|fish>
 
 The generated scripts complete subcommands and complete declared IDs for
-`grund show <ID>` and `grund refs <ID>` by calling the hidden helper:
+`grund <ID>`, explicit `show`, and `grund refs <ID>` by calling the hidden helper:
 `grund complete ids --prefix <word>`.
 
 Install examples:
