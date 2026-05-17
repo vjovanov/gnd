@@ -1,0 +1,1 @@
+error: workspace members overlap: `apps/api` contains `apps/api/sub`

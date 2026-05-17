@@ -132,9 +132,14 @@ load and only blew up in a different command.
 For an invariant to live at the loader, the constraint must be universal — it
 must hold for *every* shape of config the loader can return:
 
-- The `[workspace] members` list shape (no absolute paths, no `..`, no
-  multi-segment globs) is universal: a member entry never has a valid
-  alternative reading. Checked at load.
+- The `[workspace] members` list shape (no native absolute paths, no
+  Windows-style drive/UNC/backslash forms, no `..`, no multi-segment globs) is
+  universal: a member entry never has a valid alternative reading. Checked at
+  load.
+- Expanded member roots must not overlap. If `apps/api` and `apps/api/sub` are
+  both members, scanning the parent can absorb the child namespace unless every
+  member scan also carries a bespoke boundary table. Rejecting overlap keeps
+  workspace expansion simple and makes namespace boundaries explicit.
 - `project_name` is *not* universal. [§FS-config.3](../functional-spec/FS-config.md#3-schema) makes it free-form metadata
   when the project is standalone, and only an alias when it participates in a
   workspace. The slug check therefore lives in `derive_alias`
@@ -244,7 +249,8 @@ test that fails if the invariant is broken:
 | `config show` round-trips `[workspace]`          | `e2e/cases/config-show-workspace-roundtrip` |
 | `check --format json` shape in a workspace       | `e2e/cases/workspace-check-json` |
 | `cover` / `list` skip qualified citations        | `e2e/cases/cover-ignore-qualified-project-local`; `e2e/cases/list-ignore-qualified-project-local`; `e2e/cases/refs-ignore-qualified-project-local`; `e2e/cases/fmt-cross-refs-ignore-qualified-project-local` |
-| `[workspace] members` shape rejected at load     | `e2e/cases/workspace-member-absolute-path`; `e2e/cases/workspace-member-parent-segment`; `e2e/cases/workspace-member-multi-glob` |
+| `[workspace] members` shape rejected at load     | `e2e/cases/workspace-member-absolute-path`; `e2e/cases/workspace-member-parent-segment`; `e2e/cases/workspace-member-windows-drive`; `e2e/cases/workspace-member-windows-path`; `e2e/cases/workspace-member-multi-glob` |
+| Overlapping workspace member roots rejected      | `e2e/cases/workspace-member-overlap` |
 | `[[workspace]]` array-table form rejected        | `e2e/cases/workspace-section-as-array-table` |
 | Unknown key under `[workspace]` rejected         | `e2e/cases/workspace-unknown-key` |
 | Member missing on disk fails workspace expansion | `e2e/cases/workspace-member-missing-on-disk` |

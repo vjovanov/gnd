@@ -378,7 +378,23 @@ fn expand_workspace_members(config: &Config) -> Result<Vec<PathBuf>> {
     }
     roots.sort_by_key(|path| sort_path_key(path));
     roots.dedup();
+    reject_overlapping_workspace_members(config, &roots)?;
     Ok(roots)
+}
+
+fn reject_overlapping_workspace_members(config: &Config, roots: &[PathBuf]) -> Result<()> {
+    for (i, parent) in roots.iter().enumerate() {
+        for (j, child) in roots.iter().enumerate() {
+            if i != j && child.starts_with(parent) {
+                return Err(anyhow!(
+                    "workspace members overlap: `{}` contains `{}`",
+                    display_path(config, parent),
+                    display_path(config, child)
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 enum RootMode {
