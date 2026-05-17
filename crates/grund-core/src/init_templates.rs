@@ -161,13 +161,16 @@ fn canonical_template_text(template: &str) -> String {
 /// kinds show up in the kind set, and so on. Everything *not* substituted here is
 /// fixed for the block version. `{ID_SHAPE_SEC}` is listed before `{ID_SHAPE}`
 /// only for readability; neither placeholder is a substring of the other.
-/// `target` is the directory whose `AGENTS.md` is being written; it's the anchor
-/// for the `{WORKSPACE_MEMBERS}` walk-up and for the relative path rendering
-/// inside that section (§FS-init.2.3.4.15).
+/// `target` is the directory being initialized; it's the anchor for the
+/// `{WORKSPACE_MEMBERS}` walk-up and for the relative path rendering inside that
+/// section (§FS-init.2.3.4.15). `canonical_agent_entrypoint_selected` records
+/// whether this run is writing/updating `target/AGENTS.md`; companion-only init
+/// must not pretend that missing file exists.
 fn agents_template_substitutions(
     name: &str,
     config: &Config,
     target: &Path,
+    canonical_agent_entrypoint_selected: bool,
 ) -> Vec<(&'static str, String)> {
     let sep = config.section_separator.as_str();
     let marker = config.marker.as_str();
@@ -205,7 +208,12 @@ fn agents_template_substitutions(
         ("{DECLARATION_MAP}", declaration_map(config)),
         (
             "{WORKSPACE_MEMBERS}",
-            render_workspace_members_section(target, Some(name)),
+            render_workspace_members_section(
+                target,
+                Some(name),
+                marker,
+                canonical_agent_entrypoint_selected,
+            ),
         ),
     ]
 }
@@ -250,11 +258,21 @@ fn declaration_map(config: &Config) -> String {
 /// The managed block — just the H2 section that `init` appends to, or replaces
 /// inside, an existing `AGENTS.md` (§FS-init.2.3). The template *is* the block;
 /// the H2 line carrying the version is its own begin marker (§FS-init.2.3.1).
-/// `target` is the directory whose AGENTS.md the block will be written into —
-/// the anchor for the workspace-members walk-up (§FS-init.2.3.4.15).
-fn render_agents_append_block(name: &str, config: &Config, target: &Path) -> String {
+/// `target` is the directory being initialized — the anchor for the
+/// workspace-members walk-up (§FS-init.2.3.4.15).
+fn render_agents_append_block(
+    name: &str,
+    config: &Config,
+    target: &Path,
+    canonical_agent_entrypoint_selected: bool,
+) -> String {
     let mut rendered = canonical_template_text(AGENTS_TEMPLATE);
-    for (placeholder, value) in agents_template_substitutions(name, config, target) {
+    for (placeholder, value) in agents_template_substitutions(
+        name,
+        config,
+        target,
+        canonical_agent_entrypoint_selected,
+    ) {
         rendered = rendered.replace(placeholder, &value);
     }
     rendered
@@ -266,8 +284,13 @@ fn render_agents_append_block(name: &str, config: &Config, target: &Path) -> Str
 /// `--name`, same effective config, same workspace state ⇒ byte-identical
 /// output (§FS-non-goals.13).
 #[cfg(test)]
-fn render_agents_md(name: &str, config: &Config, target: &Path) -> String {
-    let block = render_agents_append_block(name, config, target);
+fn render_agents_md(
+    name: &str,
+    config: &Config,
+    target: &Path,
+    canonical_agent_entrypoint_selected: bool,
+) -> String {
+    let block = render_agents_append_block(name, config, target, canonical_agent_entrypoint_selected);
     render_agents_md_from_block(name, &block)
 }
 
@@ -575,7 +598,12 @@ fn find_init_workspace_root(target: &Path) -> Option<Config> {
 /// separator from the preceding `### Project map` block — the template embeds
 /// `{DECLARATION_MAP}{WORKSPACE_MEMBERS}` with no other whitespace, so an empty
 /// value leaves the surrounding spacing unchanged.
-fn render_workspace_members_section(target: &Path, pending_project_name: Option<&str>) -> String {
+fn render_workspace_members_section(
+    target: &Path,
+    pending_project_name: Option<&str>,
+    citation_marker: &str,
+    canonical_agent_entrypoint_selected: bool,
+) -> String {
     let Some(projects) = find_init_workspace_context(target, pending_project_name) else {
         return String::new();
     };
@@ -585,19 +613,21 @@ fn render_workspace_members_section(target: &Path, pending_project_name: Option<
     for project in &projects {
         let is_self = project.project_root == target_canonical;
         let agents_md_path = project.project_root.join("AGENTS.md");
-        // §FS-init.2.3.4.15 self exception: the project whose AGENTS.md is
-        // about to be written counts as initialized, even before the write
-        // completes — so a member-side init never marks itself "not yet
-        // initialized" in its own block.
-        let initialized = is_self || agents_md_path.exists();
+        // §FS-init.2.3.4.15 self exception: the self project counts as initialized
+        // before the write completes only when this init run is actually writing
+        // the canonical AGENTS.md. Companion-only init must not link to a missing
+        // AGENTS.md.
+        let initialized =
+            agents_md_path.exists() || (is_self && canonical_agent_entrypoint_selected);
         let link = if initialized {
             relative_link_path(&target_canonical, &agents_md_path)
         } else {
-            // `is_self` ⇒ `initialized`, so `project.project_root` differs
-            // from `target_canonical` here — `relative_link_path` never
-            // returns `.`, so the dir link always has a non-`.` body.
             let dir_rel = relative_link_path(&target_canonical, &project.project_root);
-            format!("{dir_rel}/")
+            if dir_rel == "." {
+                "./".to_string()
+            } else {
+                format!("{dir_rel}/")
+            }
         };
         let suffix = if initialized { "" } else { " *(not yet initialized)*" };
         bullets.push(format!(
@@ -607,8 +637,8 @@ fn render_workspace_members_section(target: &Path, pending_project_name: Option<
             dest = markdown_link_destination(&link),
         ));
     }
-    let mut out = String::from(
-        "\n\n### Workspace members\n\nCross-project citations use §alias/<ID>.\n\n",
+    let mut out = format!(
+        "\n\n### Workspace members\n\nCross-project citations use {citation_marker}alias/<ID>.\n\n",
     );
     out.push_str(&bullets.join("\n"));
     out
