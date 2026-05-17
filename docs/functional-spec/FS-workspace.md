@@ -136,7 +136,225 @@ workspace-local.
 
 ## 8. Other commands
 
-The v1 implementation applies to `grund check`. Query commands such as
-`grund show`, `grund refs`, `grund list`, shell completions, and formatter
-cross-reference rewriting remain project-local until their qualified-ID behavior
-is specified separately.
+The workspace surface composes through the same resolver `grund check` uses
+(§AR-workspace.4), so qualified-ID behavior in query commands is a UX layer over
+an already-built engine — not new resolution logic. Three shared rules apply to
+every command in this section:
+
+- **Discovery follows the same walk-up rule as `grund check`** (§FS-config.1,
+  §5): from the CWD (or from an explicit `<path>` argument), walk up to the
+  nearest `.agents/grund.toml`. If the nearest config is a member's own config,
+  the command runs member-local — qualified `<alias>/<ID>` cannot resolve, the
+  same way `check` errors at the member scope (§5). If the nearest config is
+  the workspace root, the command runs workspace-wide. An explicit `<path>`
+  argument (e.g. `grund list apps/api`, `grund refs FS-x apps/api`,
+  `grund complete ids --path apps/api`) behaves as if the command were invoked
+  from that path: a `<path>` inside a member is member-scoped, not
+  workspace-aggregate, even when a workspace exists above it.
+- **The "current project" is what an unqualified ID resolves against** (§4):
+  the root project at the workspace root, the member project inside a member
+  tree. Cross-project lookups always require the `<alias>/<ID>` form. There is
+  no `--all-projects` flag; the alias *is* the scope handle.
+- **`include_root = false`** (§2): when the root project is excluded from the
+  workspace, it has no catalog entry and its alias is not known. `<§>root/<ID>`
+  (or whatever name `project_name` would have assigned) is treated as any other
+  unknown alias by every command in this section — the root alias is not
+  silently reserved. Completions, `show`, `refs`, and `list --project` all
+  agree on this.
+
+### 8.1 `grund show`
+
+`grund show <alias>/<ID>` reads a declaration in another workspace project. The
+body is rendered exactly as `grund show <ID>` renders it for a local declaration
+(§FS-show.2) — same slice rules (`--brief`, default, `--toc`, `--full`), same
+`text` vs `md` heading behavior, same section selection, same inline-code
+extraction (§FS-show.2.3). The alias prefix is a routing instruction; it
+changes which tree is scanned, not what is printed.
+
+- `grund show api/FS-login` — print the lead of `api`'s `FS-login`.
+- `grund show api/FS-login.3.1 --toc` — print the `3.1` section's lead plus its
+  nested heading map, against `api`'s declaration.
+- `grund show FS-login` invoked from inside `apps/api/` — print the member's
+  local `FS-login`. Unchanged from today; no workspace context is needed
+  because the citation is local.
+
+Outside a workspace context — including a `<path>` argument that resolves
+member-local — `grund show api/FS-login` exits `2` with two stderr lines:
+
+```text
+error: unknown project alias `api`
+note: workspace aliases are defined in the root .agents/grund.toml under [workspace]
+```
+
+Ambiguity within a project is unchanged (§FS-show.2.2.1). An ID that exists in
+two *different* projects is not ambiguous — they are two declarations in two
+namespaces, and the alias picks one.
+
+### 8.2 `grund refs`
+
+`grund refs <alias>/<ID>` lists every citation of that qualified declaration,
+across the **whole workspace**, including:
+
+- citations written `<§><alias>/<ID>` anywhere in the workspace (the
+  cross-project form), and
+- citations written `<§><ID>` **inside the named project's tree** (the
+  project's own local form for the same declaration).
+
+The two forms cite the same target (§4), so they appear in the same `refs`
+result. This is what makes `refs` a blast-radius answer: an author about to
+delete `api`'s `FS-login` learns about both `api`'s own files and every other
+project that wrote `<§>api/FS-login`.
+
+- `grund refs api/FS-login` — listed exactly as §FS-refs.3.1 specifies; the
+  `text` column shows each citation verbatim — `<§>api/FS-login` from sibling
+  projects, `<§>FS-login` from inside `api`.
+- `grund refs FS-login` invoked at the workspace root — citations of the
+  *root's* `FS-login` only (root is the current project). To get cross-project
+  occurrences, qualify: `grund refs root/FS-login` is the same query in this
+  context and is the canonical form for scripts.
+- `--summary` (§FS-refs.3.3) aggregates per file regardless of which member the
+  file lives in. Paths render relative to the workspace root when
+  `[output] relative_paths = true`.
+- `--format json` adds one new field on the per-citation object:
+  `"project": "<alias>"` — the alias of the project that *contains* the
+  citation site, not the target. The target project is the query argument
+  itself: `<alias>` for a qualified lookup, the current project for an
+  unqualified lookup. It is not repeated per row; per-row redundancy would
+  balloon the wire size of a wide blast-radius scan without adding information
+  the caller did not just hand to `refs`.
+
+The "neither declared nor cited" stderr note (§FS-refs.2) becomes alias-aware:
+
+```text
+note: api/FS-login is neither declared nor cited — run `grund list --project api` to see api's declared IDs
+```
+
+### 8.3 `grund list`
+
+`grund list` invoked at a workspace root prints the catalog of every project
+the workspace covers (root plus members, subject to `include_root` per §8
+intro), so the resulting catalog has one row per declaration with no collisions
+even when two projects declare the same local ID.
+
+Output changes:
+
+- The ID column renders as `<alias>/<ID>` for every row **whenever workspace
+  mode is loaded**, including the current project's and including the narrowed
+  catalog under `--project`. Always-qualifying keeps the column self-labeled —
+  `FS-login` next to `api/FS-login` in the same dump would read as a third
+  project named `(local)` — and keeps script output dependent on what the
+  command returned, not on how the user invoked it. The only way to get
+  unqualified rows is to invoke `list` member-locally (no workspace context —
+  including via a member-local `<path>` argument).
+- A new optional filter, `--project <alias>[,<alias>...]`, narrows the catalog
+  to one or more named projects. `--project api` returns only `api`'s
+  declarations, still rendered with the `api/` prefix per the rule above. An
+  unknown alias is a CLI-level error, exit `2`, same shape as `--kind`
+  (§FS-list.4).
+- `--kind` composes with `--project` (intersection):
+  `--kind FS --project api,payments` lists FS declarations in those two
+  projects.
+
+`grund list --summary` (§FS-list.3.3) gains a new variant when a workspace is
+loaded: rows are emitted per `(project, kind)` pair, sorted by alias then by
+configured kind order. `--project <alias>` narrows the summary to that
+project's kinds.
+
+`--format json` adds `"project": "<alias>"` to every object and renders `id` in
+the qualified form (`api/FS-login`). The `refs` count is the count under that
+project's qualified target, computed exactly as §8.2 defines.
+
+### 8.4 Shell completions
+
+The dynamic helper `grund complete ids` (§FS-completions.2) gains workspace
+awareness.
+
+Completion grammar (the prefix the user has typed so far):
+
+- No `/` in the prefix → bare-ID candidates from the current project (existing
+  behavior, unchanged). When the helper is invoked at the workspace root,
+  **also** emit one candidate per known alias, with a trailing `/` — `api/`,
+  `payments/`, and `root/` only when `include_root = true` (§8 intro). The
+  trailing slash is the continuation signal — see "Shell script adjustments"
+  below.
+- Prefix contains a `/` → split on the first `/`. The left side is the alias;
+  emit IDs from that workspace project whose qualified form matches the prefix.
+- `--sections` and the implicit section mode (prefix containing the configured
+  `[id] section_separator`) compose with the alias prefix in the natural way:
+  `api/FS-login.` triggers section candidates against `api`'s declaration of
+  `FS-login`.
+
+Helper errors stay quiet (§FS-completions.2): a workspace that fails to load
+drops back to single-project mode so a user typing in the shell never sees a
+stack trace.
+
+**Shell script adjustments.** Alias-as-completion only feels right if a Tab
+from `api` advances to `api/` *without inserting a space* — otherwise the user
+types `api`-Tab-Backspace-`/` instead of `api`-Tab-Tab. The generated scripts
+therefore *do* change for this case (bare-ID completion remains byte-identical
+for repos with no workspace):
+
+- `bash` — the completion function calls `compopt -o nospace` for the current
+  invocation whenever any candidate in the batch ends in `/`.
+- `zsh` — the completion function partitions the candidate batch:
+  slash-suffixed candidates are added with `compadd -S ''` (no auto-suffix),
+  bare-ID candidates with the default suffix.
+- `fish` — candidates are emitted via `complete -f -k`; fish appends no space
+  when the candidate's last character is `/`.
+
+These adjustments are testable per shell and must be covered before
+`<alias>/`-completion is advertised. Until each shell's no-space behavior is
+verified by a fixture, the helper may fall back to emitting full
+`<alias>/<ID>` candidates in one shot (one Tab completes both the alias and an
+ID), at the cost of needing to type a disambiguating letter first.
+
+### 8.5 `grund fmt --cross-refs`
+
+The link wrapper (§FS-fmt.6) becomes workspace-aware when invoked at the
+workspace root.
+
+- A qualified citation `<§>api/FS-login` in `docs/index.md` wraps to
+  `[<§>api/FS-login](../apps/api/docs/functional-spec/FS-login.md#fs-login-...)` —
+  the relative path crosses the workspace into the member's home, the anchor
+  is computed from the *member's* declaration heading under the member's
+  configured anchor profile (§FS-fmt.6.7). The cross-project resolution goes
+  through `target_findings_for_citation` (§AR-workspace.4) so the wrapped link
+  and `check`'s resolution can never disagree.
+- A member-local run (invoked inside `apps/api/`, or via a `<path>` that
+  resolves member-local — see §8 intro) **leaves qualified citations
+  untouched**: per §5, the member run cannot resolve qualified targets and
+  `--cross-refs` does not paper over a citation that `check` would error on
+  (§FS-fmt.6.4). A previously-emitted wrapper around a qualified citation —
+  e.g. `[<§>root/FS-x](../../docs/FS-x.md#...)` left by an earlier
+  workspace-root pass — is **preserved as written**: not stripped (which would
+  destroy information the member-local run cannot recompute), not re-derived
+  (the resolver has no canonical URL to compare against in this context). It
+  will be re-derived the next time `fmt --cross-refs` runs at the workspace
+  root. The single canonical way to create or refresh cross-project wrappers
+  is the workspace-root run.
+- Re-derive (§FS-fmt.6.3): a heading rename or a file move in `api` triggers a
+  one-line `fmt` diff in any *other* project that wrapped a citation of the
+  renamed thing, exactly as it triggers a diff in `api`'s own files. The
+  workspace-root run is what makes that single pass possible.
+
+`[fmt.cross_refs]` config (§FS-fmt.6.7) is read from each member's own config
+when wrapping a citation that targets that member — the member's
+`anchor_format` wins for its own declarations. Mixed-profile workspaces (rare)
+render each project's anchors under its own configured profile, consistent
+with the per-member config rule (§AR-workspace.5).
+
+### 8.6 Output and exit codes
+
+All five surfaces above keep the exit codes they had:
+
+- `show` — `0` body printed, `1` ID/section not found or ambiguous, `2` CLI/
+  scan error. An unknown alias is `2` (it is a CLI-shaped error, not a "found
+  something else" error) and matches the standalone-mode shape in §8.1.
+- `refs` — `0` always when the scan succeeds; `2` on scan/CLI error.
+- `list` — `0` always when the scan succeeds; `2` on scan/CLI error (now
+  including unknown `--project`).
+- Completion helper — quiet failures, exit `0`, unchanged from §FS-completions.2.
+- `fmt --cross-refs` — unchanged from §FS-fmt.
+
+Paths in every command respect `[output] relative_paths` as `check` already
+does (§5).
