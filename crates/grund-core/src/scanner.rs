@@ -220,6 +220,17 @@ fn scan_file(
 /// citations before the member's own ID grammar is applied. Without this
 /// fallback, `§root/FS-root` in a default member can disappear just because the
 /// root uses `{kind}-{slug}`.
+///
+/// The fallback parses the ID tail with the conventional `KIND[-NUM]-SLUG`
+/// shape (`parse_loose_qualified_id_prefix`), not the citing or any target
+/// project's configured `[id] format`. Member-local scans have no workspace
+/// catalogue, so the target's grammar is unreachable here. The tradeoff:
+/// non-default ID grammars (lowercase kinds, slug-only shapes that don't
+/// separate on `-`/`_`, kinds with characters outside `[A-Z0-9]`) won't be
+/// recognised as qualified citations at member scope and will fall through
+/// to be diagnosed at the workspace-root run instead. Workspace-root and
+/// workspace-aware paths use the target's actual grammar via
+/// `scan_workspace_qualified_pass`.
 fn scan_fallback_qualified_citations(
     scan_line: &str,
     lineno: usize,
@@ -273,6 +284,13 @@ fn scan_fallback_qualified_citations(
     }
 }
 
+/// The member-local fallback ID parser (§FS-workspace.5). Recognises the
+/// conventional `KIND[-NUM]-SLUG` shape — uppercase-or-digit kind, optional
+/// numeric middle component, non-empty slug — because the member has no
+/// access to the citing or target project's `[id] format` at this point.
+/// A workspace-root run uses `parse_longest_id_prefix` with the target's
+/// grammar (`scan_workspace_qualified_pass`) and is not affected by this
+/// fallback's assumptions.
 fn parse_loose_qualified_id_prefix(raw: &str) -> Option<(Id, Option<String>, usize)> {
     let mut end = raw
         .char_indices()
