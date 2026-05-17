@@ -49,10 +49,12 @@ include_root = true
 ```
 
 `members` is a list of paths or single-segment trailing globs, resolved relative
-to the config root. `packages/*` means every direct child directory under
-`packages/`; recursive `**` globs are not part of v1. `include_root` defaults to
-`true`; when false, `grund check` at the workspace root checks only member
-projects.
+to the config root. Member paths must be relative, must not use `.` or `..`, must
+not use platform-specific absolute forms or backslash separators, and must not
+overlap after glob expansion; one member root cannot contain another member
+root. `packages/*` means every direct child directory under `packages/`;
+recursive `**` globs are not part of v1. `include_root` defaults to `true`; when
+false, `grund check` at the workspace root checks only member projects.
 
 Each member is a separate project namespace. If a member has its own
 `.agents/grund.toml`, that file configures the member. If it does not, the

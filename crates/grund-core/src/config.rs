@@ -346,9 +346,25 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
 }
 
 fn validate_workspace_member(path: &Path, member: &str) -> Result<()> {
+    let member_path = Path::new(member);
     if member.is_empty()
-        || member.starts_with('/')
-        || member.split('/').any(|part| part.is_empty() || part == "." || part == "..")
+        || member_path.is_absolute()
+        || member_path.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::Prefix(_)
+                    | std::path::Component::RootDir
+                    | std::path::Component::CurDir
+                    | std::path::Component::ParentDir
+            )
+        })
+        || member.contains('\\')
+        || member.split('/').enumerate().any(|(index, part)| {
+            part.is_empty()
+                || part == "."
+                || part == ".."
+                || (index == 0 && looks_like_windows_drive_prefix(part))
+        })
         || member.matches('*').count() > 1
         || (member.contains('*') && !member.ends_with("/*"))
     {
@@ -358,6 +374,11 @@ fn validate_workspace_member(path: &Path, member: &str) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+fn looks_like_windows_drive_prefix(part: &str) -> bool {
+    let bytes = part.as_bytes();
+    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
 }
 
 fn is_valid_project_alias(alias: &str) -> bool {
