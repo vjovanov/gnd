@@ -124,3 +124,75 @@ These failures leave the target tree unchanged.
 ## 5. Dry-run preview
 
 `grund init --dry-run` reports exactly what a real run would do, without writing anything. Every line that a real run would prefix with `wrote `, `appended `, or `updated ` is reported with `would-write `, `would-append `, or `would-update ` instead; `exists ` lines are unchanged. The `next:` block prints under the same rule as a real run — suppressed when every reported path is `exists ` and no `would-…` lines were emitted ([§FS-init.2.2](FS-init.md#22-stdout--stderr)). Exit code is `0` for a clean preview, `2` for a CLI-level error (e.g. missing target), the same as a real run.
+
+## 6. Workspace members
+
+These three fixtures together cover [§FS-init.2.3.4.15](FS-init.md#23415-workspace-members): a workspace root with a mix of initialized and uninitialized members, a member-side run against the same workspace, and a non-workspace repo whose generated block is unchanged.
+
+### 6.1 Workspace root init
+
+Precondition: `{repo_copy}` exists with `.agents/grund.toml`:
+
+```toml
+project_name = "root"
+
+[workspace]
+members = ["apps/api", "packages/*"]
+```
+
+and the on-disk layout:
+
+```text
+.agents/grund.toml
+apps/api/AGENTS.md
+packages/core/
+packages/ui/
+```
+
+`packages/core/` and `packages/ui/` are real directories with no `AGENTS.md`. `apps/api/AGENTS.md` already exists from a prior member-side `grund init`.
+
+Command: `grund init {repo_copy}`.
+
+The generated `{repo_copy}/AGENTS.md` contains, between `### Project map` and `### Declarations and citations`, exactly this block — byte-identical, including blank lines:
+
+```markdown
+### Workspace members
+
+Cross-project citations use §alias/<ID>.
+
+- `api` → [apps/api/AGENTS.md](apps/api/AGENTS.md)
+- `core` → [packages/core/](packages/core/) *(not yet initialized)*
+- `root` → [AGENTS.md](AGENTS.md)
+- `ui` → [packages/ui/](packages/ui/) *(not yet initialized)*
+```
+
+The list is sorted lexicographically by alias. `api` is initialized so its bullet links to the existing `AGENTS.md`. `root` is included because `include_root` defaults to `true` (the row appears even though linking the file to itself is mildly noisy — the spec keeps the row shape uniform). `core` and `ui` are present in the workspace by glob expansion of `packages/*` but have no `AGENTS.md` yet, so they render with the trailing `*(not yet initialized)*` marker and link to the member root.
+
+### 6.2 Workspace member init
+
+Same precondition as §6.1, but with `apps/api/AGENTS.md` removed so the member is uninitialized.
+
+Command: `grund init {repo_copy}/apps/api`.
+
+The generated `{repo_copy}/apps/api/AGENTS.md` contains a `### Workspace members` section whose bullets refer to the same logical workspace as §6.1 — verifying [§FS-init.2.3.4.15](FS-init.md#23415-workspace-members)'s symmetry guarantee. Paths are rewritten relative to the AGENTS.md being written:
+
+```markdown
+### Workspace members
+
+Cross-project citations use §alias/<ID>.
+
+- `api` → [AGENTS.md](AGENTS.md)
+- `core` → [../../packages/core/](../../packages/core/) *(not yet initialized)*
+- `root` → [../../](../../) *(not yet initialized)*
+- `ui` → [../../packages/ui/](../../packages/ui/) *(not yet initialized)*
+```
+
+`api`'s row is the freshly written file (the "self" exception in [§FS-init.2.3.4.15](FS-init.md#23415-workspace-members) — `api` counts as initialized in its own block even before the write completes). `root` is marked uninitialized because `{repo_copy}/AGENTS.md` does not exist, and the link points at the workspace root directory rather than the file that would 404. The aliases, the discoverability line, and the alias ordering match §6.1 exactly — what differs is the per-row "self" flag and the link paths, both of which are local-perspective renderings.
+
+### 6.3 Non-workspace repo
+
+Precondition: `{repo_copy}` exists and contains no `[workspace]` block in its config (or no config at all, in which case the defaults apply per [§FS-init.2.4](FS-init.md#24-generated-agentsgrundtoml)).
+
+Command: `grund init {repo_copy}`.
+
+The generated `AGENTS.md` contains no `### Workspace members` section anywhere. The `### Project map` block is byte-identical to the default-form fixture (§1) — surfacing workspace mode is gated on `[workspace]` being declared, so a single-project repo's block is unchanged from before [§RM-init-workspace-members](../roadmap.md#rm-init-workspace-members-init-mentions-workspace-members) landed.
