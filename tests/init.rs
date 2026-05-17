@@ -251,6 +251,59 @@ fn init_agent_flags_create_requested_entrypoints() {
     );
 }
 
+#[test]
+fn init_cursor_flag_updates_existing_legacy_cursorrules() {
+    // FS-init.2.1 / FS-init.2.3: explicit --cursor creates/updates the modern
+    // Cursor rule file and also updates legacy .cursorrules when it already
+    // exists, without creating the legacy file for new adopters.
+    let target = workdir("init_cursor_flag_updates_existing_legacy_cursorrules");
+    fs::write(target.join(".cursorrules"), "# Legacy Cursor notes\n").expect("write .cursorrules");
+
+    let output = run_grund(
+        &["init", target.to_str().unwrap(), "--cursor"],
+        manifest_dir(),
+    );
+    assert!(
+        output.status.success(),
+        "init failed: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("wrote .cursor/rules/grund.mdc"),
+        "--cursor should create the modern Cursor rules file, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("appended .cursorrules"),
+        "--cursor should update existing legacy .cursorrules, got:\n{stderr}"
+    );
+    assert!(
+        !target.join("AGENTS.md").exists(),
+        "explicit Cursor init should not add AGENTS.md"
+    );
+
+    let legacy = fs::read_to_string(target.join(".cursorrules")).expect("read .cursorrules");
+    assert!(
+        legacy.starts_with("# Legacy Cursor notes\n\n## Grounding with grund (v1)\n"),
+        ".cursorrules should keep existing notes and append the managed block:\n{legacy}"
+    );
+
+    let target2 = workdir("init_cursor_flag_does_not_create_legacy_cursorrules");
+    let output2 = run_grund(
+        &["init", target2.to_str().unwrap(), "--cursor"],
+        manifest_dir(),
+    );
+    assert!(
+        output2.status.success(),
+        "init failed: stderr={}",
+        String::from_utf8_lossy(&output2.stderr)
+    );
+    assert!(
+        !target2.join(".cursorrules").exists(),
+        "--cursor must not create legacy .cursorrules"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn init_agent_flag_updates_canonical_target_for_symlinked_entrypoint() {
@@ -452,7 +505,10 @@ fn init_dry_run_writes_no_files_and_reports_would_prefixes() {
     // untouched. Re-running without --dry-run then produces the same on-disk
     // outcome as a single non-dry-run would.
     let target = workdir("init_dry_run_writes_no_files_and_reports_would_prefixes");
-    let dry = run_grund(&["init", target.to_str().unwrap(), "--dry-run"], manifest_dir());
+    let dry = run_grund(
+        &["init", target.to_str().unwrap(), "--dry-run"],
+        manifest_dir(),
+    );
     assert!(
         dry.status.success(),
         "init --dry-run failed: stderr={}",
@@ -593,6 +649,38 @@ fn init_zed_rules_is_only_workspace_or_flag_gated() {
         "--zed should create .rules, got:\n{zed_stderr}"
     );
     assert!(target2.join(".rules").is_file());
+
+    // A `.zed/` workspace owns `.rules`, so a second automatic run must keep
+    // selecting the existing alias instead of falling back to AGENTS.md.
+    let target3 = workdir("init_zed_rules_is_workspace_idempotent");
+    fs::create_dir_all(target3.join(".zed")).expect("create .zed");
+    let first = run_grund(&["init", target3.to_str().unwrap()], manifest_dir());
+    assert!(
+        first.status.success(),
+        "init failed: stderr={}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let first_stderr = String::from_utf8_lossy(&first.stderr);
+    assert!(
+        first_stderr.contains("wrote .rules"),
+        "Zed workspace should create .rules, got:\n{first_stderr}"
+    );
+
+    let second = run_grund(&["init", target3.to_str().unwrap()], manifest_dir());
+    assert!(
+        second.status.success(),
+        "second init failed: stderr={}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+    let second_stderr = String::from_utf8_lossy(&second.stderr);
+    assert!(
+        second_stderr.contains("exists .rules"),
+        "second init should select existing .rules, got:\n{second_stderr}"
+    );
+    assert!(
+        !second_stderr.contains("AGENTS.md") && !target3.join("AGENTS.md").exists(),
+        "second init must not fall back to AGENTS.md, got:\n{second_stderr}"
+    );
 }
 
 #[test]
