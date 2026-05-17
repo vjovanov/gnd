@@ -290,14 +290,18 @@ fn companion_agent_entrypoints(root: &Path) -> Result<Vec<PathBuf>, (PathBuf, St
 /// workspace exists or when a previous `grund init` left a managed block there.
 fn existing_init_companion_agent_entrypoints(
     root: &Path,
-) -> Result<Vec<InitCompanionAgentEntrypoint>, (PathBuf, String)> {
+) -> Result<(bool, Vec<InitCompanionAgentEntrypoint>), (PathBuf, String)> {
     let mut paths = Vec::new();
+    let mut canonical_requested_by_symlink = false;
     let canonical = root.join(CANONICAL_AGENT_ENTRYPOINT);
     for entrypoint in COMPANION_AGENT_ENTRYPOINTS {
         let path = root.join(entrypoint.rel);
         if is_file_or_symlink(&path) {
             match is_symlink_to(&path, &canonical) {
-                Ok(true) => continue,
+                Ok(true) => {
+                    canonical_requested_by_symlink = true;
+                    continue;
+                }
                 Ok(false) => {
                     if companion_selected_by_evidence(root, entrypoint, &path) {
                         paths.push(InitCompanionAgentEntrypoint::Existing(path));
@@ -307,7 +311,7 @@ fn existing_init_companion_agent_entrypoints(
             }
         }
     }
-    Ok(paths)
+    Ok((canonical_requested_by_symlink, paths))
 }
 
 /// Missing neutral aliases are created only when their owning agent-specific
@@ -320,7 +324,7 @@ fn workspace_init_companion_agent_entrypoints(root: &Path) -> Vec<InitCompanionA
         if entrypoint
             .workspace
             .is_some_and(|workspace| root.join(workspace).is_dir())
-            && !path.exists()
+            && path_missing_without_following_symlinks(&path)
         {
             paths.push(InitCompanionAgentEntrypoint::MissingAlias(path));
         }
@@ -391,6 +395,13 @@ fn is_file_or_symlink(path: &Path) -> bool {
     fs::symlink_metadata(path)
         .map(|m| m.file_type())
         .is_ok_and(|t| t.is_file() || t.is_symlink())
+}
+
+fn path_missing_without_following_symlinks(path: &Path) -> bool {
+    match fs::symlink_metadata(path) {
+        Ok(_) => false,
+        Err(err) => err.kind() == std::io::ErrorKind::NotFound,
+    }
 }
 
 fn is_symlink_to(path: &Path, target: &Path) -> Result<bool> {
