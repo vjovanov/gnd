@@ -68,7 +68,7 @@ fn command_refs(args: &[String]) -> ExitCode {
         .current_project()
         .map(|project| &project.config)
         .unwrap_or_else(|| context.render_config());
-    let (alias, id, inline_section) = match parse_qualified_id_arg(&id_arg, &current_config.grammar) {
+    let (alias, raw_id) = match split_qualified_id_arg(&id_arg) {
         Ok(parsed) => parsed,
         Err(err) => {
             // §FS-refs.1: an ID arg that does not match `[id] format` is a CLI-level
@@ -84,11 +84,6 @@ fn command_refs(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    if section_override.is_some() && inline_section.is_some() {
-        eprintln!("error: --section cannot be combined with an inline section");
-        return ExitCode::from(2);
-    }
-    let section = section_override.or(inline_section);
     // §FS-workspace.8.2: pick the *target* project — the alias arg's project
     // in workspace mode, or the current project for an unqualified lookup.
     let target_project = match alias.as_deref() {
@@ -123,6 +118,25 @@ fn command_refs(args: &[String]) -> ExitCode {
     };
     let target_alias = target_project.alias.as_str();
     let render_config = &target_project.config;
+    // §FS-workspace.1: a qualified query's alias decides which grammar parses
+    // the ID tail. This keeps `refs api/FS-001-session` aligned with the same
+    // target namespace that `check` uses for `§api/FS-001-session`.
+    let (id, inline_section) = match parse_id_arg(raw_id, &render_config.grammar) {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            eprintln!(
+                "hint: this repo's [id] format is `{}` (run `grund config show`); `grund list` shows the IDs that exist",
+                render_config.id_format
+            );
+            return ExitCode::from(2);
+        }
+    };
+    if section_override.is_some() && inline_section.is_some() {
+        eprintln!("error: --section cannot be combined with an inline section");
+        return ExitCode::from(2);
+    }
+    let section = section_override.or(inline_section);
     let format = format_override.unwrap_or_else(|| render_config.output_format.clone());
     if !matches!(format.as_str(), "text" | "json") {
         eprintln!("error: unsupported refs format `{format}`");

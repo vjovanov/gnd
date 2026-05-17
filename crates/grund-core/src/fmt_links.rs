@@ -17,45 +17,42 @@ fn wrap_markdown_links(
 ) -> String {
     let mut output = String::new();
     let mut cursor = 0;
-    for caps in config.grammar.citation_re.captures_iter(line) {
-        let Some(full) = caps.get(0) else { continue };
-        let marker_start = full.start().saturating_sub(config.marker.len());
-        if !line[..full.start()].ends_with(&config.marker) {
+    for citation in markdown_link_citations(line, config, workspace) {
+        if citation.marker_start < cursor {
             continue;
         }
-        if is_inside_inline_code(line, marker_start) {
-            continue;
-        }
-        if marker_start < cursor {
-            continue;
-        }
-        let Some(id) = parse_id(&caps) else { continue };
-        let section = caps.name("sec").map(|m| m.as_str().to_string());
         // §FS-workspace.8.5: a qualified `§<alias>/<ID>` resolves against
         // the named project in workspace mode; member-local runs (no
         // workspace context) leave the citation untouched per §FS-workspace.8.5
         // — neither creating a wrap nor stripping an existing one.
-        let target = match caps.name("namespace") {
-            Some(ns_match) => {
+        let target = match citation.namespace.as_deref() {
+            Some(namespace) => {
                 let Some(workspace) = workspace else { continue };
-                let Some(target_project) = workspace.project_by_alias(ns_match.as_str()) else {
+                let Some(target_project) = workspace.project_by_alias(namespace) else {
                     continue;
                 };
                 markdown_link_target_with_root(
                     path,
-                    &id,
-                    section.as_deref(),
+                    &citation.id,
+                    citation.section.as_deref(),
                     &target_project.config,
                     &target_project.findings,
                     Some(&workspace.render_root),
                 )
             }
-            None => markdown_link_target(path, &id, section.as_deref(), config, findings),
+            None => markdown_link_target(
+                path,
+                &citation.id,
+                citation.section.as_deref(),
+                config,
+                findings,
+            ),
         };
         let Some(target) = target else {
             continue;
         };
-        let marked_end = full.end();
+        let marked_end = citation.token_end;
+        let marker_start = citation.marker_start;
         let already_wrapped = marker_start > 0 && line.as_bytes()[marker_start - 1] == b'[';
         if already_wrapped && line[marked_end..].starts_with("](") {
             let url_start = marked_end + 2;
@@ -78,6 +75,95 @@ fn wrap_markdown_links(
     }
     output.push_str(&line[cursor..]);
     output
+}
+
+struct MarkdownLineCitation {
+    marker_start: usize,
+    token_end: usize,
+    namespace: Option<String>,
+    id: Id,
+    section: Option<String>,
+}
+
+fn markdown_link_citations(
+    line: &str,
+    config: &Config,
+    workspace: Option<&WorkspaceContext>,
+) -> Vec<MarkdownLineCitation> {
+    let mut citations = Vec::new();
+    if let Some(workspace) = workspace {
+        collect_workspace_markdown_link_citations(line, config, workspace, &mut citations);
+    }
+    for caps in config.grammar.citation_re.captures_iter(line) {
+        let Some(full) = caps.get(0) else { continue };
+        let marker_start = full.start().saturating_sub(config.marker.len());
+        if !line[..full.start()].ends_with(&config.marker) {
+            continue;
+        }
+        if is_inside_inline_code(line, marker_start) {
+            continue;
+        }
+        let Some(id) = parse_id(&caps) else { continue };
+        citations.push(MarkdownLineCitation {
+            marker_start,
+            token_end: full.end(),
+            namespace: caps.name("namespace").map(|m| m.as_str().to_string()),
+            id,
+            section: caps.name("sec").map(|m| m.as_str().to_string()),
+        });
+    }
+    citations.sort_by(|a, b| {
+        (a.marker_start, std::cmp::Reverse(a.token_end)).cmp(&(
+            b.marker_start,
+            std::cmp::Reverse(b.token_end),
+        ))
+    });
+    citations
+}
+
+fn collect_workspace_markdown_link_citations(
+    line: &str,
+    config: &Config,
+    workspace: &WorkspaceContext,
+    out: &mut Vec<MarkdownLineCitation>,
+) {
+    if config.marker.is_empty() {
+        return;
+    }
+    for (marker_start, _) in line.match_indices(&config.marker) {
+        if is_inside_inline_code(line, marker_start) {
+            continue;
+        }
+        let token_start = marker_start + config.marker.len();
+        let Some(rest) = line.get(token_start..) else {
+            continue;
+        };
+        let Some(prefix) = QUALIFIED_CITATION_PREFIX.captures(rest) else {
+            continue;
+        };
+        let Some(alias) = prefix.name("namespace").map(|m| m.as_str()) else {
+            continue;
+        };
+        let Some(target_project) = workspace.project_by_alias(alias) else {
+            continue;
+        };
+        let id_start = token_start + prefix.get(0).unwrap().end();
+        let Some(id_rest) = line.get(id_start..) else {
+            continue;
+        };
+        let Some((id, section, id_len)) =
+            parse_longest_id_prefix(id_rest, &target_project.config.grammar)
+        else {
+            continue;
+        };
+        out.push(MarkdownLineCitation {
+            marker_start,
+            token_end: id_start + id_len,
+            namespace: Some(alias.to_string()),
+            id,
+            section,
+        });
+    }
 }
 
 /// Flatten `grund fmt --cross-refs` link wrappers in a body before `grund show`

@@ -59,6 +59,14 @@ look equivalent on the happy path, but disagree on the edges (a bare
 `path/<ID>` token; a literal slash inside a string; a markdown link
 destination). One regex, one capture group, one decision rule downstream.
 
+In a workspace run, the alias still controls the ID grammar: a qualified
+citation's `ID[.section]` tail is parsed with the target project's config, not
+the citing project's config. The scanner may first recognize the marker and
+alias with the citing project's config, but once all member configs are loaded,
+workspace-aware paths normalize known qualified citations against the target
+grammar so `check`, `refs`, `list`, and `fmt --cross-refs` see the
+target-shaped `Id`.
+
 ## 3. The scanner: marker-anchored qualification
 
 ### 3.1 The rule
