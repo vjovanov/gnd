@@ -146,7 +146,11 @@ fn command_check_workspace(
         projects.push((alias, root_config.clone()));
     }
     for member_root in member_roots {
-        let mut member_config = match load_config_at(&member_root, &root_config.cli_base) {
+        let mut member_config = match load_config_at_with_report_base(
+            &member_root,
+            &root_config.cli_base,
+            Some(&root_config.root),
+        ) {
             Ok(config) => config,
             Err(err) => {
                 eprintln!("error: {err:#}");
@@ -182,6 +186,18 @@ fn command_check_workspace(
         projects.push((alias, member_config));
     }
 
+    if projects.is_empty() {
+        eprintln!(
+            "error: {:#}",
+            workspace_members_error(
+                &root_config,
+                "workspace has no projects in scope (include_root = false and no members)"
+                    .to_string(),
+            )
+        );
+        return ExitCode::from(2);
+    }
+
     let mut seen_aliases: BTreeMap<String, PathBuf> = BTreeMap::new();
     for (alias, config) in &projects {
         if let Some(first_root) = seen_aliases.get(alias) {
@@ -215,6 +231,23 @@ fn command_check_workspace(
             findings,
             scan_errors,
         });
+    }
+    let targets = scanned
+        .iter()
+        .map(|project| WorkspaceCitationTarget {
+            alias: project.alias.clone(),
+            config: project.config.clone(),
+        })
+        .collect::<Vec<_>>();
+    for project in &mut scanned {
+        if let Err(err) = reparse_qualified_citations_for_workspace(
+            &project.config,
+            &mut project.findings,
+            &targets,
+        ) {
+            eprintln!("error: {err:#}");
+            return ExitCode::from(2);
+        }
     }
 
     let workspace = scanned

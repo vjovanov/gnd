@@ -253,6 +253,189 @@ mod tests {
         );
     }
 
+    /// §FS-workspace.1: a qualified citation's ID tail is parsed with the
+    /// target project's grammar, not the citing project's grammar.
+    #[test]
+    fn workspace_qualified_citation_uses_target_id_grammar() {
+        let root = test_root("workspace_qualified_citation_uses_target_id_grammar");
+        write(
+            &root.join("docs/functional-spec/FS-root.md"),
+            "# FS-root: Root\n\nThe root cites the member: §api/FS-001-session.\n",
+        );
+        write(
+            &root.join("apps/api/docs/functional-spec/FS-001-session.md"),
+            "# FS-001-session: Session\n",
+        );
+
+        let mut root_config = Config::default_for(root.clone());
+        root_config.id_format = "{kind}-{slug}".into();
+        root_config.slug_pattern = "[a-z][a-z-]*".into();
+        root_config.workspace_boundary_roots = vec![canonical_test_path(&root.join("apps/api"))];
+        root_config.rebuild_grammar().expect("root grammar");
+        let api_config = Config::default_for(root.join("apps/api"));
+
+        let (mut root_findings, _) = scan_tree(&root_config, Some(&root), true).expect("scan root");
+        let (mut api_findings, _) =
+            scan_tree(&api_config, Some(&api_config.root), true).expect("scan api");
+        let targets = vec![
+            WorkspaceCitationTarget {
+                alias: "root".to_string(),
+                config: root_config.clone(),
+            },
+            WorkspaceCitationTarget {
+                alias: "api".to_string(),
+                config: api_config.clone(),
+            },
+        ];
+        reparse_qualified_citations_for_workspace(&root_config, &mut root_findings, &targets)
+            .expect("reparse root qualified citations");
+        reparse_qualified_citations_for_workspace(&api_config, &mut api_findings, &targets)
+            .expect("reparse api qualified citations");
+
+        let cite = root_findings
+            .citations
+            .iter()
+            .find(|cite| cite.namespace.as_deref() == Some("api"))
+            .expect("root citation should be recognised");
+        assert_eq!(cite.id.num, Some(1));
+        assert_eq!(cite.id.slug.as_deref(), Some("session"));
+
+        let workspace = BTreeMap::from([
+            ("root".to_string(), &root_findings),
+            ("api".to_string(), &api_findings),
+        ]);
+        let root_report =
+            check_with_workspace(&root_findings, &root_config, Some("root"), &workspace);
+        assert!(
+            !root_report.errors.iter().any(|error| error.code == "dangling"),
+            "target-shaped cross-project citation must resolve: {:?}",
+            root_report
+                .errors
+                .iter()
+                .map(|error| (&error.code, &error.message))
+                .collect::<Vec<_>>()
+        );
+        let api_report = check_with_workspace(&api_findings, &api_config, Some("api"), &workspace);
+        assert!(
+            !api_report
+                .warnings
+                .iter()
+                .any(|warning| warning.code == "unused"),
+            "the member declaration should be counted as cited by the root"
+        );
+    }
+
+    /// §FS-workspace.8.1 / §FS-workspace.8.2: qualified query arguments route
+    /// to the alias first, then parse the ID under that project's config.
+    #[test]
+    fn workspace_qualified_query_uses_target_id_grammar() {
+        let root = test_root("workspace_qualified_query_uses_target_id_grammar");
+        write(
+            &root.join(".agents/grund.toml"),
+            r#"grund_config_version = 1
+
+[id]
+format = "{kind}-{slug}"
+slug_pattern = "[a-z][a-z-]*"
+
+[workspace]
+members = ["apps/api"]
+"#,
+        );
+        write(
+            &root.join("docs/functional-spec/FS-root.md"),
+            "# FS-root: Root\n",
+        );
+        write(
+            &root.join("apps/api/docs/functional-spec/FS-001-session.md"),
+            "# FS-001-session: Session\n\nMember body.\n",
+        );
+
+        let context = load_workspace_context(&root, true).expect("load workspace context");
+        let (alias, raw_id) =
+            split_qualified_id_arg("api/FS-001-session").expect("split qualified ID");
+        let project = context
+            .project_by_alias(alias.as_deref().unwrap())
+            .expect("api project");
+        let (id, section) =
+            parse_id_arg(raw_id, &project.config.grammar).expect("parse with api grammar");
+        assert_eq!(section, None);
+        assert_eq!(id.num, Some(1));
+        let shown = show_declaration(
+            &project.config,
+            &project.findings,
+            &id,
+            None,
+            ShowMode::Default,
+            false,
+        )
+        .expect("show member declaration");
+        assert!(shown.body.contains("Member body."));
+
+        let root_project = context.current_project().expect("root project");
+        let wrapped = wrap_markdown_links(
+            "See §api/FS-001-session.",
+            &root.join("docs/functional-spec/FS-root.md"),
+            &root_project.config,
+            &root_project.findings,
+            Some(&context),
+        );
+        assert_eq!(
+            wrapped,
+            "See [§api/FS-001-session](../../apps/api/docs/functional-spec/FS-001-session.md#fs-001-session-session)."
+        );
+    }
+
+    /// §FS-workspace.2 / §FS-check.2.1: an explicitly empty workspace is a
+    /// configuration error for `check`, not a successful scan of nothing.
+    #[test]
+    fn check_rejects_workspace_with_no_projects_in_scope() {
+        let root = test_root("check_rejects_workspace_with_no_projects_in_scope");
+        write(
+            &root.join(".agents/grund.toml"),
+            r#"grund_config_version = 1
+
+[workspace]
+include_root = false
+members = []
+"#,
+        );
+
+        let code = command_check(&[root.to_string_lossy().into_owned()]);
+        assert_eq!(code, ExitCode::from(2));
+    }
+
+    /// §FS-errors.2.1 / §AR-workspace.5.1: member config parse errors loaded
+    /// from a workspace command render relative to the workspace root.
+    #[test]
+    fn member_config_errors_render_workspace_relative_path() {
+        let root = test_root("member_config_errors_render_workspace_relative_path");
+        write(
+            &root.join(".agents/grund.toml"),
+            r#"grund_config_version = 1
+
+[workspace]
+members = ["apps/api"]
+"#,
+        );
+        write(
+            &root.join("apps/api/.agents/grund.toml"),
+            r#"grund_config_version = 1
+
+[unknown]
+"#,
+        );
+
+        let err = match load_workspace_context(&root, true) {
+            Ok(_) => panic!("bad member config should fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("apps/api/.agents/grund.toml:3: unknown config section `unknown`"),
+            "error should point at the member path relative to the workspace root: {err}"
+        );
+    }
+
     #[test]
     fn require_grounding_accepts_inline_declaration() {
         let root = test_root("require_grounding_accepts_inline_declaration");

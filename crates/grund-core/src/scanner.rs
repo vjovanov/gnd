@@ -166,6 +166,135 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
     Ok(())
 }
 
+/// Reparse marker-qualified workspace citations after every project config is
+/// loaded. The ordinary scan is intentionally project-local; this pass is the
+/// workspace layer promised by §FS-workspace.1 / §AR-workspace.2, where
+/// `§alias/ID` uses the target alias's `[id]` grammar rather than the citing
+/// project's grammar.
+fn reparse_qualified_citations_for_workspace(
+    config: &Config,
+    findings: &mut Findings,
+    targets: &[WorkspaceCitationTarget],
+) -> Result<()> {
+    if config.marker.is_empty() || targets.is_empty() {
+        return Ok(());
+    }
+    findings
+        .citations
+        .retain(|citation| citation.namespace.is_none());
+
+    let mut additions = Vec::new();
+    for file in findings.scanned_files.clone() {
+        scan_workspace_qualified_citations(&file, config, targets, &mut additions)
+            .with_context(|| format!("scan {}", file.display()))?;
+    }
+    findings.citations.extend(additions);
+    findings
+        .citations
+        .sort_by(|a, b| (sort_path_key(&a.file), a.line, a.column).cmp(&(
+            sort_path_key(&b.file),
+            b.line,
+            b.column,
+        )));
+    Ok(())
+}
+
+fn scan_workspace_qualified_citations(
+    path: &Path,
+    config: &Config,
+    targets: &[WorkspaceCitationTarget],
+    out: &mut Vec<Citation>,
+) -> Result<()> {
+    let text = fs::read_to_string(path)?;
+    let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
+    let is_py = path.extension().and_then(|e| e.to_str()) == Some("py");
+    let mut in_fence = false;
+    let mut in_py_docstring = false;
+
+    for (idx, line) in text.lines().enumerate() {
+        let lineno = idx + 1;
+        let trimmed = line.trim_start();
+        if is_md && (trimmed.starts_with("```") || trimmed.starts_with("~~~")) {
+            in_fence = !in_fence;
+            continue;
+        }
+        if in_fence {
+            continue;
+        }
+        if config.docstring_python
+            && is_py
+            && (trimmed.starts_with("\"\"\"") || trimmed.starts_with("'''"))
+        {
+            in_py_docstring = !in_py_docstring;
+            continue;
+        }
+        let scan_line = if in_py_docstring {
+            line.trim_start()
+        } else {
+            line
+        };
+        for (marker_start, _) in scan_line.match_indices(&config.marker) {
+            let token_start = marker_start + config.marker.len();
+            let Some(rest) = scan_line.get(token_start..) else {
+                continue;
+            };
+            let Some(prefix) = QUALIFIED_CITATION_PREFIX.captures(rest) else {
+                continue;
+            };
+            let Some(alias) = prefix.name("namespace").map(|m| m.as_str()) else {
+                continue;
+            };
+            let id_start = token_start + prefix.get(0).unwrap().end();
+            let Some(id_rest) = scan_line.get(id_start..) else {
+                continue;
+            };
+            let parsed = match targets.iter().find(|target| target.alias == alias) {
+                Some(target) => parse_longest_id_prefix(id_rest, &target.config.grammar),
+                None => targets
+                    .iter()
+                    .find_map(|target| parse_longest_id_prefix(id_rest, &target.config.grammar)),
+            };
+            let Some((id, section, id_len)) = parsed else {
+                continue;
+            };
+            let token_end = id_start + id_len;
+            out.push(Citation {
+                namespace: Some(alias.to_string()),
+                id,
+                section,
+                file: path.to_path_buf(),
+                line: lineno,
+                column: marker_start + 1,
+                has_marker: true,
+                text: scan_line[marker_start..token_end].to_string(),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn parse_longest_id_prefix(raw: &str, grammar: &Grammar) -> Option<(Id, Option<String>, usize)> {
+    let search_end = raw
+        .char_indices()
+        .find(|(_, ch)| ch.is_whitespace())
+        .map(|(idx, _)| idx)
+        .unwrap_or(raw.len());
+    let mut ends = raw[..search_end]
+        .char_indices()
+        .map(|(idx, _)| idx)
+        .chain(std::iter::once(search_end))
+        .filter(|end| *end > 0)
+        .collect::<Vec<_>>();
+    ends.sort_unstable();
+    ends.dedup();
+    for end in ends.into_iter().rev() {
+        if let Ok((id, section)) = parse_id_arg(&raw[..end], grammar) {
+            return Some((id, section, end));
+        }
+    }
+    None
+}
+
 /// Discover `e2e/cases/<name>/` directories and register each as an `E2E-<name>`
 /// declaration whose body is the case manifest (§AR-scanner.6, §FS-show.2.4) — so
 /// `grund check` sees `§E2E-…` citations resolve and `grund refs` finds e2e tests.

@@ -33,8 +33,10 @@ The grammar is:
 
 `alias` is a lowercase slug: it starts with a letter and then uses lowercase
 letters, digits, or `-`. The slash is part of the citation namespace, not part of
-the ID. The `ID[.section]` part uses the same ID and section grammar as local
-citations in this first workspace implementation.
+the ID. For an unqualified citation, the `ID[.section]` part uses the current
+project's ID and section grammar. For a qualified citation, it uses the target
+project's grammar: `§api/FS-001-session` is parsed with `api`'s `[id]` config,
+even when the citing/root project uses a different ID format.
 
 ## 2. Workspace configuration
 

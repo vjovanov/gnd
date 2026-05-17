@@ -39,6 +39,14 @@ fn load_config(start: &Path) -> Result<Config> {
 /// path rendering. The one shared loader both upward discovery (`load_config`)
 /// and direct workspace-member loading funnel through (§AR-workspace.5.1).
 fn load_config_at(root: &Path, cli_base: &Path) -> Result<Config> {
+    load_config_at_with_report_base(root, cli_base, None)
+}
+
+fn load_config_at_with_report_base(
+    root: &Path,
+    cli_base: &Path,
+    report_base: Option<&Path>,
+) -> Result<Config> {
     let root = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
     let mut config = Config::default_for(root.clone());
     config.cli_base = cli_base.to_path_buf();
@@ -47,9 +55,11 @@ fn load_config_at(root: &Path, cli_base: &Path) -> Result<Config> {
         // Report config errors against a stable relative path, never the
         // absolute discovered path (§FS-errors.4: deterministic, no absolute
         // paths outside the configured root).
+        let base = report_base.unwrap_or(&root);
         let report_path = candidate
-            .strip_prefix(&root)
+            .strip_prefix(base)
             .map(Path::to_path_buf)
+            .or_else(|_| candidate.strip_prefix(&root).map(Path::to_path_buf))
             .unwrap_or_else(|_| candidate.clone());
         parse_config_file(&candidate, &report_path, &mut config)?;
     }

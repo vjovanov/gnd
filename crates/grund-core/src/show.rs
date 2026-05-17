@@ -99,15 +99,11 @@ fn command_show(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    // Parse against the *current* project's grammar — the qualifying alias
-    // syntax is identical across projects (§FS-workspace.1) but the
-    // `[id] format` is per-project. The target project's grammar still vets
-    // the parsed `Id` at resolution time (§AR-workspace.5).
     let current_config = context
         .current_project()
         .map(|project| &project.config)
         .unwrap_or_else(|| context.render_config());
-    let (alias, id, inline_section) = match parse_qualified_id_arg(&id_arg, &current_config.grammar) {
+    let (alias, raw_id) = match split_qualified_id_arg(&id_arg) {
         Ok(parsed) => parsed,
         Err(err) => {
             let message = format!("{err:#}");
@@ -123,15 +119,6 @@ fn command_show(args: &[String]) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    if section_override.is_some() && inline_section.is_some() {
-        eprintln!("error: --section cannot be combined with an inline section");
-        return ExitCode::from(2);
-    }
-    let section = section_override.or(inline_section);
-    if !matches!(format.as_str(), "text" | "md" | "json") {
-        eprintln!("error: unsupported show format `{format}`");
-        return ExitCode::from(2);
-    }
     // §FS-workspace.8.1: route to the qualified project's config + findings
     // when an `<alias>/<ID>` form is given; otherwise resolve against the
     // current project. An unknown alias is a CLI-shaped error (exit 2), not
@@ -167,6 +154,36 @@ fn command_show(args: &[String]) -> ExitCode {
             }
         },
     };
+    let config = &project.config;
+    // §FS-workspace.1: split the alias first, then parse the ID tail with the
+    // target project's grammar. Mixed-format workspaces rely on this; the root
+    // may use `{kind}-{slug}` while `api/FS-001-session` belongs to a numbered
+    // member namespace.
+    let (id, inline_section) = match parse_id_arg(raw_id, &config.grammar) {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            let message = format!("{err:#}");
+            if format == "json" {
+                print_bare_query_json(config, show_query_error_code(&message), &message);
+            } else {
+                eprintln!("{message}");
+                eprintln!(
+                    "hint: this repo's [id] format is `{}` (run `grund config show`); `grund list` shows the IDs that exist",
+                    config.id_format
+                );
+            }
+            return ExitCode::FAILURE;
+        }
+    };
+    if section_override.is_some() && inline_section.is_some() {
+        eprintln!("error: --section cannot be combined with an inline section");
+        return ExitCode::from(2);
+    }
+    let section = section_override.or(inline_section);
+    if !matches!(format.as_str(), "text" | "md" | "json") {
+        eprintln!("error: unsupported show format `{format}`");
+        return ExitCode::from(2);
+    }
     // §FS-show.3 / partial-scan semantics: any unreadable file inside the
     // selected project's scope is fatal — the lookup could miss the home.
     if let Some((file, message)) = project.scan_errors.first() {
@@ -177,7 +194,6 @@ fn command_show(args: &[String]) -> ExitCode {
         );
         return ExitCode::from(2);
     }
-    let config = &project.config;
     let findings = &project.findings;
     match show_declaration(
         config,

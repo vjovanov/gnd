@@ -140,7 +140,11 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
         });
     }
     for member_root in member_roots {
-        let member_config = load_config_at(&member_root, &root_config.cli_base)?;
+        let member_config = load_config_at_with_report_base(
+            &member_root,
+            &root_config.cli_base,
+            Some(&root_config.root),
+        )?;
         // §AR-workspace.6.1: nested workspaces are rejected at load — match
         // `command_check_workspace` so query commands fail with the same
         // shape (`unknown project alias` would mask the real issue).
@@ -190,6 +194,20 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
             "workspace has no projects in scope (include_root = false and no members)".to_string(),
         ));
     }
+    let targets = projects
+        .iter()
+        .map(|project| WorkspaceCitationTarget {
+            alias: project.alias.clone(),
+            config: project.config.clone(),
+        })
+        .collect::<Vec<_>>();
+    for project in &mut projects {
+        reparse_qualified_citations_for_workspace(
+            &project.config,
+            &mut project.findings,
+            &targets,
+        )?;
+    }
     Ok(WorkspaceContext {
         projects,
         current,
@@ -199,15 +217,11 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
     })
 }
 
-/// Parse a CLI ID argument that may carry a qualifying `<alias>/` prefix
-/// (§FS-workspace.1) — the shape `grund show`, `grund refs`, and `grund list
-/// --project` accept once workspace queries land. Returns `(alias, id,
-/// section)`. The alias is validated against the slug grammar so a malformed
-/// prefix is caught here, before resolution.
-fn parse_qualified_id_arg(
-    raw: &str,
-    grammar: &Grammar,
-) -> Result<(Option<String>, Id, Option<String>)> {
+/// Split a CLI ID argument that may carry a qualifying `<alias>/` prefix
+/// (§FS-workspace.1). The alias is validated against the slug grammar here,
+/// before resolution; the ID tail is deliberately left raw so the caller can
+/// parse it with the target project's grammar.
+fn split_qualified_id_arg(raw: &str) -> Result<(Option<String>, &str)> {
     if let Some(slash) = raw.find('/') {
         let (alias, rest) = raw.split_at(slash);
         let rest = &rest[1..];
@@ -216,9 +230,7 @@ fn parse_qualified_id_arg(
                 "invalid project alias `{alias}` (expected [a-z][a-z0-9-]*)"
             ));
         }
-        let (id, section) = parse_id_arg(rest, grammar)?;
-        return Ok((Some(alias.to_string()), id, section));
+        return Ok((Some(alias.to_string()), rest));
     }
-    let (id, section) = parse_id_arg(raw, grammar)?;
-    Ok((None, id, section))
+    Ok((None, raw))
 }

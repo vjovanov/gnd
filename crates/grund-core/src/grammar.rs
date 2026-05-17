@@ -55,6 +55,9 @@ static AGENTS_SECTION_BOUNDARY: Lazy<Regex> =
 /// (§FS-workspace.1, §AR-workspace.2). One canonical place — also referenced by
 /// the config-load alias validator (`is_valid_project_alias` in `config.rs`).
 const PROJECT_ALIAS_PATTERN: &str = "[a-z][a-z0-9-]*";
+static QUALIFIED_CITATION_PREFIX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(&format!(r"^(?P<namespace>{})/", PROJECT_ALIAS_PATTERN)).unwrap()
+});
 
 #[derive(Clone)]
 struct Grammar {
