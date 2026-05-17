@@ -1101,7 +1101,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     fn workspace_members_empty_when_no_workspace_declared() {
         let root = test_root("workspace_members_empty_when_no_workspace_declared");
         // No `.agents/grund.toml` at all — fall through to defaults.
-        assert_eq!(render_workspace_members_section(&root), "");
+        assert_eq!(render_workspace_members_section(&root, None), "");
         // And the rendered AGENTS.md contains neither the section heading nor
         // the discoverability line.
         let config = Config::default_for(root.clone());
@@ -1126,7 +1126,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         std::fs::create_dir_all(root.join("packages/ui")).expect("create ui");
         write(&root.join("apps/api/AGENTS.md"), "## existing block\n");
 
-        let section = render_workspace_members_section(&root);
+        let section = render_workspace_members_section(&root, None);
 
         assert!(section.contains("### Workspace members"));
         assert!(section.contains("Cross-project citations use §alias/<ID>."));
@@ -1165,7 +1165,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         // None of the members are initialized — root/AGENTS.md absent too.
         let api_target = root.join("apps/api");
 
-        let section = render_workspace_members_section(&api_target);
+        let section = render_workspace_members_section(&api_target, None);
 
         // Self counts as initialized — `api` row is the uniform-shape link.
         assert!(section.contains("- `api` → [AGENTS.md](AGENTS.md)"));
@@ -1185,6 +1185,29 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         assert!(api < core && core < root_pos && root_pos < ui);
     }
 
+    /// §FS-init.2.3.4.15: when a member has no local config yet, its self row
+    /// uses the `project_name` that `init` is about to write instead of the
+    /// directory basename, so the generated block matches later workspace
+    /// resolution.
+    #[test]
+    fn workspace_members_member_init_uses_pending_name_for_self_alias() {
+        let root = test_root("workspace_members_member_init_uses_pending_name_for_self_alias");
+        write(
+            &root.join(".agents/grund.toml"),
+            "project_name = \"root\"\n\n[workspace]\nmembers = [\"apps/api\"]\n",
+        );
+        std::fs::create_dir_all(root.join("apps/api")).expect("create api");
+        let api_target = root.join("apps/api");
+
+        let section = render_workspace_members_section(&api_target, Some("service"));
+
+        assert!(section.contains("- `service` → [AGENTS.md](AGENTS.md)"));
+        assert!(
+            !section.contains("`api`"),
+            "the basename fallback must not leak into the generated block"
+        );
+    }
+
     /// §FS-init.2.3.4.15: `include_root = false` drops the root row entirely;
     /// the section still emits when there is at least one member to list.
     #[test]
@@ -1196,7 +1219,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         );
         std::fs::create_dir_all(root.join("apps/api")).expect("create api");
 
-        let section = render_workspace_members_section(&root);
+        let section = render_workspace_members_section(&root, None);
 
         assert!(section.contains("### Workspace members"));
         assert!(section.contains("`api`"));
@@ -1220,7 +1243,23 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         // `apps/api` directory missing — `expand_workspace_members` errors,
         // but `render_workspace_members_section` must degrade gracefully.
 
-        assert_eq!(render_workspace_members_section(&root), "");
+        assert_eq!(render_workspace_members_section(&root, None), "");
+    }
+
+    /// §FS-init.2.3.4.15: duplicate aliases are a workspace configuration
+    /// error, so `init` must suppress the section instead of rendering
+    /// ambiguous bullets with the same alias.
+    #[test]
+    fn workspace_members_suppresses_duplicate_aliases() {
+        let root = test_root("workspace_members_suppresses_duplicate_aliases");
+        write(
+            &root.join(".agents/grund.toml"),
+            "project_name = \"root\"\n\n[workspace]\nmembers = [\"apps/api\", \"services/api\"]\n",
+        );
+        std::fs::create_dir_all(root.join("apps/api")).expect("create apps/api");
+        std::fs::create_dir_all(root.join("services/api")).expect("create services/api");
+
+        assert_eq!(render_workspace_members_section(&root, None), "");
     }
 
     #[cfg(unix)]
