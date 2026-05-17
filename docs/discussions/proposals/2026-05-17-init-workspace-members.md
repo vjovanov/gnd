@@ -2,7 +2,7 @@
 
 ## Status
 
-Discussion.
+Concluded. Ready to draft as additions to §FS-init.
 
 ## Context
 
@@ -98,3 +98,92 @@ Regarding the open questions:
 - **Should the syntax be restated?** No. Adhere to token-cheap-grounding. Providing the alias-to-path mapping is sufficient; agents should already know or learn the citation syntax independently.
 - **Should large workspaces collapse the list?** No. Keep it fully linked. The mapping of namespaces to paths is the primary value. Stripping paths defeats the purpose, and 50 lines of Markdown is cheap in modern context windows.
 - **Does member-side `init` need a reciprocal change?** Yes. A one-line pointer to the workspace root (e.g., `Part of the workspace defined at ../../AGENTS.md`) is highly valuable for agents invoked directly inside a member project.
+
+### Codex opinion
+
+I support this proposal. It fits the shape of `init`: make the agent's starting
+context useful, but do not infer or configure workspace topology. Reading
+`[workspace] members` from existing config and surfacing resolved aliases is a
+low-risk improvement that preserves the no-prompts, no-surprises contract in
+§FS-init while making workspace citation scope visible from the root entrypoint.
+
+My preferred answers to the open questions are:
+
+- List members even when their `AGENTS.md` does not exist. The workspace member
+  exists by config; the missing entrypoint is useful information.
+- Include one terse syntax line: `Cross-project citations use §alias/<ID>.` The
+  point is discoverability, and that sentence earns its tokens.
+- Keep full `alias` to `path/AGENTS.md` links for v1. Do not add collapse
+  behavior until there is evidence of real bloat.
+- Do not add reciprocal member-side output yet. Root-to-member discovery is the
+  missing part; member-to-root can be a separate decision.
+
+I would also tighten the proposal into spec language around deterministic
+ordering: expand members exactly as workspace resolution does, then emit stable
+Markdown sorted by alias or resolved path. That keeps generated blocks
+reviewable and avoids churn.
+
+---
+
+A second take: support the proposal, with three refinements on top of the
+open-question answers.
+
+- **Mark uninitialized members, don't silently link them.** Listing absent
+  members is right, but render them as
+  `` `api` → `apps/api/` *(not yet initialized)* `` rather than pointing at
+  a file that 404s. Listing is honest; a dead link wastes the next agent
+  turn.
+- **Sort by alias, not by resolved path.** Path-sort looks arbitrary to a
+  reader because depth and prefix dominate. Alias-sort matches how
+  citations appear in code (`§api/...`, `§core/...`) and gives the reviewer
+  a predictable diff.
+- **Be explicit about member-side `init`.** When `grund init` runs inside
+  `apps/api`, the effective config still inherits `[workspace]`, so by the
+  proposal's trigger the member's own `AGENTS.md` also gets the
+  sibling-members list. That is the correct behavior, but it should be
+  stated outright in the spec — readers will otherwise intuit that members
+  get a different block ("you are a member of X") instead of the same
+  list.
+
+On the open questions where the takes diverge:
+
+- **Restate the citation syntax inline.** One line —
+  `Cross-project citations use §alias/<ID>.` — earns its tokens. An agent
+  landing at the root cold should not have to follow a link to discover
+  the namespace syntax exists. The token-cheap-grounding direction is
+  about not inlining content that lives elsewhere; the syntax sentence is
+  not duplicated content, it is the discoverability hook for the list
+  immediately above it.
+- **Defer reciprocal member-side pointer to a follow-up.** Root → members
+  is the missing discovery direction; member → root is already discoverable
+  by climbing `..` and is a separate decision worth its own scope.
+
+## Conclusion
+
+The proposal is accepted. Adopt it as drafted, with the following
+resolutions of the open questions and refinements on top.
+
+**Open questions, resolved**
+
+- *List members without `AGENTS.md`?* Yes, with a trailing
+  `*(not yet initialized)*` marker; render the right-hand side as the
+  member root (e.g. `apps/api/`) rather than a non-existent file path,
+  and append `/AGENTS.md` only when the file exists.
+- *Restate the citation syntax inline?* Yes. Emit one line:
+  `Cross-project citations use §alias/<ID>.`
+- *Collapse the list for large workspaces?* No. Keep full
+  `alias → path` links in v1. Revisit only if real bloat appears.
+- *Reciprocal member-side pointer?* Deferred to a follow-up discussion.
+  v1 is root → members only.
+
+**Refinements layered on the proposed shape**
+
+- Members are sorted by alias, not by resolved path, for stable diffs.
+- The same "Workspace members" list is emitted when `grund init` runs
+  inside a member directory whose effective config inherits `[workspace]`.
+  The spec should state this explicitly so the symmetry is not a surprise.
+
+Next step: fold these into §FS-init alongside the existing managed-block
+contract, and update the Project Map section
+([§FS-init.2.3.4.4](../../functional-spec/FS-init.md#2-3-4-4-project-map))
+to reference the new sibling section.

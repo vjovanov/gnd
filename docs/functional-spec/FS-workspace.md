@@ -115,6 +115,16 @@ member's local ID grammar. That way `§root/FS-root` is still an unknown-alias
 citation inside a default `{kind}-{number}-{slug}` member, rather than plain
 text that disappears from `check`.
 
+Member-local recognition uses a fixed fallback ID shape — `KIND[-NUM]-SLUG`
+with an uppercase-or-digit kind and a non-empty slug — because the workspace
+catalogue (and therefore each target's `[id] format`) is unreachable at member
+scope. A qualified citation whose tail does not match that shape (lowercase
+kinds, slug-only ID grammars that don't split on `-`/`_`, kinds with
+non-`[A-Z0-9]` characters) is not flagged at member scope; the workspace-root
+run, which parses each qualified tail with the target project's grammar, is
+the one place that catches every shape. Run `grund check` at the workspace
+root for full coverage.
+
 A relaxed standalone mode (downgrade `unknown project alias` from error to
 warning on a member-only run) is deferred follow-up; see
 [§DF-subproject-namespaces](../decisions/functional/DF-subproject-namespaces.md#df-subproject-namespaces-alias-namespace-model-for-sub-projects-and-external-repos) §3.6.
