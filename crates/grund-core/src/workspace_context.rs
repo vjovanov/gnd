@@ -78,13 +78,15 @@ impl WorkspaceContext {
 /// on top of it (§AR-workspace.5.1).
 fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceContext> {
     let config = resolve_workspace_config(path, path_provided)?;
-    // §FS-workspace.5 / §AR-workspace.6: workspace mode applies when the
-    // discovered config declares `[workspace]` AND the invocation lands at
-    // the workspace root (or no path) — a path that resolves member-local
-    // has already been rewritten by `config_for_member_scope` to drop the
-    // workspace flag.
-    let workspace_root = config.workspace_declared && is_workspace_root_scope(&config, path, path_provided);
-    if !workspace_root {
+    // §FS-workspace.5 / §AR-workspace.6: workspace mode applies whenever
+    // the discovered config carries `[workspace]` after member-scope
+    // rewriting. A path that resolves member-local has already been
+    // rewritten by `config_for_member_scope` to drop `workspace_declared`,
+    // so this flag is the single canonical "is this a workspace run?"
+    // — independent of where in the workspace the user invoked the
+    // command, so `grund show alias/FS-x docs/`, `grund refs FS-y .`, and
+    // `grund fmt --cross-refs subdir/` all see the same workspace.
+    if !config.workspace_declared {
         let (findings, scan_errors) = scan_tree(&config, Some(path), path_provided)?;
         let render_root = config.root.clone();
         return Ok(WorkspaceContext {
