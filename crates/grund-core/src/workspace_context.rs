@@ -204,34 +204,29 @@ fn load_workspace_projects(root_config: &mut Config) -> Result<Vec<WorkspaceProj
         seen.insert(alias.clone(), config.root.clone());
     }
 
-    // Stage 2: scan every project under its own config.
+    // Stage 2: build the target list up-front so each project's scan can
+    // parse `§<alias>/<ID>` citations with the target's grammar inline —
+    // no second disk pass (§FS-workspace.1, §AR-workspace.2).
+    let targets = entries
+        .iter()
+        .map(|(alias, config)| WorkspaceCitationTarget {
+            alias: alias.clone(),
+            config: config.clone(),
+        })
+        .collect::<Vec<_>>();
+
+    // Stage 3: scan every project under its own config, with the workspace
+    // targets in scope.
     let mut projects: Vec<WorkspaceProject> = Vec::new();
     for (alias, config) in entries {
-        let (findings, scan_errors) = scan_tree(&config, Some(&config.root), true)?;
+        let (findings, scan_errors) =
+            scan_tree_with_workspace(&config, Some(&config.root), true, &targets)?;
         projects.push(WorkspaceProject {
             alias,
             config,
             findings,
             scan_errors,
         });
-    }
-
-    // Stage 3: reparse qualified citations against the full target list —
-    // a `§<alias>/<ID>` resolves with the target project's grammar, not
-    // the citing project's (§FS-workspace.1, §AR-workspace.2).
-    let targets = projects
-        .iter()
-        .map(|project| WorkspaceCitationTarget {
-            alias: project.alias.clone(),
-            config: project.config.clone(),
-        })
-        .collect::<Vec<_>>();
-    for project in &mut projects {
-        reparse_qualified_citations_for_workspace(
-            &project.config,
-            &mut project.findings,
-            &targets,
-        )?;
     }
     Ok(projects)
 }

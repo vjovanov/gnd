@@ -201,7 +201,7 @@ Shipped. Lead-default declaration reads, `--brief`, `--toc`, `--section` and dot
 
 ## RM-token-cheap-grounding: token-cheap read surfaces for agents
 
-Shipped. The lead-default `grund show <ID>` read, `grund show --brief`, `grund show --toc`, `grund refs --summary`, multi-kind `grund list --kind FS,AR`, `grund list --summary`, and the v2 generated `AGENTS.md` guidance block — see `docs/changelog.md`, [§FS-show.2.1](functional-spec/FS-show.md#21-whole-declaration-default), [§FS-show.2.1.1](functional-spec/FS-show.md#211-brief---brief), [§FS-show.2.1.2](functional-spec/FS-show.md#212-section-map---toc), [§FS-refs.3.3](functional-spec/FS-refs.md#33---summary), [§FS-list.3.3](functional-spec/FS-list.md#33---summary), and [§DF-show-default-token-cheap](decisions/functional/DF-show-default-token-cheap.md#df-show-default-token-cheap-grund-show-defaults-to-the-cheap-read-the-full-body-is-opt-in).
+Shipped. The lead-default `grund show <ID>` read, `grund show --brief`, `grund show --toc`, `grund refs --summary`, multi-kind `grund list --kind FS,AR`, `grund list --summary`, and the generated `AGENTS.md` guidance block — see `docs/changelog.md`, [§FS-show.2.1](functional-spec/FS-show.md#21-whole-declaration-default), [§FS-show.2.1.1](functional-spec/FS-show.md#211-brief---brief), [§FS-show.2.1.2](functional-spec/FS-show.md#212-section-map---toc), [§FS-refs.3.3](functional-spec/FS-refs.md#33---summary), [§FS-list.3.3](functional-spec/FS-list.md#33---summary), and [§DF-show-default-token-cheap](decisions/functional/DF-show-default-token-cheap.md#df-show-default-token-cheap-grund-show-defaults-to-the-cheap-read-the-full-body-is-opt-in).
 
 ## RM-config: .agents/grund.toml discovery, parsing, and inspection
 
