@@ -343,6 +343,56 @@ fn init_agent_flag_updates_canonical_target_for_symlinked_entrypoint() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn init_workspace_symlinked_alias_writes_canonical_target() {
+    // §FS-init.2.1 / §FS-init.2.3: a workspace-selected companion symlink to
+    // AGENTS.md is covered by updating the canonical target, even before the
+    // target exists, rather than writing a companion-only block through it.
+    let target = workdir("init_workspace_symlinked_alias_writes_canonical_target");
+    fs::create_dir_all(target.join(".claude")).expect("create .claude");
+    std::os::unix::fs::symlink("AGENTS.md", target.join("CLAUDE.md"))
+        .expect("create CLAUDE.md symlink");
+
+    let output = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
+    assert!(
+        output.status.success(),
+        "init failed: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("wrote AGENTS.md"),
+        "init should update the canonical symlink target, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("wrote .claude/CLAUDE.md"),
+        "init should still create the missing workspace alias, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("wrote CLAUDE.md") && !stderr.contains("appended CLAUDE.md"),
+        "init should not write through the CLAUDE.md symlink separately, got:\n{stderr}"
+    );
+
+    let claude_metadata =
+        fs::symlink_metadata(target.join("CLAUDE.md")).expect("inspect CLAUDE.md");
+    assert!(
+        claude_metadata.file_type().is_symlink(),
+        "CLAUDE.md should remain a symlink"
+    );
+    let agents = fs::read_to_string(target.join("AGENTS.md")).expect("read AGENTS.md");
+    assert!(
+        agents.starts_with("# init_workspace_symlinked_alias_writes_canonical_target"),
+        "AGENTS.md should be the full canonical entrypoint with an H1, got:\n{agents}"
+    );
+    let claude_scoped =
+        fs::read_to_string(target.join(".claude/CLAUDE.md")).expect("read .claude/CLAUDE.md");
+    assert!(
+        claude_scoped.starts_with("## Grounding with grund (v1)\n"),
+        ".claude/CLAUDE.md should be a thin managed-block alias, got:\n{claude_scoped}"
+    );
+}
+
 #[test]
 fn init_creates_agent_aliases_when_agent_workspaces_exist() {
     // FS-init.2.1 / FS-init.2.3: missing neutral companion aliases are created

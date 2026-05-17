@@ -287,18 +287,19 @@ fn selected_init_agent_entrypoints(
 
     let canonical = target.join(CANONICAL_AGENT_ENTRYPOINT);
     let canonical_exists = is_file_or_symlink(&canonical);
-    let existing_companions = existing_init_companion_agent_entrypoints(target)?;
+    let (canonical_from_companion_symlink, existing_companions) =
+        existing_init_companion_agent_entrypoints(target)?;
     if canonical_exists || !existing_companions.is_empty() {
         return Ok(SelectedInitAgentEntrypoints {
-            canonical: canonical_exists,
+            canonical: canonical_exists || canonical_from_companion_symlink,
             companions: existing_companions,
         });
     }
 
     let workspace_companions = workspace_init_companion_agent_entrypoints(target);
-    if !workspace_companions.is_empty() {
+    if canonical_from_companion_symlink || !workspace_companions.is_empty() {
         return Ok(SelectedInitAgentEntrypoints {
-            canonical: false,
+            canonical: canonical_from_companion_symlink,
             companions: workspace_companions,
         });
     }
