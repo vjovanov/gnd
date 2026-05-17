@@ -1,7 +1,7 @@
 # grund
 
 [![CI](https://github.com/vjovanov/grund/actions/workflows/ci.yml/badge.svg)](https://github.com/vjovanov/grund/actions/workflows/ci.yml)
-[![grund check: ~360k LoC/s](https://img.shields.io/badge/grund%20check-~360k%20LoC%2Fs-brightgreen.svg)](docs/benchmarks.md)
+[![grund check: ~574k LoC/s](https://img.shields.io/badge/grund%20check-~574k%20LoC%2Fs-brightgreen.svg)](docs/benchmarks.md)
 [![crates.io](https://img.shields.io/crates/v/grund.svg)](https://crates.io/crates/grund)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 

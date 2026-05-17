@@ -35,15 +35,15 @@ python3 scripts/local-benchmark-report.py --out docs/benchmarks.md
 
 | Field | Value |
 |---|---|
-| Timestamp | 2026-05-11T22:23:04+02:00 |
-| Host | kung-fu-laptop |
-| Os | Linux-6.17.0-14-generic-x86_64-with-glibc2.39 |
-| Kernel | Linux kung-fu-laptop 6.17.0-14-generic #14~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Thu Jan 15 15:52:10 UTC 2 x86_64 x86_64 |
-| Cpu | 12th Gen Intel(R) Core(TM) i7-12800H |
-| Logical Cpus | 20 |
-| Memory | 62.5 GiB |
-| Repo Disk Free | 11.9 GiB |
-| Python | 3.12.12 |
+| Timestamp | 2026-05-17T17:20:27+02:00 |
+| Host | kung-fu-workstation |
+| Os | Linux-6.17.0-29-generic-x86_64-with-glibc2.39 |
+| Kernel | Linux kung-fu-workstation 6.17.0-29-generic #29~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon May 11 10:30:58 UTC 2 x86_64 x86_64 |
+| Cpu | Intel(R) Core(TM) Ultra 9 285K |
+| Logical Cpus | 24 |
+| Memory | 93.7 GiB |
+| Repo Disk Free | 23.7 GiB |
+| Python | 3.11.5 |
 
 ## Tool Versions
 
@@ -51,34 +51,34 @@ python3 scripts/local-benchmark-report.py --out docs/benchmarks.md
 |---|---|
 | `grund` | `grund 0.1.0` |
 | `lychee` | `lychee 0.23.0` |
-| Git commit | `6865906555c644d1e446af7435dd94d5219ea2c4` |
-| Git branch | `main` |
-| Working tree dirty | `yes` |
+| Git commit | `f9ab038e2ca9030c0b94d53e83901e81883d9e80` |
+| Git branch | `init-workspace-members-section` |
+| Working tree dirty | `no` |
 
 ## Workload
 
 | Tool | Local work checked |
 |---|---:|
-| `grund check .` | 201 declarations + 1,553 citations across 48 scanned files (9,715 lines) |
-| `lychee --include-fragments README.md docs examples` | 772 links across 56 markup files |
+| `grund check .` | 313 declarations + 2,006 citations across 85 scanned files (15,709 lines) |
+| `lychee --include-fragments README.md docs examples` | 985 links across 74 markup files |
 
 ## Results
 
 | Command | Cold | Warm median | Warm min | Warm max |
 |---|---:|---:|---:|---:|
-| `target/release/grund check .` | 0.023s | 0.025s | 0.020s | 0.029s |
-| `target/release/grund fmt --check .` | 0.012s | 0.012s | 0.010s | 0.013s |
-| `lychee --no-progress --include-fragments README.md docs examples` | 0.529s | 0.522s | 0.271s | 0.538s |
+| `target/release/grund check .` | 0.029s | 0.027s | 0.027s | 0.028s |
+| `target/release/grund fmt --check .` | 0.038s | 0.036s | 0.033s | 0.038s |
+| `lychee --no-progress --include-fragments README.md docs examples` | 0.790s | 0.483s | 0.242s | 0.543s |
 
 ## Throughput
 
-At the warm median, `grund check .` scans about 392k lines of source per second — roughly the throughput figure on the README badge.
+At the warm median, `grund check .` scans about 574k lines of source per second — roughly the throughput figure on the README badge.
 
 ## Comparison
 
-`grund check .` checks 2.3x as many local intent edges as Lychee checks links in this run.
-Using warm medians, `grund check .` is 21.1x faster than the configured Lychee run.
-Per checked edge, `grund` costs about 14 microseconds; Lychee costs about 676 microseconds per link.
+`grund check .` checks 2.4x as many local intent edges as Lychee checks links in this run.
+Using warm medians, `grund check .` is 17.7x faster than the configured Lychee run.
+Per checked edge, `grund` costs about 12 microseconds; Lychee costs about 490 microseconds per link.
 
 Product copy:
 
@@ -87,6 +87,6 @@ Product copy:
 
 ## Raw Warm Samples
 
-- `grund check`: 0.025s, 0.029s, 0.027s, 0.021s, 0.027s, 0.023s, 0.020s
-- `grund fmt --check`: 0.012s, 0.012s, 0.010s, 0.011s, 0.013s, 0.011s, 0.012s
-- `lychee`: 0.522s, 0.526s, 0.271s, 0.504s, 0.538s, 0.507s, 0.526s
+- `grund check`: 0.028s, 0.027s, 0.027s, 0.027s, 0.027s, 0.027s, 0.027s
+- `grund fmt --check`: 0.037s, 0.036s, 0.033s, 0.038s, 0.038s, 0.035s, 0.034s
+- `lychee`: 0.482s, 0.543s, 0.248s, 0.506s, 0.495s, 0.483s, 0.242s
