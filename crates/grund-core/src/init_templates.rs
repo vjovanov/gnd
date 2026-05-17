@@ -11,13 +11,38 @@ const GITKEEP_TEMPLATE: &str = include_str!("../assets/templates/gitkeep.md");
 const AGENT_SETUP_INSTRUCTIONS: &str = include_str!("../assets/skills/grund-init/SKILL.md");
 const AGENTS_BLOCK_VERSION: u32 = 1;
 const CANONICAL_AGENT_ENTRYPOINT: &str = "AGENTS.md";
-const COMPANION_AGENT_ENTRYPOINTS: &[&str] = &[
-    "AGENTS.override.md",
-    "CLAUDE.md",
-    ".claude/CLAUDE.md",
-    "GEMINI.md",
-    ".github/copilot-instructions.md",
+const COMPANION_AGENT_ENTRYPOINTS: &[CompanionAgentEntrypoint] = &[
+    CompanionAgentEntrypoint {
+        rel: "AGENTS.override.md",
+        workspace: None,
+    },
+    CompanionAgentEntrypoint {
+        rel: "CLAUDE.md",
+        workspace: Some(".claude"),
+    },
+    CompanionAgentEntrypoint {
+        rel: ".claude/CLAUDE.md",
+        workspace: Some(".claude"),
+    },
+    CompanionAgentEntrypoint {
+        rel: "GEMINI.md",
+        workspace: Some(".gemini"),
+    },
+    CompanionAgentEntrypoint {
+        rel: ".github/copilot-instructions.md",
+        workspace: None,
+    },
 ];
+
+struct CompanionAgentEntrypoint {
+    rel: &'static str,
+    workspace: Option<&'static str>,
+}
+
+enum InitCompanionAgentEntrypoint {
+    Existing(PathBuf),
+    MissingAlias(PathBuf),
+}
 
 fn canonical_template_text(template: &str) -> String {
     template.replace("\r\n", "\n").replace('\r', "\n")
@@ -133,12 +158,9 @@ fn render_agents_md(name: &str, config: &Config) -> String {
 fn companion_agent_entrypoints(root: &Path) -> Result<Vec<PathBuf>, (PathBuf, String)> {
     let mut paths = Vec::new();
     let canonical = root.join(CANONICAL_AGENT_ENTRYPOINT);
-    for rel in COMPANION_AGENT_ENTRYPOINTS {
-        let path = root.join(rel);
-        if !fs::symlink_metadata(&path)
-            .map(|m| m.file_type())
-            .is_ok_and(|t| t.is_file() || t.is_symlink())
-        {
+    for entrypoint in COMPANION_AGENT_ENTRYPOINTS {
+        let path = root.join(entrypoint.rel);
+        if !is_file_or_symlink(&path) {
             continue;
         }
         match is_symlink_to(&path, &canonical) {
@@ -148,6 +170,42 @@ fn companion_agent_entrypoints(root: &Path) -> Result<Vec<PathBuf>, (PathBuf, St
         }
     }
     Ok(paths)
+}
+
+/// Companion entrypoints `grund init` should update or create (§FS-init.2.1).
+/// Existing companions are updated in place. Missing neutral aliases are created
+/// only when their owning agent-specific workspace directory already exists;
+/// generic project metadata directories remain existing-file-only.
+fn init_companion_agent_entrypoints(
+    root: &Path,
+) -> Result<Vec<InitCompanionAgentEntrypoint>, (PathBuf, String)> {
+    let mut paths = Vec::new();
+    let canonical = root.join(CANONICAL_AGENT_ENTRYPOINT);
+    for entrypoint in COMPANION_AGENT_ENTRYPOINTS {
+        let path = root.join(entrypoint.rel);
+        if is_file_or_symlink(&path) {
+            match is_symlink_to(&path, &canonical) {
+                Ok(true) => continue,
+                Ok(false) => paths.push(InitCompanionAgentEntrypoint::Existing(path)),
+                Err(err) => return Err((path, format!("{err:#}"))),
+            }
+            continue;
+        }
+        if entrypoint
+            .workspace
+            .is_some_and(|workspace| root.join(workspace).is_dir())
+            && !path.exists()
+        {
+            paths.push(InitCompanionAgentEntrypoint::MissingAlias(path));
+        }
+    }
+    Ok(paths)
+}
+
+fn is_file_or_symlink(path: &Path) -> bool {
+    fs::symlink_metadata(path)
+        .map(|m| m.file_type())
+        .is_ok_and(|t| t.is_file() || t.is_symlink())
 }
 
 fn is_symlink_to(path: &Path, target: &Path) -> Result<bool> {

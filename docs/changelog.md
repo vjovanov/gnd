@@ -22,6 +22,12 @@ One bullet per change, present tense, leading with the affected ID. Example: `§
 
 Only **Unreleased** and the **most recent release** are inline. When a new release ships, the previous "latest" section is moved verbatim to `docs/changelog/<version>.md` and a one-line link is added under [§3 Older releases](#3-older-releases). The most recent release stays inline so the common reader and agent path — "what changed lately?" — is one file deep.
 
+## Unreleased
+
+### Changed
+
+- [§FS-init.2.1](functional-spec/FS-init.md#21-files-written-updated-or-left-in-place) / [§FS-init.2.3](functional-spec/FS-init.md#23-generated-agent-entrypoints): `grund init` now creates missing neutral companion aliases when an agent-specific workspace already exists — `.claude/` creates `CLAUDE.md` and `.claude/CLAUDE.md`, and `.gemini/` creates `GEMINI.md`. `AGENTS.override.md` and `.github/copilot-instructions.md` remain existing-file-only because `.github/` is generic GitHub metadata, not a Copilot-specific signal.
+
 ## 2. [0.1.0] — 2026-05-14
 
 Release-candidate binary. The CLI covers the full subcommand surface the specs describe (§2.7) — including the opt-in grounding floor ([§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in)) and the coverage index ([§FS-cover](functional-spec/FS-cover.md#fs-cover-grund-groups-citations-by-scanned-file)); the crates.io publish is gated by the release workflow's live [§RM-distribution-naming](roadmap.md#rm-distribution-naming-verify-package-names-before-first-publish) check, while the larger distribution arc — the `grund-core`/`grund-cli` workspace split, the npm/PyPI bindings, the optional `grund-lsp` server, and `grund check --watch` — plus the diff-aware co-change gate ([§RM-cochange-gate](roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test)) are tracked in `docs/roadmap.md`.

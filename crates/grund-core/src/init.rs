@@ -91,23 +91,44 @@ fn command_init(args: &[String]) -> ExitCode {
         return ExitCode::from(2);
     }
 
-    let companion_entrypoints = match companion_agent_entrypoints(&target) {
+    let companion_entrypoints = match init_companion_agent_entrypoints(&target) {
         Ok(paths) => paths,
         Err((path, message)) => {
             eprintln!("error: inspect {}: {message}", path.display());
             return ExitCode::from(2);
         }
     };
-    for path in companion_entrypoints {
-        let rel = path.strip_prefix(&target).unwrap_or(&path).to_path_buf();
+    for entrypoint in companion_entrypoints {
+        let path_ref = match &entrypoint {
+            InitCompanionAgentEntrypoint::Existing(path)
+            | InitCompanionAgentEntrypoint::MissingAlias(path) => path.as_path(),
+        };
+        let rel = path_ref.strip_prefix(&target).unwrap_or(path_ref).to_path_buf();
         let rel = format_path(&rel);
-        match update_agents_block(&path, &agents_block, &rel) {
-            Ok(AgentsUpdateResult::Appended) => eprintln!("appended {rel}"),
-            Ok(AgentsUpdateResult::Updated) => eprintln!("updated {rel}"),
-            Ok(AgentsUpdateResult::Unchanged) => eprintln!("exists {rel}"),
-            Err(err) => {
-                eprintln!("error: update {}: {err}", path.display());
-                return ExitCode::from(2);
+        match entrypoint {
+            InitCompanionAgentEntrypoint::Existing(path) => {
+                match update_agents_block(&path, &agents_block, &rel) {
+                    Ok(AgentsUpdateResult::Appended) => eprintln!("appended {rel}"),
+                    Ok(AgentsUpdateResult::Updated) => eprintln!("updated {rel}"),
+                    Ok(AgentsUpdateResult::Unchanged) => eprintln!("exists {rel}"),
+                    Err(err) => {
+                        eprintln!("error: update {}: {err}", path.display());
+                        return ExitCode::from(2);
+                    }
+                }
+            }
+            InitCompanionAgentEntrypoint::MissingAlias(path) => {
+                if let Some(parent) = path.parent()
+                    && let Err(err) = fs::create_dir_all(parent)
+                {
+                    eprintln!("error: create {}: {err}", parent.display());
+                    return ExitCode::from(2);
+                }
+                if let Err(err) = fs::write(&path, &agents_block) {
+                    eprintln!("error: write {}: {err}", path.display());
+                    return ExitCode::from(2);
+                }
+                eprintln!("wrote {rel}");
             }
         }
     }

@@ -175,6 +175,58 @@ title = "Architecture decision"
 }
 
 #[test]
+fn init_creates_agent_aliases_when_agent_workspaces_exist() {
+    // FS-init.2.1 / FS-init.2.3: missing neutral companion aliases are created
+    // only when their owning agent-specific workspace already exists.
+    let target = workdir("init_creates_agent_aliases_when_agent_workspaces_exist");
+    fs::create_dir_all(target.join(".claude")).expect("create .claude");
+    fs::create_dir_all(target.join(".gemini")).expect("create .gemini");
+    fs::create_dir_all(target.join(".github/workflows")).expect("create github metadata");
+
+    let output = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
+    assert!(
+        output.status.success(),
+        "init failed: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    for rel in ["CLAUDE.md", ".claude/CLAUDE.md", "GEMINI.md"] {
+        assert!(
+            stderr.contains(&format!("wrote {rel}")),
+            "init should report writing {rel}, got:\n{stderr}"
+        );
+        let contents = fs::read_to_string(target.join(rel)).expect("read companion alias");
+        assert!(
+            contents.starts_with("## Grounding with grund (v1)\n"),
+            "{rel} should be a thin managed-block alias, got:\n{contents}"
+        );
+    }
+    assert!(
+        !target.join("AGENTS.override.md").exists(),
+        "AGENTS.override.md is an override file and should not be created as an alias"
+    );
+    assert!(
+        !target.join(".github/copilot-instructions.md").exists(),
+        ".github is generic GitHub metadata and should not create Copilot instructions"
+    );
+
+    let second = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
+    assert!(second.status.success());
+    let second_stderr = String::from_utf8_lossy(&second.stderr);
+    assert!(
+        second_stderr.contains("exists CLAUDE.md")
+            && second_stderr.contains("exists .claude/CLAUDE.md")
+            && second_stderr.contains("exists GEMINI.md"),
+        "second init should leave workspace-created aliases unchanged, got:\n{second_stderr}"
+    );
+    assert!(
+        !second_stderr.contains(".github/copilot-instructions.md"),
+        "second init should not mention absent Copilot instructions, got:\n{second_stderr}"
+    );
+}
+
+#[test]
 fn init_rerun_on_current_repo_writes_nothing_and_reports_exists() {
     // FS-init.2.2 / FS-init.2.3: re-running `grund init` on a repo whose managed
     // AGENTS.md block already matches the current render rewrites nothing — the
