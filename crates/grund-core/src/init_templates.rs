@@ -203,7 +203,10 @@ fn agents_template_substitutions(
         ("{MARKER}", marker.to_string()),
         ("{TRIGGER}", config.trigger.clone()),
         ("{DECLARATION_MAP}", declaration_map(config)),
-        ("{WORKSPACE_MEMBERS}", render_workspace_members_section(target)),
+        (
+            "{WORKSPACE_MEMBERS}",
+            render_workspace_members_section(target, Some(name)),
+        ),
     ]
 }
 
@@ -431,15 +434,18 @@ fn is_symlink_to(path: &Path, target: &Path) -> Result<bool> {
 
 /// The config that `grund init` will leave governing `target`, which the generated
 /// `AGENTS.md` must describe (§FS-init.2.3): an existing `target/.agents/grund.toml`
-/// if there is one, otherwise the defaults (exactly what `init` is about to write
-/// into `target/.agents/grund.toml`). We do **not** walk up to an ancestor's config
-/// here — `init` always writes a config *in* `target`.
-fn init_effective_config(target: &Path) -> Config {
+/// if there is one, otherwise the defaults plus the `project_name` that `init` is
+/// about to write into `target/.agents/grund.toml` (§FS-init.2.4). We do **not**
+/// walk up to an ancestor's config here — `init` always writes a config *in*
+/// `target` when one is absent.
+fn init_effective_config(target: &Path, name: &str) -> Config {
     let local_config = target.join(".agents").join("grund.toml");
     if local_config.is_file() {
         load_config(target).unwrap_or_else(|_| Config::default_for(target.to_path_buf()))
     } else {
-        Config::default_for(target.to_path_buf())
+        let mut config = Config::default_for(target.to_path_buf());
+        config.project_name = Some(name.to_string());
+        config
     }
 }
 
@@ -470,8 +476,13 @@ struct InitWorkspaceProject {
 /// duplicate alias, nested workspace, …) — init must not fail because a
 /// sibling member is misconfigured; the next `grund check` will surface the
 /// issue (§FS-init.2.3.4.15).
-fn find_init_workspace_context(target: &Path) -> Option<Vec<InitWorkspaceProject>> {
+fn find_init_workspace_context(
+    target: &Path,
+    pending_project_name: Option<&str>,
+) -> Option<Vec<InitWorkspaceProject>> {
     let root_config = find_init_workspace_root(target)?;
+    let target_canonical =
+        fs::canonicalize(target).unwrap_or_else(|_| target.to_path_buf());
     let member_roots = expand_workspace_members(&root_config).ok()?;
     let mut projects = Vec::new();
     if root_config.workspace_include_root {
@@ -482,12 +493,21 @@ fn find_init_workspace_context(target: &Path) -> Option<Vec<InitWorkspaceProject
         });
     }
     for member_root in &member_roots {
-        let member_config = load_config_at_with_report_base(
+        let mut member_config = load_config_at_with_report_base(
             member_root,
             &root_config.cli_base,
             Some(&root_config.root),
         )
         .ok()?;
+        if member_root == &target_canonical
+            && !member_root.join(".agents").join("grund.toml").is_file()
+            && let Some(name) = pending_project_name
+        {
+            // §FS-init.2.3.4.15: self is rendered against the config `init`
+            // is about to write, so `grund init member --name service`
+            // teaches the future `service/...` workspace alias immediately.
+            member_config.project_name = Some(name.to_string());
+        }
         if member_config.workspace_declared {
             // §FS-workspace.6: nested workspaces are rejected at load — bail
             // out of the section silently and let `grund check` report it.
@@ -501,6 +521,18 @@ fn find_init_workspace_context(target: &Path) -> Option<Vec<InitWorkspaceProject
     }
     if projects.is_empty() {
         return None;
+    }
+    let mut seen = BTreeMap::new();
+    for project in &projects {
+        if seen
+            .insert(project.alias.clone(), project.project_root.clone())
+            .is_some()
+        {
+            // §FS-init.2.3.4.15: duplicate aliases make the guidance
+            // ambiguous, so suppress the section and leave the diagnostic to
+            // `grund check`, just as other workspace config errors do.
+            return None;
+        }
     }
     projects.sort_by(|a, b| a.alias.cmp(&b.alias));
     Some(projects)
@@ -534,8 +566,8 @@ fn find_init_workspace_root(target: &Path) -> Option<Config> {
 /// separator from the preceding `### Project map` block — the template embeds
 /// `{DECLARATION_MAP}{WORKSPACE_MEMBERS}` with no other whitespace, so an empty
 /// value leaves the surrounding spacing unchanged.
-fn render_workspace_members_section(target: &Path) -> String {
-    let Some(projects) = find_init_workspace_context(target) else {
+fn render_workspace_members_section(target: &Path, pending_project_name: Option<&str>) -> String {
+    let Some(projects) = find_init_workspace_context(target, pending_project_name) else {
         return String::new();
     };
     let target_canonical =
