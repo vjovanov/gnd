@@ -1,1 +1,2 @@
-FS-root-only  docs/functional-spec/FS-root-only.md:1  Declared in root
+api/FS-api-only    apps/api/docs/functional-spec/FS-api-only.md:1  Declared in the api member
+root/FS-root-only  docs/functional-spec/FS-root-only.md:1  Declared in root

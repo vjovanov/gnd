@@ -1,0 +1,3 @@
+{"project":"alpha","id":"alpha/FS-alpha-thing","kind":"FS","path":"packages/alpha/docs/FS-alpha-thing.md","line":1,"title":"A thing alpha provides","stub":false,"defines":null,"refs":1,"duplicate":false}
+{"project":"beta","id":"beta/FS-beta-thing","kind":"FS","path":"packages/beta/docs/FS-beta-thing.md","line":1,"title":"A thing beta provides","stub":false,"defines":null,"refs":1,"duplicate":false}
+{"project":"root","id":"root/FS-root-thing","kind":"FS","path":"docs/FS-root-thing.md","line":1,"title":"Root concern","stub":false,"defines":null,"refs":0,"duplicate":false}
