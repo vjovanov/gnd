@@ -1,0 +1,215 @@
+/// One project in scope for a query command — an alias, the loaded config,
+/// and the scanner's findings + scan errors for that project's tree.
+/// Mirrors `ProjectScan` in `checker_cmd.rs`; kept here as the shared shape
+/// every query command consumes (§AR-workspace.8).
+struct WorkspaceProject {
+    alias: String,
+    config: Config,
+    findings: Findings,
+    scan_errors: Vec<ScanError>,
+}
+
+/// Everything a workspace-aware query command needs (§FS-workspace.8 intro,
+/// §AR-workspace.8): every loaded project (the current one plus, when running
+/// at the workspace root, every member configured under `[workspace]`), an
+/// index naming the project unqualified IDs resolve against, and the
+/// canonical render-root used for `[output] relative_paths`.
+///
+/// Member-local and standalone runs collapse to one project at index `0` with
+/// `workspace_loaded == false` — every command can route through one struct.
+struct WorkspaceContext {
+    projects: Vec<WorkspaceProject>,
+    /// Index into `projects` for the "current project" — what `<ID>` (no
+    /// alias) resolves against (§FS-workspace.8 intro).
+    current: usize,
+    /// `true` only when a `[workspace]` block was discovered AND the
+    /// invocation actually loads the workspace (i.e. not pinned member-local
+    /// by an explicit path inside a member). When `false`, `projects` is a
+    /// single entry and qualified `alias/<ID>` lookups must fail with
+    /// `unknown project alias <name>`.
+    workspace_loaded: bool,
+    /// The repository root used for path rendering in workspace mode (the
+    /// `[output] relative_paths` base). For workspace mode this is the
+    /// workspace root; for single-project mode it equals
+    /// `projects[current].config.root`.
+    render_root: PathBuf,
+    /// `true` when `[workspace] include_root = false` excluded the root from
+    /// `projects` — needed by completions/`list --project` so the root alias
+    /// is reported as unknown rather than silently reserved (§FS-workspace.8
+    /// intro / §FS-workspace.2).
+    include_root_disabled: bool,
+}
+
+impl WorkspaceContext {
+    fn current_project(&self) -> &WorkspaceProject {
+        &self.projects[self.current]
+    }
+
+    fn project_by_alias(&self, alias: &str) -> Option<&WorkspaceProject> {
+        self.projects.iter().find(|project| project.alias == alias)
+    }
+
+    /// Every known alias in the workspace, in `projects` order. An empty list
+    /// when `workspace_loaded == false`. Used by completions and by the
+    /// "neither declared nor cited" hint in `refs` to suggest the right
+    /// `--project` slug.
+    fn aliases(&self) -> Vec<&str> {
+        self.projects
+            .iter()
+            .map(|project| project.alias.as_str())
+            .collect()
+    }
+}
+
+/// Load every project a query command should see, given the same `(path,
+/// path_provided)` pair every entry point already accepts. The three cases:
+///
+/// - **Standalone** (no `[workspace]` discovered) → one project, the
+///   discovered config.
+/// - **Member-local** (path resolves inside a workspace member, or the
+///   discovered config is a member's own) → one project, with the member
+///   config. `workspace_loaded == false`; qualified citations cannot resolve.
+/// - **Workspace** (path is at the workspace root or a non-member subdir of
+///   it) → root (when `include_root = true`) plus every configured member.
+///   `current` is the root.
+///
+/// Discovery itself is delegated to the existing `resolve_workspace_config`
+/// — this helper is strictly the "load every project that's in scope" layer
+/// on top of it (§AR-workspace.5.1).
+fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceContext> {
+    let config = resolve_workspace_config(path, path_provided)?;
+    // §FS-workspace.5 / §AR-workspace.6: workspace mode applies when the
+    // discovered config declares `[workspace]` AND the invocation lands at
+    // the workspace root (or no path) — a path that resolves member-local
+    // has already been rewritten by `config_for_member_scope` to drop the
+    // workspace flag.
+    let workspace_root = config.workspace_declared && is_workspace_root_scope(&config, path, path_provided);
+    if !workspace_root {
+        let (findings, scan_errors) = scan_tree(&config, Some(path), path_provided)?;
+        let render_root = config.root.clone();
+        return Ok(WorkspaceContext {
+            projects: vec![WorkspaceProject {
+                alias: String::new(),
+                config,
+                findings,
+                scan_errors,
+            }],
+            current: 0,
+            workspace_loaded: false,
+            render_root,
+            include_root_disabled: false,
+        });
+    }
+
+    let mut root_config = config;
+    let member_roots = expand_workspace_members(&root_config)?;
+    // Match `command_check_workspace` so a root-scope walk does not absorb
+    // member declarations (§AR-workspace.6).
+    root_config.workspace_boundary_roots = member_roots.clone();
+    let render_root = root_config.root.clone();
+    let include_root_disabled = !root_config.workspace_include_root;
+
+    let mut projects: Vec<WorkspaceProject> = Vec::new();
+    let mut current: Option<usize> = None;
+    if root_config.workspace_include_root {
+        let alias = derive_alias(&root_config, None, RootMode::Root).map_err(|err| {
+            let message = format!("{err} for {}", project_label(&root_config, &root_config.root));
+            project_name_error(&root_config, message)
+        })?;
+        current = Some(projects.len());
+        let (findings, scan_errors) = scan_tree(&root_config, Some(&root_config.root), true)?;
+        projects.push(WorkspaceProject {
+            alias,
+            config: root_config.clone(),
+            findings,
+            scan_errors,
+        });
+    }
+    for member_root in member_roots {
+        let member_config = load_config_at(&member_root, &root_config.cli_base)?;
+        // §AR-workspace.6.1: nested workspaces are rejected at load — match
+        // `command_check_workspace` so query commands fail with the same
+        // shape (`unknown project alias` would mask the real issue).
+        if member_config.workspace_declared {
+            return Err(anyhow!(
+                "workspace member `{}` declares its own `[workspace]` block (nested workspaces are not supported)",
+                display_path(&root_config, &member_config.root)
+            ));
+        }
+        let alias = derive_alias(&member_config, Some(&member_root), RootMode::Member)
+            .map_err(|err| {
+                let message = format!("{err} for {}", project_label(&root_config, &member_root));
+                if member_config.project_name_source.is_some() {
+                    project_name_error(&member_config, message)
+                } else {
+                    workspace_members_error(&root_config, message)
+                }
+            })?;
+        let (findings, scan_errors) = scan_tree(&member_config, Some(&member_config.root), true)?;
+        projects.push(WorkspaceProject {
+            alias,
+            config: member_config,
+            findings,
+            scan_errors,
+        });
+    }
+    // §FS-workspace.3 / §AR-workspace.5.3: duplicate aliases are caught at
+    // load — qualified citations have a single resolver target.
+    let mut seen: BTreeMap<String, PathBuf> = BTreeMap::new();
+    for project in &projects {
+        if let Some(first) = seen.get(&project.alias) {
+            return Err(workspace_members_error(
+                &root_config,
+                format!(
+                    "duplicate workspace project alias `{}` ({})",
+                    project.alias,
+                    duplicate_alias_sites(&root_config, first, &project.config.root)
+                ),
+            ));
+        }
+        seen.insert(project.alias.clone(), project.config.root.clone());
+    }
+
+    // When `include_root = false`, no root project is loaded — pin "current"
+    // to the first member so unqualified IDs resolve there. Real callers
+    // should not hit this path in practice (a workspace-root invocation
+    // without root projects is unusual), but the index must be valid.
+    let current = current.unwrap_or(0);
+    if projects.is_empty() {
+        return Err(workspace_members_error(
+            &root_config,
+            "workspace has no projects in scope (include_root = false and no members)".to_string(),
+        ));
+    }
+    Ok(WorkspaceContext {
+        projects,
+        current,
+        workspace_loaded: true,
+        render_root,
+        include_root_disabled,
+    })
+}
+
+/// Parse a CLI ID argument that may carry a qualifying `<alias>/` prefix
+/// (§FS-workspace.1) — the shape `grund show`, `grund refs`, and `grund list
+/// --project` accept once workspace queries land. Returns `(alias, id,
+/// section)`. The alias is validated against the slug grammar so a malformed
+/// prefix is caught here, before resolution.
+fn parse_qualified_id_arg(
+    raw: &str,
+    grammar: &Grammar,
+) -> Result<(Option<String>, Id, Option<String>)> {
+    if let Some(slash) = raw.find('/') {
+        let (alias, rest) = raw.split_at(slash);
+        let rest = &rest[1..];
+        if !is_valid_project_alias(alias) {
+            return Err(anyhow!(
+                "invalid project alias `{alias}` (expected [a-z][a-z0-9-]*)"
+            ));
+        }
+        let (id, section) = parse_id_arg(rest, grammar)?;
+        return Ok((Some(alias.to_string()), id, section));
+    }
+    let (id, section) = parse_id_arg(raw, grammar)?;
+    Ok((None, id, section))
+}

@@ -92,24 +92,29 @@ fn command_show(args: &[String]) -> ExitCode {
         eprintln!("error: show requires an ID");
         return ExitCode::from(2);
     };
-    let config = match resolve_workspace_config(&path, path_provided) {
-        Ok(config) => config,
+    let context = match load_workspace_context(&path, path_provided) {
+        Ok(context) => context,
         Err(err) => {
             eprintln!("error: {err:#}");
             return ExitCode::from(2);
         }
     };
-    let (id, inline_section) = match parse_id_arg(&id_arg, &config.grammar) {
+    // Parse against the *current* project's grammar — the qualifying alias
+    // syntax is identical across projects (§FS-workspace.1) but the
+    // `[id] format` is per-project. The target project's grammar still vets
+    // the parsed `Id` at resolution time (§AR-workspace.5).
+    let current_config = &context.current_project().config;
+    let (alias, id, inline_section) = match parse_qualified_id_arg(&id_arg, &current_config.grammar) {
         Ok(parsed) => parsed,
         Err(err) => {
             let message = format!("{err:#}");
             if format == "json" {
-                print_bare_query_json(&config, show_query_error_code(&message), &message);
+                print_bare_query_json(current_config, show_query_error_code(&message), &message);
             } else {
                 eprintln!("{message}");
                 eprintln!(
                     "hint: this repo's [id] format is `{}` (run `grund config show`); `grund list` shows the IDs that exist",
-                    config.id_format
+                    current_config.id_format
                 );
             }
             return ExitCode::FAILURE;
@@ -124,16 +129,44 @@ fn command_show(args: &[String]) -> ExitCode {
         eprintln!("error: unsupported show format `{format}`");
         return ExitCode::from(2);
     }
-    let findings = match scan_tree_strict(&config, Some(&path), path_provided) {
-        Ok(f) => f,
-        Err(e) => {
-            eprintln!("error: {:#}", e);
-            return ExitCode::from(2);
-        }
+    // §FS-workspace.8.1: route to the qualified project's config + findings
+    // when an `<alias>/<ID>` form is given; otherwise resolve against the
+    // current project. An unknown alias is a CLI-shaped error (exit 2), not
+    // a query failure — matches the `unknown project alias` shape `check`
+    // emits at the citation site.
+    let project = match alias.as_deref() {
+        Some(name) => match context.project_by_alias(name) {
+            Some(project) => project,
+            None => {
+                eprintln!("error: unknown project alias `{name}`");
+                if !context.workspace_loaded {
+                    eprintln!(
+                        "note: workspace aliases are defined in the root .agents/grund.toml under [workspace]"
+                    );
+                } else {
+                    let known = context.aliases().join(", ");
+                    eprintln!("known aliases: {known}");
+                }
+                return ExitCode::from(2);
+            }
+        },
+        None => context.current_project(),
     };
+    // §FS-show.3 / partial-scan semantics: any unreadable file inside the
+    // selected project's scope is fatal — the lookup could miss the home.
+    if let Some((file, message)) = project.scan_errors.first() {
+        eprintln!(
+            "error: {}: {}",
+            display_path(&project.config, file),
+            message
+        );
+        return ExitCode::from(2);
+    }
+    let config = &project.config;
+    let findings = &project.findings;
     match show_declaration(
-        &config,
-        &findings,
+        config,
+        findings,
         &id,
         section.as_deref(),
         mode,
