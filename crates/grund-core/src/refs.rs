@@ -301,7 +301,11 @@ fn command_refs(args: &[String]) -> ExitCode {
             println!(
                 "{{{}{}}}",
                 project_field,
-                citation_json_body(&hit.project.config, hit.citation, &render_path(hit.project, &hit.citation.file))
+                citation_json_body(
+                    &target_project.config,
+                    hit.citation,
+                    &render_path(hit.project, &hit.citation.file)
+                )
             );
         }
     } else {

@@ -301,8 +301,20 @@ mod tests {
         assert_eq!(cite.id.slug.as_deref(), Some("session"));
 
         let workspace = BTreeMap::from([
-            ("root".to_string(), &root_findings),
-            ("api".to_string(), &api_findings),
+            (
+                "root".to_string(),
+                WorkspaceCheckTarget {
+                    findings: &root_findings,
+                    config: &root_config,
+                },
+            ),
+            (
+                "api".to_string(),
+                WorkspaceCheckTarget {
+                    findings: &api_findings,
+                    config: &api_config,
+                },
+            ),
         ]);
         let root_report =
             check_with_workspace(&root_findings, &root_config, Some("root"), &workspace);
@@ -322,6 +334,112 @@ mod tests {
                 .iter()
                 .any(|warning| warning.code == "unused"),
             "the member declaration should be counted as cited by the root"
+        );
+    }
+
+    /// §FS-workspace.5: member-local checks must report qualified citations even
+    /// when the cited token only matches another project's ID grammar.
+    #[test]
+    fn member_local_qualified_citation_with_foreign_grammar_reports_unknown_alias() {
+        let root = test_root(
+            "member_local_qualified_citation_with_foreign_grammar_reports_unknown_alias",
+        );
+        let member = root.join("apps/api");
+        write(
+            &member.join("docs/functional-spec/FS-001-api.md"),
+            "# FS-001-api: API\n\nThe member cites the root: §root/FS-root.\n",
+        );
+
+        let config = Config::default_for(member);
+        let (findings, _) = scan_tree(&config, Some(&config.root), true).expect("scan member");
+        assert!(
+            findings
+                .citations
+                .iter()
+                .any(|cite| cite.namespace.as_deref() == Some("root")
+                    && cite.text == "§root/FS-root"),
+            "foreign-shaped qualified citation should be recognised"
+        );
+
+        let report = check(&findings, &config);
+        assert!(
+            report.errors.iter().any(|error| {
+                error.code == "unknown-project" && error.message == "unknown project alias root"
+            }),
+            "member-local qualified citation should report unknown alias: {:?}",
+            report
+                .errors
+                .iter()
+                .map(|error| (&error.code, &error.message))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    /// §FS-workspace.4: a qualified dangling diagnostic names the target ID
+    /// using the target project's grammar, not the citing project's grammar.
+    #[test]
+    fn workspace_qualified_dangling_diagnostic_uses_target_id_grammar() {
+        let root = test_root("workspace_qualified_dangling_diagnostic_uses_target_id_grammar");
+        write(
+            &root.join("docs/functional-spec/FS-root.md"),
+            "# FS-root: Root\n\nThe root cites a missing member ID: §api/FS-001-missing.\n",
+        );
+        std::fs::create_dir_all(root.join("apps/api/docs/functional-spec"))
+            .expect("create api docs");
+
+        let mut root_config = Config::default_for(root.clone());
+        root_config.id_format = "{kind}-{slug}".into();
+        root_config.slug_pattern = "[a-z][a-z-]*".into();
+        root_config.workspace_boundary_roots = vec![canonical_test_path(&root.join("apps/api"))];
+        root_config.rebuild_grammar().expect("root grammar");
+        let api_config = Config::default_for(root.join("apps/api"));
+
+        let (mut root_findings, _) = scan_tree(&root_config, Some(&root), true).expect("scan root");
+        let (mut api_findings, _) =
+            scan_tree(&api_config, Some(&api_config.root), true).expect("scan api");
+        let targets = vec![
+            WorkspaceCitationTarget {
+                alias: "root".to_string(),
+                config: root_config.clone(),
+            },
+            WorkspaceCitationTarget {
+                alias: "api".to_string(),
+                config: api_config.clone(),
+            },
+        ];
+        reparse_qualified_citations_for_workspace(&root_config, &mut root_findings, &targets)
+            .expect("reparse root qualified citations");
+        reparse_qualified_citations_for_workspace(&api_config, &mut api_findings, &targets)
+            .expect("reparse api qualified citations");
+
+        let workspace = BTreeMap::from([
+            (
+                "root".to_string(),
+                WorkspaceCheckTarget {
+                    findings: &root_findings,
+                    config: &root_config,
+                },
+            ),
+            (
+                "api".to_string(),
+                WorkspaceCheckTarget {
+                    findings: &api_findings,
+                    config: &api_config,
+                },
+            ),
+        ]);
+        let report = check_with_workspace(&root_findings, &root_config, Some("root"), &workspace);
+        assert!(
+            report.errors.iter().any(|error| {
+                error.code == "dangling"
+                    && error.message == "unknown reference api/FS-001-missing"
+            }),
+            "dangling diagnostic should render the api ID grammar: {:?}",
+            report
+                .errors
+                .iter()
+                .map(|error| (&error.code, &error.message))
+                .collect::<Vec<_>>()
         );
     }
 

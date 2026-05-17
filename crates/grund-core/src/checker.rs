@@ -89,11 +89,16 @@ fn check(findings: &Findings, config: &Config) -> Report {
     check_with_workspace(findings, config, None, &BTreeMap::new())
 }
 
+struct WorkspaceCheckTarget<'a> {
+    findings: &'a Findings,
+    config: &'a Config,
+}
+
 fn check_with_workspace(
     findings: &Findings,
     config: &Config,
     current_alias: Option<&str>,
-    workspace: &BTreeMap<String, &Findings>,
+    workspace: &BTreeMap<String, WorkspaceCheckTarget<'_>>,
 ) -> Report {
     let mut report = Report::default();
     // §FS-check.3.5: an `AGENTS.md` whose managed block is out of date (or newer
@@ -166,8 +171,8 @@ fn check_with_workspace(
     }
 
     for cite in &findings.citations {
-        let Some(target_findings) = target_findings_for_citation(cite, findings, workspace) else {
-            // `target_findings_for_citation` only returns `None` when the
+        let Some(target) = target_for_citation(cite, findings, config, workspace) else {
+            // `target_for_citation` only returns `None` when the
             // namespace is present and unknown — so the namespace is always
             // Some here (§AR-workspace.4).
             let namespace = cite
@@ -185,14 +190,14 @@ fn check_with_workspace(
         };
         // §FS-check.3.1 / §FS-workspace.4: a citation whose ID is declared
         // nowhere in its target namespace is dangling.
-        let Some(decls) = target_findings.declarations.get(&cite.id) else {
+        let Some(decls) = target.findings.declarations.get(&cite.id) else {
             report.errors.push(Diagnostic {
                 code: "dangling",
                 path: Some(cite.file.clone()),
                 line: Some(cite.line),
                 message: format!(
                     "unknown reference {}",
-                    render_qualified_id(config, cite.namespace.as_deref(), &cite.id)
+                    render_qualified_id(target.config, cite.namespace.as_deref(), &cite.id)
                 ),
                 sites: Vec::new(),
             });
@@ -209,8 +214,8 @@ fn check_with_workspace(
                     line: Some(cite.line),
                     message: format!(
                         "missing section {}{}{}",
-                        render_qualified_id(config, cite.namespace.as_deref(), &cite.id),
-                        config.section_separator,
+                        render_qualified_id(target.config, cite.namespace.as_deref(), &cite.id),
+                        target.config.section_separator,
                         sec
                     ),
                     sites: Vec::new(),
@@ -270,9 +275,10 @@ fn check_with_workspace(
         .map(|c| &c.id)
         .collect();
     if let Some(alias) = current_alias {
-        for project_findings in workspace.values() {
+        for target in workspace.values() {
             cited.extend(
-                project_findings
+                target
+                    .findings
                     .citations
                     .iter()
                     .filter(|cite| cite.namespace.as_deref() == Some(alias))
@@ -312,7 +318,7 @@ fn check_with_workspace(
         let mut grounded_files: BTreeSet<&Path> = findings
             .citations
             .iter()
-            .filter(|cite| citation_resolves(cite, findings, workspace))
+            .filter(|cite| citation_resolves(cite, findings, config, workspace))
             .map(|cite| cite.file.as_path())
             .collect();
         grounded_files.extend(
@@ -347,24 +353,32 @@ fn check_with_workspace(
     report
 }
 
-fn target_findings_for_citation<'a>(
+fn target_for_citation<'a>(
     cite: &Citation,
     local: &'a Findings,
-    workspace: &BTreeMap<String, &'a Findings>,
-) -> Option<&'a Findings> {
+    local_config: &'a Config,
+    workspace: &'a BTreeMap<String, WorkspaceCheckTarget<'a>>,
+) -> Option<WorkspaceCheckTarget<'a>> {
     match cite.namespace.as_deref() {
-        Some(namespace) => workspace.get(namespace).copied(),
-        None => Some(local),
+        Some(namespace) => workspace.get(namespace).map(|target| WorkspaceCheckTarget {
+            findings: target.findings,
+            config: target.config,
+        }),
+        None => Some(WorkspaceCheckTarget {
+            findings: local,
+            config: local_config,
+        }),
     }
 }
 
 fn citation_resolves(
     cite: &Citation,
     local: &Findings,
-    workspace: &BTreeMap<String, &Findings>,
+    local_config: &Config,
+    workspace: &BTreeMap<String, WorkspaceCheckTarget<'_>>,
 ) -> bool {
-    target_findings_for_citation(cite, local, workspace)
-        .map(|findings| findings.declarations.contains_key(&cite.id))
+    target_for_citation(cite, local, local_config, workspace)
+        .map(|target| target.findings.declarations.contains_key(&cite.id))
         .unwrap_or(false)
 }
 

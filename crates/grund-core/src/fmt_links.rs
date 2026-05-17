@@ -320,11 +320,34 @@ fn relative_url(from_file: &Path, to_file: &Path, config: &Config) -> String {
 /// project can link to a target file in another project under the same
 /// workspace root with a single common-prefix walk.
 fn relative_url_under(from_file: &Path, to_file: &Path, root: &Path) -> String {
-    let from_rel = from_file.strip_prefix(root).unwrap_or(from_file);
-    let to_rel = to_file.strip_prefix(root).unwrap_or(to_file);
+    let (from_rel, to_rel) = match (from_file.strip_prefix(root), to_file.strip_prefix(root)) {
+        (Ok(from_rel), Ok(to_rel)) => (
+            std::borrow::Cow::Borrowed(from_rel),
+            std::borrow::Cow::Borrowed(to_rel),
+        ),
+        _ => {
+            let root = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+            let from_file =
+                std::fs::canonicalize(from_file).unwrap_or_else(|_| from_file.to_path_buf());
+            let to_file =
+                std::fs::canonicalize(to_file).unwrap_or_else(|_| to_file.to_path_buf());
+            let from_rel = from_file
+                .strip_prefix(&root)
+                .map(Path::to_path_buf)
+                .unwrap_or(from_file);
+            let to_rel = to_file
+                .strip_prefix(&root)
+                .map(Path::to_path_buf)
+                .unwrap_or(to_file);
+            (
+                std::borrow::Cow::Owned(from_rel),
+                std::borrow::Cow::Owned(to_rel),
+            )
+        }
+    };
     let from_dir = from_rel.parent().unwrap_or(Path::new(""));
     let from_components = path_components(from_dir);
-    let to_components = path_components(to_rel);
+    let to_components = path_components(&to_rel);
     let mut common = 0;
     while common < from_components.len()
         && common < to_components.len()

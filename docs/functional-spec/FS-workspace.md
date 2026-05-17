@@ -85,6 +85,10 @@ During `grund check`:
   the cited section.
 - an unknown alias is an error at the citation site;
 - a known alias with no matching declaration is an error at the citation site.
+- diagnostics for a known alias render the `<ID>` and section separator with the
+  target project's `[id]` config, not the citing project's config. The literal
+  source token remains the scanner's evidence, but the diagnostic names the same
+  target that resolution attempted.
 
 Cross-project references are deliberately never resolved by path syntax such as
 `../FS-login` or `packages/api/FS-login`; aliases are the stable handles.
@@ -105,6 +109,11 @@ resolved without the workspace context; each such citation produces an
 would let a passing member check ship a cross-project reference that no longer
 resolves at the workspace root, which violates [§GOAL-no-dangling-refs](../goals.md#goal-no-dangling-refs-every-cited-id-resolves-to-a-declaration). Run
 `grund check` at the workspace root to validate cross-project citations.
+
+The member-local scanner recognizes the `<§>alias/` prefix before applying the
+member's local ID grammar. That way `§root/FS-root` is still an unknown-alias
+citation inside a default `{kind}-{number}-{slug}` member, rather than plain
+text that disappears from `check`.
 
 A relaxed standalone mode (downgrade `unknown project alias` from error to
 warning on a member-only run) is deferred follow-up; see
@@ -227,7 +236,9 @@ project that wrote `<§>api/FS-login`.
   itself: `<alias>` for a qualified lookup, the current project for an
   unqualified lookup. It is not repeated per row; per-row redundancy would
   balloon the wire size of a wide blast-radius scan without adding information
-  the caller did not just hand to `refs`.
+  the caller did not just hand to `refs`. The object's `"id"` field is rendered
+  with that target project's `[id]` config; the `"text"` field remains the
+  verbatim source citation.
 
 The "neither declared nor cited" stderr note ([§FS-refs.2](FS-refs.md#2-behaviour)) becomes alias-aware:
 
