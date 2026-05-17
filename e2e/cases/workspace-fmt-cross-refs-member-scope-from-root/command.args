@@ -1,0 +1,1 @@
+fmt {repo_copy}/packages/alpha --cross-refs --write

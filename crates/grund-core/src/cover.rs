@@ -56,9 +56,14 @@ fn command_cover(args: &[String]) -> ExitCode {
         by_file.entry(file.clone()).or_default();
     }
     for citation in &findings.citations {
-        // §FS-workspace.8, §AR-workspace.8: `grund cover` is project-local in
-        // v1; a `§alias/<ID>` in this file refers to another project's
-        // declaration and would distort the per-file local citation map.
+        // §FS-workspace.8, §AR-workspace.8: `grund cover` stays
+        // project-local — it answers "which scanned files in this project
+        // carry citations?", and a `§<alias>/<ID>` would distort the
+        // per-file local citation map by attributing a cross-project
+        // reference to the citing file's project. The §FS-workspace.8
+        // surface (show/refs/list/completions/fmt) deliberately leaves
+        // cover out; if cover ever needs workspace aggregation it gets
+        // its own spec section first.
         if citation.namespace.is_some() {
             continue;
         }

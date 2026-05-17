@@ -214,21 +214,30 @@ the checker, not the scanner, not the loader, not the resolver shape.
 ## 8. Downstream commands compose, not duplicate
 
 Query commands (`show`, `refs`, `list`, completions) and the formatter
-(`fmt --cross-refs`) currently treat citations as project-local
-([§FS-workspace.8](../functional-spec/FS-workspace.md#8-other-commands)). They are nonetheless built on the same `Citation`
-records the scanner produces, so adding qualified-ID support to them is a
-matter of:
+(`fmt --cross-refs`) consume the qualified-citation shape through a single
+shared loader, `load_workspace_context`
+([§FS-workspace.8](../functional-spec/FS-workspace.md#8-other-commands)).
+That loader funnels through `resolve_workspace_config` so workspace
+discovery and member-scope rewriting stay in one place (§5.1), and it
+exposes:
 
-1. Calling `scan_tree` (or `scan_tree` with workspace boundary roots set, when
-   inside a workspace run).
-2. Routing citations through `target_findings_for_citation`.
-3. Filtering on `cite.namespace.is_none()` until the command's qualified-ID
-   semantics are specified.
+1. The list of projects in scope (root + members in workspace mode; a
+   single project member-local or standalone).
+2. The "current" project for unqualified IDs (root at the workspace
+   root; `None` when `include_root = false`, so unqualified queries are
+   forced to qualify or fail loud).
+3. `project_by_alias` for routing a qualified `<§>alias/<ID>` to the
+   right config + findings; `aliases()` for completion candidates.
 
-No command re-implements the resolver, the citation regex, or the alias
-derivation. Where a command needs project-local-only behaviour (e.g. today's
-`grund refs FS-x` skips `<§>api/FS-x`), it filters at the consumer end — never
-by switching the scanner into a different mode.
+Each command then applies its own filter — `grund refs FS-x` invoked at
+the workspace root scopes to the current (root) project; `grund list
+--project api` narrows the catalog; `grund fmt --cross-refs` from a
+member tree preserves any pre-existing qualified wraps as-is and emits
+no new ones (§FS-workspace.8.5). No command re-implements the resolver,
+the citation regex, or the alias derivation. `grund cover` deliberately
+stays project-local — its answer is "which files in this project carry
+citations?" — and filters at the consumer end on `cite.namespace.is_none()`,
+never by switching the scanner into a different mode.
 
 ## 9. Test contracts
 

@@ -1,0 +1,2 @@
+error: unqualified ID requires a project alias when include_root = false
+known aliases: api

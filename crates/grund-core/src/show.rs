@@ -103,7 +103,10 @@ fn command_show(args: &[String]) -> ExitCode {
     // syntax is identical across projects (§FS-workspace.1) but the
     // `[id] format` is per-project. The target project's grammar still vets
     // the parsed `Id` at resolution time (§AR-workspace.5).
-    let current_config = &context.current_project().config;
+    let current_config = context
+        .current_project()
+        .map(|project| &project.config)
+        .unwrap_or_else(|| context.render_config());
     let (alias, id, inline_section) = match parse_qualified_id_arg(&id_arg, &current_config.grammar) {
         Ok(parsed) => parsed,
         Err(err) => {
@@ -150,7 +153,19 @@ fn command_show(args: &[String]) -> ExitCode {
                 return ExitCode::from(2);
             }
         },
-        None => context.current_project(),
+        None => match context.current_project() {
+            Some(project) => project,
+            None => {
+                eprintln!(
+                    "error: unqualified ID requires a project alias when include_root = false"
+                );
+                let known = context.aliases().join(", ");
+                if !known.is_empty() {
+                    eprintln!("known aliases: {known}");
+                }
+                return ExitCode::from(2);
+            }
+        },
     };
     // §FS-show.3 / partial-scan semantics: any unreadable file inside the
     // selected project's scope is fatal — the lookup could miss the home.
@@ -241,4 +256,3 @@ fn command_show(args: &[String]) -> ExitCode {
         }
     }
 }
-

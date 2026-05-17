@@ -12,7 +12,7 @@ struct WorkspaceProject {
 /// Everything a workspace-aware query command needs (§FS-workspace.8 intro,
 /// §AR-workspace.8): every loaded project (the current one plus, when running
 /// at the workspace root, every member configured under `[workspace]`), an
-/// index naming the project unqualified IDs resolve against, and the
+/// optional index naming the project unqualified IDs resolve against, and the
 /// canonical render-root used for `[output] relative_paths`.
 ///
 /// Member-local and standalone runs collapse to one project at index `0` with
@@ -20,8 +20,10 @@ struct WorkspaceProject {
 struct WorkspaceContext {
     projects: Vec<WorkspaceProject>,
     /// Index into `projects` for the "current project" — what `<ID>` (no
-    /// alias) resolves against (§FS-workspace.8 intro).
-    current: usize,
+    /// alias) resolves against (§FS-workspace.8 intro). `None` only for a
+    /// workspace-root run with `include_root = false`, where there is no root
+    /// project for unqualified lookups (§FS-workspace.8 intro).
+    current: Option<usize>,
     /// `true` only when a `[workspace]` block was discovered AND the
     /// invocation actually loads the workspace (i.e. not pinned member-local
     /// by an explicit path inside a member). When `false`, `projects` is a
@@ -34,11 +36,20 @@ struct WorkspaceContext {
     /// `projects[current].config.root`. Used by `fmt --cross-refs` to
     /// compute a relative URL that spans projects (§FS-workspace.8.5).
     render_root: PathBuf,
+    /// The config that owns the render root. In workspace mode this is the
+    /// root workspace config even when `include_root = false`; commands use it
+    /// for output format and path rendering without pretending it is a loaded
+    /// project.
+    render_config: Config,
 }
 
 impl WorkspaceContext {
-    fn current_project(&self) -> &WorkspaceProject {
-        &self.projects[self.current]
+    fn current_project(&self) -> Option<&WorkspaceProject> {
+        self.current.map(|current| &self.projects[current])
+    }
+
+    fn render_config(&self) -> &Config {
+        &self.render_config
     }
 
     fn project_by_alias(&self, alias: &str) -> Option<&WorkspaceProject> {
@@ -50,6 +61,9 @@ impl WorkspaceContext {
     /// "neither declared nor cited" hint in `refs` to suggest the right
     /// `--project` slug.
     fn aliases(&self) -> Vec<&str> {
+        if !self.workspace_loaded {
+            return Vec::new();
+        }
         self.projects
             .iter()
             .map(|project| project.alias.as_str())
@@ -67,7 +81,8 @@ impl WorkspaceContext {
 ///   config. `workspace_loaded == false`; qualified citations cannot resolve.
 /// - **Workspace** (path is at the workspace root or a non-member subdir of
 ///   it) → root (when `include_root = true`) plus every configured member.
-///   `current` is the root.
+///   `current` is the root when it is included, otherwise `None` so
+///   unqualified lookups cannot silently resolve against a member.
 ///
 /// Discovery itself is delegated to the existing `resolve_workspace_config`
 /// — this helper is strictly the "load every project that's in scope" layer
@@ -85,6 +100,7 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
     if !config.workspace_declared {
         let (findings, scan_errors) = scan_tree(&config, Some(path), path_provided)?;
         let render_root = config.root.clone();
+        let render_config = config.clone();
         return Ok(WorkspaceContext {
             projects: vec![WorkspaceProject {
                 alias: String::new(),
@@ -92,9 +108,10 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
                 findings,
                 scan_errors,
             }],
-            current: 0,
+            current: Some(0),
             workspace_loaded: false,
             render_root,
+            render_config,
         });
     }
 
@@ -104,6 +121,7 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
     // member declarations (§AR-workspace.6).
     root_config.workspace_boundary_roots = member_roots.clone();
     let render_root = root_config.root.clone();
+    let render_config = root_config.clone();
 
     let mut projects: Vec<WorkspaceProject> = Vec::new();
     let mut current: Option<usize> = None;
@@ -166,11 +184,6 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
         seen.insert(project.alias.clone(), project.config.root.clone());
     }
 
-    // When `include_root = false`, no root project is loaded — pin "current"
-    // to the first member so unqualified IDs resolve there. Real callers
-    // should not hit this path in practice (a workspace-root invocation
-    // without root projects is unusual), but the index must be valid.
-    let current = current.unwrap_or(0);
     if projects.is_empty() {
         return Err(workspace_members_error(
             &root_config,
@@ -182,6 +195,7 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
         current,
         workspace_loaded: true,
         render_root,
+        render_config,
     })
 }
 
