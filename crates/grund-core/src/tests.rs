@@ -39,6 +39,7 @@ mod tests {
             "demo",
             &Config::default_for(PathBuf::from(".")),
             Path::new("."),
+            true,
         )
     }
 
@@ -787,7 +788,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         );
 
         let config = Config::default_for(PathBuf::from("."));
-        assert!(!render_agents_md("demo", &config, Path::new(".")).contains('\r'));
+        assert!(!render_agents_md("demo", &config, Path::new("."), true).contains('\r'));
         assert!(!render_grund_toml("demo").contains('\r'));
         assert!(!canonical_template_text(AGENT_SETUP_INSTRUCTIONS).contains('\r'));
         for (_, contents) in docs_scaffold() {
@@ -1101,11 +1102,11 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     fn workspace_members_empty_when_no_workspace_declared() {
         let root = test_root("workspace_members_empty_when_no_workspace_declared");
         // No `.agents/grund.toml` at all — fall through to defaults.
-        assert_eq!(render_workspace_members_section(&root, None), "");
+        assert_eq!(render_workspace_members_section(&root, None, "§", true), "");
         // And the rendered AGENTS.md contains neither the section heading nor
         // the discoverability line.
         let config = Config::default_for(root.clone());
-        let rendered = render_agents_md("demo", &config, &root);
+        let rendered = render_agents_md("demo", &config, &root, true);
         assert!(!rendered.contains("### Workspace members"));
         assert!(!rendered.contains("Cross-project citations"));
     }
@@ -1126,7 +1127,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         std::fs::create_dir_all(root.join("packages/ui")).expect("create ui");
         write(&root.join("apps/api/AGENTS.md"), "## existing block\n");
 
-        let section = render_workspace_members_section(&root, None);
+        let section = render_workspace_members_section(&root, None, "§", true);
 
         assert!(section.contains("### Workspace members"));
         assert!(section.contains("Cross-project citations use §alias/<ID>."));
@@ -1165,7 +1166,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         // None of the members are initialized — root/AGENTS.md absent too.
         let api_target = root.join("apps/api");
 
-        let section = render_workspace_members_section(&api_target, None);
+        let section = render_workspace_members_section(&api_target, None, "§", true);
 
         // Self counts as initialized — `api` row is the uniform-shape link.
         assert!(section.contains("- `api` → [AGENTS.md](AGENTS.md)"));
@@ -1185,6 +1186,42 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         assert!(api < core && core < root_pos && root_pos < ui);
     }
 
+    /// §FS-init.2.3.4.15: companion-only init does not create the canonical
+    /// AGENTS.md, so the self row must still point at the project directory when
+    /// AGENTS.md is absent.
+    #[test]
+    fn workspace_members_companion_only_init_marks_missing_self_agents_md() {
+        let root = test_root("workspace_members_companion_only_init_marks_missing_self_agents_md");
+        write(
+            &root.join(".agents/grund.toml"),
+            "project_name = \"root\"\n\n[workspace]\nmembers = [\"apps/api\"]\n",
+        );
+        std::fs::create_dir_all(root.join("apps/api")).expect("create api");
+        let api_target = root.join("apps/api");
+
+        let section = render_workspace_members_section(&api_target, None, "§", false);
+
+        assert!(section.contains("- `api` → [./](./) *(not yet initialized)*"));
+        assert!(!section.contains("- `api` → [AGENTS.md](AGENTS.md)"));
+    }
+
+    /// §FS-init.2.3.4.15: the discoverability line uses the target project's
+    /// configured marker, not a hard-coded `§`.
+    #[test]
+    fn workspace_members_discoverability_line_uses_configured_marker() {
+        let root = test_root("workspace_members_discoverability_line_uses_configured_marker");
+        write(
+            &root.join(".agents/grund.toml"),
+            "project_name = \"root\"\n\n[workspace]\nmembers = [\"apps/api\"]\n",
+        );
+        std::fs::create_dir_all(root.join("apps/api")).expect("create api");
+
+        let section = render_workspace_members_section(&root, None, "@", true);
+
+        assert!(section.contains("Cross-project citations use @alias/<ID>."));
+        assert!(!section.contains("Cross-project citations use §alias/<ID>."));
+    }
+
     /// §FS-init.2.3.4.15: when a member has no local config yet, its self row
     /// uses the `project_name` that `init` is about to write instead of the
     /// directory basename, so the generated block matches later workspace
@@ -1199,7 +1236,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         std::fs::create_dir_all(root.join("apps/api")).expect("create api");
         let api_target = root.join("apps/api");
 
-        let section = render_workspace_members_section(&api_target, Some("service"));
+        let section = render_workspace_members_section(&api_target, Some("service"), "§", true);
 
         assert!(section.contains("- `service` → [AGENTS.md](AGENTS.md)"));
         assert!(
@@ -1219,7 +1256,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         );
         std::fs::create_dir_all(root.join("apps/api")).expect("create api");
 
-        let section = render_workspace_members_section(&root, None);
+        let section = render_workspace_members_section(&root, None, "§", true);
 
         assert!(section.contains("### Workspace members"));
         assert!(section.contains("`api`"));
@@ -1243,7 +1280,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         // `apps/api` directory missing — `expand_workspace_members` errors,
         // but `render_workspace_members_section` must degrade gracefully.
 
-        assert_eq!(render_workspace_members_section(&root, None), "");
+        assert_eq!(render_workspace_members_section(&root, None, "§", true), "");
     }
 
     /// §FS-init.2.3.4.15: duplicate aliases are a workspace configuration
@@ -1259,7 +1296,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         std::fs::create_dir_all(root.join("apps/api")).expect("create apps/api");
         std::fs::create_dir_all(root.join("services/api")).expect("create services/api");
 
-        assert_eq!(render_workspace_members_section(&root, None), "");
+        assert_eq!(render_workspace_members_section(&root, None, "§", true), "");
     }
 
     #[cfg(unix)]
