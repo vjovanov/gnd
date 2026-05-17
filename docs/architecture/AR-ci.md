@@ -14,7 +14,9 @@ The full Rust build and test matrix still runs on every configured operating sys
 
 ## 3. Current hooks
 
-The current pre-commit gate runs `grund check`, including the grounding floor from [§FS-check.3.6](../functional-spec/FS-check.md#36-ungrounded-source-file-opt-in), and `lychee` for Markdown links. `grund` owns ID citations across docs and source; `lychee` owns regular Markdown links and URLs. Running both in CI preserves that boundary.
+The current pre-commit gate runs the same Rust format/build/test commands that development CI runs: `cargo fmt --all -- --check`, `cargo build --workspace --all-targets --locked` with warnings denied, and `cargo test --workspace --all-targets --locked`. The test hook also runs at `pre-push`, so a contributor who commits while a test is transiently broken still gets the same local stop before sending the branch.
+
+The gate also runs `grund check`, including the grounding floor from [§FS-check.3.6](../functional-spec/FS-check.md#36-ungrounded-source-file-opt-in), `grund fmt --write` for canonical citation links, and `lychee` for Markdown links. `grund` owns ID citations across docs and source; `lychee` owns regular Markdown links and URLs. Running both in CI preserves that boundary.
 
 ## 4. Performance smoke guard
 
