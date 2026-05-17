@@ -241,7 +241,7 @@ Each command then applies its own filter — `grund refs FS-x` invoked at
 the workspace root scopes to the current (root) project; `grund list
 --project api` narrows the catalog; `grund fmt --cross-refs` from a
 member tree preserves any pre-existing qualified wraps as-is and emits
-no new ones (§FS-workspace.8.5). No command re-implements the resolver,
+no new ones ([§FS-workspace.8.5](../functional-spec/FS-workspace.md#85-grund-fmt---cross-refs)). No command re-implements the resolver,
 the citation regex, or the alias derivation. `grund cover` deliberately
 stays project-local — its answer is "which files in this project carry
 citations?" — and filters at the consumer end on `cite.namespace.is_none()`,

@@ -134,7 +134,15 @@ fn command_check_workspace(
 
     let workspace = projects
         .iter()
-        .map(|project| (project.alias.clone(), &project.findings))
+        .map(|project| {
+            (
+                project.alias.clone(),
+                WorkspaceCheckTarget {
+                    findings: &project.findings,
+                    config: &project.config,
+                },
+            )
+        })
         .collect::<BTreeMap<_, _>>();
     let mut report = Report::default();
     let mut had_scan_errors = false;

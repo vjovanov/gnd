@@ -114,6 +114,7 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
             );
         }
 
+        let mut qualified_marker_starts = BTreeSet::new();
         for caps in config.grammar.citation_re.captures_iter(scan_line) {
             let Some(full) = caps.get(0) else { continue };
             let namespace = caps.name("namespace").map(|m| m.as_str().to_string());
@@ -131,18 +132,28 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
                 continue;
             }
             let Some(id) = parse_id(&caps) else { continue };
+            let start = if has_marker {
+                full.start().saturating_sub(config.marker.len())
+            } else {
+                full.start()
+            };
+            if namespace.is_some()
+                && has_marker
+                && (is_inside_inline_code(scan_line, start)
+                    || (!is_md && is_inside_string_literal(scan_line, start)))
+            {
+                continue;
+            }
             if let Some(decl) = current.as_ref()
                 && decl.line == lineno
                 && decl.id == id
             {
                 continue;
             }
-            let start = if has_marker {
-                full.start().saturating_sub(config.marker.len())
-            } else {
-                full.start()
-            };
             let text = scan_line[start..full.end()].to_string();
+            if namespace.is_some() && has_marker {
+                qualified_marker_starts.insert(start);
+            }
             findings.citations.push(Citation {
                 namespace,
                 id,
@@ -154,6 +165,15 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
                 text,
             });
         }
+        scan_fallback_qualified_citations(
+            scan_line,
+            lineno,
+            path,
+            config,
+            is_md,
+            &qualified_marker_starts,
+            findings,
+        );
     }
 
     if let Some(decl) = current.take() {
@@ -164,6 +184,126 @@ fn scan_file(path: &Path, config: &Config, findings: &mut Findings) -> Result<()
             .push(decl);
     }
     Ok(())
+}
+
+/// §FS-workspace.5: a member-local scan must still recognize marker-qualified
+/// citations before the member's own ID grammar is applied. Without this
+/// fallback, `§root/FS-root` in a default member can disappear just because the
+/// root uses `{kind}-{slug}`.
+fn scan_fallback_qualified_citations(
+    scan_line: &str,
+    lineno: usize,
+    path: &Path,
+    config: &Config,
+    is_md: bool,
+    already_seen: &BTreeSet<usize>,
+    findings: &mut Findings,
+) {
+    if config.marker.is_empty() {
+        return;
+    }
+    for (marker_start, _) in scan_line.match_indices(&config.marker) {
+        if already_seen.contains(&marker_start) {
+            continue;
+        }
+        if is_inside_inline_code(scan_line, marker_start) {
+            continue;
+        }
+        if !is_md && is_inside_string_literal(scan_line, marker_start) {
+            continue;
+        }
+        let token_start = marker_start + config.marker.len();
+        let Some(rest) = scan_line.get(token_start..) else {
+            continue;
+        };
+        let Some(prefix) = QUALIFIED_CITATION_PREFIX.captures(rest) else {
+            continue;
+        };
+        let Some(alias) = prefix.name("namespace").map(|m| m.as_str()) else {
+            continue;
+        };
+        let id_start = token_start + prefix.get(0).unwrap().end();
+        let Some(id_rest) = scan_line.get(id_start..) else {
+            continue;
+        };
+        let Some((id, section, id_len)) = parse_loose_qualified_id_prefix(id_rest) else {
+            continue;
+        };
+        let token_end = id_start + id_len;
+        findings.citations.push(Citation {
+            namespace: Some(alias.to_string()),
+            id,
+            section,
+            file: path.to_path_buf(),
+            line: lineno,
+            column: marker_start + 1,
+            has_marker: true,
+            text: scan_line[marker_start..token_end].to_string(),
+        });
+    }
+}
+
+fn parse_loose_qualified_id_prefix(raw: &str) -> Option<(Id, Option<String>, usize)> {
+    let mut end = raw
+        .char_indices()
+        .find(|(_, ch)| !(ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.')))
+        .map(|(idx, _)| idx)
+        .unwrap_or(raw.len());
+    while end > 0
+        && raw[..end]
+            .chars()
+            .next_back()
+            .is_some_and(|ch| matches!(ch, '.' | ',' | ';' | ':' | '!' | '?'))
+    {
+        end -= raw[..end].chars().next_back().map(char::len_utf8).unwrap_or(1);
+    }
+    let token = raw.get(..end)?;
+    let (id_text, section) = split_loose_section(token);
+    let (kind, rest) = id_text
+        .split_once(['-', '_'])
+        .filter(|(kind, rest)| !kind.is_empty() && !rest.is_empty())?;
+    if !kind.chars().all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit()) {
+        return None;
+    }
+    let (num, slug) = match rest.split_once(['-', '_']) {
+        Some((maybe_num, slug)) if maybe_num.chars().all(|ch| ch.is_ascii_digit()) => {
+            (maybe_num.parse::<u32>().ok(), slug)
+        }
+        _ => (None, rest),
+    };
+    if slug.is_empty() {
+        return None;
+    }
+    Some((
+        Id {
+            kind: kind.to_string(),
+            num,
+            slug: Some(slug.to_string()),
+        },
+        section.map(str::to_string),
+        end,
+    ))
+}
+
+fn split_loose_section(token: &str) -> (&str, Option<&str>) {
+    let suffix_start = token
+        .char_indices()
+        .rev()
+        .find(|(_, ch)| !(ch.is_ascii_digit() || *ch == '.'))
+        .map(|(idx, ch)| idx + ch.len_utf8())
+        .unwrap_or(0);
+    let suffix = &token[suffix_start..];
+    let Some(section) = suffix.strip_prefix('.') else {
+        return (token, None);
+    };
+    if section.is_empty()
+        || !section
+            .split('.')
+            .all(|part| !part.is_empty() && part.chars().all(|ch| ch.is_ascii_digit()))
+    {
+        return (token, None);
+    }
+    (&token[..suffix_start], Some(section))
 }
 
 /// Reparse marker-qualified workspace citations after every project config is
