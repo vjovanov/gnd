@@ -31,13 +31,9 @@ struct WorkspaceContext {
     /// The repository root used for path rendering in workspace mode (the
     /// `[output] relative_paths` base). For workspace mode this is the
     /// workspace root; for single-project mode it equals
-    /// `projects[current].config.root`.
+    /// `projects[current].config.root`. Used by `fmt --cross-refs` to
+    /// compute a relative URL that spans projects (§FS-workspace.8.5).
     render_root: PathBuf,
-    /// `true` when `[workspace] include_root = false` excluded the root from
-    /// `projects` — needed by completions/`list --project` so the root alias
-    /// is reported as unknown rather than silently reserved (§FS-workspace.8
-    /// intro / §FS-workspace.2).
-    include_root_disabled: bool,
 }
 
 impl WorkspaceContext {
@@ -99,7 +95,6 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
             current: 0,
             workspace_loaded: false,
             render_root,
-            include_root_disabled: false,
         });
     }
 
@@ -109,7 +104,6 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
     // member declarations (§AR-workspace.6).
     root_config.workspace_boundary_roots = member_roots.clone();
     let render_root = root_config.root.clone();
-    let include_root_disabled = !root_config.workspace_include_root;
 
     let mut projects: Vec<WorkspaceProject> = Vec::new();
     let mut current: Option<usize> = None;
@@ -188,7 +182,6 @@ fn load_workspace_context(path: &Path, path_provided: bool) -> Result<WorkspaceC
         current,
         workspace_loaded: true,
         render_root,
-        include_root_disabled,
     })
 }
 
