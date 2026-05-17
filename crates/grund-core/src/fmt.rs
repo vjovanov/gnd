@@ -94,8 +94,14 @@ fn fmt_tree(
     write: bool,
 ) -> Result<Vec<(PathBuf, usize, &'static str)>> {
     let mut changes = Vec::new();
+    // §FS-fmt.6.3: a wrap's URL is computed from the declaration's home file,
+    // which may live anywhere in the project tree — not necessarily inside the
+    // scope being rewritten. Resolve against the full project so that
+    // `grund fmt --cross-refs path/to/file.md` wraps cross-file citations
+    // (without this, a one-file scope leaves every citation whose target is
+    // declared elsewhere silently unwrapped, breaking §FS-fmt.6.2).
     let findings = if cross_refs {
-        Some(scan_tree_strict(config, scope, explicit_scope)?)
+        Some(scan_tree_strict(config, None, false)?)
     } else {
         None
     };
