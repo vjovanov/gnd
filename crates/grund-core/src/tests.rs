@@ -35,7 +35,11 @@ mod tests {
     }
 
     fn current_block() -> String {
-        render_agents_append_block("demo", &Config::default_for(PathBuf::from(".")))
+        render_agents_append_block(
+            "demo",
+            &Config::default_for(PathBuf::from(".")),
+            Path::new("."),
+        )
     }
 
     fn current_marker() -> &'static str {
@@ -783,7 +787,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         );
 
         let config = Config::default_for(PathBuf::from("."));
-        assert!(!render_agents_md("demo", &config).contains('\r'));
+        assert!(!render_agents_md("demo", &config, Path::new(".")).contains('\r'));
         assert!(!render_grund_toml("demo").contains('\r'));
         assert!(!canonical_template_text(AGENT_SETUP_INSTRUCTIONS).contains('\r'));
         for (_, contents) in docs_scaffold() {
@@ -1088,6 +1092,135 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
                 .map(|error| (&error.path, &error.message))
                 .collect::<Vec<_>>()
         );
+    }
+
+    /// §FS-init.2.3.4.15: `render_workspace_members_section` returns the empty
+    /// string for a target that is not inside a workspace. The Project Map
+    /// section is unchanged from the no-workspace fixture (§FS-init-fixtures.6.3).
+    #[test]
+    fn workspace_members_empty_when_no_workspace_declared() {
+        let root = test_root("workspace_members_empty_when_no_workspace_declared");
+        // No `.agents/grund.toml` at all — fall through to defaults.
+        assert_eq!(render_workspace_members_section(&root), "");
+        // And the rendered AGENTS.md contains neither the section heading nor
+        // the discoverability line.
+        let config = Config::default_for(root.clone());
+        let rendered = render_agents_md("demo", &config, &root);
+        assert!(!rendered.contains("### Workspace members"));
+        assert!(!rendered.contains("Cross-project citations"));
+    }
+
+    /// §FS-init.2.3.4.15: invoked at the workspace root, the section lists
+    /// every member sorted by alias, marks uninitialized members with
+    /// `*(not yet initialized)*`, and includes the root row when
+    /// `include_root = true` (the default). Mirrors §FS-init-fixtures.6.1.
+    #[test]
+    fn workspace_members_root_init_lists_aliases_and_initialization_state() {
+        let root = test_root("workspace_members_root_init_lists_aliases_and_initialization_state");
+        write(
+            &root.join(".agents/grund.toml"),
+            "project_name = \"root\"\n\n[workspace]\nmembers = [\"apps/api\", \"packages/*\"]\n",
+        );
+        std::fs::create_dir_all(root.join("apps/api")).expect("create api");
+        std::fs::create_dir_all(root.join("packages/core")).expect("create core");
+        std::fs::create_dir_all(root.join("packages/ui")).expect("create ui");
+        write(&root.join("apps/api/AGENTS.md"), "## existing block\n");
+
+        let section = render_workspace_members_section(&root);
+
+        assert!(section.contains("### Workspace members"));
+        assert!(section.contains("Cross-project citations use §alias/<ID>."));
+        assert!(section.contains("- `api` → [apps/api/AGENTS.md](apps/api/AGENTS.md)"));
+        assert!(
+            section.contains("- `core` → [packages/core/](packages/core/) *(not yet initialized)*")
+        );
+        assert!(section.contains("- `ui` → [packages/ui/](packages/ui/) *(not yet initialized)*"));
+        // `include_root = true` (default), and the root row is rendered with
+        // the uniform `alias → AGENTS.md` shape — self counts as initialized
+        // even though `root/AGENTS.md` does not yet exist on disk.
+        assert!(section.contains("- `root` → [AGENTS.md](AGENTS.md)"));
+        // Alias-sorted: api < core < root < ui.
+        let api = section.find("`api`").unwrap();
+        let core = section.find("`core`").unwrap();
+        let root_pos = section.find("`root`").unwrap();
+        let ui = section.find("`ui`").unwrap();
+        assert!(api < core && core < root_pos && root_pos < ui);
+    }
+
+    /// §FS-init.2.3.4.15: invoked inside a member, the section has the same
+    /// alias list and ordering as the root run, the member-being-initialized
+    /// is marked as `self` (initialized even before the write completes), and
+    /// link paths are recomputed relative to the member's AGENTS.md. Mirrors
+    /// §FS-init-fixtures.6.2.
+    #[test]
+    fn workspace_members_member_init_uses_self_exception_and_relative_paths() {
+        let root = test_root("workspace_members_member_init_uses_self_exception_and_relative_paths");
+        write(
+            &root.join(".agents/grund.toml"),
+            "project_name = \"root\"\n\n[workspace]\nmembers = [\"apps/api\", \"packages/*\"]\n",
+        );
+        std::fs::create_dir_all(root.join("apps/api")).expect("create api");
+        std::fs::create_dir_all(root.join("packages/core")).expect("create core");
+        std::fs::create_dir_all(root.join("packages/ui")).expect("create ui");
+        // None of the members are initialized — root/AGENTS.md absent too.
+        let api_target = root.join("apps/api");
+
+        let section = render_workspace_members_section(&api_target);
+
+        // Self counts as initialized — `api` row is the uniform-shape link.
+        assert!(section.contains("- `api` → [AGENTS.md](AGENTS.md)"));
+        // Sibling members and the workspace root all carry the marker.
+        assert!(section
+            .contains("- `core` → [../../packages/core/](../../packages/core/) *(not yet initialized)*"));
+        assert!(section
+            .contains("- `ui` → [../../packages/ui/](../../packages/ui/) *(not yet initialized)*"));
+        // Root row points at the workspace root *directory* because its
+        // AGENTS.md does not exist.
+        assert!(section.contains("- `root` → [../../](../../) *(not yet initialized)*"));
+        // Alias list and ordering are independent of which project is self.
+        let api = section.find("`api`").unwrap();
+        let core = section.find("`core`").unwrap();
+        let root_pos = section.find("`root`").unwrap();
+        let ui = section.find("`ui`").unwrap();
+        assert!(api < core && core < root_pos && root_pos < ui);
+    }
+
+    /// §FS-init.2.3.4.15: `include_root = false` drops the root row entirely;
+    /// the section still emits when there is at least one member to list.
+    #[test]
+    fn workspace_members_omits_root_when_include_root_false() {
+        let root = test_root("workspace_members_omits_root_when_include_root_false");
+        write(
+            &root.join(".agents/grund.toml"),
+            "project_name = \"root\"\n\n[workspace]\nmembers = [\"apps/api\"]\ninclude_root = false\n",
+        );
+        std::fs::create_dir_all(root.join("apps/api")).expect("create api");
+
+        let section = render_workspace_members_section(&root);
+
+        assert!(section.contains("### Workspace members"));
+        assert!(section.contains("`api`"));
+        assert!(
+            !section.contains("`root`"),
+            "include_root = false should suppress the root row entirely"
+        );
+    }
+
+    /// §FS-init.2.3.4.15 + §FS-workspace.6: a configured-but-misconfigured
+    /// workspace (e.g. a member directory that does not exist) silently
+    /// suppresses the section so `init` does not fail. `grund check` will
+    /// surface the configuration error separately.
+    #[test]
+    fn workspace_members_silently_skipped_on_workspace_config_error() {
+        let root = test_root("workspace_members_silently_skipped_on_workspace_config_error");
+        write(
+            &root.join(".agents/grund.toml"),
+            "project_name = \"root\"\n\n[workspace]\nmembers = [\"apps/api\"]\n",
+        );
+        // `apps/api` directory missing — `expand_workspace_members` errors,
+        // but `render_workspace_members_section` must degrade gracefully.
+
+        assert_eq!(render_workspace_members_section(&root), "");
     }
 
     #[cfg(unix)]
