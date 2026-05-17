@@ -2,19 +2,19 @@
 
 ## Status
 
-Concluded. Ready to draft as additions to §FS-init.
+Concluded. Ready to draft as additions to [§FS-init](../../functional-spec/FS-init.md#fs-init-grund-bootstraps-a-new-grund-conformant-repo).
 
 ## Context
 
 `grund init` is workspace-blind today. It writes a single `AGENTS.md` (plus
 companion entrypoints) and a single `.agents/grund.toml` for the directory it is
 invoked in, and the managed block's Project Map
-([§FS-init.2.3.4.4](../../functional-spec/FS-init.md#2-3-4-4-project-map))
+([§FS-init.2.3.4.4](../../functional-spec/FS-init.md#2344-project-map))
 lists only the declaration homes from that one project's effective config.
 
-That is fine for a single-project repo and matches §FS-init's commitment to "no
+That is fine for a single-project repo and matches [§FS-init](../../functional-spec/FS-init.md#fs-init-grund-bootstraps-a-new-grund-conformant-repo)'s commitment to "no
 prompts, no surprises" rooted in
-[§GOAL-friendliness-first](../../goals.md#goal-friendliness-first). It is
+[§GOAL-friendliness-first](../../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible). It is
 weaker for a workspace, though: at a root whose `.agents/grund.toml` declares
 `[workspace] members = [...]`
 ([§FS-workspace.2](../../functional-spec/FS-workspace.md#2-workspace-configuration)),
@@ -59,11 +59,11 @@ directories. Bootstrapping a member's own `AGENTS.md` remains a separate
 ## Boundaries
 
 - Do not write or modify any file under a member directory. This stays a
-  root-only edit, scoped to the same managed block §FS-init already maintains.
+  root-only edit, scoped to the same managed block [§FS-init](../../functional-spec/FS-init.md#fs-init-grund-bootstraps-a-new-grund-conformant-repo) already maintains.
 - Do not add a `[workspace]` block to a config that does not already have one.
   The section appears only when the config already declares members.
 - Do not change the Project Map format
-  ([§FS-init.2.3.4.4](../../functional-spec/FS-init.md#2-3-4-4-project-map)) —
+  ([§FS-init.2.3.4.4](../../functional-spec/FS-init.md#2344-project-map)) —
   the members list is a sibling section, not an extension of the existing list,
   so the "declaration homes" semantics stay clean.
 - Do not surface `include_root = false` as anything other than the absence of
@@ -105,7 +105,7 @@ I support this proposal. It fits the shape of `init`: make the agent's starting
 context useful, but do not infer or configure workspace topology. Reading
 `[workspace] members` from existing config and surfacing resolved aliases is a
 low-risk improvement that preserves the no-prompts, no-surprises contract in
-§FS-init while making workspace citation scope visible from the root entrypoint.
+[§FS-init](../../functional-spec/FS-init.md#fs-init-grund-bootstraps-a-new-grund-conformant-repo) while making workspace citation scope visible from the root entrypoint.
 
 My preferred answers to the open questions are:
 
@@ -183,7 +183,7 @@ resolutions of the open questions and refinements on top.
   inside a member directory whose effective config inherits `[workspace]`.
   The spec should state this explicitly so the symmetry is not a surprise.
 
-Next step: fold these into §FS-init alongside the existing managed-block
+Next step: fold these into [§FS-init](../../functional-spec/FS-init.md#fs-init-grund-bootstraps-a-new-grund-conformant-repo) alongside the existing managed-block
 contract, and update the Project Map section
-([§FS-init.2.3.4.4](../../functional-spec/FS-init.md#2-3-4-4-project-map))
+([§FS-init.2.3.4.4](../../functional-spec/FS-init.md#2344-project-map))
 to reference the new sibling section.
