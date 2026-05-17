@@ -21,7 +21,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           # Use the same release PAT as auto-bump.yml so the version commit can
@@ -98,29 +98,86 @@ jobs:
           cargo update --workspace
           printf 'grund %s\n' "${{ steps.versions.outputs.next }}" > e2e/cases/cli-version/expected.stdout
 
-      - name: Commit and push bump
+      - name: Commit and push release candidate
+        id: candidate
         shell: bash
         run: |
           set -euo pipefail
           next="${{ steps.versions.outputs.next }}"
+          branch="release-candidate/v${next}-${GITHUB_RUN_ID}"
+          base_sha="$(git rev-parse HEAD)"
 
+          git switch -c "$branch"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
           git add Cargo.toml crates/grund-core/Cargo.toml Cargo.lock e2e/cases/cli-version/expected.stdout
           git commit -m "Release v${next}"
-          git push origin main
+          git push -u origin "$branch"
 
-      - name: Dispatch release workflow
+          sha="$(git rev-parse HEAD)"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Dry-run release workflow
         shell: bash
         run: |
           set -euo pipefail
           next="${{ steps.versions.outputs.next }}"
+          branch="${{ steps.candidate.outputs.branch }}"
+          sha="${{ steps.candidate.outputs.sha }}"
+
+          gh workflow run release.yml \
+            --ref "$branch" \
+            -f version="$next" \
+            -f publish_crates=false \
+            -f create_github_release=false
+
+          run_id=""
+          for _ in $(seq 1 60); do
+            run_id="$(gh run list --workflow=release.yml --branch="$branch" --event=workflow_dispatch --limit=20 \
+              --json databaseId,headSha \
+              | jq -r ".[] | select(.headSha == \"$sha\") | .databaseId" \
+              | head -n1)"
+            if [ -n "$run_id" ]; then
+              break
+            fi
+            sleep 5
+          done
+
+          if [ -z "$run_id" ]; then
+            echo "error: dispatched release dry run for $branch but could not find the run" >&2
+            exit 1
+          fi
+
+          gh run watch "$run_id" --exit-status --interval 30
+
+      - name: Publish release commit and dispatch release
+        shell: bash
+        run: |
+          set -euo pipefail
+          next="${{ steps.versions.outputs.next }}"
+          branch="${{ steps.candidate.outputs.branch }}"
+          base_sha="${{ steps.candidate.outputs.base_sha }}"
+          sha="${{ steps.candidate.outputs.sha }}"
+
+          git fetch origin main
+          current_main="$(git rev-parse refs/remotes/origin/main)"
+          if [ "$current_main" != "$base_sha" ]; then
+            echo "error: main moved from $base_sha to $current_main while the release dry run was running" >&2
+            echo "       leaving $branch in place; rerun the minor release from the new main tip" >&2
+            exit 1
+          fi
+
+          git push origin "${sha}:refs/heads/main"
+
           # GITHUB_TOKEN pushes do not fan out to other workflows, so dispatch
-          # release.yml directly from main after the version bump commit lands.
+          # release.yml directly from main after the verified version bump lands.
           gh workflow run release.yml \
             --ref main \
             -f version="$next" \
             -f publish_crates=true \
             -f create_github_release=true
+          git push origin --delete "$branch" || true
           echo "Dispatched release.yml for v$next."
