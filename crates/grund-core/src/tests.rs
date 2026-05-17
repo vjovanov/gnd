@@ -915,6 +915,37 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     }
 
     #[test]
+    fn init_discovers_missing_aliases_for_existing_agent_workspaces() {
+        let root = test_root("init_discovers_missing_aliases_for_existing_agent_workspaces");
+        fs::create_dir_all(root.join(".claude")).expect("create .claude");
+        fs::create_dir_all(root.join(".gemini")).expect("create .gemini");
+        fs::create_dir_all(root.join(".github/workflows")).expect("create github metadata");
+
+        let companions =
+            init_companion_agent_entrypoints(&root).expect("discover init companions");
+        let rels = companions
+            .iter()
+            .map(|entrypoint| match entrypoint {
+                InitCompanionAgentEntrypoint::Existing(path)
+                | InitCompanionAgentEntrypoint::MissingAlias(path) => path
+                    .strip_prefix(&root)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            rels,
+            vec![
+                "CLAUDE.md",
+                ".claude/CLAUDE.md",
+                "GEMINI.md"
+            ]
+        );
+    }
+
+    #[test]
     fn check_ignores_companion_agent_entrypoints_without_canonical_agents_md() {
         let root =
             test_root("check_ignores_companion_agent_entrypoints_without_canonical_agents_md");
