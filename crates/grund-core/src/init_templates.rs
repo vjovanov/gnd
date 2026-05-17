@@ -274,7 +274,7 @@ fn companion_agent_entrypoints(root: &Path) -> Result<Vec<PathBuf>, (PathBuf, St
         match is_symlink_to(&path, &canonical) {
             Ok(true) => continue,
             Ok(false) => {
-                if companion_entrypoint_selected_for_check(root, entrypoint, &path) {
+                if companion_selected_by_evidence(root, entrypoint, &path) {
                     paths.push(path);
                 }
             }
@@ -299,7 +299,7 @@ fn existing_init_companion_agent_entrypoints(
             match is_symlink_to(&path, &canonical) {
                 Ok(true) => continue,
                 Ok(false) => {
-                    if existing_init_companion_selected(root, entrypoint, &path) {
+                    if companion_selected_by_evidence(root, entrypoint, &path) {
                         paths.push(InitCompanionAgentEntrypoint::Existing(path));
                     }
                 }
@@ -364,17 +364,15 @@ fn companion_workspace_exists(root: &Path, entrypoint: &CompanionAgentEntrypoint
         .is_some_and(|workspace| root.join(workspace).is_dir())
 }
 
-fn existing_init_companion_selected(
-    root: &Path,
-    entrypoint: &CompanionAgentEntrypoint,
-    path: &Path,
-) -> bool {
-    entrypoint.discovery
-        || companion_workspace_exists(root, entrypoint)
-        || companion_has_managed_block(path)
-}
-
-fn companion_entrypoint_selected_for_check(
+/// Whether the on-disk `path` is grund-owned despite belonging to an entrypoint
+/// whose filename is too generic to attribute by existence alone (currently
+/// `.rules`, §FS-init.2.1). True when the entry is discovery-safe by filename,
+/// when its owning workspace directory proves ownership, or when the file
+/// already carries a managed block from a prior `grund init` — same evidence
+/// for both `grund check`'s companion scan and `grund init`'s update set, so
+/// both call sites resolve through one helper. Ordering matters: `discovery`
+/// is the cheap-path short-circuit so most companions never touch the disk.
+fn companion_selected_by_evidence(
     root: &Path,
     entrypoint: &CompanionAgentEntrypoint,
     path: &Path,

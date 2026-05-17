@@ -571,6 +571,97 @@ fn init_dry_run_on_current_repo_suppresses_next_block() {
 }
 
 #[test]
+fn init_dry_run_with_docs_previews_scaffold_without_writing() {
+    // FS-init.1 / FS-init.2.2: --dry-run composes with --docs — every docs
+    // scaffold path is reported as `would-write` and no file lands on disk.
+    let target = workdir("init_dry_run_with_docs_previews_scaffold_without_writing");
+    let dry = run_grund(
+        &["init", target.to_str().unwrap(), "--docs", "--dry-run"],
+        manifest_dir(),
+    );
+    assert!(
+        dry.status.success(),
+        "init --docs --dry-run failed: stderr={}",
+        String::from_utf8_lossy(&dry.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&dry.stderr);
+    for rel in [
+        "AGENTS.md",
+        ".agents/grund.toml",
+        "docs/grund.md",
+        "docs/goals.md",
+        "docs/roadmap.md",
+        "docs/changelog.md",
+        "docs/functional-spec/README.md",
+        "docs/architecture/README.md",
+        "docs/decisions/architectural/.gitkeep",
+        "docs/decisions/functional/.gitkeep",
+        "e2e/README.md",
+        "e2e/cases/.gitkeep",
+    ] {
+        assert!(
+            stderr.contains(&format!("would-write {rel}")),
+            "dry-run --docs should preview `would-write {rel}`, got:\n{stderr}"
+        );
+        assert!(
+            !target.join(rel).exists(),
+            "dry-run --docs must not write {rel} to disk"
+        );
+    }
+    assert!(
+        !stderr.contains("\nwrote "),
+        "dry-run --docs must not use the real-run verb, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn init_force_dry_run_previews_canonical_rewrite() {
+    // FS-init.1 / FS-init.2.2: --force --dry-run takes the rewrite path
+    // (instead of update-in-place) and previews `would-write AGENTS.md`
+    // without changing the file's bytes on disk. .agents/grund.toml is the
+    // exception: --force never overwrites it, so dry-run reports `exists`.
+    let target = workdir("init_force_dry_run_previews_canonical_rewrite");
+    let first = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
+    assert!(first.status.success());
+
+    let agents_before = fs::read(target.join("AGENTS.md")).unwrap();
+    let toml_before = fs::read(target.join(".agents/grund.toml")).unwrap();
+
+    let dry = run_grund(
+        &["init", target.to_str().unwrap(), "--force", "--dry-run"],
+        manifest_dir(),
+    );
+    assert!(
+        dry.status.success(),
+        "init --force --dry-run failed: stderr={}",
+        String::from_utf8_lossy(&dry.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&dry.stderr);
+    assert!(
+        stderr.contains("would-write AGENTS.md"),
+        "--force --dry-run should preview the canonical rewrite, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("exists .agents/grund.toml"),
+        "--force never overwrites the config, even under dry-run, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("\nwrote AGENTS.md"),
+        "dry-run must not use the real-run verb, got:\n{stderr}"
+    );
+    assert_eq!(
+        fs::read(target.join("AGENTS.md")).unwrap(),
+        agents_before,
+        "--force --dry-run must not modify AGENTS.md"
+    );
+    assert_eq!(
+        fs::read(target.join(".agents/grund.toml")).unwrap(),
+        toml_before,
+        "--force --dry-run must not modify the config"
+    );
+}
+
+#[test]
 fn init_cursor_workspace_creates_cursor_rules_alias() {
     // FS-init.2.1 / FS-init.2.3: a present `.cursor/` workspace triggers
     // creation of `.cursor/rules/grund.mdc` in automatic mode — the same
