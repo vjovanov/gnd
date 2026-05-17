@@ -215,33 +215,42 @@ fn command_init(args: &[String]) -> ExitCode {
     }
 
     if any_change {
-        eprintln!();
-        eprintln!("next:");
-        if docs {
-            eprintln!("  1. run `grund check` — a freshly scaffolded tree is clean");
-            eprintln!(
-                "  2. allocate an ID:  ID=$(grund id FS \"…\")  then write  docs/functional-spec/$ID.md"
-            );
-            eprintln!("     (H1: `# <ID>: <one-line statement of the behavior>`)");
-            eprintln!(
-                "  3. cite it as §<ID> from the docs and e2e tests that depend on it, then `grund check` again"
-            );
-        } else {
-            eprintln!(
-                "  1. re-run with --docs to scaffold docs/ and e2e/ (or create those folders yourself) — until then `grund check` has nothing to scan"
-            );
-            eprintln!("  2. run `grund check` — a scaffolded tree is clean");
-            eprintln!(
-                "  3. allocate an ID:  ID=$(grund id FS \"…\")  then write  docs/functional-spec/$ID.md"
-            );
-        }
-        eprintln!(
-            "see {} for the full workflow.",
-            workflow_entrypoint.as_deref().unwrap_or(CANONICAL_AGENT_ENTRYPOINT)
-        );
+        print_next_block(docs, workflow_entrypoint.as_deref());
     }
 
     ExitCode::SUCCESS
+}
+
+/// The trailing `next:` guidance block (§FS-init.2.2). Suppressed by the caller
+/// when every reported path was `exists ` — when the repo is already current
+/// there is no next step to teach. `entrypoint` is the first agent entrypoint
+/// `init` touched, used in the final `see <entrypoint> …` pointer; `None`
+/// falls back to the canonical `AGENTS.md`.
+fn print_next_block(docs: bool, entrypoint: Option<&str>) {
+    eprintln!();
+    eprintln!("next:");
+    if docs {
+        eprintln!("  1. run `grund check` — a freshly scaffolded tree is clean");
+        eprintln!(
+            "  2. allocate an ID:  ID=$(grund id FS \"…\")  then write  docs/functional-spec/$ID.md"
+        );
+        eprintln!("     (H1: `# <ID>: <one-line statement of the behavior>`)");
+        eprintln!(
+            "  3. cite it as §<ID> from the docs and e2e tests that depend on it, then `grund check` again"
+        );
+    } else {
+        eprintln!(
+            "  1. re-run with --docs to scaffold docs/ and e2e/ (or create those folders yourself) — until then `grund check` has nothing to scan"
+        );
+        eprintln!("  2. run `grund check` — a scaffolded tree is clean");
+        eprintln!(
+            "  3. allocate an ID:  ID=$(grund id FS \"…\")  then write  docs/functional-spec/$ID.md"
+        );
+    }
+    eprintln!(
+        "see {} for the full workflow.",
+        entrypoint.unwrap_or(CANONICAL_AGENT_ENTRYPOINT)
+    );
 }
 
 /// Stderr verb for a newly written file. `--dry-run` reports `would-write `
