@@ -205,10 +205,10 @@ _grund() {{
 
     if [[ $COMP_CWORD -eq 1 ]]; then
         local commands=($(compgen -W "check show list refs cover fmt id init config agent-setup-instructions completions" -- "$cur"))
-        # IDs always start with an uppercase kind (FS-…, GOAL-…), so the
-        # repo-scanning lookup only runs when the prefix already looks like one.
-        # Plain `gr<TAB>` and subcommand typos stay cheap.
-        if [[ "$cur" =~ ^[A-Z] ]]; then
+        # IDs start with an uppercase kind (FS-…, GOAL-…), but workspace aliases
+        # are lowercase (`api/FS-login`). Once the user has typed a non-flag
+        # prefix, ask the helper for matching IDs and aliases.
+        if [[ -n "$cur" && "$cur" != -* ]]; then
             _grund_complete_ids
         fi
         COMPREPLY=("${{commands[@]}}" "${{COMPREPLY[@]}}")
@@ -278,9 +278,9 @@ _grund() {{
 
   if (( CURRENT == 2 )); then
     _describe 'grund command' commands
-    # Only scan for IDs when the prefix already looks like one (IDs start with
-    # an uppercase kind); a bare or lowercase prefix is a subcommand.
-    if [[ "$words[CURRENT]" =~ ^[A-Z] ]]; then
+    # IDs start with an uppercase kind, but workspace aliases are lowercase.
+    # Once a non-flag prefix exists, ask the helper for matching IDs/aliases.
+    if [[ -n "$words[CURRENT]" && "$words[CURRENT]" != -* ]]; then
       _grund_ids
     fi
     return
@@ -312,9 +312,9 @@ function __grund_complete_ids
 end
 
 complete -c grund -f -n "__fish_use_subcommand" -a "check show list refs cover fmt id init config agent-setup-instructions completions"
-# Only scan for IDs when the prefix already looks like one (uppercase kind);
-# a lowercase or empty prefix is a subcommand and stays cheap.
-complete -c grund -f -k -n "__fish_use_subcommand; and string match -qr '^[A-Z]' -- (commandline -ct)" -a "(__grund_complete_ids)"
+# IDs start with an uppercase kind, but workspace aliases are lowercase. Once a
+# non-flag prefix exists, ask the helper for matching IDs/aliases.
+complete -c grund -f -k -n "__fish_use_subcommand; and test -n (commandline -ct); and not string match -qr '^-' -- (commandline -ct)" -a "(__grund_complete_ids)"
 complete -c grund -f -k -n "__fish_seen_subcommand_from show refs" -a "(__grund_complete_ids)"
 "#
     );
