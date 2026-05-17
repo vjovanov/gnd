@@ -46,7 +46,7 @@ fn show_declaration(
                 format_path(decl.defined_in.as_ref().unwrap())
             ));
         }
-        if !file_declares_inline_home(&file, id, &config.grammar).unwrap_or(false) {
+        if !file_declares_inline_home(&file, id, config).unwrap_or(false) {
             return Err(anyhow!(
                 "broken stub: {} (stub at {}:{} points at {}, which contains no inline declaration of {})",
                 render_id(config, id),
@@ -206,7 +206,9 @@ fn extract_declaration_body(
             continue;
         }
         let scan_line = if in_py_docstring { trimmed } else { line };
-        if let Some(caps) = config.grammar.decl_re.captures(scan_line) {
+        if let Some(caps) =
+            declaration_captures(&config.grammar, scan_line, in_py_docstring, is_md)
+        {
             let found = parse_id(&caps);
             if in_decl && found.as_ref() != Some(id) {
                 break;

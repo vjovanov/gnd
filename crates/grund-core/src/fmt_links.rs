@@ -296,8 +296,8 @@ fn markdown_link_target_with_root(
     Some(format!("{}#{}", rel, anchor))
 }
 
-/// The text content of a declaration's `# <ID>: <title>` heading — the `<ID>`
-/// rendered per `[id] format`, then `: <title>` if the heading carries one — i.e.
+/// The text content of a Markdown declaration's `# <ID>: <title>` heading — the
+/// `<ID>` rendered per `[id] format`, then `: <title>` if the heading carries one — i.e.
 /// what a renderer slugifies for the declaration's own anchor. The title is reduced
 /// to its rendered form (`reduce_heading_text`), matching `section_anchor_text`
 /// (§DF-declaration-anchor, §DF-github-anchor-fidelity).
@@ -410,9 +410,23 @@ fn section_heading_text(
     config: &Config,
 ) -> Result<Option<String>> {
     let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
+    let is_py = path.extension().and_then(|e| e.to_str()) == Some("py");
     let mut in_decl = false;
+    let mut in_py_docstring = false;
     for line in text.lines() {
-        if let Some(caps) = config.grammar.decl_re.captures(line) {
+        let trimmed = line.trim_start();
+        if config.docstring_python
+            && is_py
+            && (trimmed.starts_with("\"\"\"") || trimmed.starts_with("'''"))
+        {
+            in_py_docstring = !in_py_docstring;
+            continue;
+        }
+        let scan_line = if in_py_docstring { trimmed } else { line };
+        if let Some(caps) =
+            declaration_captures(&config.grammar, scan_line, in_py_docstring, is_md)
+        {
             let found = parse_id(&caps);
             if in_decl && found.as_ref() != Some(id) {
                 break;
@@ -425,10 +439,10 @@ fn section_heading_text(
         if !in_decl {
             continue;
         }
-        if let Some(caps) = config.grammar.section_re.captures(line)
+        if let Some(caps) = config.grammar.section_re.captures(scan_line)
             && caps.name("sec").is_some_and(|sec| sec.as_str() == section)
         {
-            return Ok(Some(section_anchor_text(line, section)));
+            return Ok(Some(section_anchor_text(scan_line, section)));
         }
     }
     Ok(None)
