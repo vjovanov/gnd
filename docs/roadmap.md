@@ -24,6 +24,8 @@ A new e2e fixture proves nested fixture directories are not scanned under the de
 
 Per [§GOAL-fast-feedback.1](goals.md#1-performance-targets) and [§GOAL-fast-feedback.3](goals.md#3-measurable). The budgets are written down — under 100 ms on this repo, under 1 s on a 10k-file repo. The instruction-counting `cargo bench` harness over the hot commands on this repo is in place ([§AR-benchmarks](architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands), decision in [§DA-benchmark-instruction-counting](decisions/architectural/DA-benchmark-instruction-counting.md#da-benchmark-instruction-counting-the-performance-harness-counts-instructions-not-wall-clock-seconds)) and CI runs it ([§AR-ci.5](architecture/AR-ci.md#5-benchmark-job)), so the per-commit number now exists; what is still missing is the 10k-file input, the committed baseline, and the build-failing threshold — so "CI fails on regression" is still a promise. Land the rest against the current 0.1.0 single-binary build before [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli) moves the engine into a library and [§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine) adds two more frontends.
 
+Put bluntly: performance is measured but not yet guarded. CI records instruction counts today — the workflow comment near `.github/workflows/ci.yml:107` says the build-failing regression threshold is still the remaining [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets) work — so the next improvement is to turn that recorded signal into an enforced contract.
+
 ### 1. What
 
 Done: a `cargo bench` harness at `benches/instructions.rs` (gated behind a `bench` Cargo feature) that runs the built `grund` binary under Callgrind for the commands agents and CI run most — `check`, `list`, `show`, `refs`, `cover`, `fmt --check` — over this repo, reporting a deterministic instruction count per invocation; and a CI `bench` job that installs Valgrind + `iai-callgrind-runner` and runs it on every push ([§AR-benchmarks](architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands), [§AR-ci.5](architecture/AR-ci.md#5-benchmark-job)). Instruction count rather than wall-clock so the figure does not flake on a loaded runner — [§DA-benchmark-instruction-counting](decisions/architectural/DA-benchmark-instruction-counting.md#da-benchmark-instruction-counting-the-performance-harness-counts-instructions-not-wall-clock-seconds).
@@ -42,9 +44,11 @@ Remaining: a generated large synthetic fixture — the "large conformant repo" f
 
 Workspace split before bindings ship. The first boundary is in place: `crates/grund-core` is a real workspace crate and the root `grund` binary depends on it. The remaining cleanup is to move CLI-only argument parsing, rendering, and exit-code mapping out of `grund-core` into a dedicated `grund-cli` frontend crate.
 
+The important part is not just crate shape; it is making `grund-core` a real public engine API. Right now the binary is thin, but `grund-core` still includes CLI/help/rendering through flat `include!` files, and the only visible public entry point is effectively `main_entry()` (`crates/grund-core/src/lib.rs:11`, `src/main.rs:3`). That conflicts with the promised Rust embedding surface — `check`, `show`, `Report`, `Finding`, `ShowOpts` — in [§FS-distribution.3.1](functional-spec/FS-distribution.md#31-rust-grund-core-crate). This must land before [§RM-lsp](roadmap.md#rm-lsp-ship-the-optional-lsp-server) and before the npm/PyPI bindings in [§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine).
+
 ### 1. What
 
-Done: `grund-core` library crate exists and owns the current scanner/checker/show/fmt/config implementation. The published root `grund` package is a thin binary that calls into it. Remaining: `grund-cli` frontend crate for argument parsing, rendering (text/JSON), exit-code mapping, and help text, leaving `grund-core` as the engine-only library.
+Done: `grund-core` library crate exists and owns the current scanner/checker/show/fmt/config implementation. The published root `grund` package is a thin binary that calls into it. Remaining: `grund-cli` frontend crate for argument parsing, rendering (text/JSON), exit-code mapping, and help text, leaving `grund-core` as the engine-only library, plus a documented public Rust API matching [§FS-distribution.3.1](functional-spec/FS-distribution.md#31-rust-grund-core-crate).
 
 ### 2. Why now
 
@@ -53,6 +57,8 @@ Done: `grund-core` library crate exists and owns the current scanner/checker/sho
 ### 3. Measurable
 
 `grund-core` compiles standalone; `grund-cli`, the planned `grund-node`, and `grund-py` all consume it without duplicating scanner or checker code. The full e2e suite passes byte-identical reports before and after the split.
+
+An embedding smoke test calls the public `grund-core` API directly — no CLI argument parser, no stdout renderer — and obtains the same `Report` / `show` data shape the CLI later renders.
 
 ## RM-distribution-naming: verify package names before first publish
 
@@ -90,6 +96,8 @@ Integration test runs the same spec corpus through all three bindings and assert
 
 Per [§FS-lsp](functional-spec/FS-lsp.md#fs-lsp-grund-will-ship-an-optional-lsp-server), [§AR-lsp](architecture/AR-lsp.md#ar-lsp-how-the-lsp-server-is-built), and [§DA-lsp-optional](decisions/architectural/DA-lsp-optional.md#da-lsp-optional-lsp-server-ships-as-a-separate-optional-binary). Adds `crates/grund-lsp/` to the workspace and publishes it as a separate package on cargo, npm, and PyPI. No first-party per-editor wrappers ship; editor configuration is the user's one-time work, with example snippets in the README.
 
+This is half of the live feedback loop. The CLI is solid, but the product promise is strongest when citations fail while the user is editing: diagnostics, hover preview, go-to-definition, and the live `$$ -> §` transform from [§FS-lsp.1](functional-spec/FS-lsp.md#1-capabilities). The editor-less half is [§RM-watch](roadmap.md#rm-watch-implement-grund-check---watch), which gives the same every-save loop without requiring editor setup.
+
 ### 1. What
 
 A `grund-lsp` binary that speaks LSP over stdio and serves the four capabilities pinned in [§FS-lsp.1](functional-spec/FS-lsp.md#1-capabilities): diagnostics, hover preview, go-to-definition, and the live `$$ → §` transform (the bulk form of which already ships in `grund fmt`). Holds an in-memory `Findings` per workspace; full re-scan strategy on every change for v1 ([§AR-lsp.3.1](architecture/AR-lsp.md#31-full-re-scan-on-every-change-v1)). Parity with the CLI is enforced by an e2e harness that drives the LSP through the same `e2e/cases/*` corpus and asserts byte-equivalent output ([§AR-lsp.5](architecture/AR-lsp.md#5-determinism-and-parity-tests)).
@@ -112,6 +120,8 @@ Distribution: separate package on each registry ([§FS-distribution.1](functiona
 
 Per [§FS-check.6](functional-spec/FS-check.md#6-watch-mode---watch). The editor-less "every save" loop [§GOAL-fast-feedback](goals.md#goal-fast-feedback-grund-must-be-as-fast-as-possible) exists for — re-run `grund check` on every change under the scanned tree, clearing prior output each run.
 
+Together with [§RM-lsp](roadmap.md#rm-lsp-ship-the-optional-lsp-server), this ships the live feedback loop: LSP for editor users, `grund check --watch` for terminal users and editor setups that do not speak LSP.
+
 ### 1. What
 
 `--watch` on `grund check` (and `grund --watch` as shorthand): filesystem-notification-driven, debounced, no polling and no configurable interval. Each run is byte-identical to a plain `grund check` on the tree's current state; on Ctrl-C the process exits with the last completed run's exit code. Non-interactive — no TUI, no key bindings ([§FS-non-goals.10](functional-spec/FS-non-goals.md#10-interactive-mode)), no network ([§FS-non-goals.11](functional-spec/FS-non-goals.md#11-network-access-during-a-check)).
@@ -127,6 +137,8 @@ An e2e fixture starts `grund check --watch` on a clean fixture (asserts silent f
 ## RM-cochange-gate: a pre-commit / CI recipe — no impl change without spec and test
 
 The strong form of the discipline ([§GOAL-agent-grounding.1](goals.md#1-the-three-layers), diff-gated enforcement): a changed source file must be grounded ([§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in)), and the change must also touch the spec it cites *or* a test of it, with an explicit escape hatch for refactors. This is diff-aware — a function of `(tree, base ref, config)`, not `(tree, config)` — and it leans on `grund cover` ([§FS-cover](functional-spec/FS-cover.md#fs-cover-grund-groups-citations-by-scanned-file)) plus a git diff, so it lives in the recipe layer, **not** in `grund-core` (a third first-party surface is out of scope, [§FS-non-goals.12](functional-spec/FS-non-goals.md#12-surfaces-outside-grund-core-and-the-lsp-transport); the engine reads no history, [§FS-non-goals.6](functional-spec/FS-non-goals.md#6-decision-database-audit-log-history-tracking)). Tiering rationale in [§DF-require-grounding](decisions/functional/DF-require-grounding.md#df-require-grounding-an-opt-in-check-that-every-source-file-cites-a-spec).
+
+[§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in) proves files are grounded at rest; it does not prove that a behavior change came with a spec or test update. The co-change gate is therefore the highest-value remaining "agent discipline" item: use `grund cover` plus git diff to connect changed implementation files to the specs and tests that justify the change.
 
 ### 1. What
 
