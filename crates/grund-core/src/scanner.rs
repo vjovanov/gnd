@@ -72,7 +72,7 @@ fn scan_file(
             line
         };
 
-        if let Some(caps) = config.grammar.decl_re.captures(scan_line)
+        if let Some(caps) = declaration_captures(&config.grammar, scan_line, in_py_docstring, is_md)
             && let Some(id) = parse_id(&caps)
         {
             if let Some(prev) = current.take() {
@@ -611,10 +611,8 @@ fn heading_level_for_line(line: &str, markdown_heading: bool, caps: &regex::Capt
             .count()
             .max(1);
     }
-    // Code-form declarations (§DF-code-declarations-drop-hash) match the alternation
-    // branch that has no `#+`, so neither named group is set; default to depth 1.
-    // Markdown-form declarations inside a doc-comment land in either `hashes`
-    // (after a comment prefix) or `mdhashes` (no prefix at this byte position).
+    // Code-form declarations (§DF-code-declarations-drop-hash) match the branch
+    // that has no `#+`, so no heading group is set; default to depth 1.
     caps.name("hashes")
         .or_else(|| caps.name("mdhashes"))
         .map(|m| m.as_str().len())

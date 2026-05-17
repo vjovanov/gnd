@@ -206,7 +206,7 @@ fn fmt_tree(
                 changed_lines.push(line.to_string());
                 continue;
             }
-            if in_fence || config.grammar.decl_re.is_match(line) {
+            if in_fence || declaration_captures(&config.grammar, line, false, is_md).is_some() {
                 changed_lines.push(line.to_string());
                 continue;
             }

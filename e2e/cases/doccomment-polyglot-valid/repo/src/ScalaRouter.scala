@@ -1,5 +1,5 @@
 /**
- * # AR-003-scala: Scala router
+ * AR-003-scala: Scala router
  *
  * Implements §FS-001-entrypoint.1.
  *

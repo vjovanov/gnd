@@ -1,4 +1,4 @@
-/// # AR-001-router: Router
+/// AR-001-router: Router
 ///
 /// Implements FS-001-entrypoint.1.
 ///

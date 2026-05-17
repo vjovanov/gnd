@@ -1,5 +1,5 @@
 /**
- * # AR-002-kotlin: Kotlin router
+ * AR-002-kotlin: Kotlin router
  *
  * Implements §FS-001-entrypoint.1.
  *

@@ -35,16 +35,16 @@ A single linear pass over each file's lines, performing three jobs simultaneousl
 
 ### 2.1 Declaration detection
 
-A regex matches declaration lines in either of two shapes:
+A regex matches declaration lines in one of two context-specific shapes:
 
-1. **Markdown-form** — `<comment-prefix>? #{1,N} <ID>[:…]`: a `#`-prefixed heading at any markdown level, optionally itself sitting inside a comment marker. This is how `.md` files declare (`# FS-foo:`) and also how inline declarations in doc-comments were written historically (`/// # AR-foo:`).
-2. **Code-form** — `<comment-prefix> <ID>[:…]`: a doc-comment-prefixed line with the ID directly after the marker, no `#` prefix. Decided in [§DF-code-declarations-drop-hash](../decisions/functional/DF-code-declarations-drop-hash.md#df-code-declarations-drop-hash-code-resident-declarations-may-drop-the--prefix). The comment prefix is **required** in this form — without a `#` or a doc-comment marker, a line `FS-foo: anything` in markdown prose is not a declaration.
+1. **Markdown-form** — `#{1,N} <ID>[:…]`: a `#`-prefixed heading at any markdown level. This is how `.md` files declare (`# FS-foo:`).
+2. **Code-form** — `<comment-prefix> <ID>[:…]`, or bare `<ID>[:…]` inside a Python docstring: a doc-comment line with the ID directly after the marker, no markdown `#` prefix. Decided in [§DF-code-declarations-drop-hash](../decisions/functional/DF-code-declarations-drop-hash.md#df-code-declarations-drop-hash-code-resident-declarations-may-drop-the--prefix). The comment prefix is **required** outside Python docstrings — without a `#` heading in markdown or a doc-comment marker in source, a line `FS-foo: anything` in prose is not a declaration.
 
-`<ID>` is the configured `[id]` grammar ([§FS-config.3.2](../functional-spec/FS-config.md#32-id--id-grammar)) with `{kind}` drawn from a configured `[[kinds]]` prefix. The heading may sit at any markdown level when written in markdown-form: file-form `GND`/`FS`/`AR`/`DF`/`DA` declarations are H1 (`# FS-… :`), `GOAL` and `RM` declarations are H2 inside `docs/goals.md` and `docs/roadmap.md` respectively, and an inline declaration in a doc-comment is whatever level the author wrote (`# AR-… ` is "level 1" *within* the comment block).
+`<ID>` is the configured `[id]` grammar ([§FS-config.3.2](../functional-spec/FS-config.md#32-id--id-grammar)) with `{kind}` drawn from a configured `[[kinds]]` prefix. The heading may sit at any markdown level when written in markdown-form: file-form `GND`/`FS`/`AR`/`DF`/`DA` declarations are H1 (`# FS-… :`), and `GOAL` and `RM` declarations are H2 inside `docs/goals.md` and `docs/roadmap.md` respectively. Code-form declarations are treated as level 1 *within* the comment block.
 
 When the regex matches, the line opens a new "current declaration" context and the **declaration heading level** `L` is recorded:
 
-- Markdown-form: `L` is the count of `#` on the line (`#` → 1, `##` → 2, …).
+- Markdown-form: `L` is the count of `#` on the line (`#` -> 1, `##` -> 2, ...).
 - Code-form: `L` defaults to `1`. The declaration is conceptually a "level-1" heading inside the doc-comment block — its sections are still numbered `## 1. …`, `### 1.1 …`, etc., one or more `#` deeper than the declaration line.
 
 Both forms record the same `Declaration` struct downstream; consumers (`grund show`, `grund check`, `grund refs`) do not care which shape the source used. (`E2E` declarations are the exception — they are directories, not heading lines; see §6.)
@@ -87,36 +87,36 @@ The recognized doc-comment forms (matched as comment prefixes preceding the head
 
 This table documents the doc-comment *conventions* for the languages `grund` is built to serve. It is not the gate: the gate is the `[scan] comment_prefixes` list ([§FS-config.3.5](../functional-spec/FS-config.md#35-scan--what-gets-walked)), whose default also recognizes `;` (Lisp / Scheme / Clojure), `--` (SQL / Haskell / Lua / Ada), and bare `*` / `/*` block-comment lines. Any line whose first non-whitespace run is a configured prefix can host a declaration heading or a citation; a language not in the table still works as long as its comment marker is in `comment_prefixes`.
 
-Before declaration, section, or citation detection runs on a source file, the scanner normalizes each eligible comment/docstring line to the markdown content the author meant:
+Before declaration, section, or citation detection runs on a source file, the scanner normalizes each eligible comment/docstring line to the content the author meant:
 
-- `//`, `///`, and `//!` line comments strip the full leading comment marker and one following space when present. Therefore `/// # AR-001-router: Router`, `//! # AR-001-router: Router`, and `// # AR-001-router: Router` all expose the same content line: `# AR-001-router: Router`.
-- `#`, `;`, and `--` line comments strip that marker and one following space when present. Therefore Python/Ruby `# # AR-001-router: Router` exposes `# AR-001-router: Router`; a bare source line `# AR-001-router: Router` is not a comment-stripped declaration in Python/Ruby, because the first `#` is the comment marker.
-- Block comments strip the opener (`/*` or `/**`) and closer (`*/`) when they appear on their own content lines. Continuation lines strip one optional leading `*` plus one following space when present. Therefore ` * # AR-001-router: Router` exposes `# AR-001-router: Router`.
-- Python triple-quoted docstrings in `.py` files enter docstring mode for both `"""` and `'''`. The opening and closing quote-only lines are not content; lines inside are scanned as already-plain markdown. Therefore a class or module docstring containing `# AR-001-router: Router` declares `AR-001-router`.
+- `//`, `///`, and `//!` line comments strip the full leading comment marker and one following space when present. Therefore `/// AR-001-router: Router`, `//! AR-001-router: Router`, and `// AR-001-router: Router` all expose the same declaration content: `AR-001-router: Router`.
+- `#`, `;`, and `--` line comments strip that marker and one following space when present. Therefore Python/Ruby `# AR-001-router: Router` exposes `AR-001-router: Router`; a bare source line `AR-001-router: Router` is not a declaration outside a Python docstring, because it has no comment marker.
+- Block comments strip the opener (`/*` or `/**`) and closer (`*/`) when they appear on their own content lines. Continuation lines strip one optional leading `*` plus one following space when present. Therefore ` * AR-001-router: Router` exposes `AR-001-router: Router`.
+- Python triple-quoted docstrings in `.py` files enter docstring mode for both `"""` and `'''`. The opening and closing quote-only lines are not content; lines inside are scanned as docstring content. Therefore a class or module docstring containing `AR-001-router: Router` declares `AR-001-router`.
 - The normalization is line-local and deterministic. It does not parse the host language beyond recognizing the comment/docstring form above; after normalization, the same heading and citation regexes from §2.1 through §2.3 apply.
 
 The following inline declarations are all required to be recognized under the default scan settings:
 
 ```rust
-/// # AR-001-router: Router
+/// AR-001-router: Router
 /// Routes requests by path.
 
-//! # AR-002-module: Module architecture
+//! AR-002-module: Module architecture
 
 /**
- * # AR-003-block: Block comment spec
+ * AR-003-block: Block comment spec
  * ## 1. Contract
  */
 ```
 
 ```go
-// # AR-004-handler: Handler
+// AR-004-handler: Handler
 // Handles HTTP requests.
 ```
 
 ```python
 """
-# AR-005-service: Service
+AR-005-service: Service
 ## 1. Contract
 """
 class Service:
@@ -124,7 +124,7 @@ class Service:
 ```
 
 ```ruby
-# # AR-006-job: Job
+# AR-006-job: Job
 # Runs background work.
 ```
 
@@ -132,7 +132,7 @@ A canonical example — a Java class whose Javadoc *is* the architectural spec:
 
 ```java
 /**
- * # AR-event-bus: Asynchronous event distribution
+ * AR-event-bus: Asynchronous event distribution
  *
  * ## 1. Responsibilities
  * The event bus owns subscription state and …
@@ -151,7 +151,7 @@ Matched by the matching stub `docs/architecture/AR-<event-bus>.md`:
 
 ### 4.1 Ruby and Python edge cases
 
-- **Ruby** uses `#` as the only comment marker, which collides with markdown heading characters. The scanner requires the heading hashes to follow a clear comment prefix and at least one space, so `# # AR-<event-bus>` (Ruby comment, then a level-1 heading) is the canonical form. A bare `## AR-014-…` line in a `.rb` file is treated as a level-2 heading (markdown-style) and recognized as a declaration. Both work; the Ruby form is preferred for clarity.
+- **Ruby** uses `#` as the comment marker. The declaration itself starts after that marker, so the canonical Ruby form is `# AR-<event-bus>`, not a markdown heading inside the comment.
 - **Python** docstrings are not comments but string literals (`""" … """`). The scanner has a small docstring mode for `.py`: when a triple-quoted string opens, lines inside it are scanned the same way as comment continuation lines until the matching close. This lets a Python class or module docstring be a fully-featured spec home.
 
 ## 5. Why regex, not a parser

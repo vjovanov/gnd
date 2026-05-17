@@ -1,5 +1,5 @@
 /**
- * # AR-004-c: C router
+ * AR-004-c: C router
  *
  * Implements §FS-001-entrypoint.1.
  *

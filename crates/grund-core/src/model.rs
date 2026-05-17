@@ -13,9 +13,10 @@ struct Id {
 // on any repo that configured a non-default one.
 
 /// One declaration site discovered by the scanner: a `# <ID>: …` heading in a
-/// Markdown file or a code doc-comment (§AR-scanner.2.1, §AR-scanner.4), with its
-/// section body map (§AR-scanner.2.2) and, for stub headings, the inline-home path
-/// it points at (§FS-show.2.3, §FS-check.3.4).
+/// Markdown file or an inline declaration in a code doc-comment
+/// (§AR-scanner.2.1, §AR-scanner.4), with its section body map
+/// (§AR-scanner.2.2) and, for stub headings, the inline-home path it points at
+/// (§FS-show.2.3, §FS-check.3.4).
 #[derive(Debug)]
 struct Declaration {
     id: Id,
@@ -26,7 +27,7 @@ struct Declaration {
     is_stub: bool,
     defined_in: Option<PathBuf>,
     e2e_case: Option<E2eCase>,
-    /// Heading text after `# <ID>:` — the one-line title an author wrote
+    /// Heading text after `<ID>:` — the one-line title an author wrote
     /// (§AR-scanner.2.1). `None` when the heading carries no `: <text>` tail, or
     /// when the heading is a stub link (`# <ID>: [<text>](<path>)`), whose tail
     /// is a path, not a title.

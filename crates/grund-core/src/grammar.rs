@@ -62,6 +62,7 @@ static QUALIFIED_CITATION_PREFIX: Lazy<Regex> = Lazy::new(|| {
 #[derive(Clone)]
 struct Grammar {
     decl_re: Regex,
+    docstring_decl_re: Regex,
     section_re: Regex,
     /// One citation regex, capturing an optional `<namespace>/` prefix
     /// (§FS-workspace.1, §AR-workspace.3.1). The scanner decides whether to
@@ -202,20 +203,17 @@ impl Grammar {
         let sec_suffix = format!(r"(?:{}{})?", sep_quoted, SEC_GROUP);
 
         let comment_prefix = comment_prefix_regex(comment_prefixes);
-        // Declaration grammar — accepts two shapes (§AR-scanner.2.1):
-        //   1. Markdown-form: optional comment prefix, then `#+`, then ID. The `#` is
-        //      mandatory; this is what every `.md` declaration uses, and what code
-        //      doc-comments used historically (`/// # AR-foo:`).
+        // Declaration grammar (§AR-scanner.2.1):
+        //   1. Markdown-form: `#+`, then ID. The `#` is mandatory in `.md`.
         //   2. Code-form (§DF-code-declarations-drop-hash): comment prefix required,
-        //      `#` optional. So `/// AR-foo: title` matches, but a bare prose line
-        //      `AR-foo: title` in markdown does not.
-        // Both shapes capture into `hashes`; in code-form the group is empty/None and
-        // the scanner defaults the heading level to 1 (§AR-scanner.2.1).
+        //      then ID directly. So `/// AR-foo: title` matches, but a bare prose
+        //      line `AR-foo: title` in markdown does not.
         let decl_re = Regex::new(&format!(
-            r"^\s*(?:{prefix}\s+(?:(?P<hashes>#+)\s+)?|(?P<mdhashes>#+)\s+){id}\b",
+            r"^\s*(?:{prefix}\s+|(?P<mdhashes>#+)\s+){id}\b",
             prefix = comment_prefix,
             id = id_pat
         ))?;
+        let docstring_decl_re = Regex::new(&format!(r"^\s*{id}\b", id = id_pat))?;
         let section_re = Regex::new(&format!(
             r"^\s*(?:{})?\s*(?P<hashes>#+)\s+{}\.?\s+\S",
             comment_prefix, SEC_GROUP
@@ -231,6 +229,7 @@ impl Grammar {
 
         Ok(Self {
             decl_re,
+            docstring_decl_re,
             section_re,
             citation_re,
             id_input_re,
@@ -259,5 +258,21 @@ fn comment_prefix_regex(comment_prefixes: &[String]) -> String {
         "(?!)".to_string()
     } else {
         format!("(?:{})", prefixes.join("|"))
+    }
+}
+
+fn declaration_captures<'a>(
+    grammar: &Grammar,
+    line: &'a str,
+    in_py_docstring: bool,
+    is_md: bool,
+) -> Option<regex::Captures<'a>> {
+    if in_py_docstring {
+        grammar.docstring_decl_re.captures(line)
+    } else {
+        grammar
+            .decl_re
+            .captures(line)
+            .filter(|caps| is_md || caps.name("mdhashes").is_none())
     }
 }

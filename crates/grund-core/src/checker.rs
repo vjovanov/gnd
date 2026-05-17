@@ -248,7 +248,7 @@ fn check_with_workspace(
                 continue;
             }
             let inline_ok = if resolved.is_file() && is_scannable(&resolved, config) {
-                file_declares_inline_home(&resolved, id, &config.grammar).unwrap_or(false)
+                file_declares_inline_home(&resolved, id, config).unwrap_or(false)
             } else {
                 false
             };
@@ -532,17 +532,30 @@ fn paths_same_location(left: &Path, right: &Path) -> bool {
     left == right
 }
 
-/// Whether `path` contains a real (non-stub) `# <ID>: …` declaration of `id` —
+/// Whether `path` contains a real (non-stub) inline declaration of `id` —
 /// the check that a stub's link target actually carries the inline home it claims
 /// (§FS-check.3.4, §AR-checker.2.4, §AR-scanner.4).
-fn file_declares_inline_home(path: &Path, id: &Id, grammar: &Grammar) -> Result<bool> {
+fn file_declares_inline_home(path: &Path, id: &Id, config: &Config) -> Result<bool> {
     let text = fs::read_to_string(path)?;
+    let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
+    let is_py = path.extension().and_then(|e| e.to_str()) == Some("py");
+    let mut in_py_docstring = false;
     for line in text.lines() {
-        if let Some(caps) = grammar.decl_re.captures(line)
+        let trimmed = line.trim_start();
+        if config.docstring_python
+            && is_py
+            && (trimmed.starts_with("\"\"\"") || trimmed.starts_with("'''"))
+        {
+            in_py_docstring = !in_py_docstring;
+            continue;
+        }
+        let scan_line = if in_py_docstring { trimmed } else { line };
+        if let Some(caps) =
+            declaration_captures(&config.grammar, scan_line, in_py_docstring, is_md)
             && let Some(found) = parse_id(&caps)
             && &found == id
         {
-            let tail = &line[caps.get(0).unwrap().end()..];
+            let tail = &scan_line[caps.get(0).unwrap().end()..];
             if STUB_LINK_HEADING.is_match(tail) {
                 continue;
             }

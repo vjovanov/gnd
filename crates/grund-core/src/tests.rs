@@ -562,7 +562,7 @@ members = ["apps/api"]
         let root = test_root("require_grounding_accepts_inline_declaration");
         write(
             &root.join("src/router.rs"),
-            "// # AR-001-router: Router\n//\n// ## 1. Shape\npub struct Router;\n",
+            "// AR-001-router: Router\n//\n// ## 1. Shape\npub struct Router;\n",
         );
 
         let mut config = Config::default_for(root.clone());
@@ -628,7 +628,7 @@ members = ["apps/api"]
         config.rebuild_grammar().expect("rebuild grammar");
         write(
             &root.join("src/router.rs"),
-            "// # AR-001-router: Router\n//\n// ## 1. Shape\n",
+            "// AR-001-router: Router\n//\n// ## 1. Shape\n",
         );
 
         let (findings, _) =
@@ -641,6 +641,50 @@ members = ["apps/api"]
                 slug: Some("router".to_string())
             }),
             "configured // prefix should allow inline declarations"
+        );
+    }
+
+    #[test]
+    fn scanner_rejects_markdown_heading_inside_source_comment() {
+        let root = test_root("scanner_rejects_markdown_heading_inside_source_comment");
+        write(
+            &root.join("src/router.rs"),
+            "// # AR-001-router: Router\n//\n// ## 1. Shape\n",
+        );
+
+        let config = Config::default_for(root.clone());
+        let (findings, _) =
+            scan_tree(&config, Some(&root.join("src/router.rs")), true).expect("scan source file");
+
+        assert!(
+            !findings.declarations.contains_key(&Id {
+                kind: "AR".to_string(),
+                num: Some(1),
+                slug: Some("router".to_string())
+            }),
+            "source declarations must put the ID directly after the comment marker"
+        );
+    }
+
+    #[test]
+    fn scanner_rejects_bare_markdown_heading_in_source_file() {
+        let root = test_root("scanner_rejects_bare_markdown_heading_in_source_file");
+        write(
+            &root.join("src/router.rb"),
+            "## AR-001-router: Router\n# ## 1. Shape\n",
+        );
+
+        let config = Config::default_for(root.clone());
+        let (findings, _) =
+            scan_tree(&config, Some(&root.join("src/router.rb")), true).expect("scan source file");
+
+        assert!(
+            !findings.declarations.contains_key(&Id {
+                kind: "AR".to_string(),
+                num: Some(1),
+                slug: Some("router".to_string())
+            }),
+            "Markdown headings are declarations only in Markdown files"
         );
     }
 

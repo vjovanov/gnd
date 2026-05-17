@@ -1,5 +1,5 @@
 /**
- * # AR-008-javascript: JavaScript router
+ * AR-008-javascript: JavaScript router
  *
  * Implements §FS-001-entrypoint.1.
  *

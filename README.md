@@ -36,7 +36,7 @@ When code realizes a named behavior, it carries a `§<ID>` citation — on its d
 ```rust
 // src/bus.rs
 
-/// # AR-event-bus: In-process event broadcaster
+/// AR-event-bus: In-process event broadcaster
 ///
 /// Implements the publish-subscribe contract from §FS-events.
 pub struct EventBus {
@@ -144,14 +144,14 @@ Every fact in a `grund` repo has a stable ID. The default kinds (configurable):
 
 ```plaintext
      ┌─────────────────── citation ───────────────────┐
-                ┌──────────── ID ─────────────┐
+            ┌───────────── ID ───────────────┐
   [§] [alias /] KIND - [number -] slug [.section]
    │     │        │       │         │       │
-   │     │        │       │         │       └─ optional dotted path, arbitrary depth (.3, .3.1, …)
+   │     │        │       │         │       └─ dotted path of arbitrary depth (.3, .3.1, …)
    │     │        │       │         └───────── [a-z0-9][a-z0-9-]*  (default slug_pattern)
    │     │        │       └─────────────────── optional ordinal (e.g., 001)
-   │     │        └─────────────────────────── G│FS│AR│DA│DF│E2E│RM│DISC
-   │     └──────────────────────────────────── optional workspace project alias
+   │     │        └─────────────────────────── GND│GOAL|FS│AR│DF│DA│E2E│RM│DISC|[custom]
+   │     └──────────────────────────────────── project alias for subprojects or monorepo
    └────────────────────────────────────────── citation marker (writing only)
 ```
 
@@ -170,7 +170,7 @@ Citations use the marker `§`, e.g. `§FS-user-login.3.1`; in a workspace, `§ap
 **Specs can live inline in source.** Drop a one-line stub in `docs/architecture/AR-foo.md` whose H1 is `# AR-foo: [src/foo.rs](src/foo.rs)`, then declare the spec in the class doc-comment:
 
 ```rust
-/// # AR-event-bus: In-process event broadcaster
+/// AR-event-bus: In-process event broadcaster
 ///
 /// ## 1. Topology
 /// One sender, many receivers. Senders never block.

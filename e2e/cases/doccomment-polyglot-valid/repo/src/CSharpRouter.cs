@@ -1,5 +1,5 @@
 /// <summary>
-/// # AR-006-csharp: C# router
+/// AR-006-csharp: C# router
 ///
 /// Implements §FS-001-entrypoint.1.
 ///
