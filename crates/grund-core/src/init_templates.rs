@@ -15,28 +15,63 @@ const COMPANION_AGENT_ENTRYPOINTS: &[CompanionAgentEntrypoint] = &[
     CompanionAgentEntrypoint {
         rel: "AGENTS.override.md",
         workspace: None,
+        agent: None,
     },
     CompanionAgentEntrypoint {
         rel: "CLAUDE.md",
         workspace: Some(".claude"),
+        agent: Some(AgentEntrypoint::Claude),
     },
     CompanionAgentEntrypoint {
         rel: ".claude/CLAUDE.md",
         workspace: Some(".claude"),
+        agent: Some(AgentEntrypoint::Claude),
     },
     CompanionAgentEntrypoint {
         rel: "GEMINI.md",
         workspace: Some(".gemini"),
+        agent: Some(AgentEntrypoint::Gemini),
     },
     CompanionAgentEntrypoint {
         rel: ".github/copilot-instructions.md",
         workspace: None,
+        agent: Some(AgentEntrypoint::Copilot),
     },
 ];
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum AgentEntrypoint {
+    Claude,
+    Gemini,
+    Copilot,
+}
+
+#[derive(Default)]
+struct InitAgentEntrypointSelection {
+    canonical: bool,
+    claude: bool,
+    gemini: bool,
+    copilot: bool,
+}
+
+impl InitAgentEntrypointSelection {
+    fn any(&self) -> bool {
+        self.canonical || self.claude || self.gemini || self.copilot
+    }
+
+    fn includes(&self, agent: AgentEntrypoint) -> bool {
+        match agent {
+            AgentEntrypoint::Claude => self.claude,
+            AgentEntrypoint::Gemini => self.gemini,
+            AgentEntrypoint::Copilot => self.copilot,
+        }
+    }
+}
 
 struct CompanionAgentEntrypoint {
     rel: &'static str,
     workspace: Option<&'static str>,
+    agent: Option<AgentEntrypoint>,
 }
 
 enum InitCompanionAgentEntrypoint {
@@ -173,10 +208,8 @@ fn companion_agent_entrypoints(root: &Path) -> Result<Vec<PathBuf>, (PathBuf, St
 }
 
 /// Companion entrypoints `grund init` should update or create (§FS-init.2.1).
-/// Existing companions are updated in place. Missing neutral aliases are created
-/// only when their owning agent-specific workspace directory already exists;
-/// generic project metadata directories remain existing-file-only.
-fn init_companion_agent_entrypoints(
+/// Existing companions are updated in place.
+fn existing_init_companion_agent_entrypoints(
     root: &Path,
 ) -> Result<Vec<InitCompanionAgentEntrypoint>, (PathBuf, String)> {
     let mut paths = Vec::new();
@@ -189,13 +222,49 @@ fn init_companion_agent_entrypoints(
                 Ok(false) => paths.push(InitCompanionAgentEntrypoint::Existing(path)),
                 Err(err) => return Err((path, format!("{err:#}"))),
             }
-            continue;
         }
+    }
+    Ok(paths)
+}
+
+/// Missing neutral aliases are created only when their owning agent-specific
+/// workspace directory already exists; generic project metadata directories
+/// remain existing-file-only.
+fn workspace_init_companion_agent_entrypoints(root: &Path) -> Vec<InitCompanionAgentEntrypoint> {
+    let mut paths = Vec::new();
+    for entrypoint in COMPANION_AGENT_ENTRYPOINTS {
+        let path = root.join(entrypoint.rel);
         if entrypoint
             .workspace
             .is_some_and(|workspace| root.join(workspace).is_dir())
             && !path.exists()
         {
+            paths.push(InitCompanionAgentEntrypoint::MissingAlias(path));
+        }
+    }
+    paths
+}
+
+/// Explicit agent flags create their requested companion entrypoints even when
+/// the normal automatic detection would not choose them.
+fn requested_init_companion_agent_entrypoints(
+    root: &Path,
+    selection: &InitAgentEntrypointSelection,
+) -> Result<Vec<InitCompanionAgentEntrypoint>, (PathBuf, String)> {
+    let mut paths = Vec::new();
+    let canonical = root.join(CANONICAL_AGENT_ENTRYPOINT);
+    for entrypoint in COMPANION_AGENT_ENTRYPOINTS {
+        if !entrypoint.agent.is_some_and(|agent| selection.includes(agent)) {
+            continue;
+        }
+        let path = root.join(entrypoint.rel);
+        if is_file_or_symlink(&path) {
+            match is_symlink_to(&path, &canonical) {
+                Ok(true) => continue,
+                Ok(false) => paths.push(InitCompanionAgentEntrypoint::Existing(path)),
+                Err(err) => return Err((path, format!("{err:#}"))),
+            }
+        } else {
             paths.push(InitCompanionAgentEntrypoint::MissingAlias(path));
         }
     }

@@ -26,7 +26,7 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 
 ### Changed
 
-- [§FS-init.2.1](functional-spec/FS-init.md#21-files-written-updated-or-left-in-place) / [§FS-init.2.3](functional-spec/FS-init.md#23-generated-agent-entrypoints): `grund init` now creates missing neutral companion aliases when an agent-specific workspace already exists — `.claude/` creates `CLAUDE.md` and `.claude/CLAUDE.md`, and `.gemini/` creates `GEMINI.md`. `AGENTS.override.md` and `.github/copilot-instructions.md` remain existing-file-only because `.github/` is generic GitHub metadata, not a Copilot-specific signal.
+- [§FS-init.1](functional-spec/FS-init.md#1-inputs) / [§FS-init.2.1](functional-spec/FS-init.md#21-files-written-updated-or-left-in-place) / [§FS-init.2.3](functional-spec/FS-init.md#23-generated-agent-entrypoints): `grund init` now preserves an existing repo's agent-entrypoint choice by default. A repo with only `CLAUDE.md` gets `CLAUDE.md` updated and no new `AGENTS.md`; if no known entrypoint exists, `.claude/` creates `CLAUDE.md` and `.claude/CLAUDE.md`, `.gemini/` creates `GEMINI.md`, and otherwise `AGENTS.md` is the fallback. Explicit flags (`--agents-md`/`--codex`, `--claude`, `--gemini`, `--copilot`) create or update multiple requested entrypoints. `AGENTS.override.md` and `.github/copilot-instructions.md` remain automatic existing-file-only because `.github/` is generic GitHub metadata, not a Copilot-specific signal.
 
 ## 2. [0.1.0] — 2026-05-14
 
