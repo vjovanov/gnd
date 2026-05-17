@@ -323,7 +323,7 @@ jobs:
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.package.outputs.archive }}
           path: |
@@ -441,7 +441,7 @@ jobs:
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.package.outputs.archive }}
           path: |
@@ -562,7 +562,7 @@ jobs:
           ref: ${{ needs.prepare-release-ref.outputs.release_ref }}
 
       - name: Download binary artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: release-artifacts
           merge-multiple: true
