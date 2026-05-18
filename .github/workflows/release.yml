@@ -561,11 +561,20 @@ jobs:
         with:
           ref: ${{ needs.prepare-release-ref.outputs.release_ref }}
 
+      - name: Checkout release tooling
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: release-tools
+
       - name: Download binary artifacts
         uses: actions/download-artifact@v5
         with:
           path: release-artifacts
           merge-multiple: true
+
+      - name: Extract release notes
+        run: python3 release-tools/scripts/prepare_changelog_release.py notes "${{ needs.verify.outputs.version }}" --output release-notes.md
 
       - name: Create or update release
         shell: bash
@@ -576,10 +585,11 @@ jobs:
           version="${{ needs.verify.outputs.version }}"
 
           if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --notes-file release-notes.md
             gh release upload "$tag" release-artifacts/* --clobber
           else
             gh release create "$tag" release-artifacts/* \
               --verify-tag \
               --title "grund ${version}" \
-              --notes "Release binaries for Linux, macOS, and Windows. PGO is used where the hosted runner supports the training pass; otherwise the artifact is the same self-checked LTO release build as cargo install. Install from crates.io with: cargo install grund"
+              --notes-file release-notes.md
           fi
