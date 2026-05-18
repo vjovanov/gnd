@@ -33,6 +33,10 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 
 - [§FS-cli.1](functional-spec/FS-cli.md#1-the-default-subcommand) / [§FS-check](functional-spec/FS-check.md#fs-check-grund-validates-every-reference-in-a-repo): `grund <path>` is no longer shorthand for `grund check <path>`, and bare `grund` no longer runs `grund check .`. Validation is now spelled `grund check [<path>]` in every invocation; the bare first-argument slot belongs to `show`. **Migration:** existing scripts that ran `grund` or `grund <path>` for CI should be updated to `grund check` or `grund check <path>`. A bare path is now rejected with a diagnostic that names both readings (`invalid ID '<path>'` plus a `hint: run grund check <path> to validate a path` breadcrumb), so the migration surface is loud rather than silent.
 
+### Fixed
+
+- [§FS-distribution.4](functional-spec/FS-distribution.md#4-release-process): the patch and minor release-bump helpers now rotate `docs/changelog.md` automatically as part of the release candidate commit, failing if `## Unreleased` has no curated bullet entries. `release.yml` extracts the promoted section for GitHub release notes instead of publishing a static note body.
+
 ## 2. [0.2.0] — 2026-05-17
 
 Workspace and agent-entrypoint release. The main user-visible change is that `grund` now understands a monorepo as a set of independent project namespaces: a root `.agents/grund.toml` can declare `[workspace]`, each member keeps its own local IDs, and cross-project citations use the explicit `§alias/<ID>` form. Single-project repos keep the same zero-config path; no `grund_config_version` or `AGENTS.md` block-version bump.

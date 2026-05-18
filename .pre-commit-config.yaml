@@ -58,6 +58,13 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit, pre-push]
+      - id: python-test
+        name: python tests
+        entry: python -m unittest discover -s tests -p test_*.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
       - id: grund-check
         name: grund check
         entry: cargo run --quiet -- check
