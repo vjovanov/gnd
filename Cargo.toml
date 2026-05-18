@@ -4,7 +4,7 @@ resolver = "3"
 
 [package]
 name = "grund"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "The polyglot reference checker: validate and read ID-based citations across Markdown docs and source-code doc-comments."
 keywords = ["documentation", "references", "linter", "agents", "cli"]
@@ -20,7 +20,7 @@ exclude = [
 ]
 
 [dependencies]
-grund-core = { path = "crates/grund-core", version = "0.2.0" }
+grund-core = { path = "crates/grund-core", version = "0.3.0" }
 # Bench-only — pulled in solely by the `bench` feature (see `[features]` below),
 # so a plain `cargo build` / `cargo install grund` and the `cargo test` matrix
 # never compile it. Optional dev-dependencies aren't allowed by Cargo, hence an
