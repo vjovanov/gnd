@@ -122,6 +122,47 @@ fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
 }
 
 #[test]
+fn init_generated_config_comments_list_constrained_values() {
+    // §FS-init.2.4: the generated config is a teaching surface, so non-boolean
+    // constrained keys carry inline comments listing their accepted values.
+    let target = workdir("init_generated_config_comments_list_constrained_values");
+    let output = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
+    assert!(
+        output.status.success(),
+        "init failed: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let grund_toml =
+        fs::read_to_string(target.join(".agents/grund.toml")).expect("read .agents/grund.toml");
+    for expected in [
+        "inline_style = \"citation-with-note\" # citation-with-note | citation-only",
+        "section_heading_levels = \"strict\" # strict | warn | loose",
+        "format = \"text\" # text | json",
+        "anchor_format = \"github\" # github | gitlab | mkdocs | pandoc | none",
+    ] {
+        assert!(
+            grund_toml.contains(expected),
+            "generated config should include `{expected}`, got:\n{grund_toml}"
+        );
+    }
+    assert!(
+        !grund_toml.contains("# true | false"),
+        "generated config should not enumerate boolean values, got:\n{grund_toml}"
+    );
+
+    let validate = run_grund(
+        &["config", "validate", target.to_str().unwrap()],
+        manifest_dir(),
+    );
+    assert!(
+        validate.status.success(),
+        "commented generated config should validate:\n{}",
+        String::from_utf8_lossy(&validate.stderr)
+    );
+}
+
+#[test]
 fn init_agents_guidance_uses_existing_configured_artifact_homes() {
     let target = workdir("init_agents_guidance_uses_existing_configured_artifact_homes");
     fs::create_dir_all(target.join(".agents")).expect("create .agents");
