@@ -6,16 +6,16 @@ marker = "§"
 trigger = "$$"
 strict = false
 require_grounding = false
-inline_style = "citation-with-note"
+inline_style = "citation-with-note" # citation-with-note | citation-only
 inline_note_suggested_lines = 1
 inline_note_max_lines = 3
 inline_note_max_columns = 100
 warn_on_suggested = false
 
 [id]
-format = "{kind}-{number}-{slug}"
+format = "{kind}-{number}-{slug}" # placeholders: {kind} required; use {number}, {slug}, or both
 section_separator = "."
-section_heading_levels = "strict"
+section_heading_levels = "strict" # strict | warn | loose
 number_pattern = "\\d+"
 slug_pattern = "[a-z0-9][a-z0-9-]*"
 
@@ -68,10 +68,10 @@ docstring_python = true
 respect_gitignore = true
 
 [output]
-format = "text"
-color = "auto"
+format = "text" # text | json
+color = "auto" # auto | always | never
 relative_paths = true
 
 [fmt.cross_refs]
 enabled = true
-anchor_format = "github"
+anchor_format = "github" # github | gitlab | mkdocs | pandoc | none
