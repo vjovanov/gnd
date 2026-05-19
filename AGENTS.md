@@ -38,3 +38,7 @@ Declarations are heading lines `# FS-user-login: …` in markdown. In a code doc
 - **Inline citation style.** Inline notes: ≤ 1 line preferred, hard cap 25 lines; ≤ 180 columns.
 - **Always cite the most-specific point.**
 - **Citations climb to reasons (grund.md).** Goals cite reasons, specs cite goals; architecture cites specs; code and executable tests cite specs.
+
+## Repository workflow
+
+- Every PR for this repository needs a `docs/changelog.md` `## Unreleased` bullet that mentions its PR number (`PR #N`); the pre-push hook checks this once the branch has a PR (§FS-distribution.4).

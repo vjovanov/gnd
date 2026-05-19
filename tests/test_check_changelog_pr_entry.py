@@ -2,6 +2,8 @@ import importlib.util
 import json
 import tempfile
 import unittest
+from subprocess import CompletedProcess
+from unittest.mock import patch
 from pathlib import Path
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "check_changelog_pr_entry.py"
@@ -60,6 +62,22 @@ class CheckChangelogPrEntryTests(unittest.TestCase):
             event_path = root / "event.json"
             event_path.write_text(json.dumps({"ref": "refs/heads/main"}), encoding="utf-8")
             self.assertIsNone(check_changelog_pr_entry.pr_number_from_event(event_path))
+
+    def test_reads_pull_request_number_from_gh_current_branch(self) -> None:
+        with patch.object(
+            check_changelog_pr_entry.subprocess,
+            "run",
+            return_value=CompletedProcess(args=[], returncode=0, stdout="18\n", stderr=""),
+        ):
+            self.assertEqual(check_changelog_pr_entry.pr_number_from_current_branch(), 18)
+
+    def test_missing_gh_current_branch_pr_skips(self) -> None:
+        with patch.object(
+            check_changelog_pr_entry.subprocess,
+            "run",
+            return_value=CompletedProcess(args=[], returncode=1, stdout="", stderr="no pull requests found"),
+        ):
+            self.assertIsNone(check_changelog_pr_entry.pr_number_from_current_branch())
 
 
 if __name__ == "__main__":

@@ -70,6 +70,7 @@ Error output is part of the contract. Non-zero cases should keep `expected.stder
 - stub-link target is a directory
 - stub-link target has an unsupported extension
 - skipped output/hidden directories
+- nested e2e fixture repos ignored during ordinary scans
 - unsupported extension ignored
 - deterministic multiple-error output
 

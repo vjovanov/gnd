@@ -16,6 +16,15 @@ fn is_scannable(path: &Path, config: &Config) -> bool {
     config.extensions.iter().any(|allowed| allowed == ext)
 }
 
+struct CitationLine<'a> {
+    scan_line: &'a str,
+    lineno: usize,
+    path: &'a Path,
+    config: &'a Config,
+    is_md: bool,
+    inline_sites: &'a BTreeMap<usize, InlineCitationSite>,
+}
+
 /// The per-file scan (§AR-scanner.2): line by line, find declaration headings
 /// (§AR-scanner.2.1 — in Markdown or in a code/`"""` doc-comment, §AR-scanner.4),
 /// nested section headings (§AR-scanner.2.2), and `<ID>[.<section>]` citations
@@ -190,26 +199,24 @@ fn scan_file(
                 inline_site: inline_sites.get(&lineno).cloned(),
             });
         }
+        let citation_line = CitationLine {
+            scan_line,
+            lineno,
+            path,
+            config,
+            is_md,
+            inline_sites: &inline_sites,
+        };
         if workspace_mode {
             scan_workspace_qualified_pass(
-                scan_line,
-                lineno,
-                path,
-                config,
-                is_md,
+                &citation_line,
                 workspace_targets,
-                &inline_sites,
                 findings,
             );
         } else {
             scan_fallback_qualified_citations(
-                scan_line,
-                lineno,
-                path,
-                config,
-                is_md,
+                &citation_line,
                 &qualified_marker_starts,
-                &inline_sites,
                 findings,
             );
         }
@@ -534,30 +541,25 @@ fn comment_strip_prefixes(config: &Config) -> Vec<&str> {
 /// workspace-aware paths use the target's actual grammar via
 /// `scan_workspace_qualified_pass`.
 fn scan_fallback_qualified_citations(
-    scan_line: &str,
-    lineno: usize,
-    path: &Path,
-    config: &Config,
-    is_md: bool,
+    line: &CitationLine<'_>,
     already_seen: &BTreeSet<usize>,
-    inline_sites: &BTreeMap<usize, InlineCitationSite>,
     findings: &mut Findings,
 ) {
-    if config.marker.is_empty() {
+    if line.config.marker.is_empty() {
         return;
     }
-    for (marker_start, _) in scan_line.match_indices(&config.marker) {
+    for (marker_start, _) in line.scan_line.match_indices(&line.config.marker) {
         if already_seen.contains(&marker_start) {
             continue;
         }
-        if is_inside_inline_code(scan_line, marker_start) {
+        if is_inside_inline_code(line.scan_line, marker_start) {
             continue;
         }
-        if !is_md && is_inside_string_literal(scan_line, marker_start) {
+        if !line.is_md && is_inside_string_literal(line.scan_line, marker_start) {
             continue;
         }
-        let token_start = marker_start + config.marker.len();
-        let Some(rest) = scan_line.get(token_start..) else {
+        let token_start = marker_start + line.config.marker.len();
+        let Some(rest) = line.scan_line.get(token_start..) else {
             continue;
         };
         let Some(prefix) = QUALIFIED_CITATION_PREFIX.captures(rest) else {
@@ -567,7 +569,7 @@ fn scan_fallback_qualified_citations(
             continue;
         };
         let id_start = token_start + prefix.get(0).unwrap().end();
-        let Some(id_rest) = scan_line.get(id_start..) else {
+        let Some(id_rest) = line.scan_line.get(id_start..) else {
             continue;
         };
         let Some((id, section, id_len)) = parse_loose_qualified_id_prefix(id_rest) else {
@@ -578,12 +580,12 @@ fn scan_fallback_qualified_citations(
             namespace: Some(alias.to_string()),
             id,
             section,
-            file: path.to_path_buf(),
-            line: lineno,
+            file: line.path.to_path_buf(),
+            line: line.lineno,
             column: marker_start + 1,
             has_marker: true,
-            text: scan_line[marker_start..token_end].to_string(),
-            inline_site: inline_sites.get(&lineno).cloned(),
+            text: line.scan_line[marker_start..token_end].to_string(),
+            inline_site: line.inline_sites.get(&line.lineno).cloned(),
         });
     }
 }
@@ -663,27 +665,22 @@ fn split_loose_section(token: &str) -> (&str, Option<&str>) {
 /// (§FS-workspace.1, §AR-workspace.2). Runs inline during `scan_file` in
 /// workspace mode so the file is read once, not twice.
 fn scan_workspace_qualified_pass(
-    scan_line: &str,
-    lineno: usize,
-    path: &Path,
-    config: &Config,
-    is_md: bool,
+    line: &CitationLine<'_>,
     targets: &[WorkspaceCitationTarget],
-    inline_sites: &BTreeMap<usize, InlineCitationSite>,
     findings: &mut Findings,
 ) {
-    if config.marker.is_empty() || targets.is_empty() {
+    if line.config.marker.is_empty() || targets.is_empty() {
         return;
     }
-    for (marker_start, _) in scan_line.match_indices(&config.marker) {
-        if is_inside_inline_code(scan_line, marker_start) {
+    for (marker_start, _) in line.scan_line.match_indices(&line.config.marker) {
+        if is_inside_inline_code(line.scan_line, marker_start) {
             continue;
         }
-        if !is_md && is_inside_string_literal(scan_line, marker_start) {
+        if !line.is_md && is_inside_string_literal(line.scan_line, marker_start) {
             continue;
         }
-        let token_start = marker_start + config.marker.len();
-        let Some(rest) = scan_line.get(token_start..) else {
+        let token_start = marker_start + line.config.marker.len();
+        let Some(rest) = line.scan_line.get(token_start..) else {
             continue;
         };
         let Some(prefix) = QUALIFIED_CITATION_PREFIX.captures(rest) else {
@@ -693,7 +690,7 @@ fn scan_workspace_qualified_pass(
             continue;
         };
         let id_start = token_start + prefix.get(0).unwrap().end();
-        let Some(id_rest) = scan_line.get(id_start..) else {
+        let Some(id_rest) = line.scan_line.get(id_start..) else {
             continue;
         };
         let parsed = match targets.iter().find(|target| target.alias == alias) {
@@ -710,12 +707,12 @@ fn scan_workspace_qualified_pass(
             namespace: Some(alias.to_string()),
             id,
             section,
-            file: path.to_path_buf(),
-            line: lineno,
+            file: line.path.to_path_buf(),
+            line: line.lineno,
             column: marker_start + 1,
             has_marker: true,
-            text: scan_line[marker_start..token_end].to_string(),
-            inline_site: inline_sites.get(&lineno).cloned(),
+            text: line.scan_line[marker_start..token_end].to_string(),
+            inline_site: line.inline_sites.get(&line.lineno).cloned(),
         });
     }
 }
@@ -968,6 +965,13 @@ fn walk_scannable_files(
                 .parents(false);
         }
         let excluded = config.exclude.clone();
+        let e2e_cases_root = config
+            .kinds
+            .iter()
+            .find(|kind| kind.prefix == "E2E")
+            .and_then(|kind| kind.folder.as_deref())
+            .map(|folder| config.root.join(folder));
+        let e2e_config = config.clone();
         // §AR-workspace.6: precompute the boundary path components once,
         // expressed relative to the canonical scan root. The walker filter is
         // then a single component-suffix compare — no per-entry `canonicalize`
@@ -998,6 +1002,9 @@ fn walk_scannable_files(
                 if is_hidden(e.path()) {
                     return false;
                 }
+                if is_direct_e2e_case_dir(e.path(), e2e_cases_root.as_deref(), &e2e_config) {
+                    return false;
+                }
                 let Some(name) = e.path().file_name().and_then(|name| name.to_str()) else {
                     return true;
                 };
@@ -1020,6 +1027,21 @@ fn walk_scannable_files(
     }
     files.sort_by_key(|path| sort_path_key(path));
     Ok(files)
+}
+
+/// Direct `e2e/cases/<name>/` directories are E2E manifest declarations
+/// (§AR-scanner.6), so the ordinary file walk must not scan their fixture repos.
+fn is_direct_e2e_case_dir(path: &Path, cases_root: Option<&Path>, config: &Config) -> bool {
+    let Some(cases_root) = cases_root else {
+        return false;
+    };
+    if path.parent() != Some(cases_root) || !path.join("expected.exit").is_file() {
+        return false;
+    }
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| e2e_id_from_case_dir_name(config, name))
+        .is_some()
 }
 
 /// The directories (or single file) the walk starts from: a `[path]` argument when
