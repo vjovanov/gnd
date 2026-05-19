@@ -24,6 +24,8 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 
 ## Unreleased
 
+## 2. [0.4.0] — 2026-05-19
+
 ### Added
 
 - [§FS-inline-citation-style](functional-spec/FS-inline-citation-style.md#fs-inline-citation-style-configurable-shape-of-inline-code-comment-citations) / [§FS-config.3.1](functional-spec/FS-config.md#31-reference--citation-form): add configurable inline citation style enforcement for source comments. `grund check` can now reject citation-only violations and hard-cap overlong inline notes, optionally warning on soft-cap overruns; generated agent entrypoints render the same house-style guidance. PR #13.
@@ -40,24 +42,8 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 - [§AR-scanner.4](architecture/AR-scanner.md#4-inline-declarations-in-language-doc-comments) / [§FS-inline-citation-style.1](functional-spec/FS-inline-citation-style.md#1-scope): inline citation style checks now use scanner-normalized source-comment blocks, including stripped block-comment continuation markers, so diagnostics measure the author-facing comment text instead of parser syntax. PR #13.
 - [§AR-scanner.2.2](architecture/AR-scanner.md#22-section-detection): normalize the scanner cross-reference for recorded section heading data to the exact section-detection point. PR #13.
 
-## 2. [0.3.0] — 2026-05-18
-
-Default-show release. The main user-visible change is that `grund <ID>` now resolves a declaration directly, making the short grounding command the default read path while moving whole-tree validation to the explicit `grund check` spelling.
-
-### Changed
-
-- [§FS-cli.1](functional-spec/FS-cli.md#1-the-default-subcommand) / [§FS-show.1](functional-spec/FS-show.md#1-inputs): the default subcommand flips from `check` to `show`. `grund <ID>` is now shorthand for `grund show <ID>` (and `grund <ID>.<section>`, `grund <ID> --toc`, `grund --toc <ID>` likewise), so an agent resolving a bare `§<ID>` runs the shortest possible command. `grund` with no arguments prints the top-level help instead of running a check on `.`.
-- [§FS-completions.1](functional-spec/FS-completions.md#1-user-facing-command): bash, zsh, and fish completion now offer declared IDs in the first-argument position alongside the subcommand list, so `grund FS-<TAB>` completes IDs the same way `grund show FS-<TAB>` already did. The ID lookup is gated on an uppercase or empty prefix to keep `grund <lowercase-typo><TAB>` fast (subcommands are all lowercase).
-
-### Removed
-
-- [§FS-cli.1](functional-spec/FS-cli.md#1-the-default-subcommand) / [§FS-check](functional-spec/FS-check.md#fs-check-grund-validates-every-reference-in-a-repo): `grund <path>` is no longer shorthand for `grund check <path>`, and bare `grund` no longer runs `grund check .`. Validation is now spelled `grund check [<path>]` in every invocation; the bare first-argument slot belongs to `show`. **Migration:** existing scripts that ran `grund` or `grund <path>` for CI should be updated to `grund check` or `grund check <path>`. A bare path is now rejected with a diagnostic that names both readings (`invalid ID '<path>'` plus a `hint: run grund check <path> to validate a path` breadcrumb), so the migration surface is loud rather than silent.
-
-### Fixed
-
-- [§FS-distribution.4](functional-spec/FS-distribution.md#4-release-process): the patch and minor release-bump helpers now rotate `docs/changelog.md` automatically as part of the release candidate commit, failing if `## Unreleased` has no curated bullet entries. `release.yml` extracts the promoted section for GitHub release notes instead of publishing a static note body.
-
 ## 3. Older releases
 
+- [0.3.0](changelog/0.3.0.md) — 2026-05-18: Default-show release.
 - [0.2.0](changelog/0.2.0.md) — 2026-05-17: Workspace and agent-entrypoint release.
 - [0.1.0](changelog/0.1.0.md) — 2026-05-14: first published release and baseline CLI surface.
