@@ -13,6 +13,7 @@ require_grounding = true
 # in illustrative prose) are not picked up as citations.
 format = "{kind}-{slug}"
 section_separator = "."
+section_heading_levels = "strict"
 slug_pattern = "[a-z][a-z0-9-]*"
 
 [[kinds]]

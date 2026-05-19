@@ -116,13 +116,18 @@ fn scan_file(
         if let Some(caps) = config.grammar.section_re.captures(scan_line)
             && let Some(decl) = current.as_mut()
             && let Some(sec) = caps.name("sec")
-            && heading_level_for_line(scan_line, is_md || in_py_docstring, &caps)
-                > decl.heading_level
         {
-            decl.sections.insert(
-                sec.as_str().to_string(),
-                section_anchor_text(scan_line, sec.as_str()),
-            );
+            let heading_level = heading_level_for_line(scan_line, is_md || in_py_docstring, &caps);
+            if heading_level > decl.heading_level {
+                decl.sections.insert(
+                    sec.as_str().to_string(),
+                    SectionInfo {
+                        title: section_anchor_text(scan_line, sec.as_str()),
+                        line: lineno,
+                        heading_level,
+                    },
+                );
+            }
         }
 
         let workspace_mode = !workspace_targets.is_empty();

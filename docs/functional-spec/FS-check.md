@@ -12,7 +12,7 @@ The `check` command walks a repo and reports every violation of the grund refere
 - `--require-grounding` — turn the grounding check (§3.6) on for this run regardless of `[reference] require_grounding` in `.agents/grund.toml` ([§FS-config.3.1](FS-config.md#31-reference--citation-form)). It only ever *adds* the check; it cannot switch off a config that already sets it.
 - `--format text|json` — output shape, per [§FS-errors.5](FS-errors.md#5-json-format). The global flags `--version` and `--help` are handled before any scan ([§FS-cli](FS-cli.md#fs-cli-grunds-command-line-surface-conventions)).
 
-## 1.1 Recognized citations
+### 1.1 Recognized citations
 
 Per [§DF-reference-marker](../decisions/functional/DF-reference-marker.md#df-reference-marker-use--as-the-reference-marker-with--as-the-typing-trigger), a citation is the marker followed by an ID, e.g. `§FS-check.3.1`. The default marker is `§`; configurable via `grund.toml`.
 
@@ -119,6 +119,10 @@ Stubs (`# <ID>: [<text>](<path>)`) are exempt — they are pointers from a kind'
 ### 3.8 Cross-project citation failure
 
 In a workspace run, an alias-qualified citation whose alias is unknown, whose target declaration is missing, or whose target section is missing is reported at the citation site. The namespace and resolution rules live in [§FS-workspace.4](FS-workspace.md#4-resolution).
+
+### 3.9 Section heading level mismatch
+
+When `[id] section_heading_levels = "strict"` (the default), every numbered section heading must sit at the Markdown depth implied by its dotted path: expected level is the declaration heading level plus the number of path components ([§FS-config.3.3](FS-config.md#33-section-paths--arbitrary-nesting-depth), [§AR-scanner.2.2](../architecture/AR-scanner.md#22-section-detection)). A heading `## 1.1 Details` under an H1 declaration is therefore an error at the heading line: it must be `### 1.1 Details`. With `"warn"`, the same mismatch is reported as a warning; with `"loose"`, the checker does not report it and retains the historical rule that any deeper heading can declare any dotted section path. Plain, unnumbered headings and bold labels are not checked by this rule because they are not grund section targets.
 
 ## 4. Warnings
 

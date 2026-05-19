@@ -108,7 +108,7 @@ Fields:
 {"kind":"AR","title":"System design and technical structure","home":"docs/architecture","count":1}
 ```
 
-## 5.1 `refs --format=json`
+### 5.1 `refs --format=json`
 
 `refs --format=json` emits one citation object per line. With `--summary`, it emits one file summary object per line instead:
 

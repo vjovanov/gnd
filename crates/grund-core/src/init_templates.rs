@@ -9,7 +9,7 @@ const FS_README_TEMPLATE: &str = include_str!("../assets/templates/functional-sp
 const AS_README_TEMPLATE: &str = include_str!("../assets/templates/architecture-README.md");
 const GITKEEP_TEMPLATE: &str = include_str!("../assets/templates/gitkeep.md");
 const AGENT_SETUP_INSTRUCTIONS: &str = include_str!("../assets/skills/grund-init/SKILL.md");
-const AGENTS_BLOCK_VERSION: u32 = 1;
+const AGENTS_BLOCK_VERSION: u32 = 2;
 const CANONICAL_AGENT_ENTRYPOINT: &str = "AGENTS.md";
 const COMPANION_AGENT_ENTRYPOINTS: &[CompanionAgentEntrypoint] = &[
     CompanionAgentEntrypoint {
@@ -195,6 +195,7 @@ fn agents_template_substitutions(
             "Bare ID-shaped tokens are also recognized as citations for backward compatibility; set `[reference] strict = true` in `.agents/grund.toml` to require the `{marker}` marker (run `grund fmt --marker` first to upgrade existing bare citations)."
         )
     };
+    let section_heading_note = section_heading_note(config, marker);
     vec![
         ("{NAME}", name.to_string()),
         ("{ID_SHAPE_SEC}", format!("{id_shape}[{sep}<section>]")),
@@ -203,6 +204,7 @@ fn agents_template_substitutions(
         ("{CITE_EXAMPLE}", cite_example),
         ("{KINDS_SET}", kinds_set),
         ("{BARE_TOKEN_NOTE}", bare_note),
+        ("{SECTION_HEADING_NOTE}", section_heading_note),
         ("{MARKER}", marker.to_string()),
         ("{TRIGGER}", config.trigger.clone()),
         ("{DECLARATION_MAP}", declaration_map(config)),
@@ -216,6 +218,21 @@ fn agents_template_substitutions(
             ),
         ),
     ]
+}
+
+fn section_heading_note(config: &Config, marker: &str) -> String {
+    let sep = config.section_separator.as_str();
+    match config.section_heading_levels.as_str() {
+        "strict" => format!(
+            "Numbered headings inside a declaration are citable sections: use depth-matching headings (`## 1. …`, `### 1.1 …`, etc.) so `{marker}<ID>{sep}1` / `{marker}<ID>{sep}1.1` resolve; mismatched heading depth is a `grund check` error. Plain headings or bold labels are fine for non-citable local structure."
+        ),
+        "warn" => format!(
+            "Numbered headings inside a declaration are citable sections: use depth-matching headings (`## 1. …`, `### 1.1 …`, etc.) so `{marker}<ID>{sep}1` / `{marker}<ID>{sep}1.1` resolve; mismatched heading depth is a `grund check` warning. Plain headings or bold labels are fine for non-citable local structure."
+        ),
+        _ => format!(
+            "Numbered headings inside a declaration are citable sections: `{marker}<ID>{sep}1` / `{marker}<ID>{sep}1.1` resolve by dotted number, and depth-matching headings (`## 1. …`, `### 1.1 …`) are recommended for readability. Plain headings or bold labels are fine for non-citable local structure."
+        ),
+    }
 }
 
 fn markdown_link_label(raw: &str) -> String {

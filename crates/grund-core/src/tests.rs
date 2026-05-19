@@ -44,7 +44,7 @@ mod tests {
     }
 
     fn current_marker() -> &'static str {
-        "## Grounding with grund (v1)"
+        "## Grounding with grund (v2)"
     }
 
     #[test]
@@ -841,6 +841,23 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
     }
 
     #[test]
+    fn agents_guidance_uses_configured_section_separator() {
+        let mut config = Config::default_for(PathBuf::from("."));
+        config.section_separator = "#".to_string();
+
+        let rendered = render_agents_md("demo", &config, Path::new("."), true);
+
+        assert!(
+            rendered.contains("§<ID>#1` / `§<ID>#1.1"),
+            "section examples should use the configured outer separator: {rendered}"
+        );
+        assert!(
+            !rendered.contains("§<ID>.1` / `§<ID>.1.1"),
+            "section examples must not hard-code dot as the outer separator"
+        );
+    }
+
+    #[test]
     fn agents_update_appends_managed_block_when_missing() {
         let (updated, result) =
             update_agents_text("# Existing agents\n", &current_block(), "AGENTS.md")
@@ -1099,7 +1116,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         assert!(
             report.errors.iter().any(|error| error.code == "agents-init"
                 && error.path.as_deref() == Some(expected_path.as_path())
-                && error.message.contains("missing grund init block v1")),
+                && error.message.contains("missing grund init block v2")),
             "Zed workspace .rules should be required to carry the managed block: {:?}",
             report.errors
                 .iter()

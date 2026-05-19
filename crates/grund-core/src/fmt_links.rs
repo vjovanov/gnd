@@ -286,7 +286,7 @@ fn markdown_link_target_with_root(
         Some(sec) => home_decl
             .sections
             .get(sec)
-            .cloned()
+            .map(|section| section.title.clone())
             .or_else(|| section_heading_text(&home, id, sec, config).ok().flatten())?,
         // §DF-declaration-anchor: a bare-ID citation to a Markdown home links to
         // that declaration's own heading anchor, not just the file.
