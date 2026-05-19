@@ -16,6 +16,8 @@
 
 Off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) only handle `.md` and only validate `[text](url)`. A `§FS-events.4` cited from `src/bus.rs` is invisible to them. That gap is what `grund` exists to close: Lychee checks whether Markdown links still open; `grund` checks whether your code still knows why it exists. Lychee is the link checker; `grund` is the intent checker. Both belong in CI; they guard different failure modes. [§GND-grund.1](docs/grund.md#1-what-grund-does-about-it)
 
+`grund` measures CI performance by instruction count, not stopwatch time: the current baseline is 278,278,428 Callgrind `Ir` for `grund check .` and 1,005,903,713 `Ir` for the generated 10k-file fixture, with pull requests gated at 5% growth.
+
 ## 0. Specify your intent
 
 Before anything can be cited, the target has to exist. A declaration is a heading whose first token is the ID — `grund`'s own reason for being lives at [`docs/grund.md`](docs/grund.md):
