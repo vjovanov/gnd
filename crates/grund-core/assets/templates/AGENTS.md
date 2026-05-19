@@ -1,4 +1,4 @@
-## Grounding with grund (v1)
+## Grounding with grund (v2)
 
 This project uses [`grund`](https://github.com/vjovanov/grund): every spec, goal, decision, and end-to-end test has a stable ID `{ID_SHAPE_SEC}` (`KIND ∈ {KINDS_SET}`), cited with the marker `{MARKER}` — e.g. `{CITE_EXAMPLE}` (the `{ID_EXAMPLE}` here is a shape illustration, not a real ID in this repo). Type `{TRIGGER}` in a grund-aware editor and it becomes `{MARKER}`. {BARE_TOKEN_NOTE}
 
@@ -19,7 +19,7 @@ A `{MARKER}<ID>` is a pointer to a fact, not a file path. Resolve it with `grund
 
 ### Declarations and citations
 
-Declarations are heading lines `# {ID_EXAMPLE}: …` in markdown. In a code doc-comment (Rustdoc, Javadoc, JSDoc, Python docstring, Go `//`, …) drop the `#` — write `/// {ID_EXAMPLE}: …` directly. One doc-comment may declare multiple IDs (e.g. an `AR-` and an `FS-` on the same class) — each gets its own body. An inline source declaration is reachable from the configured kind home via a one-line stub: `# <ID>: [<path>](<path>)`.
+Declarations are heading lines `# {ID_EXAMPLE}: …` in markdown. In a code doc-comment (Rustdoc, Javadoc, JSDoc, Python docstring, Go `//`, …) drop the `#` — write `/// {ID_EXAMPLE}: …` directly. {SECTION_HEADING_NOTE} One doc-comment may declare multiple IDs (e.g. an `AR-` and an `FS-` on the same class) — each gets its own body. An inline source declaration is reachable from the configured kind home via a one-line stub: `# <ID>: [<path>](<path>)`.
 
 ### Rules
 

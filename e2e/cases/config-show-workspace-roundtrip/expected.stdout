@@ -10,6 +10,7 @@ require_grounding = false
 [id]
 format = "{kind}-{slug}"
 section_separator = "."
+section_heading_levels = "strict"
 slug_pattern = "[a-z][a-z0-9-]*"
 
 [[kinds]]

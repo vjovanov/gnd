@@ -1,3 +1,3 @@
-## Grounding with grund (v1)
+## Grounding with grund (v2)
 
 current managed block

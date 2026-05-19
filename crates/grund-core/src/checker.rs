@@ -226,6 +226,42 @@ fn check_with_workspace(
         }
     }
 
+    // §FS-check.3.9 / §FS-config.3.3: in strict mode, the Markdown heading level
+    // must mirror the dotted section depth so `## 1`, `### 1.1`, ...
+    // communicate the same tree that `§ID.1.1` addresses.
+    if matches!(config.section_heading_levels.as_str(), "strict" | "warn") {
+        let target = if config.section_heading_levels == "strict" {
+            &mut report.errors
+        } else {
+            &mut report.warnings
+        };
+        for (id, decls) in &findings.declarations {
+            for decl in decls {
+                for (section_path, section) in &decl.sections {
+                    let expected_level = decl.heading_level + section_depth(section_path);
+                    if section.heading_level != expected_level {
+                        target.push(Diagnostic {
+                            code: "section-heading-level",
+                            path: Some(decl.file.clone()),
+                            line: Some(section.line),
+                            message: format!(
+                                "section {}{}{} heading level mismatch: expected {} (level {}), found {} (level {})",
+                                render_id(config, id),
+                                config.section_separator,
+                                section_path,
+                                heading_marks(expected_level),
+                                expected_level,
+                                heading_marks(section.heading_level),
+                                section.heading_level
+                            ),
+                            sites: Vec::new(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     // §FS-check.3.4: a `# <ID>: [text](path)` stub is broken if `path` does not
     // exist, or exists but does not itself declare `<ID>` inline (§AR-checker.2.4).
     for (id, decls) in &findings.declarations {
@@ -353,6 +389,14 @@ fn check_with_workspace(
     sort_diagnostics(&mut report.errors);
     sort_diagnostics(&mut report.warnings);
     report
+}
+
+fn section_depth(section_path: &str) -> usize {
+    section_path.split('.').count()
+}
+
+fn heading_marks(level: usize) -> String {
+    "#".repeat(level)
 }
 
 fn target_for_citation<'a>(

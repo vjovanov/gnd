@@ -49,6 +49,7 @@ Per [§DF-reference-marker](../decisions/functional/DF-reference-marker.md#df-re
 [id]
 format             = "{kind}-{number}-{slug}"
 section_separator  = "."
+section_heading_levels = "strict"
 number_pattern     = "\\d+"
 slug_pattern       = "[a-z0-9][a-z0-9-]*"
 ```
@@ -81,6 +82,8 @@ Section coordinates are **dotted paths of arbitrary depth**. There is no maximum
 ```
 
 Section depth in the citation must match a heading at that depth in the declaration. The scanner records every numbered heading inside a declaration body and validates citations against the recorded set, so a project that wants four-deep nesting (`## 1.`, `### 1.1`, `#### 1.1.1`, `##### 1.1.1.1`) is supported with no config changes — the dotted path simply grows.
+
+`section_heading_levels` controls how the Markdown heading depth must line up with the dotted section path. The default, `"strict"`, requires the heading level to equal the declaration heading level plus the number of dotted path components: under an H1 declaration, `## 1. …`, `### 1.1 …`, and `#### 1.1.1 …` are valid, while `## 1.1 …` is a `section heading level mismatch` error in `grund check` ([§FS-check.3.9](FS-check.md#39-section-heading-level-mismatch)). `"warn"` reports the same mismatch as a warning, so CI can stay green while a repo migrates. `"loose"` preserves the historical behavior: any heading deeper than the declaration heading is recorded as a section, and the dotted number alone determines the tree. Plain, unnumbered headings and bold labels are always allowed prose structure; they are not grund section targets. Unknown values are invalid config.
 
 The default `section_separator` is `.`. Projects that prefer `:` (`§FS-check:3.1.2`) or `#` (`RFC-42#3.1.2`) override it; the dotted **components** stay separated by `.` regardless of the outer separator. Example with `section_separator = "#"`:
 

@@ -147,7 +147,7 @@ The block describes the configured declaration homes from the effective `.agents
 
 ##### 2.3.4.5 Declaration Forms
 
-The block teaches that declarations are heading lines in markdown or supported language doc-comments, and that an inline source declaration can be represented by a one-line markdown stub in the configured kind home.
+The block teaches that declarations are heading lines in markdown or supported language doc-comments, and that an inline source declaration can be represented by a one-line markdown stub in the configured kind home. It also teaches, rendered according to `[id] section_heading_levels`, that numbered headings inside a declaration are citable sections; depth-matching headings (`## 1. …`, `### 1.1 …`) are required in strict mode, warned on in warn mode, and recommended in loose mode. Plain headings and bold labels are allowed for non-citable local structure ([§FS-config.3.3](FS-config.md#33-section-paths--arbitrary-nesting-depth), [§FS-check.3.9](FS-check.md#39-section-heading-level-mismatch)).
 
 ##### 2.3.4.6 Spec First
 

@@ -23,7 +23,7 @@ struct Declaration {
     file: PathBuf,
     line: usize,
     heading_level: usize,
-    sections: BTreeMap<String, String>,
+    sections: BTreeMap<String, SectionInfo>,
     is_stub: bool,
     defined_in: Option<PathBuf>,
     e2e_case: Option<E2eCase>,
@@ -32,6 +32,17 @@ struct Declaration {
     /// when the heading is a stub link (`# <ID>: [<text>](<path>)`), whose tail
     /// is a path, not a title.
     title: Option<String>,
+}
+
+/// One numbered subsection heading recorded inside a declaration
+/// (§AR-scanner.2.2): the heading text used for anchors, plus the source line and
+/// Markdown heading level used by the strict section-depth checker
+/// (§FS-check.3.9).
+#[derive(Debug, Clone)]
+struct SectionInfo {
+    title: String,
+    line: usize,
+    heading_level: usize,
 }
 
 /// An `e2e/cases/<name>/` directory treated as an `E2E-<name>` declaration
@@ -152,6 +163,7 @@ struct Config {
     section_separator: String,
     number_pattern: String,
     slug_pattern: String,
+    section_heading_levels: String,
     kinds: Vec<KindConfig>,
     fmt_cross_refs_enabled: bool,
     cross_ref_anchor_format: String,
@@ -249,6 +261,7 @@ impl Config {
             section_separator: DEFAULT_SECTION_SEPARATOR.into(),
             number_pattern: DEFAULT_NUMBER_PATTERN.into(),
             slug_pattern: DEFAULT_SLUG_PATTERN.into(),
+            section_heading_levels: "strict".into(),
             kinds,
             fmt_cross_refs_enabled: false,
             cross_ref_anchor_format: "github".into(),

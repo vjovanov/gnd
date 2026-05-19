@@ -203,7 +203,7 @@ fn init_updates_existing_agent_entrypoint_without_creating_agents_md() {
 
     let claude = fs::read_to_string(target.join("CLAUDE.md")).expect("read CLAUDE.md");
     assert!(
-        claude.starts_with("# Claude notes\n\n## Grounding with grund (v1)\n"),
+        claude.starts_with("# Claude notes\n\n## Grounding with grund (v2)\n"),
         "CLAUDE.md should keep existing notes and append the managed block:\n{claude}"
     );
 }
@@ -329,7 +329,7 @@ fn init_cursor_flag_updates_existing_legacy_cursorrules() {
 
     let legacy = fs::read_to_string(target.join(".cursorrules")).expect("read .cursorrules");
     assert!(
-        legacy.starts_with("# Legacy Cursor notes\n\n## Grounding with grund (v1)\n"),
+        legacy.starts_with("# Legacy Cursor notes\n\n## Grounding with grund (v2)\n"),
         ".cursorrules should keep existing notes and append the managed block:\n{legacy}"
     );
 
@@ -383,7 +383,7 @@ fn init_agent_flag_updates_canonical_target_for_symlinked_entrypoint() {
     );
     let agents = fs::read_to_string(target.join("AGENTS.md")).expect("read AGENTS.md");
     assert!(
-        agents.contains("## Grounding with grund (v1)"),
+        agents.contains("## Grounding with grund (v2)"),
         "AGENTS.md should receive the managed block:\n{agents}"
     );
 }
@@ -433,7 +433,7 @@ fn init_workspace_symlinked_alias_writes_canonical_target() {
     let claude_scoped =
         fs::read_to_string(target.join(".claude/CLAUDE.md")).expect("read .claude/CLAUDE.md");
     assert!(
-        claude_scoped.starts_with("## Grounding with grund (v1)\n"),
+        claude_scoped.starts_with("## Grounding with grund (v2)\n"),
         ".claude/CLAUDE.md should be a thin managed-block alias, got:\n{claude_scoped}"
     );
 }
@@ -462,7 +462,7 @@ fn init_creates_agent_aliases_when_agent_workspaces_exist() {
         );
         let contents = fs::read_to_string(target.join(rel)).expect("read companion alias");
         assert!(
-            contents.starts_with("## Grounding with grund (v1)\n"),
+            contents.starts_with("## Grounding with grund (v2)\n"),
             "{rel} should be a thin managed-block alias, got:\n{contents}"
         );
     }
@@ -910,7 +910,7 @@ fn init_preserves_lone_override_entrypoint_without_creating_agents_md() {
     let override_contents =
         fs::read_to_string(target.join("AGENTS.override.md")).expect("read override file");
     assert!(
-        override_contents.starts_with("# Local override\n\n## Grounding with grund (v1)\n"),
+        override_contents.starts_with("# Local override\n\n## Grounding with grund (v2)\n"),
         "AGENTS.override.md should keep existing notes and append the managed block:\n{override_contents}"
     );
 }

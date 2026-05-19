@@ -176,6 +176,19 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
                 config.slug_pattern = parse_string(path, line_no, value)?;
                 grammar_dirty = true;
             }
+            ("id", "section_heading_levels") => {
+                let mode = parse_string(path, line_no, value)?;
+                if !matches!(mode.as_str(), "strict" | "warn" | "loose") {
+                    bail_config(
+                        path,
+                        line_no,
+                        format!(
+                            "unknown [id] section_heading_levels `{mode}` (expected strict, warn, or loose)"
+                        ),
+                    )?;
+                }
+                config.section_heading_levels = mode;
+            }
             ("kinds", "prefix") => {
                 let prefix = parse_string(path, line_no, value)?;
                 if let Some(slot) = current_kind.as_mut() {
@@ -549,6 +562,10 @@ fn command_config(args: &[String]) -> ExitCode {
                 println!("[id]");
                 println!("format = \"{}\"", config.id_format);
                 println!("section_separator = \"{}\"", config.section_separator);
+                println!(
+                    "section_heading_levels = \"{}\"",
+                    config.section_heading_levels
+                );
                 // `number_pattern` / `slug_pattern` each govern one `[id] format`
                 // placeholder — under a format that omits the placeholder the pattern
                 // is dead config, so don't print it.
