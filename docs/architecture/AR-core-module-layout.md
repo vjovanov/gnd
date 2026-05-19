@@ -1,10 +1,10 @@
 # AR-core-module-layout: core implementation is split by category
 
-The core implementation lives in `crates/grund-core/src/`, while the root `src/main.rs` is the thin published `grund` CLI entrypoint described by [§AR-bindings](AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms). Inside `grund-core`, the source layout should match the same category boundaries the later LSP and binding frontends need. A single large crate root hides ownership and makes spec-to-code citations harder to place.
+The core implementation lives in `crates/grund-core/src/`, while `crates/grund-cli/src/main.rs` is the published `grund` CLI entrypoint described by [§AR-bindings](AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms). Inside `grund-core`, the source layout should match the same category boundaries the later LSP and binding frontends need. A single large crate root hides ownership and makes spec-to-code citations harder to place.
 
 ## 1. Module categories
 
-`crates/grund-core/src/lib.rs` stays the crate entrypoint and re-export surface for the CLI-facing `main_entry`, while implementation code lives in smaller category files under `crates/grund-core/src/`.
+`crates/grund-core/src/lib.rs` stays the engine crate entrypoint and public Rust API surface (`check`, `show`, `scan`, and the shared data types), while implementation code lives in smaller category files under `crates/grund-core/src/`.
 
 The categories are:
 
@@ -21,11 +21,11 @@ The categories are:
 - **id** — ID allocation, slug derivation, and ID rendering.
 - **init** — scaffold/template rendering and managed agent-entrypoint updates.
 - **completions** — shell completion scripts and dynamic completion helpers.
-- **cli** — command dispatch, help text, exit-code mapping, and signal setup.
+- **api** — public embedding API that runs the engine without CLI argument parsing or stdout/stderr rendering.
 
 ## 2. Refactor boundary
 
-Splitting `crates/grund-core/src/lib.rs` by these categories is an architectural refactor only: it must not change CLI output, diagnostics, scan behavior, template bytes, or public entrypoints. The first split may keep crate-private implementation details crate-private; exposing a stable library API is a separate distribution step under [§AR-bindings](AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms).
+Splitting the core and CLI crates is an architectural refactor only: it must not change CLI output, diagnostics, scan behavior, template bytes, or public entrypoints. The CLI package may keep calling compatibility command adapters while narrower data-returning APIs are introduced, but embedders use the public API in `api.rs`.
 
 ## 3. File size
 

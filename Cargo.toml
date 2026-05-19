@@ -1,31 +1,13 @@
 [workspace]
-members = ["crates/grund-core"]
+members = ["crates/grund-core", "crates/grund-cli"]
 resolver = "3"
 
-[package]
-name = "grund"
+[workspace.package]
 version = "0.4.0"
 edition = "2024"
-description = "The polyglot reference checker: validate and read ID-based citations across Markdown docs and source-code doc-comments."
-keywords = ["documentation", "references", "linter", "agents", "cli"]
-categories = ["command-line-utilities", "development-tools"]
 license = "MIT"
 repository = "https://github.com/vjovanov/grund"
 homepage = "https://github.com/vjovanov/grund"
-readme = "README.md"
-exclude = [
-    ".agents/rhei/**",
-    "Cargo.toml.orig",
-    "target/**",
-]
-
-[dependencies]
-grund-core = { path = "crates/grund-core", version = "0.4.0" }
-# Bench-only — pulled in solely by the `bench` feature (see `[features]` below),
-# so a plain `cargo build` / `cargo install grund` and the `cargo test` matrix
-# never compile it. Optional dev-dependencies aren't allowed by Cargo, hence an
-# optional regular dependency rather than a `[dev-dependencies]` entry.
-iai-callgrind = { version = "0.16.1", optional = true }
 
 [profile.release]
 lto = true
@@ -36,20 +18,3 @@ codegen-units = 1
 # a profile absent on a fresh clone, so it cannot live here or in the dev loop;
 # a plain `cargo build --release` (and `cargo install grund`) is LTO-only and
 # behaviour-identical.
-
-[features]
-# Gates the real `instructions` benchmark body (below) and the only thing that
-# pulls in `iai-callgrind`. Off by default so `cargo test --all-targets` /
-# `cargo build --all-targets` compile a no-op bench target, never build
-# `iai-callgrind`, and never need Valgrind; run the benchmarks with
-# `cargo bench --features bench` (CI installs the toolchain — see
-# `.github/workflows/ci.yml`).
-bench = ["dep:iai-callgrind"]
-
-# Instruction-counting benchmarks for the hot CLI commands (§AR-benchmarks).
-# `harness = false` hands the entry point to iai-callgrind's `main!` macro under
-# `--features bench`; without the feature the target is a no-op `fn main`, so the
-# default build/test matrix compiles it but never needs Valgrind.
-[[bench]]
-name = "instructions"
-harness = false

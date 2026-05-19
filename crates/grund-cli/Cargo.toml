@@ -1,0 +1,34 @@
+[package]
+name = "grund"
+version.workspace = true
+edition.workspace = true
+description = "The polyglot reference checker: validate and read ID-based citations across Markdown docs and source-code doc-comments."
+keywords = ["documentation", "references", "linter", "agents", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+exclude = [
+    "../../.agents/rhei/**",
+    "../../target/**",
+]
+
+[dependencies]
+grund-core = { path = "../grund-core", version = "0.4.0" }
+
+# Bench-only — pulled in solely by the `bench` feature (see `[features]` below),
+# so a plain `cargo build` / `cargo install grund` and the `cargo test` matrix
+# never compile it. Optional dev-dependencies aren't allowed by Cargo, hence an
+# optional regular dependency rather than a `[dev-dependencies]` entry.
+iai-callgrind = { version = "0.16.1", optional = true }
+
+[features]
+# Gates the real `instructions` benchmark body and the only thing that pulls in
+# `iai-callgrind`. Off by default so `cargo test --all-targets` / `cargo build
+# --all-targets` compile a no-op bench target and never need Valgrind.
+bench = ["dep:iai-callgrind"]
+
+[[bench]]
+name = "instructions"
+harness = false

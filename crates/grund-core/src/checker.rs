@@ -1,14 +1,14 @@
 /// AR-checker: how grund validates the scanner's findings
 ///
 /// The checker takes the `Findings` produced by §AR-scanner and produces a
-/// `Report`. It implements the rules in §FS-check.
+/// `CheckReport`. It implements the rules in §FS-check.
 ///
 /// ## 1. Inputs and outputs
 ///
 /// - Input: `Findings` from the scanner, plus the repo root and config (needed
 ///   to resolve stub-link paths, to read managed agent-entrypoint init blocks,
 ///   and to know whether `[reference] require_grounding` is on).
-/// - Output: a `Report` containing two ordered lists: `errors` and `warnings`.
+/// - Output: a `CheckReport` containing two ordered lists: `errors` and `warnings`.
 ///   Order is deterministic — sorted into the fixed report order of §FS-errors.4
 ///   and §FS-non-goals.9 — for §GOAL-friendliness-first.
 ///
@@ -87,7 +87,7 @@
 /// - The optional LSP server (§AR-lsp) can run a subset of checks (e.g., only
 ///   dangling references on the active file's citations) against a cached scan.
 /// - Tests can feed synthetic `Findings` directly to the checker without disk I/O.
-fn check(findings: &Findings, config: &Config) -> Report {
+fn check_findings(findings: &Findings, config: &Config) -> CheckReport {
     check_with_workspace(findings, config, None, &BTreeMap::new())
 }
 
@@ -101,8 +101,8 @@ fn check_with_workspace(
     config: &Config,
     current_alias: Option<&str>,
     workspace: &BTreeMap<String, WorkspaceCheckTarget<'_>>,
-) -> Report {
-    let mut report = Report::default();
+) -> CheckReport {
+    let mut report = CheckReport::default();
     // §FS-check.3.5: managed agent-entrypoint blocks that are out of date (or
     // newer than this binary) are check errors.
     check_agents_block_version(&config.root, &mut report);
@@ -404,7 +404,7 @@ fn heading_marks(level: usize) -> String {
     "#".repeat(level)
 }
 
-fn check_inline_citation_style(findings: &Findings, config: &Config, report: &mut Report) {
+fn check_inline_citation_style(findings: &Findings, config: &Config, report: &mut CheckReport) {
     let mut seen = BTreeSet::new();
     for cite in &findings.citations {
         let Some(site) = &cite.inline_site else {
@@ -525,7 +525,7 @@ fn diagnostic_cmp(a: &Diagnostic, b: &Diagnostic) -> std::cmp::Ordering {
 /// binary — an older `vN` is "run `grund init`" (§FS-init.2.3), a newer one is
 /// fatal. `AGENTS.md` is canonical; known companion entrypoints are checked when
 /// present and not symlinked to `AGENTS.md`.
-fn check_agents_block_version(root: &Path, report: &mut Report) {
+fn check_agents_block_version(root: &Path, report: &mut CheckReport) {
     let canonical = root.join("AGENTS.md");
     let canonical_exists = canonical.exists();
     if canonical_exists {
@@ -549,7 +549,7 @@ fn check_agents_block_version(root: &Path, report: &mut Report) {
     }
 }
 
-fn check_agent_block_path(path: &Path, report: &mut Report, require_block: bool) {
+fn check_agent_block_path(path: &Path, report: &mut CheckReport, require_block: bool) {
     if !path.exists() {
         return;
     }

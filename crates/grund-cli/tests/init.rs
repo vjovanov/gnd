@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 fn manifest_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
 fn workdir(suffix: &str) -> PathBuf {
@@ -28,7 +28,7 @@ fn run_grund<P: AsRef<Path>>(args: &[&str], cwd: P) -> Output {
 
 #[test]
 fn init_default_writes_canonical_pair_and_passes_check() {
-    // FS-init.2.1 (default form) + FS-config.1 (.agents/grund.toml location).
+    // §FS-init.2.1 (default form) + §FS-config.1 (.agents/grund.toml location).
     let target = workdir("init_default_writes_canonical_pair_and_passes_check");
     let output = run_grund(&["init", target.to_str().unwrap()], manifest_dir());
     assert!(
@@ -63,7 +63,7 @@ fn init_default_writes_canonical_pair_and_passes_check() {
 
 #[test]
 fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
-    // FS-init.2.1 (--docs form). The scaffolded tree must satisfy `grund check` —
+    // §FS-init.2.1 (--docs form). The scaffolded tree must satisfy `grund check` —
     // i.e. the canonical AGENTS.md + grund.toml + docs skeleton is internally consistent.
     let target = workdir("init_docs_form_emits_full_scaffold_and_check_is_clean");
     let output = run_grund(
@@ -217,7 +217,7 @@ title = "Architecture decision"
 
 #[test]
 fn init_updates_existing_agent_entrypoint_without_creating_agents_md() {
-    // FS-init.2.1 / FS-init.2.3: automatic mode preserves an existing repo's
+    // §FS-init.2.1 / §FS-init.2.3: automatic mode preserves an existing repo's
     // agent-entrypoint choice instead of adding canonical AGENTS.md.
     let target = workdir("init_updates_existing_agent_entrypoint_without_creating_agents_md");
     fs::write(target.join("CLAUDE.md"), "# Claude notes\n").expect("write CLAUDE.md");
@@ -251,7 +251,7 @@ fn init_updates_existing_agent_entrypoint_without_creating_agents_md() {
 
 #[test]
 fn init_agent_flags_create_requested_entrypoints() {
-    // FS-init.1 / FS-init.2.1: explicit agent flags create exactly the requested
+    // §FS-init.1 / §FS-init.2.1: explicit agent flags create exactly the requested
     // entrypoint families and do not add the automatic AGENTS.md fallback.
     let target = workdir("init_agent_flags_create_requested_entrypoints");
 
@@ -339,7 +339,7 @@ fn init_workspace_companion_only_marks_missing_self_agents_and_uses_marker() {
 
 #[test]
 fn init_cursor_flag_updates_existing_legacy_cursorrules() {
-    // FS-init.2.1 / FS-init.2.3: explicit --cursor creates/updates the modern
+    // §FS-init.2.1 / §FS-init.2.3: explicit --cursor creates/updates the modern
     // Cursor rule file and also updates legacy .cursorrules when it already
     // exists, without creating the legacy file for new adopters.
     let target = workdir("init_cursor_flag_updates_existing_legacy_cursorrules");
@@ -393,7 +393,7 @@ fn init_cursor_flag_updates_existing_legacy_cursorrules() {
 #[cfg(unix)]
 #[test]
 fn init_agent_flag_updates_canonical_target_for_symlinked_entrypoint() {
-    // FS-init.2.1 / FS-init.2.3: a requested companion symlink to AGENTS.md is
+    // §FS-init.2.1 / §FS-init.2.3: a requested companion symlink to AGENTS.md is
     // covered by updating the canonical target, even when --agents-md was not
     // passed explicitly.
     let target = workdir("init_agent_flag_updates_canonical_target_for_symlinked_entrypoint");
@@ -481,7 +481,7 @@ fn init_workspace_symlinked_alias_writes_canonical_target() {
 
 #[test]
 fn init_creates_agent_aliases_when_agent_workspaces_exist() {
-    // FS-init.2.1 / FS-init.2.3: missing neutral companion aliases are created
+    // §FS-init.2.1 / §FS-init.2.3: missing neutral companion aliases are created
     // only when their owning agent-specific workspace already exists.
     let target = workdir("init_creates_agent_aliases_when_agent_workspaces_exist");
     fs::create_dir_all(target.join(".claude")).expect("create .claude");
@@ -537,7 +537,7 @@ fn init_creates_agent_aliases_when_agent_workspaces_exist() {
 
 #[test]
 fn init_rerun_on_current_repo_writes_nothing_and_reports_exists() {
-    // FS-init.2.2 / FS-init.2.3: re-running `grund init` on a repo whose managed
+    // §FS-init.2.2 / §FS-init.2.3: re-running `grund init` on a repo whose managed
     // AGENTS.md block already matches the current render rewrites nothing — the
     // file's bytes are untouched and it is reported with `exists `, not `updated `.
     let target = workdir("init_rerun_on_current_repo_writes_nothing_and_reports_exists");
@@ -577,7 +577,7 @@ fn init_rerun_on_current_repo_writes_nothing_and_reports_exists() {
 
 #[test]
 fn init_force_never_overwrites_an_existing_config() {
-    // FS-init.2.4 / FS-init.3: `.agents/grund.toml` is the repo's config, not a
+    // §FS-init.2.4 / §FS-init.3: `.agents/grund.toml` is the repo's config, not a
     // scaffold artifact — `grund init --force` regenerates AGENTS.md but leaves an
     // existing config byte-for-byte intact and reports it with `exists `, never
     // `wrote `. (Overwriting it with the canonical template was a footgun.)
@@ -616,7 +616,7 @@ fn init_force_never_overwrites_an_existing_config() {
 
 #[test]
 fn init_is_byte_deterministic() {
-    // FS-non-goals.13: same input → byte-identical output.
+    // §FS-non-goals.13: same input → byte-identical output.
     let a = workdir("init_is_byte_deterministic_a");
     let b = workdir("init_is_byte_deterministic_b");
     for target in [&a, &b] {
@@ -636,7 +636,7 @@ fn init_is_byte_deterministic() {
 
 #[test]
 fn init_dry_run_writes_no_files_and_reports_would_prefixes() {
-    // FS-init.1 / FS-init.2.2: --dry-run reports what a real run would do
+    // §FS-init.1 / §FS-init.2.2: --dry-run reports what a real run would do
     // (would-write / would-append / would-update) and leaves the working tree
     // untouched. Re-running without --dry-run then produces the same on-disk
     // outcome as a single non-dry-run would.
@@ -674,7 +674,7 @@ fn init_dry_run_writes_no_files_and_reports_would_prefixes() {
 
 #[test]
 fn init_dry_run_on_current_repo_suppresses_next_block() {
-    // FS-init.2.2: when every reported path is `exists ` (and no would-… lines
+    // §FS-init.2.2: when every reported path is `exists ` (and no would-… lines
     // were emitted), the `next:` guidance block is suppressed — the user has
     // a complete setup, so there is nothing to teach. This holds for both
     // real runs and dry-runs.
@@ -708,7 +708,7 @@ fn init_dry_run_on_current_repo_suppresses_next_block() {
 
 #[test]
 fn init_dry_run_with_docs_previews_scaffold_without_writing() {
-    // FS-init.1 / FS-init.2.2: --dry-run composes with --docs — every docs
+    // §FS-init.1 / §FS-init.2.2: --dry-run composes with --docs — every docs
     // scaffold path is reported as `would-write` and no file lands on disk.
     let target = workdir("init_dry_run_with_docs_previews_scaffold_without_writing");
     let dry = run_grund(
@@ -752,7 +752,7 @@ fn init_dry_run_with_docs_previews_scaffold_without_writing() {
 
 #[test]
 fn init_force_dry_run_previews_canonical_rewrite() {
-    // FS-init.1 / FS-init.2.2: --force --dry-run takes the rewrite path
+    // §FS-init.1 / §FS-init.2.2: --force --dry-run takes the rewrite path
     // (instead of update-in-place) and previews `would-write AGENTS.md`
     // without changing the file's bytes on disk. .agents/grund.toml is the
     // exception: --force never overwrites it, so dry-run reports `exists`.
@@ -799,7 +799,7 @@ fn init_force_dry_run_previews_canonical_rewrite() {
 
 #[test]
 fn init_cursor_workspace_creates_cursor_rules_alias() {
-    // FS-init.2.1 / FS-init.2.3: a present `.cursor/` workspace triggers
+    // §FS-init.2.1 / §FS-init.2.3: a present `.cursor/` workspace triggers
     // creation of `.cursor/rules/grund.mdc` in automatic mode — the same
     // pattern that `.claude/` and `.gemini/` use. The legacy `.cursorrules`
     // is never auto-created.
@@ -833,7 +833,7 @@ fn init_cursor_workspace_creates_cursor_rules_alias() {
 
 #[test]
 fn init_zed_rules_is_only_workspace_or_flag_gated() {
-    // FS-init.2.1 / FS-init.2.3: `.rules` is too generic a filename to
+    // §FS-init.2.1 / §FS-init.2.3: `.rules` is too generic a filename to
     // attribute to Zed by existence alone — automatic mode must NOT pick it
     // up. Only an explicit `--zed` flag, or a `.zed/` workspace directory,
     // creates or updates `.rules`.
@@ -912,7 +912,7 @@ fn init_zed_rules_is_only_workspace_or_flag_gated() {
 
 #[test]
 fn init_preserves_lone_override_entrypoint_without_creating_agents_md() {
-    // FS-init.2.1 / FS-init.2.3: AGENTS.override.md is the "automatic
+    // §FS-init.2.1 / §FS-init.2.3: AGENTS.override.md is the "automatic
     // existing-file-only" override channel. When it is the only known agent
     // entrypoint present, automatic mode treats it as the existing repo's
     // choice — its managed block is appended/updated and no canonical

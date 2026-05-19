@@ -69,8 +69,8 @@ These fields are normative. The byte-for-byte JSON form emitted by `grund --form
 ### 3.1 Rust (`grund-core` crate)
 
 ```rust
-let report = grund::check(&path)?;
-let body = grund::show("FS-check", ShowOpts::default())?;
+let report = grund_core::check(&path)?;
+let body = grund_core::show("FS-check", ShowOpts::default())?;
 ```
 
 `Report` and the underlying `Findings` are exposed as plain data structures so callers can iterate, filter, or render their own output.

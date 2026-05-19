@@ -104,10 +104,10 @@ jobs:
               sys.exit(1)
           PY
 
-      # tests/e2e.rs walks every fixture under e2e/cases and asserts each case's
+      # crates/grund-cli/tests/e2e.rs walks every fixture under e2e/cases and asserts each case's
       # exit code, stdout, and stderr against its expected.* files; tests/init.rs
       # covers the file-content / config-validation contract for `grund init`. So
-      # `cargo test` runs the full e2e suite plus the unit tests in src/main.rs.
+      # `cargo test` runs the full e2e suite plus the core and CLI unit tests.
       - name: cargo test
         run: cargo test --workspace --all-targets --locked
 
@@ -152,16 +152,16 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           git checkout --force "origin/${{ github.base_ref }}"
-          cargo bench --features bench --locked --bench instructions -- --save-baseline=main --save-summary=json
+          cargo bench -p grund --features bench --locked --bench instructions -- --save-baseline=main --save-summary=json
           git checkout --force "${{ github.sha }}"
 
       - name: cargo bench
         if: github.event_name != 'pull_request'
-        run: cargo bench --features bench --locked --bench instructions -- --save-summary=json
+        run: cargo bench -p grund --features bench --locked --bench instructions -- --save-summary=json
 
       - name: cargo bench regression gate
         if: github.event_name == 'pull_request'
-        run: cargo bench --features bench --locked --bench instructions -- --baseline=main --callgrind-limits=ir=5.0% --save-summary=json
+        run: cargo bench -p grund --features bench --locked --bench instructions -- --baseline=main --callgrind-limits=ir=5.0% --save-summary=json
 
       - name: Upload benchmark summaries
         if: always()

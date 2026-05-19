@@ -3,7 +3,7 @@ fn show_declaration(
     findings: &Findings,
     id: &Id,
     section: Option<&str>,
-    mode: ShowMode,
+    mode: ShowRenderMode,
     include_heading: bool,
 ) -> Result<ShowOutput> {
     let root = &config.root;
@@ -69,7 +69,7 @@ fn show_e2e_case(
     id: &Id,
     case: &E2eCase,
     section: Option<&str>,
-    mode: ShowMode,
+    mode: ShowRenderMode,
 ) -> Result<ShowOutput> {
     if let Some(section) = section {
         return Err(anyhow!(
@@ -95,9 +95,9 @@ fn show_e2e_case(
         format!("{}\n", lines.join("\n"))
     };
     let body = match mode {
-        ShowMode::Brief => brief_body,
-        ShowMode::Outline => String::new(),
-        ShowMode::Default | ShowMode::Toc | ShowMode::Full => manifest,
+        ShowRenderMode::Brief => brief_body,
+        ShowRenderMode::Outline => String::new(),
+        ShowRenderMode::Default | ShowRenderMode::Toc | ShowRenderMode::Full => manifest,
     };
     let args_json = case
         .args
@@ -138,24 +138,24 @@ fn extract_declaration_body(
     path: &Path,
     id: &Id,
     section: Option<&str>,
-    mode: ShowMode,
+    mode: ShowRenderMode,
     include_heading: bool,
     config: &Config,
 ) -> Result<ShowOutput> {
     // `--toc` = the default lead, then a blank line, then the nested section
     // headings (§FS-show.2.1.2). Internally: compose the Default body with an
     // Outline-only scan, sharing the same `(path, id, section)` resolution.
-    if mode == ShowMode::Toc {
+    if mode == ShowRenderMode::Toc {
         let mut default_output = extract_declaration_body(
             path,
             id,
             section,
-            ShowMode::Default,
+            ShowRenderMode::Default,
             include_heading,
             config,
         )?;
         let outline_output =
-            extract_declaration_body(path, id, section, ShowMode::Outline, false, config)?;
+            extract_declaration_body(path, id, section, ShowRenderMode::Outline, false, config)?;
         default_output.body = join_with_blank(&default_output.body, &outline_output.body);
         default_output.sections = outline_output.sections;
         return Ok(default_output);
@@ -166,13 +166,13 @@ fn extract_declaration_body(
     // selected section) so the slice is self-labeled regardless of `text` vs
     // `md`. When a section is selected we suppress the H1 — only the most
     // specific heading is kept.
-    if mode == ShowMode::Brief {
+    if mode == ShowRenderMode::Brief {
         let want_h1_for_default = section.is_none();
         let mut output = extract_declaration_body(
             path,
             id,
             section,
-            ShowMode::Default,
+            ShowRenderMode::Default,
             want_h1_for_default,
             config,
         )?;
@@ -250,10 +250,10 @@ fn extract_declaration_body(
             match section {
                 // Whole-declaration lead: stop at the first numbered subsection.
                 None => {
-                    if mode == ShowMode::Default {
+                    if mode == ShowRenderMode::Default {
                         break;
                     }
-                    if mode == ShowMode::Outline {
+                    if mode == ShowRenderMode::Outline {
                         push_outline_section(
                             &mut lines,
                             &mut sections,
@@ -270,7 +270,7 @@ fn extract_declaration_body(
                         found_section = true;
                         target_depth = depth;
                         output_line = lineno;
-                        if mode != ShowMode::Outline {
+                        if mode != ShowRenderMode::Outline {
                             lines.push(clean_body_line(scan_line, is_md || in_py_docstring));
                         }
                         continue;
@@ -280,10 +280,10 @@ fn extract_declaration_body(
                     // heading — including a child — ends the section's lead prose
                     // (§FS-show.2.2). Before the target section is found, keep
                     // scanning past unrelated headings.
-                    if found_section && (mode == ShowMode::Default || depth <= target_depth) {
+                    if found_section && (mode == ShowRenderMode::Default || depth <= target_depth) {
                         break;
                     }
-                    if found_section && mode == ShowMode::Outline {
+                    if found_section && mode == ShowRenderMode::Outline {
                         push_outline_section(
                             &mut lines,
                             &mut sections,
@@ -297,7 +297,7 @@ fn extract_declaration_body(
                 }
             }
         }
-        if found_section && mode != ShowMode::Outline {
+        if found_section && mode != ShowRenderMode::Outline {
             lines.push(clean_body_line(scan_line, is_md || in_py_docstring));
         }
     }

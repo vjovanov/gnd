@@ -1,4 +1,4 @@
-fn command_fmt(args: &[String]) -> ExitCode {
+pub fn command_fmt(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
     let mut write = false;

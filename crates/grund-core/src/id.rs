@@ -1,4 +1,4 @@
-fn command_id(args: &[String]) -> ExitCode {
+pub fn command_id(args: &[String]) -> ExitCode {
     let mut positional = Vec::new();
     let mut width = 3usize;
     let mut format = "text".to_string();

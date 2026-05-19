@@ -2,7 +2,7 @@
 /// §FS-errors.2.1, §FS-errors.2.4): `path:line: message` for located findings,
 /// run-level diagnostics on stderr, and `success` for a clean text check
 /// (§FS-check.2.1). Diagnostic lines stay in the fixed order (§FS-errors.4).
-fn print_report(config: &Config, report: &Report) {
+fn print_report(config: &Config, report: &CheckReport) {
     if report.errors.is_empty() && report.warnings.is_empty() {
         println!("success");
         return;
@@ -49,7 +49,7 @@ fn render_diagnostic_text(config: &Config, severity: &str, diagnostic: &Diagnost
     }
 }
 
-fn sorted_json_diagnostics(report: &Report) -> Vec<(&'static str, &Diagnostic)> {
+fn sorted_json_diagnostics(report: &CheckReport) -> Vec<(&'static str, &Diagnostic)> {
     let mut diagnostics = report
         .warnings
         .iter()
@@ -65,7 +65,7 @@ fn sorted_json_diagnostics(report: &Report) -> Vec<(&'static str, &Diagnostic)> 
 /// `severity`, `path`, `line`, `code`, `message`, `sites`. Located findings go to
 /// stdout (`check`'s output, §FS-errors.1); a `line`-less diagnostic (mid-walk read
 /// failure, empty-scan caution) goes to stderr, mirroring the text form.
-fn print_json_report(config: &Config, report: &Report) {
+fn print_json_report(config: &Config, report: &CheckReport) {
     for (severity, diagnostic) in sorted_json_diagnostics(report) {
         let object = render_diagnostic_json(config, severity, diagnostic);
         if diagnostic.line.is_some() {

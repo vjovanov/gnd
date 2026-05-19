@@ -1,10 +1,10 @@
 /// A parsed ID: its kind plus whichever of `{number}` / `{slug}` the configured
 /// `[id] format` carries (§FS-config.3.2).
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
-struct Id {
-    kind: String,
-    num: Option<u32>,
-    slug: Option<String>,
+pub struct Id {
+    pub kind: String,
+    pub num: Option<u32>,
+    pub slug: Option<String>,
 }
 
 // `Id` is rendered for output via `render_id` / `format_id`, which honour the
@@ -18,20 +18,20 @@ struct Id {
 /// (§AR-scanner.2.2) and, for stub headings, the inline-home path it points at
 /// (§FS-show.2.3, §FS-check.3.4).
 #[derive(Debug)]
-struct Declaration {
-    id: Id,
-    file: PathBuf,
-    line: usize,
-    heading_level: usize,
-    sections: BTreeMap<String, SectionInfo>,
-    is_stub: bool,
-    defined_in: Option<PathBuf>,
-    e2e_case: Option<E2eCase>,
+pub struct Declaration {
+    pub id: Id,
+    pub file: PathBuf,
+    pub line: usize,
+    pub heading_level: usize,
+    pub sections: BTreeMap<String, SectionInfo>,
+    pub is_stub: bool,
+    pub defined_in: Option<PathBuf>,
+    pub e2e_case: Option<E2eCase>,
     /// Heading text after `<ID>:` — the one-line title an author wrote
     /// (§AR-scanner.2.1). `None` when the heading carries no `: <text>` tail, or
     /// when the heading is a stub link (`# <ID>: [<text>](<path>)`), whose tail
     /// is a path, not a title.
-    title: Option<String>,
+    pub title: Option<String>,
 }
 
 /// One numbered subsection heading recorded inside a declaration
@@ -39,48 +39,48 @@ struct Declaration {
 /// Markdown heading level used by the strict section-depth checker
 /// (§FS-check.3.9).
 #[derive(Debug, Clone)]
-struct SectionInfo {
-    title: String,
-    line: usize,
-    heading_level: usize,
+pub struct SectionInfo {
+    pub title: String,
+    pub line: usize,
+    pub heading_level: usize,
 }
 
 /// An `e2e/cases/<name>/` directory treated as an `E2E-<name>` declaration
 /// (§AR-scanner.6) — its `command.args`, `expected.exit`, and fixture file list
 /// are what `grund E2E-<name>` renders (§FS-show.2.4).
 #[derive(Debug)]
-struct E2eCase {
-    dir: PathBuf,
-    args: Vec<String>,
-    expected_exit: i32,
-    fixtures: Vec<PathBuf>,
+pub struct E2eCase {
+    pub dir: PathBuf,
+    pub args: Vec<String>,
+    pub expected_exit: i32,
+    pub fixtures: Vec<PathBuf>,
 }
 
 /// One citation site: an `<ID>[.<section>]` token, optionally `§`-prefixed
 /// (§AR-scanner.2.3, §FS-check.1.1). `has_marker` drives strict-mode filtering
 /// (§FS-config.3.1) and is what `grund fmt` upgrades a bare token from (§FS-fmt.2.2).
 #[derive(Debug)]
-struct Citation {
-    namespace: Option<String>,
-    id: Id,
-    section: Option<String>,
-    file: PathBuf,
-    line: usize,
-    column: usize,
-    has_marker: bool,
-    text: String,
-    inline_site: Option<InlineCitationSite>,
+pub struct Citation {
+    pub namespace: Option<String>,
+    pub id: Id,
+    pub section: Option<String>,
+    pub file: PathBuf,
+    pub line: usize,
+    pub column: usize,
+    pub has_marker: bool,
+    pub text: String,
+    pub inline_site: Option<InlineCitationSite>,
 }
 
 /// The enclosing source-comment citation site for one citation
 /// (§FS-inline-citation-style.1, §FS-inline-citation-style.2.3). Markdown
 /// citations and citations outside recognized comment blocks carry `None`.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
-struct InlineCitationSite {
-    first_line: usize,
-    last_line: usize,
-    max_columns: usize,
-    has_note: bool,
+pub struct InlineCitationSite {
+    pub first_line: usize,
+    pub last_line: usize,
+    pub max_columns: usize,
+    pub has_note: bool,
 }
 
 #[derive(Clone)]
@@ -94,14 +94,14 @@ struct WorkspaceCitationTarget {
 /// is the scanner's whole output; the checker (§AR-checker) consumes it without
 /// re-reading files.
 #[derive(Default)]
-struct Findings {
-    declarations: BTreeMap<Id, Vec<Declaration>>,
-    citations: Vec<Citation>,
+pub struct Findings {
+    pub declarations: BTreeMap<Id, Vec<Declaration>>,
+    pub citations: Vec<Citation>,
     /// Every file the walk read successfully (§AR-scanner.1) — the universe the
     /// `[reference] require_grounding` check iterates over (§FS-check.3.6,
     /// §DF-require-grounding). Files that failed to read are not here; they are in
     /// the walk's `ScanError` list instead.
-    scanned_files: Vec<PathBuf>,
+    pub scanned_files: Vec<PathBuf>,
 }
 
 /// ID-query slice mode (§FS-show.1): each rung adds to the previous one —
@@ -110,7 +110,7 @@ struct Findings {
 /// adds every subsection body. `Outline` is an internal-only mode used by `Toc`
 /// to collect the section map; the CLI does not expose it.
 #[derive(Clone, Copy, Eq, PartialEq)]
-enum ShowMode {
+enum ShowRenderMode {
     Brief,
     Default,
     Toc,
@@ -118,10 +118,10 @@ enum ShowMode {
     Outline,
 }
 
-struct ShowSection {
-    path: String,
-    title: String,
-    depth: usize,
+pub struct ShowSection {
+    pub path: String,
+    pub title: String,
+    pub depth: usize,
 }
 
 /// One `[[kinds]]` entry: prefix plus the folder its declarations live in and the
@@ -130,66 +130,66 @@ struct ShowSection {
 /// used by `GND`/`GOAL`/`RM` whose IDs all live in one document
 /// (`docs/grund.md`, `docs/goals.md`, `docs/roadmap.md`).
 #[derive(Clone)]
-struct KindConfig {
-    prefix: String,
-    folder: Option<String>,
-    file: Option<String>,
-    title: Option<String>,
+pub struct KindConfig {
+    pub prefix: String,
+    pub folder: Option<String>,
+    pub file: Option<String>,
+    pub title: Option<String>,
 }
 
 #[derive(Clone)]
-struct ConfigLocation {
-    path: PathBuf,
-    line: usize,
+pub struct ConfigLocation {
+    pub path: PathBuf,
+    pub line: usize,
 }
 
 /// The effective configuration: every `.agents/grund.toml` key (§FS-config.3) merged
 /// over the built-in defaults (§FS-config.2), plus the compiled `Grammar` and the
 /// `root` / `cli_base` paths the walk and the report use.
 #[derive(Clone)]
-struct Config {
-    root: PathBuf,
+pub struct Config {
+    pub root: PathBuf,
     /// The resolved path argument (or cwd) — the base for reports when
     /// `[output] relative_paths = false`, i.e. the base `grund` would use if no
     /// `.agents/grund.toml` were discovered (§FS-config.3.6).
-    cli_base: PathBuf,
-    project_name: Option<String>,
-    project_name_source: Option<ConfigLocation>,
-    marker: String,
-    trigger: String,
-    strict: bool,
+    pub cli_base: PathBuf,
+    pub project_name: Option<String>,
+    pub project_name_source: Option<ConfigLocation>,
+    pub marker: String,
+    pub trigger: String,
+    pub strict: bool,
     /// `[reference] require_grounding` (§FS-config.3.1, §FS-check.3.6,
     /// §DF-require-grounding) — when true, `check` also reports every scanned
     /// source file that carries no resolving citation (and declares no ID inline).
     /// `--require-grounding` on `grund check` forces it on for one run.
-    require_grounding: bool,
-    inline_style: String,
-    inline_note_suggested_lines: usize,
-    inline_note_max_lines: usize,
-    inline_note_max_columns: usize,
-    warn_on_suggested: bool,
-    include: Option<Vec<String>>,
-    exclude: Vec<String>,
-    extensions: Vec<String>,
-    comment_prefixes: Vec<String>,
-    docstring_python: bool,
-    respect_gitignore: bool,
-    output_format: String,
-    relative_paths: bool,
-    id_format: String,
-    section_separator: String,
-    number_pattern: String,
-    slug_pattern: String,
-    section_heading_levels: String,
-    kinds: Vec<KindConfig>,
-    fmt_cross_refs_enabled: bool,
-    cross_ref_anchor_format: String,
-    workspace_declared: bool,
-    workspace_members: Vec<String>,
-    workspace_members_source: Option<ConfigLocation>,
-    workspace_include_root: bool,
-    workspace_boundary_roots: Vec<PathBuf>,
-    grammar: Grammar,
+    pub require_grounding: bool,
+    pub inline_style: String,
+    pub inline_note_suggested_lines: usize,
+    pub inline_note_max_lines: usize,
+    pub inline_note_max_columns: usize,
+    pub warn_on_suggested: bool,
+    pub include: Option<Vec<String>>,
+    pub exclude: Vec<String>,
+    pub extensions: Vec<String>,
+    pub comment_prefixes: Vec<String>,
+    pub docstring_python: bool,
+    pub respect_gitignore: bool,
+    pub output_format: String,
+    pub relative_paths: bool,
+    pub id_format: String,
+    pub section_separator: String,
+    pub number_pattern: String,
+    pub slug_pattern: String,
+    pub section_heading_levels: String,
+    pub kinds: Vec<KindConfig>,
+    pub fmt_cross_refs_enabled: bool,
+    pub cross_ref_anchor_format: String,
+    pub workspace_declared: bool,
+    pub workspace_members: Vec<String>,
+    pub workspace_members_source: Option<ConfigLocation>,
+    pub workspace_include_root: bool,
+    pub workspace_boundary_roots: Vec<PathBuf>,
+    pub grammar: Grammar,
 }
 
 const DEFAULT_KINDS: &[&str] = &["GND", "GOAL", "FS", "AR", "DF", "DA", "E2E", "RM"];
@@ -384,7 +384,7 @@ struct Diagnostic {
 /// off errors only (§FS-check.2, §FS-check.4) and the printed order is fixed
 /// (§FS-errors.4, §FS-non-goals.9).
 #[derive(Default)]
-struct Report {
+struct CheckReport {
     errors: Vec<Diagnostic>,
     warnings: Vec<Diagnostic>,
 }
@@ -392,12 +392,12 @@ struct Report {
 /// What an ID query resolved to: the body text to print, the `path:line` it
 /// came from, the section map (`--toc` only), and the pre-rendered JSON when
 /// `--format json` was asked for (§FS-show.3, §FS-errors.5).
-struct ShowOutput {
-    body: String,
-    path: PathBuf,
-    line: usize,
-    json: Option<String>,
-    sections: Vec<ShowSection>,
+pub struct ShowOutput {
+    pub body: String,
+    pub path: PathBuf,
+    pub line: usize,
+    pub json: Option<String>,
+    pub sections: Vec<ShowSection>,
 }
 
 fn resolve_stub_target(root: &Path, stub_file: &Path, target: &Path) -> PathBuf {

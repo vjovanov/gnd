@@ -28,13 +28,13 @@ The parallel scanner is accepted only if the benchmark report shows no meaningfu
 
 ## RM-core-cli-split: split grund-core from grund-cli
 
-Workspace split before bindings ship. The first boundary is in place: `crates/grund-core` is a real workspace crate and the root `grund` binary depends on it. The remaining cleanup is to move CLI-only argument parsing, rendering, and exit-code mapping out of `grund-core` into a dedicated `grund-cli` frontend crate.
+Workspace split before bindings ship. The package boundary is in place: `crates/grund-core` is the shared engine crate, and `crates/grund-cli` is the Cargo package named `grund`. The remaining cleanup is to replace the compatibility command adapters with narrower data-returning APIs for each CLI subcommand, so CLI-only parsing/rendering can leave `grund-core` completely.
 
-The important part is not just crate shape; it is making `grund-core` a real public engine API. Right now the binary is thin, but `grund-core` still includes CLI/help/rendering through flat `include!` files, and the only visible public entry point is effectively `main_entry()` (`crates/grund-core/src/lib.rs:11`, `src/main.rs:3`). That conflicts with the promised Rust embedding surface — `check`, `show`, `Report`, `Finding`, `ShowOpts` — in [§FS-distribution.3.1](functional-spec/FS-distribution.md#31-rust-grund-core-crate). This must land before [§RM-lsp](roadmap.md#rm-lsp-ship-the-optional-lsp-server) and before the npm/PyPI bindings in [§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine).
+The important part is not just crate shape; it is making `grund-core` a real public engine API. `grund-core` now exposes the promised Rust embedding surface — `check`, `show`, `Report`, `Findings`, `ShowOpts` — in [§FS-distribution.3.1](functional-spec/FS-distribution.md#31-rust-grund-core-crate). The next cleanup is to give `refs`, `list`, `cover`, `fmt`, `id`, `init`, and config inspection equivalent data-returning APIs before [§RM-lsp](roadmap.md#rm-lsp-ship-the-optional-lsp-server) and before the npm/PyPI bindings in [§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine).
 
 ### 1. What
 
-Done: `grund-core` library crate exists and owns the current scanner/checker/show/fmt/config implementation. The published root `grund` package is a thin binary that calls into it. Remaining: `grund-cli` frontend crate for argument parsing, rendering (text/JSON), exit-code mapping, and help text, leaving `grund-core` as the engine-only library, plus a documented public Rust API matching [§FS-distribution.3.1](functional-spec/FS-distribution.md#31-rust-grund-core-crate).
+Done: `grund-core` library crate exists and owns the current scanner/checker/show/fmt/config implementation; `crates/grund-cli` owns the installed `grund` binary, top-level dispatch, help, version output, and SIGPIPE setup; and `grund-core` exposes the initial embedding API matching [§FS-distribution.3.1](functional-spec/FS-distribution.md#31-rust-grund-core-crate). Remaining: replace subcommand-level compatibility adapters with structured APIs so text/JSON rendering and exit-code mapping live entirely in `grund-cli`.
 
 ### 2. Why now
 

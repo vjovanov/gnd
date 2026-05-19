@@ -1,6 +1,6 @@
 # AR-bindings: target shape for exposing the Rust engine on three platforms
 
-Implements the planned distribution shape in [§FS-distribution](../functional-spec/FS-distribution.md#fs-distribution-grund-distribution-targets). Target state: the repo is a Cargo workspace with one core library and four frontends — three for batch use (CLI, Node, Python) and one for editor use (LSP). The split starts with the release-blocking boundary: `grund-core` is a real workspace crate, and the published `grund` CLI package depends on it. The later frontend crates (`grund-lsp`, `grund-node`, `grund-py`) build on that boundary.
+Implements the planned distribution shape in [§FS-distribution](../functional-spec/FS-distribution.md#fs-distribution-grund-distribution-targets). Target state: the repo is a Cargo workspace with one core library and four frontends — three for batch use (CLI, Node, Python) and one for editor use (LSP). The release-blocking boundary is now in place: `grund-core` is the shared engine crate, and `crates/grund-cli` is the published Cargo package named `grund`. The later frontend crates (`grund-lsp`, `grund-node`, `grund-py`) build on that boundary.
 
 ## 1. Target workspace layout
 
@@ -8,15 +8,15 @@ Current shipped split:
 
 ```
 grund/
-├── Cargo.toml          # workspace root and published `grund` CLI package
-├── src/main.rs         # thin binary entrypoint; delegates to `grund-core`
+├── Cargo.toml          # virtual workspace root
 ├── crates/
-│   └── grund-core/     # scanner + checker + show + fmt + config + shared CLI dispatcher
+│   ├── grund-core/     # scanner + checker + show + fmt + config + public Rust API
+│   └── grund-cli/      # package `grund`; binary entrypoint, help, and top-level dispatch
 ├── docs/
 └── e2e/
 ```
 
-This first step keeps the existing CLI behavior byte-identical while giving `grund-lsp` a package it can depend on. `grund-core` temporarily still carries the shared CLI dispatcher and text/JSON rendering helpers because those are the stable API the current `grund` binary calls. The follow-up `grund-cli` crate move is a cleanup: it moves argument parsing, `println!`/`eprintln!`, and exit-code mapping out of `grund-core` without changing the public CLI.
+This split keeps CLI behavior byte-identical while giving `grund-lsp` and the language bindings a library package they can depend on. `grund-core` exposes the embedding API (`check`, `show`, `Report`, `Findings`, `ShowOpts`) and still carries a small set of command-adapter functions for the existing CLI surfaces during the transition; the user-facing binary, help text, version handling, SIGPIPE setup, and top-level command dispatch live in `grund-cli`.
 
 Final frontend layout:
 
@@ -38,17 +38,17 @@ All four frontend crates depend on `grund-core` and only on `grund-core` for eng
 
 Every check, every show, every regex, every walker invocation lives in `grund-core`. The crate exposes:
 
-- `grund::scan(root: &Path) -> Findings`
-- `grund::check(findings: &Findings, root: &Path) -> Report`
-- `grund::show(id: &str, opts: ShowOpts) -> Result<String>`
+- `grund_core::scan(root: &Path) -> Result<Findings>`
+- `grund_core::check(root: &Path) -> Result<Report>`
+- `grund_core::show(id: &str, opts: ShowOpts) -> Result<ShowOutput>`
 - `grund::refs(findings: &Findings, id: &str, section: Option<&str>) -> Vec<Citation>` ([§FS-refs](../functional-spec/FS-refs.md#fs-refs-grund-lists-every-citation-of-an-id))
 - The `Findings`, `Declaration`, `Citation`, `Report` data types.
 
-The crate has no `println!`, no `eprintln!`, no `process::exit`. It returns data; callers decide what to do with it.
+The embedding API returns data; callers decide what to do with it. CLI compatibility adapters remain inside `grund-core` until each subcommand has a stable data-returning API.
 
 ## 3. grund-cli: the CLI binary
 
-Argument parsing (likely `clap`), terminal formatting, exit-code mapping. Imports `grund-core` and translates results into stdout/stderr text. This is what `cargo install grund` produces and what the npm package wraps. Synchronous; no async runtime, no LSP types, no JSON-RPC.
+The Cargo package named `grund`. It imports `grund-core`, owns the installed binary, prints help/version output, restores SIGPIPE, and routes top-level commands to the command adapters. This is what `cargo install grund` produces and what the npm/PyPI packages wrap. Synchronous; no async runtime, no LSP types, no JSON-RPC.
 
 ## 4. grund-lsp: the LSP server binary
 

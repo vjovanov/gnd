@@ -1,7 +1,7 @@
 /// `grund check [path] [--format text|json]`: scan the tree, run the checker
 /// (§FS-check), print the report, and exit `0` clean
 /// / `1` on a finding / `2` on a CLI or I/O error (§FS-check.2.1, §FS-cli.5).
-fn command_check(args: &[String]) -> ExitCode {
+pub fn command_check(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
     let mut format_override = None;
@@ -66,7 +66,7 @@ fn command_check(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let mut report = check(&findings, &config);
+    let mut report = check_findings(&findings, &config);
     // A file that could not be read mid-walk is reported as a CLI-shaped
     // `error: <path>: <reason>` finding (§FS-check.2): the walk continued, the
     // findings below are real, but the view of the tree was incomplete → exit 2.
@@ -144,7 +144,7 @@ fn command_check_workspace(
             )
         })
         .collect::<BTreeMap<_, _>>();
-    let mut report = Report::default();
+    let mut report = CheckReport::default();
     let mut had_scan_errors = false;
     for project in &projects {
         let mut project_report = check_with_workspace(

@@ -1,13 +1,13 @@
 [package]
 name = "grund-core"
 version = "0.4.0"
-edition = "2024"
-description = "Core engine for grund: scanner, checker, show, fmt, config, and shared command dispatcher."
+edition.workspace = true
+description = "Core engine for grund: scanner, checker, show, fmt, config, and shared data APIs."
 keywords = ["documentation", "references", "linter", "agents"]
 categories = ["development-tools"]
-license = "MIT"
-repository = "https://github.com/vjovanov/grund"
-homepage = "https://github.com/vjovanov/grund"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 readme = "README.md"
 include = ["src/**", "assets/**", "Cargo.toml", "README.md"]
 

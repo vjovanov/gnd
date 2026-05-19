@@ -1,20 +1,6 @@
 const SEC_GROUP: &str = r"(?P<sec>\d+(?:\.\d+)*)";
 const DEFAULT_INCLUDE: &[&str] = &["docs", "e2e", "src"];
 const DEFAULT_COMMENT_PREFIXES: &[&str] = &["//", "#", ";", "--", "*", "/*"];
-const SUBCOMMANDS: &[&str] = &[
-    "check",
-    "show",
-    "list",
-    "refs",
-    "cover",
-    "fmt",
-    "id",
-    "init",
-    "config",
-    "agent-setup-instructions",
-    "completions",
-];
-
 static STUB_LINK_HEADING: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^\s*:\s*\[[^\]]*\]\(\s*(?P<path>[^)\s]+)\s*\)\s*$").unwrap());
 /// An inline Markdown link `[text](url)` — used to reduce a heading to the text a
@@ -60,7 +46,7 @@ static QUALIFIED_CITATION_PREFIX: Lazy<Regex> = Lazy::new(|| {
 });
 
 #[derive(Clone)]
-struct Grammar {
+pub struct Grammar {
     decl_re: Regex,
     docstring_decl_re: Regex,
     section_re: Regex,

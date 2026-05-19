@@ -96,11 +96,26 @@ jobs:
             '
           }
 
-          root_version="$(manifest_version "$manifest_ref" Cargo.toml)"
+          workspace_version() {
+            local ref="$1"
+            git show "${ref}:Cargo.toml" | awk '
+              /^\[workspace\.package\]/ { in_workspace_package = 1; next }
+              /^\[/ && in_workspace_package { exit }
+              in_workspace_package && /^[[:space:]]*version[[:space:]]*=/ {
+                line = $0
+                sub(/^[^=]*=[[:space:]]*"/, "", line)
+                sub(/".*/, "", line)
+                print line
+                exit
+              }
+            '
+          }
+
+          root_version="$(workspace_version "$manifest_ref")"
           core_version="$(manifest_version "$manifest_ref" crates/grund-core/Cargo.toml)"
 
           if [ "$root_version" != "$version" ]; then
-            echo "error: ${manifest_ref}: Cargo.toml version is $root_version, expected $version" >&2
+            echo "error: ${manifest_ref}: workspace package version is $root_version, expected $version" >&2
             exit 1
           fi
           if [ "$core_version" != "$version" ]; then
@@ -197,16 +212,31 @@ jobs:
             '
           }
 
+          workspace_version() {
+            local ref="$1"
+            git show "${ref}:Cargo.toml" | awk '
+              /^\[workspace\.package\]/ { in_workspace_package = 1; next }
+              /^\[/ && in_workspace_package { exit }
+              in_workspace_package && /^[[:space:]]*version[[:space:]]*=/ {
+                line = $0
+                sub(/^[^=]*=[[:space:]]*"/, "", line)
+                sub(/".*/, "", line)
+                print line
+                exit
+              }
+            '
+          }
+
           emit_release_ref() {
             local ref="$1"
             local sha
             local root_version
             local core_version
 
-            root_version="$(manifest_version "$ref" Cargo.toml)"
+            root_version="$(workspace_version "$ref")"
             core_version="$(manifest_version "$ref" crates/grund-core/Cargo.toml)"
             if [ "$root_version" != "$version" ]; then
-              echo "error: ${ref}: Cargo.toml version is ${root_version}, expected ${version}" >&2
+              echo "error: ${ref}: workspace package version is ${root_version}, expected ${version}" >&2
               exit 1
             fi
             if [ "$core_version" != "$version" ]; then

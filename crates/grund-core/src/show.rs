@@ -5,14 +5,14 @@
 /// `--full` for everything (§FS-show.2.1.3); a section with `.<section>` or `--section`
 /// (§FS-show.2.2). Ambiguous IDs and missing IDs/sections exit `1` with a hint
 /// (§FS-show.2.2.1, §FS-show.3).
-fn command_show(args: &[String]) -> ExitCode {
+pub fn command_show(args: &[String]) -> ExitCode {
     command_show_impl(args, false)
 }
 
 /// Default `grund <ID>` dispatch (§FS-cli.1): identical to explicit `show`,
 /// except invalid-ID diagnostics also remind users that path validation is now
 /// explicit as `grund check <path>`.
-fn command_show_default(args: &[String]) -> ExitCode {
+pub fn command_show_default(args: &[String]) -> ExitCode {
     command_show_impl(args, true)
 }
 
@@ -33,7 +33,7 @@ fn command_show_impl(args: &[String], default_invocation: bool) -> ExitCode {
     let mut id_arg = None;
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
-    let mut mode = ShowMode::Default;
+    let mut mode = ShowRenderMode::Default;
     let mut mode_flag: Option<&'static str> = None;
     let mut section_override = None;
     let mut format = "text".to_string();
@@ -46,7 +46,7 @@ fn command_show_impl(args: &[String], default_invocation: bool) -> ExitCode {
                     return ExitCode::from(2);
                 }
                 mode_flag = Some("--brief");
-                mode = ShowMode::Brief;
+                mode = ShowRenderMode::Brief;
             }
             "--toc" => {
                 if let Some(previous) = mode_flag {
@@ -54,7 +54,7 @@ fn command_show_impl(args: &[String], default_invocation: bool) -> ExitCode {
                     return ExitCode::from(2);
                 }
                 mode_flag = Some("--toc");
-                mode = ShowMode::Toc;
+                mode = ShowRenderMode::Toc;
             }
             "--full" => {
                 if let Some(previous) = mode_flag {
@@ -62,7 +62,7 @@ fn command_show_impl(args: &[String], default_invocation: bool) -> ExitCode {
                     return ExitCode::from(2);
                 }
                 mode_flag = Some("--full");
-                mode = ShowMode::Full;
+                mode = ShowRenderMode::Full;
             }
             other if other.starts_with("--format=") => {
                 format = other.trim_start_matches("--format=").to_string();
@@ -257,42 +257,10 @@ fn command_show_impl(args: &[String], default_invocation: bool) -> ExitCode {
                 output.body = flatten_cross_ref_links(&output.body, config);
             }
             if format == "json" {
-                if let Some(json) = output.json {
-                    println!("{json}");
-                } else {
-                    let mut extra = String::new();
-                    if matches!(mode, ShowMode::Toc) {
-                        extra.push_str(",\"sections\":[");
-                        extra.push_str(
-                            &output
-                                .sections
-                                .iter()
-                                .map(|section| {
-                                    format!(
-                                        "{{\"path\":\"{}\",\"title\":\"{}\",\"depth\":{}}}",
-                                        json_escape(&section.path),
-                                        json_escape(&section.title),
-                                        section.depth
-                                    )
-                                })
-                                .collect::<Vec<_>>()
-                                .join(","),
-                        );
-                        extra.push(']');
-                    }
-                    println!(
-                        "{{\"id\":\"{}\",\"section\":{},\"body\":\"{}\",\"path\":\"{}\",\"line\":{}{}}}",
-                        json_escape(&render_id(config, &id)),
-                        match section.as_deref() {
-                            Some(section) => format!("\"{}\"", json_escape(section)),
-                            None => "null".to_string(),
-                        },
-                        json_escape(&output.body),
-                        json_escape(&display_path(config, &output.path)),
-                        output.line,
-                        extra
-                    );
-                }
+                println!(
+                    "{}",
+                    render_show_output_json(config, &id, section.as_deref(), mode, &output)
+                );
             } else {
                 print!("{}", output.body);
             }
@@ -318,4 +286,48 @@ fn command_show_impl(args: &[String], default_invocation: bool) -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+fn render_show_output_json(
+    config: &Config,
+    id: &Id,
+    section: Option<&str>,
+    mode: ShowRenderMode,
+    output: &ShowOutput,
+) -> String {
+    if let Some(json) = &output.json {
+        return json.clone();
+    }
+    let mut extra = String::new();
+    if matches!(mode, ShowRenderMode::Toc) {
+        extra.push_str(",\"sections\":[");
+        extra.push_str(
+            &output
+                .sections
+                .iter()
+                .map(|section| {
+                    format!(
+                        "{{\"path\":\"{}\",\"title\":\"{}\",\"depth\":{}}}",
+                        json_escape(&section.path),
+                        json_escape(&section.title),
+                        section.depth
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(","),
+        );
+        extra.push(']');
+    }
+    format!(
+        "{{\"id\":\"{}\",\"section\":{},\"body\":\"{}\",\"path\":\"{}\",\"line\":{}{}}}",
+        json_escape(&render_id(config, id)),
+        match section {
+            Some(section) => format!("\"{}\"", json_escape(section)),
+            None => "null".to_string(),
+        },
+        json_escape(&output.body),
+        json_escape(&display_path(config, &output.path)),
+        output.line,
+        extra
+    )
 }
