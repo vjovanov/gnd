@@ -507,6 +507,8 @@ fn comment_strip_prefixes(config: &Config) -> Vec<&str> {
     for prefix in &config.comment_prefixes {
         if prefix == "//" {
             prefixes.extend(["///", "//!", "//"]);
+        } else if prefix == "/*" {
+            prefixes.extend(["/*", "*"]);
         } else if !prefix.is_empty() {
             prefixes.push(prefix.as_str());
         }

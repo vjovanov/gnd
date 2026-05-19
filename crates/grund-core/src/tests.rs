@@ -316,6 +316,34 @@ mod tests {
     }
 
     #[test]
+    fn inline_style_strips_block_comment_continuation_prefix() {
+        let root = test_root("inline_style_strips_block_comment_continuation_prefix");
+        write(
+            &root.join("docs/functional-spec/FS-001-login.md"),
+            "# FS-001-login: Login\n",
+        );
+        write(
+            &root.join("src/auth.rs"),
+            "/**\n * §FS-001-login\n */\npub fn login() {}\n",
+        );
+
+        let mut config = Config::default_for(root.clone());
+        config.inline_style = "citation-only".into();
+        config.comment_prefixes = vec!["/*".into()];
+        config.rebuild_grammar().expect("rebuild grammar");
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+
+        assert!(
+            !report
+                .errors
+                .iter()
+                .any(|error| error.code == "inline-citation-style"),
+            "block-comment `*` continuation markers must be stripped when `/*` is configured"
+        );
+    }
+
+    #[test]
     fn inline_note_config_rejects_soft_cap_above_hard_cap() {
         let root = test_root("inline_note_config_rejects_soft_cap_above_hard_cap");
         write(
