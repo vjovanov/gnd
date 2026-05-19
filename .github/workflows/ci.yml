@@ -51,6 +51,10 @@ jobs:
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
 
+      - name: changelog PR entry
+        if: github.event_name == 'pull_request'
+        run: python scripts/check_changelog_pr_entry.py --pr-number "${{ github.event.pull_request.number }}"
+
       - name: python tests
         run: python -m unittest discover -s tests -p 'test_*.py'
 
