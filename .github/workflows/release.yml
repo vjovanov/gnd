@@ -111,11 +111,21 @@ jobs:
             '
           }
 
-          root_version="$(workspace_version "$manifest_ref")"
+          root_manifest_version() {
+            local ref="$1"
+            local version
+            version="$(workspace_version "$ref")"
+            if [ -z "$version" ]; then
+              version="$(manifest_version "$ref" Cargo.toml)"
+            fi
+            printf '%s\n' "$version"
+          }
+
+          root_version="$(root_manifest_version "$manifest_ref")"
           core_version="$(manifest_version "$manifest_ref" crates/grund-core/Cargo.toml)"
 
           if [ "$root_version" != "$version" ]; then
-            echo "error: ${manifest_ref}: workspace package version is $root_version, expected $version" >&2
+            echo "error: ${manifest_ref}: root package version is $root_version, expected $version" >&2
             exit 1
           fi
           if [ "$core_version" != "$version" ]; then
@@ -227,16 +237,26 @@ jobs:
             '
           }
 
+          root_manifest_version() {
+            local ref="$1"
+            local version
+            version="$(workspace_version "$ref")"
+            if [ -z "$version" ]; then
+              version="$(manifest_version "$ref" Cargo.toml)"
+            fi
+            printf '%s\n' "$version"
+          }
+
           emit_release_ref() {
             local ref="$1"
             local sha
             local root_version
             local core_version
 
-            root_version="$(workspace_version "$ref")"
+            root_version="$(root_manifest_version "$ref")"
             core_version="$(manifest_version "$ref" crates/grund-core/Cargo.toml)"
             if [ "$root_version" != "$version" ]; then
-              echo "error: ${ref}: workspace package version is ${root_version}, expected ${version}" >&2
+              echo "error: ${ref}: root package version is ${root_version}, expected ${version}" >&2
               exit 1
             fi
             if [ "$core_version" != "$version" ]; then
