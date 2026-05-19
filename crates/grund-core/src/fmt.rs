@@ -41,7 +41,7 @@ fn command_fmt(args: &[String]) -> ExitCode {
         }
     };
     let config = context.render_config().clone();
-    let cross_refs = cross_refs || (write && config.fmt_cross_refs_enabled);
+    let explicit_cross_refs = cross_refs;
     // §FS-workspace.8.5: a workspace-root run wraps qualified citations in
     // *every* project's files — a heading rename in `api` must trigger a
     // `fmt` diff in any sibling project that wrapped a citation of the
@@ -70,6 +70,15 @@ fn command_fmt(args: &[String]) -> ExitCode {
         // `load_workspace_context` at project.root (§AR-workspace.8) — pass
         // them through so `fmt --cross-refs` does not re-scan every project.
         for project in &context.projects {
+            let auto_cross_refs =
+                match auto_cross_refs_for_scope(&project.config, Some(&project.config.root), true, write) {
+                    Ok(enabled) => enabled,
+                    Err(err) => {
+                        eprintln!("error: {err:#}");
+                        return ExitCode::from(2);
+                    }
+                };
+            let cross_refs = explicit_cross_refs || auto_cross_refs;
             let opts = FmtRunOpts {
                 add_marker: marker,
                 cross_refs,
@@ -99,6 +108,15 @@ fn command_fmt(args: &[String]) -> ExitCode {
         let reusable_findings = (!path_provided)
             .then(|| context.current_project().map(|project| &project.findings))
             .flatten();
+        let auto_cross_refs =
+            match auto_cross_refs_for_scope(&config, Some(&path), path_provided, write) {
+                Ok(enabled) => enabled,
+                Err(err) => {
+                    eprintln!("error: {err:#}");
+                    return ExitCode::from(2);
+                }
+            };
+        let cross_refs = explicit_cross_refs || auto_cross_refs;
         let opts = FmtRunOpts {
             add_marker: marker,
             cross_refs,
@@ -141,6 +159,28 @@ fn command_fmt(args: &[String]) -> ExitCode {
     } else {
         ExitCode::FAILURE
     }
+}
+
+fn auto_cross_refs_for_scope(
+    config: &Config,
+    scope: Option<&Path>,
+    explicit_scope: bool,
+    write: bool,
+) -> Result<bool> {
+    if !write || !config.fmt_cross_refs_enabled {
+        return Ok(false);
+    }
+    Ok(scope_contains_markdown(config, scope, explicit_scope)?)
+}
+
+fn scope_contains_markdown(
+    config: &Config,
+    scope: Option<&Path>,
+    explicit_scope: bool,
+) -> Result<bool> {
+    Ok(walk_scannable_files(config, scope, explicit_scope)?
+        .iter()
+        .any(|path| path.extension().and_then(|ext| ext.to_str()) == Some("md")))
 }
 
 /// Walk the tree and rewrite each scannable file line by line — never touching a

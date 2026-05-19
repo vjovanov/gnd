@@ -5,7 +5,7 @@
 
 ## 1. Context
 
-[§DF-md-link-emission](DF-md-link-emission.md#df-md-link-emission-grund-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations) gave `grund fmt --cross-refs` an opt-in mode that, in `.md` files, wraps each marker-prefixed citation in a Markdown link to the declaration body — `§FS-check.1` becomes `[§FS-check.1](FS-check.md#1-inputs)` — so a reader inside a *rendered* doc can click through. `grund` itself opts in (`[fmt.cross_refs] enabled = true`), so this repo's `.md` bodies carry the wrapped form on disk.
+[§DF-md-link-emission](DF-md-link-emission.md#df-md-link-emission-grund-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations) gave `grund fmt` a Markdown cross-reference mode that, in `.md` files, wraps each marker-prefixed citation in a Markdown link to the declaration body — `§FS-check.1` becomes `[§FS-check.1](FS-check.md#1-inputs)` — so a reader inside a *rendered* doc can click through. Generated configs now enable that mode by default (`[fmt.cross_refs] enabled = true`), so this repo's `.md` bodies carry the wrapped form on disk.
 
 `grund show` exists for the opposite consumer: an agent (human or AI) pulling one grounded fact into context, on the command line, without loading the whole file ([§FS-show](../../functional-spec/FS-show.md#fs-show-grund-reads-a-single-declaration-body-by-id), [§GOAL-friendliness-first](../../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible)). For that consumer the link wrapper is the wrong shape twice over:
 

@@ -11,7 +11,7 @@ model is based on stable ID citations. A Markdown link is useful for a human in 
 browser or IDE preview, but it is path-coupled and anchor-coupled. An ID citation
 is location-independent and works across Markdown and source doc-comments.
 
-The current direction in [§DF-md-link-emission](../../decisions/functional/DF-md-link-emission.md#df-md-link-emission-grund-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations) and [§FS-fmt.6](../../functional-spec/FS-fmt.md#6-cross-reference-emission-with---cross-refs) is to keep IDs as the
+The current direction in [§DF-md-link-emission](../../decisions/functional/DF-md-link-emission.md#df-md-link-emission-grund-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations) and [§FS-fmt.6](../../functional-spec/FS-fmt.md#6-cross-reference-emission) is to keep IDs as the
 source of truth and let `grund fmt --cross-refs` generate Markdown links around
 marker-prefixed citations in `.md` files.
 

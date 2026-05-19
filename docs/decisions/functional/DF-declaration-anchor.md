@@ -27,7 +27,7 @@ Citations remain the source of truth; this is still a presentation layer ([§DF-
 - [§GOAL-no-silent-breakage](../../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — same conditional-on-`fmt` guarantee as every other `--cross-refs` rewrite: a declaration heading rename produces a one-line `fmt` diff on the next pass ([§DF-md-link-anchor-strategy.2.2](DF-md-link-anchor-strategy.md#22-re-derive-on-every-pass-supersede-fs-fmt63)), not a silently-dead anchor.
 - [§FS-non-goals.13](../../functional-spec/FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree) (two installs agree) — still byte-deterministic on `(tree, config)`.
 - [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation) (no link validation) — `grund check` still does not validate `#fragment`s; the anchor is correct-by-construction at emission, and `lychee --include-fragments` in this repo's pre-commit hook ([§FS-fmt.4](../../functional-spec/FS-fmt.md#4-why-this-exists)) is the repo-local cross-check.
-- [§GOAL-zero-config](../../goals.md#goal-zero-config-works-on-any-conformant-tree) — opt-in via `--cross-refs` / `[fmt.cross_refs] enabled`; the `github` default fits the common host, so it works out of the box for the majority ([§DF-md-link-emission.2.4](DF-md-link-emission.md#24-opt-in-never-default)).
+- [§GOAL-zero-config](../../goals.md#goal-zero-config-works-on-any-conformant-tree) — `fmt --write` emits cross-reference links by default via `[fmt.cross_refs] enabled`; the `github` default fits the common host, so it works out of the box for the majority ([§DF-md-link-emission.2.4](DF-md-link-emission.md#24-default-on-for-generated-configs)).
 
 ## 4. Consequences
 

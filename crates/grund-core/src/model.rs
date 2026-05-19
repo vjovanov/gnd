@@ -263,7 +263,7 @@ impl Config {
             slug_pattern: DEFAULT_SLUG_PATTERN.into(),
             section_heading_levels: "strict".into(),
             kinds,
-            fmt_cross_refs_enabled: false,
+            fmt_cross_refs_enabled: true,
             cross_ref_anchor_format: "github".into(),
             workspace_declared: false,
             workspace_members: Vec::new(),

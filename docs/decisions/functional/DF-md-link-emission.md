@@ -13,7 +13,7 @@ We want to keep IDs as the source of truth and *also* deliver clickable links in
 
 ## 2. Decision
 
-Extend `grund fmt` (per [§FS-fmt.6](../../functional-spec/FS-fmt.md#6-cross-reference-emission-with---cross-refs)) with an opt-in `--cross-refs` mode that, in `.md` files only, wraps each marker-prefixed citation in a Markdown link to the declaration body. The unwrapped citation remains the canonical, source-of-truth form; the wrap is a derived presentation layer that `fmt` regenerates idempotently.
+Extend `grund fmt` (per [§FS-fmt.6](../../functional-spec/FS-fmt.md#6-cross-reference-emission)) with Markdown cross-reference emission that, in `.md` files only, wraps each marker-prefixed citation in a Markdown link to the declaration body. The unwrapped citation remains the canonical, source-of-truth form; the wrap is a derived presentation layer that `fmt` regenerates idempotently.
 
 ### 2.1 Form
 
@@ -44,9 +44,11 @@ Wrap-the-citation keeps one artifact per citation, keeps the cite human-readable
 
 When the citation's declaration lives in source code (a stub of the form `# <ID>: [<src/path>](<src/path>)` points the ID at a source file), the wrapped link targets the source file with no anchor — e.g., `[§<ID>](../../src/path.rs)`. The host renderer will not jump inside a Rustdoc, but the reader lands on the right file. This is the best available answer until renderers learn doc-comment fragments — the alternative (skip emission entirely) would punish the very polyglot case the project is built around.
 
-### 2.4 Opt-in, never default
+### 2.4 Default-on for generated configs
 
-`--cross-refs` is opt-in per invocation; `[fmt.cross_refs] enabled = true` opts a repo in globally. Three reasons (per [§FS-fmt.6.6](../../functional-spec/FS-fmt.md#66-why---cross-refs-is-opt-in)): paths in links are coupled to the file's location and rebase noisily under heavy refactor; alternative renderers (Pandoc, etc.) need different anchor formats; and treating wrapped form as canonical would imply the rendered Markdown view is the source of truth, which it is not.
+`[fmt.cross_refs] enabled = true` is the default and is emitted by generated `.agents/grund.toml` files. That means `grund fmt --write` emits Markdown links in `.md` files without requiring `--cross-refs`; `enabled = false` opts a repo out, and `--cross-refs` still forces the pass for a single invocation. The default changed because rendered Markdown is the common reading surface, especially for GitHub code review and external discovery, and the wrap is now a normal derived artifact kept fresh by `fmt`, not something users should maintain by hand ([§FS-fmt.6.6](../../functional-spec/FS-fmt.md#66-why-generated-configs-enable-cross-references), [§DF-md-link-default-on](DF-md-link-default-on.md#df-md-link-default-on-markdown-cross-reference-links-default-on-for-github-review-and-discovery)).
+
+This does not make Markdown links canonical. The citation text inside the brackets is still the source of truth; `grund check` validates the citation, `grund show` resolves the ID, and `grund fmt` re-derives the URL. Projects with path-churn or a non-rendered Markdown workflow can set `enabled = false`; projects with a non-GitHub renderer choose the matching `anchor_format`.
 
 ## 3. Reconciliation with non-goals
 
@@ -65,8 +67,8 @@ The link emission is a transformation on the source `.md` file (a sibling of the
 - A new `--cross-refs` flag on `grund fmt` and a `[fmt.cross_refs]` config block in `grund.toml` ([§FS-fmt.6.7](../../functional-spec/FS-fmt.md#67-configurability)).
 - A new roadmap item [§RM-md-link-emission](../../roadmap.md#rm-md-link-emission-grund-fmt---cross-refs) carries the implementation.
 - The [§GOAL-polyglot-citation](../../goals.md#goal-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) goal explicitly states that the polyglot grammar is the canonical form; this decision is the sanctioned exception that adds a presentation-layer view in `.md` only.
-- Repos that adopt `--cross-refs` should run `grund fmt --cross-refs --write` as a pre-commit hook so the generated links stay in sync with file moves and citation edits. CI should run `grund fmt --cross-refs --check` to flag drift.
-- The [§GOAL-no-silent-breakage](../../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) path: shipping the flag does not change any existing behavior; `--cross-refs` and `[fmt.cross_refs] enabled = true` are both off by default, so a repo that does not opt in sees no diff.
+- Repos that keep the default should run `grund fmt --write` as a pre-commit hook so the generated links stay in sync with file moves and citation edits. CI that wants to flag link drift without writing should run `grund fmt --cross-refs --check`, because `enabled = true` auto-runs the link pass only for `--write`.
+- The [§GOAL-no-silent-breakage](../../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) path: generated configs write `enabled = true` explicitly so new repos see and can edit the default. Existing repos that do not want Markdown links can pin `enabled = false`; the flag remains an explicit one-shot opt-in.
 
 ## 5. Alternatives considered
 
@@ -74,5 +76,5 @@ The link emission is a transformation on the source `.md` file (a sibling of the
 |---|---|
 | Markdown links as the source of truth (delete the ID grammar) | Loses the polyglot property entirely — the reason `grund` exists per [§GOAL-polyglot-citation](../../goals.md#goal-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) and [§GND-grund](../../grund.md#gnd-grund-agents-stay-grounded-in-the-spec). Source comments cannot host clickable Markdown. |
 | Render IDs to links at publish time, in a downstream tool | Pushes the work to every consumer — MkDocs plugin, GitHub Action, IDE preview — and gives each one a chance to disagree on the link target. Doing it once in `grund fmt` keeps two installs in agreement ([§FS-non-goals.13](../../functional-spec/FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)). |
-| Always emit links (no opt-in) | Surprises existing repos with a large mechanical diff on first upgrade; couples every `.md` to its current path layout; violates [§GOAL-no-silent-breakage](../../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path). |
+| Always emit links with no config knob | Leaves path-churn-heavy repos no escape hatch. The chosen default keeps links on for generated/new configs but preserves `enabled = false` as a visible opt-out. |
 | Heading-text slugs for anchors | Brittle under heading edits; would force `fmt` to rewrite anchors whenever prose changes; runs counter to "IDs survive refactors" — the property this project exists to defend. |
