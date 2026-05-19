@@ -309,10 +309,10 @@ fn comment_block_kind(line: &str, is_py: bool, config: &Config) -> Option<Commen
     if trimmed.is_empty() {
         return None;
     }
-    if is_py && python_docstring_quote(line).is_some() {
+    if config.docstring_python && is_py && python_docstring_quote(line).is_some() {
         return Some(CommentBlockKind::PythonDocstring);
     }
-    if trimmed.starts_with("/*") {
+    if config.comment_prefixes.iter().any(|prefix| prefix == "/*") && trimmed.starts_with("/*") {
         return Some(CommentBlockKind::Block);
     }
     line_comment_marker(trimmed, config).map(CommentBlockKind::Line)
@@ -379,7 +379,7 @@ fn block_has_inline_note(
 ) -> bool {
     lines.iter().any(|line| {
         let tokenless = remove_inline_citation_tokens(line, config, workspace_targets);
-        let clean = strip_comment_tokens(&tokenless);
+        let clean = strip_comment_tokens(&tokenless, config);
         !clean.trim().is_empty()
     })
 }
@@ -480,14 +480,14 @@ fn citation_token_ranges(
     ranges
 }
 
-fn strip_comment_tokens(line: &str) -> String {
+fn strip_comment_tokens(line: &str, config: &Config) -> String {
     let marker_start = line
         .char_indices()
         .find_map(|(idx, ch)| (!ch.is_whitespace()).then_some(idx))
         .unwrap_or(line.len());
     let (_, body) = line.split_at(marker_start);
     let mut rest = body;
-    for prefix in ["/**", "/*", "///", "//!", "//", "*/", "#", ";", "--", "*", "\"\"\"", "'''"] {
+    for prefix in comment_strip_prefixes(config) {
         if let Some(stripped) = rest.strip_prefix(prefix) {
             rest = stripped.strip_prefix(' ').unwrap_or(stripped);
             break;
@@ -500,6 +500,20 @@ fn strip_comment_tokens(line: &str) -> String {
         .or_else(|| trimmed_end.strip_suffix("'''"))
         .unwrap_or(trimmed_end);
     rest.to_string()
+}
+
+fn comment_strip_prefixes(config: &Config) -> Vec<&str> {
+    let mut prefixes = vec!["/**", "/*", "*/", "\"\"\"", "'''"];
+    for prefix in &config.comment_prefixes {
+        if prefix == "//" {
+            prefixes.extend(["///", "//!", "//"]);
+        } else if !prefix.is_empty() {
+            prefixes.push(prefix.as_str());
+        }
+    }
+    prefixes.sort_by_key(|prefix| std::cmp::Reverse(prefix.len()));
+    prefixes.dedup();
+    prefixes
 }
 
 /// §FS-workspace.5: a member-local scan must still recognize marker-qualified
