@@ -11,3 +11,4 @@ Current proposals:
 - [§DISC-link-support](proposals/2026-05-09-link-support.md#disc-link-support-link-support-as-a-derived-presentation-layer)
 - [§DISC-external-ticket-resolvers](proposals/2026-05-09-external-ticket-resolvers.md#disc-external-ticket-resolvers-external-ticket-resolvers)
 - [§DISC-init-workspace-members](proposals/2026-05-17-init-workspace-members.md#disc-init-workspace-members-have-init-mention-workspace-members)
+- [§DISC-skill-init-existing-specs](proposals/2026-05-19-skill-init-existing-specs.md#disc-skill-init-existing-specs-grund-init-skill-behavior-for-repos-that-already-have-specs)
