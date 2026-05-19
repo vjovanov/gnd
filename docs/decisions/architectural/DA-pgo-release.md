@@ -19,7 +19,7 @@ This applies to **release and benchmarking** paths only. `cargo install grund` b
 
 ### 3.1 The benchmark workload is already the canonical "hot path"
 
-[§AR-benchmarks](../../architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands) picked its self-repo command set because it is what the agent loop and the CI/pre-commit gate actually run. Reusing it as the PGO training corpus means there is **one** definition of "the everyday operations that matter": the thing we benchmark on this repo is the thing we profile against, and when that hot command list changes, both the regression meter and the optimizer's input move together. The generated `check_large_10k` benchmark stays outside PGO training because it exists to enforce the large-repo budget, not to model a release user's typical invocation. The command list is duplicated in two forms (a Rust array in `benches/instructions.rs`, a shell loop in `scripts/pgo-build.sh`) because one is a `cargo bench` target and the other a build script; each carries a "keep in sync" comment pointing at the other.
+[§AR-benchmarks](../../architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands) picked its self-repo command set because it is what the agent loop and the CI/pre-commit gate actually run. Reusing it as the PGO training corpus means there is **one** definition of "the everyday operations that matter": the thing we benchmark on this repo is the thing we profile against, and when that hot command list changes, both the regression meter and the optimizer's input move together. The generated `check_large_10k` benchmark stays outside PGO training because it exists to enforce the large-repo budget, not to model a release user's typical invocation. The command list is duplicated in two forms (a Rust array in `crates/grund-cli/benches/instructions.rs`, a shell loop in `scripts/pgo-build.sh`) because one is a `cargo bench` target and the other a build script; each carries a "keep in sync" comment pointing at the other.
 
 ### 3.2 This repo's tree as the training input
 
@@ -35,7 +35,7 @@ The training run scans `grund`'s own repository — the same input the self-host
 
 ### 3.5 Release and benchmark verification, not development CI
 
-PGO that is documented but never run rots, but running two optimized builds on every push makes normal development feedback slower for a packaging concern. The script is therefore exercised by the manual pre-release workflow, by the release pipeline that produces distributed artifacts, and by explicit benchmark work when comparing the optimized release artifact. The regular development loop stays on `cargo build`, `cargo test`, `grund check`, and `cargo bench --features bench --bench instructions`; the benchmark job records the hot workload without turning every push into a PGO release build.
+PGO that is documented but never run rots, but running two optimized builds on every push makes normal development feedback slower for a packaging concern. The script is therefore exercised by the manual pre-release workflow, by the release pipeline that produces distributed artifacts, and by explicit benchmark work when comparing the optimized release artifact. The regular development loop stays on `cargo build`, `cargo test`, `grund check`, and `cargo bench -p grund --features bench --bench instructions`; the benchmark job records the hot workload without turning every push into a PGO release build.
 
 ## 4. Consequences
 

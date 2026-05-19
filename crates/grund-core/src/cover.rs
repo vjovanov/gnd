@@ -1,4 +1,4 @@
-fn command_cover(args: &[String]) -> ExitCode {
+pub fn command_cover(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
     let mut format_override: Option<String> = None;

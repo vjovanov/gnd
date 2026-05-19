@@ -9,7 +9,7 @@ set -euo pipefail
 # §AR-benchmarks self-repo workload against this repo's own conformant tree to
 # produce `.profraw` profiles, merge them, then rebuild the release binary with
 # `-Cprofile-use`. The training workload is deliberately the same hot command
-# list `benches/instructions.rs` benchmarks on this repo. The generated
+# list `crates/grund-cli/benches/instructions.rs` benchmarks on this repo. The generated
 # `check_large_10k` benchmark is a CI budget input, not release-profile training
 # data.
 #
@@ -60,7 +60,7 @@ esac
 grund="$repo/target/release/grund$exe_suffix"
 
 echo "==> 2/3  training run — the §AR-benchmarks workload"
-# Keep this self-repo hot command list in sync with benches/instructions.rs.
+# Keep this self-repo hot command list in sync with crates/grund-cli/benches/instructions.rs.
 # Exit codes are irrelevant here (a non-canonical tree makes `fmt --check` exit
 # 1); we only want the code paths exercised.
 set +e

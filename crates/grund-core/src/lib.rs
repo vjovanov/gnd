@@ -30,6 +30,6 @@ include!("list.rs");
 include!("completions.rs");
 include!("init_templates.rs");
 include!("init.rs");
-include!("cli_help.rs");
-include!("cli.rs");
+include!("api.rs");
+include!("compat_cli.rs");
 include!("tests.rs");

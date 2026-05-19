@@ -66,7 +66,7 @@ mod tests {
             true,
         )
         .expect("scan scoped file");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             report.errors.is_empty(),
@@ -85,7 +85,7 @@ mod tests {
         let config = Config::default_for(root.clone());
         let (findings, _) =
             scan_tree(&config, Some(&root.join("src/app.rs")), true).expect("scan source file");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             report.errors.is_empty(),
@@ -100,7 +100,7 @@ mod tests {
 
         let config = Config::default_for(root.clone());
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             !report.errors.iter().any(|e| e.code == "ungrounded"),
@@ -124,7 +124,7 @@ mod tests {
         let mut config = Config::default_for(root.clone());
         config.require_grounding = true;
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         let ungrounded: Vec<_> = report
             .errors
@@ -154,7 +154,7 @@ mod tests {
         let mut config = Config::default_for(root.clone());
         config.inline_style = "citation-only".into();
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
         let style_errors = report
             .errors
             .iter()
@@ -185,7 +185,7 @@ mod tests {
         config.inline_note_max_lines = 1;
         config.inline_note_max_columns = 40;
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
         let messages = report
             .errors
             .iter()
@@ -218,7 +218,7 @@ mod tests {
         let mut config = Config::default_for(root.clone());
         config.warn_on_suggested = true;
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             report
@@ -252,7 +252,7 @@ mod tests {
         let mut config = Config::default_for(root.clone());
         config.inline_style = "citation-only".into();
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             !report
@@ -279,7 +279,7 @@ mod tests {
         config.docstring_python = false;
         config.inline_note_max_lines = 1;
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             !report
@@ -304,7 +304,7 @@ mod tests {
         config.comment_prefixes = vec!["%".into()];
         config.rebuild_grammar().expect("rebuild grammar");
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             !report
@@ -332,7 +332,7 @@ mod tests {
         config.comment_prefixes = vec!["/*".into()];
         config.rebuild_grammar().expect("rebuild grammar");
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             !report
@@ -427,6 +427,90 @@ mod tests {
     }
 
     #[test]
+    fn public_embedding_api_checks_and_shows_without_cli_dispatch() {
+        let root = test_root("public_embedding_api_checks_and_shows_without_cli_dispatch");
+        write(
+            &root.join("docs/functional-spec/FS-001-alpha.md"),
+            "# FS-001-alpha: Alpha\n\nLead.\n",
+        );
+
+        let report = check(&root).expect("public check api");
+        assert!(report.errors.is_empty(), "expected no errors");
+
+        let shown = show(
+            "FS-001-alpha",
+            ShowOpts {
+                path: root.clone(),
+                ..ShowOpts::default()
+            },
+        )
+        .expect("public show api");
+        assert_eq!(shown.body, "Lead.\n");
+        assert_eq!(shown.line, 1);
+
+        let shown_json = show(
+            "FS-001-alpha",
+            ShowOpts {
+                path: root,
+                format: ShowFormat::Json,
+                ..ShowOpts::default()
+            },
+        )
+        .expect("public show json api");
+        let expected_json = format!(
+            "{{\"id\":\"FS-001-alpha\",\"section\":null,\"body\":\"Lead.\\n\",\"path\":\"{}\",\"line\":1}}",
+            format_path(&shown_json.path)
+        );
+        assert_eq!(
+            shown_json.json.as_deref(),
+            Some(expected_json.as_str())
+        );
+    }
+
+    #[test]
+    fn public_check_api_returns_relative_slash_normalized_paths() {
+        let root = test_root("public_check_api_returns_relative_slash_normalized_paths");
+        write(&root.join(".agents/grund.toml"), "grund_config_version = 1\n");
+        write(
+            &root.join("docs/functional-spec/FS-001-alpha.md"),
+            "# FS-001-alpha: Alpha\n\nLead.\n",
+        );
+        write(
+            &root.join("docs/functional-spec/FS-001-alpha-copy.md"),
+            "# FS-001-alpha: Alpha copy\n\nLead.\n",
+        );
+
+        let report = check(&root).expect("public check api");
+        let duplicate = report
+            .errors
+            .iter()
+            .find(|finding| finding.code == "duplicate")
+            .expect("duplicate diagnostic");
+        let path = duplicate.path.as_deref().expect("diagnostic path");
+        assert!(!Path::new(path).is_absolute(), "path must be relative");
+        assert!(!path.contains('\\'), "path must use slash separators");
+        assert!(path.starts_with("docs/functional-spec/"));
+        for site in &duplicate.sites {
+            assert!(
+                !Path::new(&site.path).is_absolute(),
+                "site path must be relative"
+            );
+            assert!(
+                !site.path.contains('\\'),
+                "site path must use slash separators"
+            );
+            assert!(site.path.starts_with("docs/functional-spec/"));
+        }
+    }
+
+    #[test]
+    fn deprecated_main_entry_symbol_remains_available_for_0_4_consumers() {
+        #[allow(deprecated)]
+        let entry: fn() -> ExitCode = main_entry;
+        let _ = entry;
+    }
+
+    #[test]
     fn workspace_boundary_root_is_not_scanned_as_parent_content() {
         let root = test_root("workspace_boundary_root_is_not_scanned_as_parent_content");
         write(
@@ -473,7 +557,7 @@ mod tests {
         config.workspace_boundary_roots = vec![canonical_test_path(&root.join("apps/api"))];
         config.rebuild_grammar().expect("rebuild grammar");
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             report.errors.iter().any(|error| error.code == "dangling"),
@@ -588,7 +672,7 @@ mod tests {
             "foreign-shaped qualified citation should be recognised"
         );
 
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
         assert!(
             report.errors.iter().any(|error| {
                 error.code == "unknown-project" && error.message == "unknown project alias root"
@@ -710,7 +794,7 @@ members = ["apps/api"]
             &project.findings,
             &id,
             None,
-            ShowMode::Default,
+            ShowRenderMode::Default,
             false,
         )
         .expect("show member declaration");
@@ -791,7 +875,7 @@ members = ["apps/api"]
         let mut config = Config::default_for(root.clone());
         config.require_grounding = true;
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             !report.errors.iter().any(|e| e.code == "ungrounded"),
@@ -810,7 +894,7 @@ members = ["apps/api"]
         let mut config = Config::default_for(root.clone());
         config.require_grounding = true;
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             !report.errors.iter().any(|e| e.code == "ungrounded"),
@@ -829,7 +913,7 @@ members = ["apps/api"]
         let mut config = Config::default_for(root.clone());
         config.require_grounding = true;
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             report.errors.iter().any(|e| e.code == "dangling"),
@@ -929,7 +1013,7 @@ members = ["apps/api"]
 
         let config = Config::default_for(root.clone());
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             !report
@@ -949,7 +1033,7 @@ members = ["apps/api"]
             num: Some(1),
             slug: Some("router".to_string()),
         };
-        let shown = show_declaration(&config, &findings, &id, None, ShowMode::Default, false)
+        let shown = show_declaration(&config, &findings, &id, None, ShowRenderMode::Default, false)
             .expect("show inline declaration");
 
         assert_eq!(
@@ -973,7 +1057,7 @@ members = ["apps/api"]
 
         let config = Config::default_for(root.clone());
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             !report
@@ -993,7 +1077,7 @@ members = ["apps/api"]
             num: Some(1),
             slug: Some("router".to_string()),
         };
-        let shown = show_declaration(&config, &findings, &id, None, ShowMode::Default, false)
+        let shown = show_declaration(&config, &findings, &id, None, ShowRenderMode::Default, false)
             .expect("show inline declaration through fallback");
 
         assert_eq!(
@@ -1023,7 +1107,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
         );
         let config = load_config(&root).expect("load config");
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             report
@@ -1245,7 +1329,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
         let config = Config::default_for(root.clone());
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
 
         assert!(
             report
@@ -1271,7 +1355,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
         let config = Config::default_for(root.clone());
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
         let expected_path = root.join("CLAUDE.md");
 
         assert!(
@@ -1303,7 +1387,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
         let config = Config::default_for(root.clone());
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
         let expected_path = root.join(".rules");
 
         assert!(
@@ -1333,7 +1417,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
         let config = Config::default_for(root.clone());
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
         let expected_path = root.join(".rules");
 
         assert!(
@@ -1363,7 +1447,7 @@ slug_pattern = "[a-z0-9][a-z0-9-]*"
 
         let config = Config::default_for(root.clone());
         let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
-        let report = check(&findings, &config);
+        let report = check_findings(&findings, &config);
         let generic_rules = root.join(".rules");
 
         assert!(

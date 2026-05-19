@@ -8,7 +8,7 @@ const E2E_README_TEMPLATE: &str = include_str!("../assets/templates/e2e-README.m
 const FS_README_TEMPLATE: &str = include_str!("../assets/templates/functional-spec-README.md");
 const AS_README_TEMPLATE: &str = include_str!("../assets/templates/architecture-README.md");
 const GITKEEP_TEMPLATE: &str = include_str!("../assets/templates/gitkeep.md");
-const AGENT_SETUP_INSTRUCTIONS: &str = include_str!("../assets/skills/grund-init/SKILL.md");
+pub const AGENT_SETUP_INSTRUCTIONS: &str = include_str!("../assets/skills/grund-init/SKILL.md");
 const AGENTS_BLOCK_VERSION: u32 = 2;
 const CANONICAL_AGENT_ENTRYPOINT: &str = "AGENTS.md";
 const COMPANION_AGENT_ENTRYPOINTS: &[CompanionAgentEntrypoint] = &[
@@ -150,7 +150,7 @@ enum InitCompanionAgentEntrypoint {
     MissingAlias(PathBuf),
 }
 
-fn canonical_template_text(template: &str) -> String {
+pub fn canonical_template_text(template: &str) -> String {
     template.replace("\r\n", "\n").replace('\r', "\n")
 }
 

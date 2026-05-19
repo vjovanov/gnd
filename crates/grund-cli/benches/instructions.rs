@@ -1,37 +1,23 @@
-//! Instruction-counting benchmarks for the `grund` CLI — see
-//! `docs/architecture/AR-benchmarks.md`.
-//!
-//! Each benchmark runs the freshly built `grund` binary under Callgrind via
-//! `iai-callgrind`, so the reported figure is the deterministic instruction
-//! count for an actual CLI invocation against this repository's conformant
-//! tree. Instruction counts (unlike wall-clock time) do not flake on a loaded
-//! CI runner, which is what makes "track the number across commits and fail on
-//! regression" implementable — the meter the GOAL-fast-feedback budget asks for.
-//!
-//! The benched subcommands are the ones agents and CI invoke on every loop:
-//!
-//! - `check` — every save / commit / push; the headline operation.
-//! - `list` / `show --brief` / `show` / `show --full` / `refs` — the agent
-//!   grounding workflow (discover IDs, preview the title plus first paragraph,
-//!   read the lead-default slice, escalate to a full declaration body, see a
-//!   declaration's blast radius).
-//! - `cover` — what the co-change recipe / CI consume.
-//! - `fmt --check` — the pre-commit / CI normalization gate.
-//!
-//! Each command exits 0 on this repository's conformant tree, so iai-callgrind
-//! (which expects `ExitWith::Success`) is happy. On a *broken* tree — a dangling
-//! citation, a stray `$$` trigger — `check` / `fmt --check` exit non-zero and
-//! the bench fails; that is intentional, not a bug to paper over with
-//! `.exit_with(...)`: a baseline recorded against a broken tree is worthless.
-//!
-//! The self-repo command list also drives the release/benchmark PGO training run
-//! in `scripts/pgo-build.sh` (§DA-pgo-release). Keep those hot commands in sync;
-//! `check_large_10k` is a CI budget input, not release-profile training data.
-//!
-//! Run with `cargo bench --features bench --bench instructions` (requires Valgrind and
-//! `iai-callgrind-runner` on `PATH`; CI installs both — see
-//! `.github/workflows/ci.yml`). Without the `bench` feature this target builds
-//! to a no-op `main`, so `cargo test --all-targets` never needs Valgrind.
+// §AR-benchmarks: instruction-counting benches cover the hot CLI commands.
+//
+// Each benchmark runs the freshly built `grund` binary under Callgrind via
+// `iai-callgrind`, so the reported figure is the deterministic instruction
+// count for an actual CLI invocation against this repository's conformant
+// tree. Instruction counts (unlike wall-clock time) do not flake on a loaded
+// CI runner, which is what makes "track the number across commits and fail on
+// regression" implementable.
+//
+// The benched subcommands are the ones agents and CI invoke on every loop:
+// `check`, `list`, the `show` ladder, `refs`, `cover`, and `fmt --check`.
+//
+// Each command exits 0 on this repository's conformant tree, so iai-callgrind
+// is happy. On a broken tree, `check` / `fmt --check` exit non-zero and the
+// bench fails; a baseline recorded against a broken tree is worthless.
+//
+// The self-repo command list also drives the release/benchmark PGO training run
+// in `scripts/pgo-build.sh`; keep those hot commands in sync. Run with
+// `cargo bench -p grund --features bench --bench instructions` (requires Valgrind and
+// `iai-callgrind-runner` on `PATH`).
 
 #[cfg(feature = "bench")]
 use iai_callgrind::{Command, binary_benchmark, binary_benchmark_group, main};
@@ -47,7 +33,7 @@ const GRUND: &str = env!("CARGO_BIN_EXE_grund");
 /// This repository's root — the conformant tree every benchmark scans, matching
 /// the `grund .` self-host loop CI already runs.
 #[cfg(feature = "bench")]
-const REPO: &str = env!("CARGO_MANIFEST_DIR");
+const REPO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
 /// Generated large conformant fixture for the `grund check` 10k-file budget.
 #[cfg(feature = "bench")]
 const LARGE_REPO_REL: &str = "target/bench-fixtures/large-conformant-repo";
