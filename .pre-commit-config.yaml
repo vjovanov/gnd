@@ -37,6 +37,9 @@ repos:
       #   - `cargo test --workspace --all-targets --locked` matches the CI
       #     `cargo test` step and also runs at pre-push so broken tests block
       #     both commit-time and push-time workflows.
+      #   - `scripts/check_changelog_pr_entry.py --local-pr` mirrors the CI
+      #     PR-number changelog gate (§AR-ci.7) for follow-up pushes once a
+      #     branch has an open GitHub pull request.
       - id: cargo-fmt-check
         name: cargo fmt --check
         entry: cargo fmt --all -- --check
@@ -58,6 +61,13 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit, pre-push]
+      - id: changelog-pr-entry
+        name: changelog PR entry
+        entry: python scripts/check_changelog_pr_entry.py --local-pr
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
       - id: python-test
         name: python tests
         entry: python -m unittest discover -s tests -p test_*.py

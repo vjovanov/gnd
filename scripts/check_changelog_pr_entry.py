@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -50,6 +51,31 @@ def pr_number_from_event(event_path: Path) -> int | None:
     return number
 
 
+def pr_number_from_current_branch() -> int | None:
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", "--json", "number", "--jq", ".number"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        return None
+
+    if result.returncode != 0:
+        return None
+    output = result.stdout.strip()
+    if not output:
+        return None
+    try:
+        number = int(output)
+    except ValueError as exc:
+        raise ChangelogPrError(f"invalid pull request number from gh: {output!r}") from exc
+    if number <= 0:
+        raise ChangelogPrError(f"invalid pull request number from gh: {number!r}")
+    return number
+
+
 def _unreleased_body(changelog: Path) -> str:
     try:
         lines = changelog.read_text(encoding="utf-8").splitlines()
@@ -87,6 +113,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--changelog", type=Path, default=Path("docs/changelog.md"))
     parser.add_argument("--pr-number", type=int)
     parser.add_argument("--event-path", type=Path, default=None)
+    parser.add_argument(
+        "--local-pr",
+        action="store_true",
+        help="resolve the current branch PR with gh; skip if no PR is available",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -97,6 +128,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raw_event_path = os.environ.get("GITHUB_EVENT_PATH")
                 event_path = Path(raw_event_path) if raw_event_path else None
             pr_number = pr_number_from_event(event_path) if event_path is not None else None
+
+        if pr_number is None and args.local_pr:
+            pr_number = pr_number_from_current_branch()
 
         if pr_number is None:
             print("not a pull_request event; skipping changelog PR-entry check")

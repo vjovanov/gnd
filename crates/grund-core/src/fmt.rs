@@ -170,7 +170,7 @@ fn auto_cross_refs_for_scope(
     if !write || !config.fmt_cross_refs_enabled {
         return Ok(false);
     }
-    Ok(scope_contains_markdown(config, scope, explicit_scope)?)
+    scope_contains_markdown(config, scope, explicit_scope)
 }
 
 fn scope_contains_markdown(
