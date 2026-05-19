@@ -69,6 +69,18 @@ struct Citation {
     column: usize,
     has_marker: bool,
     text: String,
+    inline_site: Option<InlineCitationSite>,
+}
+
+/// The enclosing source-comment citation site for one citation
+/// (§FS-inline-citation-style.1, §FS-inline-citation-style.2.3). Markdown
+/// citations and citations outside recognized comment blocks carry `None`.
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+struct InlineCitationSite {
+    first_line: usize,
+    last_line: usize,
+    max_columns: usize,
+    has_note: bool,
 }
 
 #[derive(Clone)]
@@ -151,6 +163,11 @@ struct Config {
     /// source file that carries no resolving citation (and declares no ID inline).
     /// `--require-grounding` on `grund check` forces it on for one run.
     require_grounding: bool,
+    inline_style: String,
+    inline_note_suggested_lines: usize,
+    inline_note_max_lines: usize,
+    inline_note_max_columns: usize,
+    warn_on_suggested: bool,
     include: Option<Vec<String>>,
     exclude: Vec<String>,
     extensions: Vec<String>,
@@ -217,6 +234,11 @@ impl Config {
             trigger: "$$".to_string(),
             strict: false,
             require_grounding: false,
+            inline_style: "citation-with-note".into(),
+            inline_note_suggested_lines: 1,
+            inline_note_max_lines: 3,
+            inline_note_max_columns: 100,
+            warn_on_suggested: false,
             include: Some(
                 DEFAULT_INCLUDE
                     .iter()

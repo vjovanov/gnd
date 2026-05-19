@@ -1,0 +1,5 @@
+grund_config_version = 1
+
+[reference]
+inline_note_suggested_lines = 4
+inline_note_max_lines = 3

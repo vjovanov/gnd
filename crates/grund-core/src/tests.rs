@@ -139,6 +139,149 @@ mod tests {
         );
     }
 
+    #[test]
+    fn inline_citation_only_rejects_prose_once_per_site() {
+        let root = test_root("inline_citation_only_rejects_prose_once_per_site");
+        write(
+            &root.join("docs/functional-spec/FS-001-login.md"),
+            "# FS-001-login: Login\n",
+        );
+        write(
+            &root.join("src/auth.rs"),
+            "// §FS-001-login login branch rationale\n// §FS-001-login\npub fn login() {}\n",
+        );
+
+        let mut config = Config::default_for(root.clone());
+        config.inline_style = "citation-only".into();
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+        let style_errors = report
+            .errors
+            .iter()
+            .filter(|error| error.code == "inline-citation-style")
+            .collect::<Vec<_>>();
+
+        assert_eq!(style_errors.len(), 1, "one finding per offending site");
+        assert_eq!(style_errors[0].line, Some(1));
+        assert_eq!(
+            style_errors[0].message,
+            "inline citation must carry no prose"
+        );
+    }
+
+    #[test]
+    fn inline_note_hard_caps_can_report_multiple_errors() {
+        let root = test_root("inline_note_hard_caps_can_report_multiple_errors");
+        write(
+            &root.join("docs/functional-spec/FS-001-login.md"),
+            "# FS-001-login: Login\n",
+        );
+        write(
+            &root.join("src/auth.rs"),
+            "/// §FS-001-login rationale with a long line that exceeds the cap\n/// second line\npub fn login() {}\n",
+        );
+
+        let mut config = Config::default_for(root.clone());
+        config.inline_note_max_lines = 1;
+        config.inline_note_max_columns = 40;
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+        let messages = report
+            .errors
+            .iter()
+            .filter(|error| error.code == "inline-citation-style")
+            .map(|error| error.message.as_str())
+            .collect::<Vec<_>>();
+
+        assert!(
+            messages.contains(&"inline note exceeds 1-line maximum"),
+            "line cap should be reported: {messages:?}"
+        );
+        assert!(
+            messages.contains(&"inline note exceeds 40-column maximum"),
+            "column cap should be reported: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn inline_note_soft_cap_is_warning_only_when_enabled() {
+        let root = test_root("inline_note_soft_cap_is_warning_only_when_enabled");
+        write(
+            &root.join("docs/functional-spec/FS-001-login.md"),
+            "# FS-001-login: Login\n",
+        );
+        write(
+            &root.join("src/auth.rs"),
+            "// §FS-001-login rationale\n// continuation\npub fn login() {}\n",
+        );
+
+        let mut config = Config::default_for(root.clone());
+        config.warn_on_suggested = true;
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.code == "inline-citation-style"
+                    && warning.message == "inline note exceeds 1-line preferred limit"),
+            "soft-cap overrun should be a warning when enabled"
+        );
+        assert!(
+            !report
+                .errors
+                .iter()
+                .any(|error| error.code == "inline-citation-style"),
+            "soft-cap overrun within the hard cap must not be an error"
+        );
+    }
+
+    #[test]
+    fn inline_declaration_blocks_are_not_citation_style_sites() {
+        let root = test_root("inline_declaration_blocks_are_not_citation_style_sites");
+        write(
+            &root.join("docs/functional-spec/FS-002-beta.md"),
+            "# FS-002-beta: Beta\n",
+        );
+        write(
+            &root.join("src/auth.rs"),
+            "/// FS-001-login: Login\n/// §FS-002-beta body citation with prose\npub fn login() {}\n",
+        );
+
+        let mut config = Config::default_for(root.clone());
+        config.inline_style = "citation-only".into();
+        let (findings, _) = scan_tree(&config, Some(&root), true).expect("scan root");
+        let report = check(&findings, &config);
+
+        assert!(
+            !report
+                .errors
+                .iter()
+                .any(|error| error.code == "inline-citation-style"),
+            "inline spec declaration bodies are not style-checked"
+        );
+    }
+
+    #[test]
+    fn inline_note_config_rejects_soft_cap_above_hard_cap() {
+        let root = test_root("inline_note_config_rejects_soft_cap_above_hard_cap");
+        write(
+            &root.join(".agents/grund.toml"),
+            "grund_config_version = 1\n\n[reference]\ninline_note_suggested_lines = 4\ninline_note_max_lines = 3\n",
+        );
+
+        let err = match load_config(&root) {
+            Ok(_) => panic!("invalid inline-note caps should fail"),
+            Err(err) => err,
+        };
+        assert!(
+            err.to_string()
+                .contains("reference.inline_note_suggested_lines must be <= inline_note_max_lines"),
+            "unexpected error: {err:#}"
+        );
+    }
+
     /// §FS-workspace.1, §AR-workspace.3.1: a marker-prefixed qualified
     /// citation (`<§>alias/<ID>`) is recognised; an unmarked `alias/<ID>` in
     /// prose is text. There is one scan mode, not two.

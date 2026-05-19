@@ -196,6 +196,7 @@ fn agents_template_substitutions(
         )
     };
     let section_heading_note = section_heading_note(config, marker);
+    let inline_citation_style = inline_citation_style_sentence(config);
     vec![
         ("{NAME}", name.to_string()),
         ("{ID_SHAPE_SEC}", format!("{id_shape}[{sep}<section>]")),
@@ -205,6 +206,7 @@ fn agents_template_substitutions(
         ("{KINDS_SET}", kinds_set),
         ("{BARE_TOKEN_NOTE}", bare_note),
         ("{SECTION_HEADING_NOTE}", section_heading_note),
+        ("{INLINE_CITATION_STYLE}", inline_citation_style),
         ("{MARKER}", marker.to_string()),
         ("{TRIGGER}", config.trigger.clone()),
         ("{DECLARATION_MAP}", declaration_map(config)),
@@ -233,6 +235,32 @@ fn section_heading_note(config: &Config, marker: &str) -> String {
             "Numbered headings inside a declaration are citable sections: `{marker}<ID>{sep}1` / `{marker}<ID>{sep}1.1` resolve by dotted number, and depth-matching headings (`## 1. …`, `### 1.1 …`) are recommended for readability. Plain headings or bold labels are fine for non-citable local structure."
         ),
     }
+}
+
+fn inline_citation_style_sentence(config: &Config) -> String {
+    if config.inline_style == "citation-only" {
+        return "Inline citations carry no prose — put rationale in the spec.".to_string();
+    }
+    if config.inline_note_suggested_lines == config.inline_note_max_lines {
+        format!(
+            "Inline notes: ≤ {} line{}, ≤ {} columns.",
+            config.inline_note_max_lines,
+            plural(config.inline_note_max_lines),
+            config.inline_note_max_columns
+        )
+    } else {
+        format!(
+            "Inline notes: ≤ {} line{} preferred, hard cap {} lines; ≤ {} columns.",
+            config.inline_note_suggested_lines,
+            plural(config.inline_note_suggested_lines),
+            config.inline_note_max_lines,
+            config.inline_note_max_columns
+        )
+    }
+}
+
+fn plural(value: usize) -> &'static str {
+    if value == 1 { "" } else { "s" }
 }
 
 fn markdown_link_label(raw: &str) -> String {

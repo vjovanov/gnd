@@ -262,6 +262,11 @@ fn check_with_workspace(
         }
     }
 
+    // §FS-inline-citation-style.4: inline source-comment citation sites are
+    // checked from scanner-provided site metadata; Markdown citations and
+    // declaration bodies carry no site and are ignored here.
+    check_inline_citation_style(findings, config, &mut report);
+
     // §FS-check.3.4: a `# <ID>: [text](path)` stub is broken if `path` does not
     // exist, or exists but does not itself declare `<ID>` inline (§AR-checker.2.4).
     for (id, decls) in &findings.declarations {
@@ -397,6 +402,73 @@ fn section_depth(section_path: &str) -> usize {
 
 fn heading_marks(level: usize) -> String {
     "#".repeat(level)
+}
+
+fn check_inline_citation_style(findings: &Findings, config: &Config, report: &mut Report) {
+    let mut seen = BTreeSet::new();
+    for cite in &findings.citations {
+        let Some(site) = &cite.inline_site else {
+            continue;
+        };
+        if !seen.insert((cite.file.clone(), site.clone())) {
+            continue;
+        }
+        match config.inline_style.as_str() {
+            "citation-only" => {
+                if site.has_note {
+                    report.errors.push(Diagnostic {
+                        code: "inline-citation-style",
+                        path: Some(cite.file.clone()),
+                        line: Some(site.first_line),
+                        message: "inline citation must carry no prose".to_string(),
+                        sites: Vec::new(),
+                    });
+                }
+            }
+            _ => {
+                let lines = site.last_line - site.first_line + 1;
+                if lines > config.inline_note_max_lines {
+                    report.errors.push(Diagnostic {
+                        code: "inline-citation-style",
+                        path: Some(cite.file.clone()),
+                        line: Some(site.first_line),
+                        message: format!(
+                            "inline note exceeds {}-line maximum",
+                            config.inline_note_max_lines
+                        ),
+                        sites: Vec::new(),
+                    });
+                }
+                if site.max_columns > config.inline_note_max_columns {
+                    report.errors.push(Diagnostic {
+                        code: "inline-citation-style",
+                        path: Some(cite.file.clone()),
+                        line: Some(site.first_line),
+                        message: format!(
+                            "inline note exceeds {}-column maximum",
+                            config.inline_note_max_columns
+                        ),
+                        sites: Vec::new(),
+                    });
+                }
+                if config.warn_on_suggested
+                    && lines > config.inline_note_suggested_lines
+                    && lines <= config.inline_note_max_lines
+                {
+                    report.warnings.push(Diagnostic {
+                        code: "inline-citation-style",
+                        path: Some(cite.file.clone()),
+                        line: Some(site.first_line),
+                        message: format!(
+                            "inline note exceeds {}-line preferred limit",
+                            config.inline_note_suggested_lines
+                        ),
+                        sites: Vec::new(),
+                    });
+                }
+            }
+        }
+    }
 }
 
 fn target_for_citation<'a>(

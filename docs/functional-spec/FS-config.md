@@ -37,11 +37,20 @@ marker            = "§"      # default; rare character that prefixes a citation
 trigger           = "$$"     # default; typed sequence rewritten to marker by IDE plugin and `grund fmt`
 strict            = false    # default; if true, bare citations are NOT recognized
 require_grounding = false    # default; if true, `check` flags source files that cite no declared ID
+
+# Inline citation style — see [§FS-inline-citation-style](FS-inline-citation-style.md#fs-inline-citation-style-configurable-shape-of-inline-code-comment-citations)
+inline_style                 = "citation-with-note"   # default; alt: "citation-only"
+inline_note_suggested_lines  = 1                       # soft cap; advisory unless warn_on_suggested = true
+inline_note_max_lines        = 3                       # hard cap (error)
+inline_note_max_columns      = 100                     # hard cap (error)
+warn_on_suggested            = false                   # if true, soft-cap overruns surface as `check` warnings
 ```
 
 Per [§DF-reference-marker](../decisions/functional/DF-reference-marker.md#df-reference-marker-use--as-the-reference-marker-with--as-the-typing-trigger). `strict = true` requires a non-empty `marker`.
 
 `require_grounding = true` adds the ungrounded-source-file error ([§FS-check.3.6](FS-check.md#36-ungrounded-source-file-opt-in)): every scanned non-Markdown file must carry at least one resolving citation, or declare an ID inline. `grund check --require-grounding` forces it on for one run. Per [§DF-require-grounding](../decisions/functional/DF-require-grounding.md#df-require-grounding-an-opt-in-check-that-every-source-file-cites-a-spec); off by default so adopting the discipline is a deliberate step, like `strict`.
+
+`inline_style`, `inline_note_*`, and `warn_on_suggested` govern the shape of inline citations in code comments — whether a `§<ID>` token may be accompanied by a short rationale, and how long that rationale may run. The full contract — modes, enforcement, agent-facing rendering — lives in [§FS-inline-citation-style](FS-inline-citation-style.md#fs-inline-citation-style-configurable-shape-of-inline-code-comment-citations). Load-time invariant: `inline_note_suggested_lines ≤ inline_note_max_lines`. Under `inline_style = "citation-only"` the `inline_note_*` keys are inert (no note is ever permitted), but they are still parsed and printed by `grund config show` — the file is the canonical machine-readable form.
 
 ### 3.2 `[id]` — ID grammar
 
