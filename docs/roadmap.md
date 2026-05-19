@@ -2,43 +2,7 @@
 
 What `grund` plans to ship next, in priority order. Each item has a stable ID — `RM-<slug>` under this repo's `[id] format` ([§FS-config.3.2](functional-spec/FS-config.md#32-id--id-grammar)); `RM` is a configured `[[kinds]]` prefix ([§FS-config.3.4](functional-spec/FS-config.md#34-kinds--recognized-prefixes)), so `grund check` validates `§RM-…` citations like any other. Items may be cited from anywhere — commits, PRs, the changelog, other specs. Shipped items move their detail to `docs/changelog.md` and keep a one-line pointer in §"Shipped milestones" below so the citation does not dangle; cancelled items stay in place with a `~~strikethrough~~` title and a one-line reason.
 
-The check engine, the retrieval surface (`grund <ID>`, `grund refs`, including E2E case manifests), the coverage index (`grund cover`), bulk normalization (`grund fmt`, including `--marker` and `--cross-refs`), config loading (`.agents/grund.toml` plus `grund config show` / `grund config validate`), `grund init`, `grund id`, the opt-in grounding floor ([§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in)), the token-cheap read surfaces ([§RM-token-cheap-grounding](roadmap.md#rm-token-cheap-grounding-token-cheap-read-surfaces-for-agents)), and the e2e corpus are all shipped — see `docs/changelog.md`. Two arcs remain. The **distribution arc**: split the single binary into a `grund-core` library plus thin frontends, verify the package names, publish on npm and PyPI alongside cargo, ship the optional LSP server, and add `grund check --watch`. And the **grounding arc** (the third layer of [§GOAL-agent-grounding.1](goals.md#1-the-three-layers), diff-gated enforcement): build on [§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in) and [§FS-cover](functional-spec/FS-cover.md#fs-cover-grund-groups-citations-by-scanned-file) toward a diff-aware co-change gate — implementation cannot change without the spec it grounds in and without a test of it — via a pre-commit / CI recipe that consumes `grund cover` ([§RM-cochange-gate](roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test)). Four standalone items sit outside both arcs: [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets) captures a performance baseline against today's single-binary build before the distribution arc starts moving the engine around, [§RM-parallel-scan](roadmap.md#rm-parallel-scan-parallel-per-file-scanning-for-large-repo-throughput) uses that meter to evaluate parallel per-file scanning, [§RM-declaration-near-miss](roadmap.md#rm-declaration-near-miss-warn-on-a-heading-that-looks-like-a-declaration-but-does-not-match-id-format) adds a warning for a heading that looks like a declaration but does not match the configured `[id] format`, and [§RM-positioning](roadmap.md#rm-positioning-the-lychee-contrast-and-the-instruction-count-framing-in-readme-and-landing-copy) keeps the README/landing pitch paired with the benchmark story. The IDed milestones below project both arcs onto reviewable units of work.
-
-## RM-self-host: guard the self-host loop in CI
-
-`cargo run -- .` against this repository exits zero with the clean text `success` marker, and CI now enforces that self-host loop on every push and pull request. The fenced-block skip in the scanner and this repo's slug-only `[id] format` keep the `e2e/cases/*` fixture trees and the illustrative IDs out of the host report. What is still missing is an explicit fixture for the fixture-tree case.
-
-### 1. What
-
-One remaining piece: an e2e fixture exercising a tree with nested fixture directories under a canonical *default* config (numbered IDs, non-strict) and asserting they do not pollute the outer report — the default `[scan] exclude` plus scan rules must keep nested case dirs out without relying on a particular `[id] format`.
-
-### 2. Why now
-
-Self-host is the load-bearing demonstration of [§GOAL-no-dangling-refs](goals.md#goal-no-dangling-refs-every-cited-id-resolves-to-a-declaration) and [§GOAL-fast-feedback](goals.md#goal-fast-feedback-grund-must-be-as-fast-as-possible). The CI guard catches future regressions in this repo; the remaining fixture closes the gap for default-config fixture trees, where the pass should not lean on this repo's slug-only ID format.
-
-### 3. Measurable
-
-A new e2e fixture proves nested fixture directories are not scanned under the default config.
-
-## RM-benchmarks: a benchmark harness for the §GOAL-fast-feedback budgets
-
-Per [§GOAL-fast-feedback.1](goals.md#1-performance-targets) and [§GOAL-fast-feedback.3](goals.md#3-measurable). The budgets are written down — under 100 ms on this repo, under 1 s on a 10k-file repo. The instruction-counting `cargo bench` harness over the hot commands on this repo is in place ([§AR-benchmarks](architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands), decision in [§DA-benchmark-instruction-counting](decisions/architectural/DA-benchmark-instruction-counting.md#da-benchmark-instruction-counting-the-performance-harness-counts-instructions-not-wall-clock-seconds)) and CI runs it ([§AR-ci.5](architecture/AR-ci.md#5-benchmark-job)), so the per-commit number now exists; what is still missing is the 10k-file input, the committed baseline, and the build-failing threshold — so "CI fails on regression" is still a promise. Land the rest against the current 0.1.0 single-binary build before [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli) moves the engine into a library and [§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine) adds two more frontends.
-
-Put bluntly: performance is measured but not yet guarded. CI records instruction counts today — the workflow comment near `.github/workflows/ci.yml:107` says the build-failing regression threshold is still the remaining [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets) work — so the next improvement is to turn that recorded signal into an enforced contract.
-
-### 1. What
-
-Done: a `cargo bench` harness at `benches/instructions.rs` (gated behind a `bench` Cargo feature) that runs the built `grund` binary under Callgrind for the commands agents and CI run most — `check`, `list`, `show`, `refs`, `cover`, `fmt --check` — over this repo, reporting a deterministic instruction count per invocation; and a CI `bench` job that installs Valgrind + `iai-callgrind-runner` and runs it on every push ([§AR-benchmarks](architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands), [§AR-ci.5](architecture/AR-ci.md#5-benchmark-job)). Instruction count rather than wall-clock so the figure does not flake on a loaded runner — [§DA-benchmark-instruction-counting](decisions/architectural/DA-benchmark-instruction-counting.md#da-benchmark-instruction-counting-the-performance-harness-counts-instructions-not-wall-clock-seconds).
-
-Remaining: a generated large synthetic fixture — the "large conformant repo" fixture [§GOAL-small-and-large.5](goals.md#5-measurable) calls for, sized to fit the CI budget — added as a second input to the harness; the 0.1.0 instruction-count figures (and the recorded wall-clock ms headline) committed to `docs/changelog.md` (or `docs/benchmarks.md`) as the baseline; and the CI job comparing against that baseline and failing the build when a count crosses a regression threshold, which is what [§GOAL-fast-feedback.3](goals.md#3-measurable) ("CI tracks the number across commits and fails on regression") asks for. Allocation-count assertions ([§GOAL-fast-feedback.1](goals.md#1-performance-targets)'s "single allocation per file at most") are in scope if cheap to wire; otherwise they are a follow-up.
-
-### 2. Why now
-
-[§GOAL-fast-feedback](goals.md#goal-fast-feedback-grund-must-be-as-fast-as-possible) is one of the two ordering principles, and [§GOAL-fast-feedback.1](goals.md#1-performance-targets) says CI must fail on regression — but there is no harness, so the budget is unenforced. Establishing the baseline against today's code, before [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli) splits the engine out and [§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine) wraps it in napi-rs and PyO3 bindings, means any slowdown those refactors introduce shows up as a diff against a known-good number rather than going unnoticed. It also shares the synthetic-large-repo fixture with [§RM-self-host](roadmap.md#rm-self-host-guard-the-self-host-loop-in-ci)'s remaining nested-fixture-tree case and with [§GOAL-small-and-large](goals.md#goal-small-and-large-start-small-configure-for-big), so the generator is written once.
-
-### 3. Measurable
-
-`cargo bench` produces a stable per-run figure for `grund check` on this repo and on the 10k-file synthetic fixture; CI records both, fails when either crosses the [§GOAL-fast-feedback.1](goals.md#1-performance-targets) budget, and the 0.1.0 baseline is committed alongside the harness.
+The check engine, the retrieval surface (`grund <ID>`, `grund refs`, including E2E case manifests), the coverage index (`grund cover`), bulk normalization (`grund fmt`, including `--marker` and `--cross-refs`), config loading (`.agents/grund.toml` plus `grund config show` / `grund config validate`), `grund init`, `grund id`, the opt-in grounding floor ([§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in)), the token-cheap read surfaces ([§RM-token-cheap-grounding](roadmap.md#rm-token-cheap-grounding-token-cheap-read-surfaces-for-agents)), the e2e corpus, and the benchmark baseline/gate ([§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets)) are all shipped — see `docs/changelog.md`. Two arcs remain. The **distribution arc**: split the single binary into a `grund-core` library plus thin frontends, verify the package names, publish on npm and PyPI alongside cargo, ship the optional LSP server, and add `grund check --watch`. And the **grounding arc** (the third layer of [§GOAL-agent-grounding.1](goals.md#1-the-three-layers), diff-gated enforcement): build on [§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in) and [§FS-cover](functional-spec/FS-cover.md#fs-cover-grund-groups-citations-by-scanned-file) toward a diff-aware co-change gate — implementation cannot change without the spec it grounds in and without a test of it — via a pre-commit / CI recipe that consumes `grund cover` ([§RM-cochange-gate](roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test)). Three standalone items sit outside both arcs: [§RM-parallel-scan](roadmap.md#rm-parallel-scan-parallel-per-file-scanning-for-large-repo-throughput) uses the benchmark meter to evaluate parallel per-file scanning, [§RM-declaration-near-miss](roadmap.md#rm-declaration-near-miss-warn-on-a-heading-that-looks-like-a-declaration-but-does-not-match-id-format) adds a warning for a heading that looks like a declaration but does not match the configured `[id] format`, and [§RM-positioning](roadmap.md#rm-positioning-the-lychee-contrast-and-the-instruction-count-framing-in-readme-and-landing-copy) keeps the README/landing pitch paired with the benchmark story. The IDed milestones below project both arcs onto reviewable units of work.
 
 ## RM-parallel-scan: parallel per-file scanning for large-repo throughput
 
@@ -52,11 +16,11 @@ Workspace mode gets the same treatment at two levels: member projects may be sca
 
 ### 2. Why now
 
-[§GOAL-fast-feedback](goals.md#goal-fast-feedback-grund-must-be-as-fast-as-possible) makes speed an ordering principle, and [§GOAL-fast-feedback.1](goals.md#1-performance-targets) already names the 10k-file budget. Today's self-host repo is too small for thread parallelism to prove much — local warm `grund check .` is tens of milliseconds — but the large synthetic fixture planned in [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets) is exactly the input needed to tell whether parallel per-file scanning moves real large-repo throughput or only adds overhead.
+[§GOAL-fast-feedback](goals.md#goal-fast-feedback-grund-must-be-as-fast-as-possible) makes speed an ordering principle, and [§GOAL-fast-feedback.1](goals.md#1-performance-targets) already names the 10k-file budget. Today's self-host repo is too small for thread parallelism to prove much — local warm `grund check .` is tens of milliseconds — but the large synthetic fixture shipped by [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets) is exactly the input needed to tell whether parallel per-file scanning moves real large-repo throughput or only adds overhead.
 
 ### 3. Depends on
 
-- [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets) should land first, or at least its 10k-file synthetic fixture and baseline should exist, so the optimization is judged against the large-repo target rather than the small self-host tree.
+- [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets) supplies the 10k-file synthetic fixture and baseline, so this optimization is judged against the large-repo target rather than only the small self-host tree.
 
 ### 4. Measurable
 
@@ -207,7 +171,7 @@ Done: a short "vs. a link checker" block in the README:
 
 …landing on the closing line: **Lychee is the link checker; `grund` is the intent checker. Both belong in CI; they guard different failure modes.**
 
-Partially done: the README states the benchmark framing next to the local throughput badge. Once [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets) commits the baseline figure, place the explicit number beside this line: **`grund` measures performance by instruction count, not stopwatch time — same binary, same repo, same number — which gives CI a stable regression meter instead of a noisy timing guess** ([§DA-benchmark-instruction-counting](decisions/architectural/DA-benchmark-instruction-counting.md#da-benchmark-instruction-counting-the-performance-harness-counts-instructions-not-wall-clock-seconds), [§GOAL-fast-feedback.3](goals.md#3-measurable)).
+Done: the README states the benchmark framing next to the local throughput badge and names the committed instruction-count baseline from [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets): **`grund` measures performance by instruction count, not stopwatch time — same binary, same repo, same number — which gives CI a stable regression meter instead of a noisy timing guess** ([§DA-benchmark-instruction-counting](decisions/architectural/DA-benchmark-instruction-counting.md#da-benchmark-instruction-counting-the-performance-harness-counts-instructions-not-wall-clock-seconds), [§GOAL-fast-feedback.3](goals.md#3-measurable)).
 
 ### 2. Why now
 
@@ -215,11 +179,19 @@ The 0.1.0 product review found the README explained the *mechanism* well and the
 
 ### 3. Measurable
 
-The README (and landing page, if any) carries a "vs. link checkers" block whose closing line is the "link checker / intent checker" pair. When [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets) commits the 0.1.0 baseline, the benchmark section states the instruction-count-not-wall-clock framing alongside that number. `grund check` stays clean.
+The README (and landing page, if any) carries a "vs. link checkers" block whose closing line is the "link checker / intent checker" pair. The benchmark section states the instruction-count-not-wall-clock framing alongside the committed baseline from [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets). `grund check` stays clean.
 
 ## Shipped milestones
 
 Done milestones leave their full record in `docs/changelog.md` (the `Implemented` block of the latest release). They keep a one-line declaration here so existing `§RM-…` citations still resolve — the changelog has the detail.
+
+## RM-benchmarks: a benchmark harness for the §GOAL-fast-feedback budgets
+
+Shipped. The instruction-counting `cargo bench` harness now covers this repo plus a generated 10k-file conformant fixture, `docs/benchmarks.md` records the baseline, and pull-request CI fails on a >5% Callgrind instruction-count regression — see `docs/changelog.md`, [§AR-benchmarks](architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands), [§AR-ci.5](architecture/AR-ci.md#5-benchmark-job), and [§DA-benchmark-instruction-counting](decisions/architectural/DA-benchmark-instruction-counting.md#da-benchmark-instruction-counting-the-performance-harness-counts-instructions-not-wall-clock-seconds).
+
+## RM-self-host: guard the self-host loop in CI
+
+Shipped. CI self-checks this repository, the host scan ignores fixture repos, and the e2e corpus covers nested fixture directories under the canonical default config — see `docs/changelog.md` and [§AR-scanner.6](architecture/AR-scanner.md#6-e2e-case-declarations).
 
 ## RM-init-workspace-members: `init` mentions workspace members
 

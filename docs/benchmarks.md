@@ -2,6 +2,22 @@
 
 This report is a local wall-clock snapshot for the `grund` repo. It complements the instruction-counting CI benchmark in [§AR-benchmarks](architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands) and the baseline work tracked by [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets). It is meant for product-facing comparisons with Lychee; it is not the release-blocking regression meter.
 
+## Instruction-Count Baseline
+
+The release-blocking meter is Callgrind instruction count, not wall-clock time ([§DA-benchmark-instruction-counting](decisions/architectural/DA-benchmark-instruction-counting.md#da-benchmark-instruction-counting-the-performance-harness-counts-instructions-not-wall-clock-seconds)). Pull-request CI compares against the current base branch and fails when `Ir` grows by more than 5% ([§AR-ci.5](architecture/AR-ci.md#5-benchmark-job)); the table below is the committed human-readable baseline from `cargo bench --features bench --locked --bench instructions -- --save-baseline=main --save-summary=json` on 2026-05-19.
+
+| Benchmark | Input | Instructions (`Ir`) | Estimated Cycles |
+|---|---|---:|---:|
+| `check` | this repo | 278,278,428 | 401,210,807 |
+| `check_large_10k` | generated 10k-file fixture | 1,005,903,713 | 1,376,884,638 |
+| `list` | this repo | 269,695,929 | 388,661,924 |
+| `show_brief` | this repo | 263,844,566 | 380,785,790 |
+| `show` | this repo | 263,985,111 | 380,938,329 |
+| `show_full` | this repo | 271,194,777 | 391,665,351 |
+| `refs` | this repo | 263,821,734 | 380,473,397 |
+| `cover` | this repo | 281,832,923 | 405,581,555 |
+| `fmt_check` | this repo | 318,959,988 | 458,600,950 |
+
 ## Instructions
 
 Regenerate this report from the repository root:

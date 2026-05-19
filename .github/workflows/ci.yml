@@ -115,14 +115,16 @@ jobs:
   # §AR-ci.5). Kept out of the `test` matrix because the harness runs `grund` under
   # Callgrind — only this job needs Valgrind, and the `bench` Cargo feature gate
   # keeps the matrix above from building or running it. One platform: it measures
-  # instruction counts, not cross-platform behavior. Records the numbers per
-  # commit; the build-failing regression threshold on a committed baseline is the
-  # remaining §RM-benchmarks work.
+  # instruction counts, not cross-platform behavior. Pull requests save a
+  # base-branch baseline first, then fail when the PR crosses the §RM-benchmarks
+  # instruction-count threshold.
   bench:
     name: cargo bench (instruction counts)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -146,5 +148,25 @@ jobs:
           # The runner version must match the `iai-callgrind` dev-dependency in Cargo.toml.
           cargo install iai-callgrind-runner --version 0.16.1 --locked
 
+      - name: Save base branch benchmark baseline
+        if: github.event_name == 'pull_request'
+        run: |
+          git checkout --force "origin/${{ github.base_ref }}"
+          cargo bench --features bench --locked --bench instructions -- --save-baseline=main --save-summary=json
+          git checkout --force "${{ github.sha }}"
+
       - name: cargo bench
-        run: cargo bench --features bench --locked
+        if: github.event_name != 'pull_request'
+        run: cargo bench --features bench --locked --bench instructions -- --save-summary=json
+
+      - name: cargo bench regression gate
+        if: github.event_name == 'pull_request'
+        run: cargo bench --features bench --locked --bench instructions -- --baseline=main --callgrind-limits=ir=5.0% --save-summary=json
+
+      - name: Upload benchmark summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iai-callgrind-summaries
+          path: target/iai/**/summary.json
+          if-no-files-found: ignore

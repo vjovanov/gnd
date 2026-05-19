@@ -24,6 +24,10 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 
 ## Unreleased
 
+### Added
+
+- [§AR-benchmarks](architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands) / [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets): add the generated 10k-file benchmark fixture, record instruction-count baselines, and make pull-request CI fail on >5% Callgrind instruction-count regressions. PR #19.
+
 ### Fixed
 
 - [§AR-scanner.6](architecture/AR-scanner.md#6-e2e-case-declarations) / [§RM-self-host](roadmap.md#rm-self-host-guard-the-self-host-loop-in-ci): ordinary scans now treat direct E2E case directories as manifest boundaries, so nested fixture repos do not pollute the outer report under the canonical default config. PR #18.

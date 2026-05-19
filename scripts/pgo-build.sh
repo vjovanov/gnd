@@ -6,11 +6,12 @@ set -euo pipefail
 # or push/PR CI loop.
 #
 # Three phases: build an instrumented binary (`-Cprofile-generate`), run the
-# §AR-benchmarks workload against this repo's own conformant tree to produce
-# `.profraw` profiles, merge them, then rebuild the release binary with
-# `-Cprofile-use`. The training workload is deliberately the same set of
-# commands `benches/instructions.rs` benchmarks — the ones agents and CI invoke
-# most — so the profile reflects the hot paths the tool actually runs.
+# §AR-benchmarks self-repo workload against this repo's own conformant tree to
+# produce `.profraw` profiles, merge them, then rebuild the release binary with
+# `-Cprofile-use`. The training workload is deliberately the same hot command
+# list `benches/instructions.rs` benchmarks on this repo. The generated
+# `check_large_10k` benchmark is a CI budget input, not release-profile training
+# data.
 #
 # Output: target/release/grund, optimized against the merged profile.
 # Requires: the `llvm-tools-preview` rustup component (`llvm-profdata`).
@@ -59,9 +60,9 @@ esac
 grund="$repo/target/release/grund$exe_suffix"
 
 echo "==> 2/3  training run — the §AR-benchmarks workload"
-# Keep this list in sync with benches/instructions.rs. Exit codes are irrelevant
-# here (a non-canonical tree makes `fmt --check` exit 1); we only want the code
-# paths exercised.
+# Keep this self-repo hot command list in sync with benches/instructions.rs.
+# Exit codes are irrelevant here (a non-canonical tree makes `fmt --check` exit
+# 1); we only want the code paths exercised.
 set +e
 for _ in 1 2 3; do
   "$grund" check "$repo"                   >/dev/null 2>&1

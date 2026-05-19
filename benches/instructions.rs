@@ -24,17 +24,22 @@
 //! the bench fails; that is intentional, not a bug to paper over with
 //! `.exit_with(...)`: a baseline recorded against a broken tree is worthless.
 //!
-//! The same workload drives the release/benchmark PGO training run in
-//! `scripts/pgo-build.sh` (§DA-pgo-release) — keep the command list there in
-//! sync with this file.
+//! The self-repo command list also drives the release/benchmark PGO training run
+//! in `scripts/pgo-build.sh` (§DA-pgo-release). Keep those hot commands in sync;
+//! `check_large_10k` is a CI budget input, not release-profile training data.
 //!
-//! Run with `cargo bench --features bench` (requires Valgrind and
+//! Run with `cargo bench --features bench --bench instructions` (requires Valgrind and
 //! `iai-callgrind-runner` on `PATH`; CI installs both — see
 //! `.github/workflows/ci.yml`). Without the `bench` feature this target builds
 //! to a no-op `main`, so `cargo test --all-targets` never needs Valgrind.
 
 #[cfg(feature = "bench")]
 use iai_callgrind::{Command, binary_benchmark, binary_benchmark_group, main};
+#[cfg(feature = "bench")]
+use std::{
+    path::{Path, PathBuf},
+    process::Command as ProcessCommand,
+};
 
 /// The freshly built `grund` binary under test (Cargo exports this env var).
 #[cfg(feature = "bench")]
@@ -43,6 +48,11 @@ const GRUND: &str = env!("CARGO_BIN_EXE_grund");
 /// the `grund .` self-host loop CI already runs.
 #[cfg(feature = "bench")]
 const REPO: &str = env!("CARGO_MANIFEST_DIR");
+/// Generated large conformant fixture for the `grund check` 10k-file budget.
+#[cfg(feature = "bench")]
+const LARGE_REPO_REL: &str = "target/bench-fixtures/large-conformant-repo";
+#[cfg(feature = "bench")]
+const LARGE_REPO_FILE_COUNT: usize = 10_000;
 
 /// A representative declared ID with a substantial body — enough to exercise
 /// the brief preview, lead-default read, and full recursive body in the show
@@ -54,11 +64,40 @@ const SHOW_ID: &str = "FS-check";
 #[cfg(feature = "bench")]
 const REFS_ID: &str = "GOAL-fast-feedback";
 
+#[cfg(feature = "bench")]
+fn large_repo() -> PathBuf {
+    Path::new(REPO).join(LARGE_REPO_REL)
+}
+
+#[cfg(feature = "bench")]
+fn ensure_large_fixture() -> PathBuf {
+    let root = large_repo();
+    let script = Path::new(REPO).join("scripts/generate_large_benchmark_fixture.py");
+    let status = ProcessCommand::new("python3")
+        .arg(script)
+        .arg("--root")
+        .arg(&root)
+        .arg("--files")
+        .arg(LARGE_REPO_FILE_COUNT.to_string())
+        .status()
+        .expect("run large benchmark fixture generator");
+    assert!(status.success(), "large benchmark fixture generator failed");
+    root
+}
+
 // `grund check <repo>` — validate every citation in the tree.
 #[cfg(feature = "bench")]
 #[binary_benchmark]
 fn check() -> Command {
     Command::new(GRUND).args(["check", REPO]).build()
+}
+
+// `grund check <large-repo>` — the 10k-file budget input.
+#[cfg(feature = "bench")]
+#[binary_benchmark]
+fn check_large_10k() -> Command {
+    let root = ensure_large_fixture();
+    Command::new(GRUND).arg("check").arg(root).build()
 }
 
 // `grund list <repo>` — every declared ID.
@@ -117,7 +156,7 @@ fn fmt_check() -> Command {
 #[cfg(feature = "bench")]
 binary_benchmark_group!(
     name = commands;
-    benchmarks = check, list, show_brief, show, show_full, refs, cover, fmt_check
+    benchmarks = check, check_large_10k, list, show_brief, show, show_full, refs, cover, fmt_check
 );
 
 #[cfg(feature = "bench")]
