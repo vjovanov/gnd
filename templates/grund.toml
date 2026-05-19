@@ -6,6 +6,11 @@ marker = "§"
 trigger = "$$"
 strict = false
 require_grounding = false
+inline_style = "citation-with-note"
+inline_note_suggested_lines = 1
+inline_note_max_lines = 3
+inline_note_max_columns = 100
+warn_on_suggested = false
 
 [id]
 format = "{kind}-{number}-{slug}"

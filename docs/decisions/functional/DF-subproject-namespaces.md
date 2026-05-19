@@ -74,7 +74,7 @@ Making `check` workspace-aware first is the narrowest correctness slice: it lets
 - [§FS-check](../../functional-spec/FS-check.md#fs-check-grund-validates-every-reference-in-a-repo) gains workspace aggregation and alias-qualified citation validation. The existing exit-code mapping ([§FS-check.2](../../functional-spec/FS-check.md#2-outputs)) and finding-line shape ([§FS-check.2.1](../../functional-spec/FS-check.md#21-report-format)) are preserved.
 - Qualified `show`, `refs`, `list`, completions, neighboring repositories, lockfiles, and any `grund sync`-style command remain follow-up work.
 - The `[reference] cross_project_when_standalone` opt-in (§3.6) remains follow-up work; today the only configurable axis is "error". Any future relaxation must explicitly remain between *error* and *warning*.
-- The reusable architecture for the workspace surface is fixed in [§AR-workspace](../../architecture/AR-workspace.md#ar-workspace-how-the-resolver-config-loader-and-scanner-compose-across-projects) — one citation grammar, one config loader, one resolver, one validation pass. Subsequent commands that learn qualified IDs must compose with that layering rather than re-implement it.
+- The reusable workspace surface is fixed in [§FS-workspace](../../functional-spec/FS-workspace.md#fs-workspace-grund-validates-cross-project-citations-in-a-workspace) — one citation grammar, one config loader, one resolver, one validation pass. Subsequent commands that learn qualified IDs must compose with that layering rather than re-implement it.
 
 ## 5. Alternatives considered
 

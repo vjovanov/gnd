@@ -80,6 +80,8 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
     let mut parsed_kinds: Vec<KindConfig> = Vec::new();
     let mut current_kind: Option<KindConfig> = None;
     let mut kinds_block_seen = false;
+    let mut inline_note_suggested_lines_source = None;
+    let mut inline_note_max_lines_source = None;
     for (idx, raw_line) in text.lines().enumerate() {
         let line_no = idx + 1;
         let line = strip_comment(raw_line).trim();
@@ -159,6 +161,31 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
             ("reference", "strict") => config.strict = parse_bool(path, line_no, value)?,
             ("reference", "require_grounding") => {
                 config.require_grounding = parse_bool(path, line_no, value)?
+            }
+            ("reference", "inline_style") => {
+                let style = parse_string(path, line_no, value)?;
+                if !matches!(style.as_str(), "citation-with-note" | "citation-only") {
+                    bail_config(
+                        path,
+                        line_no,
+                        "unknown [reference] inline_style".to_string(),
+                    )?;
+                }
+                config.inline_style = style;
+            }
+            ("reference", "inline_note_suggested_lines") => {
+                config.inline_note_suggested_lines = parse_usize(path, line_no, value)?;
+                inline_note_suggested_lines_source = Some(line_no);
+            }
+            ("reference", "inline_note_max_lines") => {
+                config.inline_note_max_lines = parse_usize(path, line_no, value)?;
+                inline_note_max_lines_source = Some(line_no);
+            }
+            ("reference", "inline_note_max_columns") => {
+                config.inline_note_max_columns = parse_usize(path, line_no, value)?
+            }
+            ("reference", "warn_on_suggested") => {
+                config.warn_on_suggested = parse_bool(path, line_no, value)?
             }
             ("id", "format") => {
                 config.id_format = parse_string(path, line_no, value)?;
@@ -311,6 +338,16 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
             "{}: reference.strict requires a non-empty marker",
             format_path(path)
         ));
+    }
+    if config.inline_note_suggested_lines > config.inline_note_max_lines {
+        let line = inline_note_suggested_lines_source
+            .or(inline_note_max_lines_source)
+            .unwrap_or(1);
+        bail_config(
+            path,
+            line,
+            "reference.inline_note_suggested_lines must be <= inline_note_max_lines".to_string(),
+        )?;
     }
     if kinds_block_seen {
         // [[kinds]] replaces defaults entirely, per §FS-config.3.4.
@@ -495,6 +532,12 @@ fn parse_bool(path: &Path, line: usize, value: &str) -> Result<bool> {
     }
 }
 
+fn parse_usize(path: &Path, line: usize, value: &str) -> Result<usize> {
+    value
+        .parse::<usize>()
+        .map_err(|_| anyhow!("{}:{}: expected non-negative integer", format_path(path), line))
+}
+
 fn parse_string_list(path: &Path, line: usize, value: &str) -> Result<Vec<String>> {
     if !value.starts_with('[') || !value.ends_with(']') {
         return bail_config(path, line, "expected string list".to_string());
@@ -558,6 +601,20 @@ fn command_config(args: &[String]) -> ExitCode {
                 println!("trigger = \"{}\"", config.trigger);
                 println!("strict = {}", config.strict);
                 println!("require_grounding = {}", config.require_grounding);
+                println!("inline_style = \"{}\"", config.inline_style);
+                println!(
+                    "inline_note_suggested_lines = {}",
+                    config.inline_note_suggested_lines
+                );
+                println!(
+                    "inline_note_max_lines = {}",
+                    config.inline_note_max_lines
+                );
+                println!(
+                    "inline_note_max_columns = {}",
+                    config.inline_note_max_columns
+                );
+                println!("warn_on_suggested = {}", config.warn_on_suggested);
                 println!();
                 println!("[id]");
                 println!("format = \"{}\"", config.id_format);

@@ -68,7 +68,7 @@ This is **not** landing with the initial change because it would update every ex
 
 Landing now:
 
-- [§AR-scanner.2.1](../../architecture/AR-scanner.md#21-declaration-detection) describes both regex branches and how heading-level is inferred when the declaration line has no `#+` to count (it defaults to depth `1`).
+- [§FS-show.2.3](../../functional-spec/FS-show.md#23-inline-declarations-in-code-and-doc-comments) describes the inline declaration forms and their section behavior.
 - [§FS-show.2.3](../../functional-spec/FS-show.md#23-inline-declarations-in-code-and-doc-comments) documents the multi-declaration-per-comment shape with a Rust example, surfacing a capability the scanner already had.
 - E2E fixtures cover (a) a single declaration in code, (b) two declarations in one doc-comment, and (c) the supported polyglot doc-comment forms.
 - The project's own [crates/grund-core/src/checker.rs](../../../crates/grund-core/src/checker.rs) declaration is migrated to the new form as the first dogfood.
@@ -76,7 +76,7 @@ Landing now:
 Follow-ups (each tracked above as *(follow-up)*):
 
 - §2.2: `grund show` text-format marker preservation on the heading line.
-- A worked example of code-form declarations in the [§FS-config.3.2](../../functional-spec/FS-config.md#32-id--id-grammar) prose, if the spec needs to surface the grammar branch separately from [§AR-scanner](../../architecture/AR-scanner.md#ar-scanner-how-grund-discovers-declarations-and-citations).
+- A worked example of code-form declarations in the [§FS-config.3.2](../../functional-spec/FS-config.md#32-id--id-grammar) prose, if the spec needs to surface the grammar branch separately from [§FS-show.2.3](../../functional-spec/FS-show.md#23-inline-declarations-in-code-and-doc-comments).
 
 ## 5. Alternatives considered
 

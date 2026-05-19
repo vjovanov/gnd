@@ -72,7 +72,7 @@ Other valid markers we considered: `※` (U+203B, Japanese reference mark), `‡
 
 ## 3. Consequences
 
-- The scanner ([§AR-scanner](../../architecture/AR-scanner.md#ar-scanner-how-grund-discovers-declarations-and-citations)) recognizes both bare and marker-prefixed citations by default, and only marker-prefixed citations under `strict = true`.
+- The citation rules ([§FS-check.1.1](../../functional-spec/FS-check.md#11-recognized-citations), [§FS-config.3.1](../../functional-spec/FS-config.md#31-reference--citation-form)) recognize both bare and marker-prefixed citations by default, and only marker-prefixed citations under `strict = true`.
 - The optional LSP server ([§FS-lsp.1.4](../../functional-spec/FS-lsp.md#14-live-trigger-transform)) transforms `$$<KIND>-<digit>` to `§<KIND>-<digit>` on the fly when installed and wired into the user's editor.
 - A new functional spec, [§FS-fmt](../../functional-spec/FS-fmt.md#fs-fmt-grund-normalizes-references-in-bulk), defines `grund fmt` for bulk transformation.
 - Existing repos that use bare citations continue to work unchanged. Migration to marker-prefixed citations is mechanical: `grund fmt --marker --check` reports unconverted citations; `grund fmt --marker` rewrites them.

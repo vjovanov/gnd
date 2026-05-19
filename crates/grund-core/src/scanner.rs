@@ -44,6 +44,7 @@ fn scan_file(
     let text = fs::read_to_string(path)?;
     let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
     let is_py = path.extension().and_then(|e| e.to_str()) == Some("py");
+    let inline_sites = inline_citation_sites(&text, is_md, is_py, config, workspace_targets);
     let in_docs = path.components().any(|c| c.as_os_str() == "docs");
     let mut in_fence = false;
     let mut in_py_docstring = false;
@@ -186,6 +187,7 @@ fn scan_file(
                 column: start + 1,
                 has_marker,
                 text,
+                inline_site: inline_sites.get(&lineno).cloned(),
             });
         }
         if workspace_mode {
@@ -196,6 +198,7 @@ fn scan_file(
                 config,
                 is_md,
                 workspace_targets,
+                &inline_sites,
                 findings,
             );
         } else {
@@ -206,6 +209,7 @@ fn scan_file(
                 config,
                 is_md,
                 &qualified_marker_starts,
+                &inline_sites,
                 findings,
             );
         }
@@ -219,6 +223,283 @@ fn scan_file(
             .push(decl);
     }
     Ok(())
+}
+
+#[derive(Clone)]
+enum CommentBlockKind {
+    Line(String),
+    Block,
+    PythonDocstring,
+}
+
+/// Locate the source-comment blocks that can host inline citation sites
+/// (§FS-inline-citation-style.1). Markdown prose is deliberately out of scope.
+fn inline_citation_sites(
+    text: &str,
+    is_md: bool,
+    is_py: bool,
+    config: &Config,
+    workspace_targets: &[WorkspaceCitationTarget],
+) -> BTreeMap<usize, InlineCitationSite> {
+    let mut sites = BTreeMap::new();
+    if is_md {
+        return sites;
+    }
+    let lines = text.lines().collect::<Vec<_>>();
+    let mut index = 0;
+    while index < lines.len() {
+        let Some(kind) = comment_block_kind(lines[index], is_py, config) else {
+            index += 1;
+            continue;
+        };
+        let start = index;
+        let end = match &kind {
+            CommentBlockKind::Line(marker) => {
+                let mut end = index;
+                while end + 1 < lines.len()
+                    && matches!(
+                        comment_block_kind(lines[end + 1], is_py, config),
+                        Some(CommentBlockKind::Line(next)) if next == *marker
+                    )
+                {
+                    end += 1;
+                }
+                end
+            }
+            CommentBlockKind::Block => {
+                let mut end = index;
+                while end + 1 < lines.len() && !lines[end].contains("*/") {
+                    end += 1;
+                }
+                end
+            }
+            CommentBlockKind::PythonDocstring => {
+                let quote = python_docstring_quote(lines[index]).unwrap_or("\"\"\"");
+                let mut end = index;
+                while end + 1 < lines.len()
+                    && !python_docstring_closes(lines[end], quote, end == start)
+                {
+                    end += 1;
+                }
+                end
+            }
+        };
+        if !block_declares_id(&lines[start..=end], matches!(kind, CommentBlockKind::PythonDocstring), config) {
+            let site = InlineCitationSite {
+                first_line: start + 1,
+                last_line: end + 1,
+                max_columns: lines[start..=end]
+                    .iter()
+                    .map(|line| line.len())
+                    .max()
+                    .unwrap_or(0),
+                has_note: block_has_inline_note(&lines[start..=end], config, workspace_targets),
+            };
+            for line in (start + 1)..=(end + 1) {
+                sites.insert(line, site.clone());
+            }
+        }
+        index = end + 1;
+    }
+    sites
+}
+
+fn comment_block_kind(line: &str, is_py: bool, config: &Config) -> Option<CommentBlockKind> {
+    let trimmed = line.trim_start();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if is_py && python_docstring_quote(line).is_some() {
+        return Some(CommentBlockKind::PythonDocstring);
+    }
+    if trimmed.starts_with("/*") {
+        return Some(CommentBlockKind::Block);
+    }
+    line_comment_marker(trimmed, config).map(CommentBlockKind::Line)
+}
+
+fn line_comment_marker(trimmed: &str, config: &Config) -> Option<String> {
+    for marker in ["///", "//!", "//"] {
+        if config.comment_prefixes.iter().any(|prefix| prefix == "//")
+            && trimmed.starts_with(marker)
+        {
+            return Some(marker.to_string());
+        }
+    }
+    let mut prefixes = config
+        .comment_prefixes
+        .iter()
+        .filter(|prefix| !matches!(prefix.as_str(), "" | "//" | "*" | "/*"))
+        .collect::<Vec<_>>();
+    prefixes.sort_by_key(|prefix| std::cmp::Reverse(prefix.len()));
+    prefixes
+        .into_iter()
+        .find(|prefix| trimmed.starts_with(prefix.as_str()))
+        .map(|prefix| prefix.to_string())
+}
+
+fn python_docstring_quote(line: &str) -> Option<&'static str> {
+    let trimmed = line.trim_start();
+    if trimmed.starts_with("\"\"\"") {
+        Some("\"\"\"")
+    } else if trimmed.starts_with("'''") {
+        Some("'''")
+    } else {
+        None
+    }
+}
+
+fn python_docstring_closes(line: &str, quote: &str, is_opening_line: bool) -> bool {
+    let trimmed = line.trim_start();
+    let search = if is_opening_line {
+        trimmed.strip_prefix(quote).unwrap_or(trimmed)
+    } else {
+        trimmed
+    };
+    search.contains(quote)
+}
+
+fn block_declares_id(lines: &[&str], in_py_docstring: bool, config: &Config) -> bool {
+    lines.iter().any(|line| {
+        let scan_line = if in_py_docstring {
+            line.trim_start()
+        } else {
+            *line
+        };
+        declaration_captures(&config.grammar, scan_line, in_py_docstring, false)
+            .and_then(|caps| parse_id(&caps))
+            .is_some()
+    })
+}
+
+fn block_has_inline_note(
+    lines: &[&str],
+    config: &Config,
+    workspace_targets: &[WorkspaceCitationTarget],
+) -> bool {
+    lines.iter().any(|line| {
+        let tokenless = remove_inline_citation_tokens(line, config, workspace_targets);
+        let clean = strip_comment_tokens(&tokenless);
+        !clean.trim().is_empty()
+    })
+}
+
+fn remove_inline_citation_tokens(
+    line: &str,
+    config: &Config,
+    workspace_targets: &[WorkspaceCitationTarget],
+) -> String {
+    let mut ranges = citation_token_ranges(line, config, workspace_targets);
+    ranges.sort_unstable();
+    ranges.dedup();
+    let mut out = String::with_capacity(line.len());
+    let mut cursor = 0;
+    for (start, end) in ranges {
+        if start < cursor {
+            continue;
+        }
+        out.push_str(&line[cursor..start]);
+        cursor = end;
+    }
+    out.push_str(&line[cursor..]);
+    out
+}
+
+fn citation_token_ranges(
+    line: &str,
+    config: &Config,
+    workspace_targets: &[WorkspaceCitationTarget],
+) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    for caps in config.grammar.citation_re.captures_iter(line) {
+        let Some(full) = caps.get(0) else { continue };
+        let namespace = caps.name("namespace");
+        let has_marker = line[..full.start()].ends_with(&config.marker);
+        if namespace.is_some() && !has_marker {
+            continue;
+        }
+        if config.strict && !has_marker {
+            continue;
+        }
+        if !has_marker && is_inside_string_literal(line, full.start()) {
+            continue;
+        }
+        let start = if has_marker {
+            full.start().saturating_sub(config.marker.len())
+        } else {
+            full.start()
+        };
+        if namespace.is_some()
+            && has_marker
+            && (is_inside_inline_code(line, start) || is_inside_string_literal(line, start))
+        {
+            continue;
+        }
+        ranges.push((start, full.end()));
+    }
+
+    if config.marker.is_empty() {
+        return ranges;
+    }
+    for (marker_start, _) in line.match_indices(&config.marker) {
+        if ranges.iter().any(|(start, _)| *start == marker_start)
+            || is_inside_string_literal(line, marker_start)
+        {
+            continue;
+        }
+        let token_start = marker_start + config.marker.len();
+        let Some(rest) = line.get(token_start..) else {
+            continue;
+        };
+        let Some(prefix) = QUALIFIED_CITATION_PREFIX.captures(rest) else {
+            continue;
+        };
+        let Some(alias) = prefix.name("namespace").map(|m| m.as_str()) else {
+            continue;
+        };
+        let id_start = token_start + prefix.get(0).unwrap().end();
+        let Some(id_rest) = line.get(id_start..) else {
+            continue;
+        };
+        let parsed = if workspace_targets.is_empty() {
+            parse_loose_qualified_id_prefix(id_rest).map(|(_, _, len)| len)
+        } else {
+            match workspace_targets.iter().find(|target| target.alias == alias) {
+                Some(target) => parse_longest_id_prefix(id_rest, &target.config.grammar),
+                None => workspace_targets
+                    .iter()
+                    .find_map(|target| parse_longest_id_prefix(id_rest, &target.config.grammar)),
+            }
+            .map(|(_, _, len)| len)
+        };
+        let Some(id_len) = parsed else {
+            continue;
+        };
+        ranges.push((marker_start, id_start + id_len));
+    }
+    ranges
+}
+
+fn strip_comment_tokens(line: &str) -> String {
+    let marker_start = line
+        .char_indices()
+        .find_map(|(idx, ch)| (!ch.is_whitespace()).then_some(idx))
+        .unwrap_or(line.len());
+    let (_, body) = line.split_at(marker_start);
+    let mut rest = body;
+    for prefix in ["/**", "/*", "///", "//!", "//", "*/", "#", ";", "--", "*", "\"\"\"", "'''"] {
+        if let Some(stripped) = rest.strip_prefix(prefix) {
+            rest = stripped.strip_prefix(' ').unwrap_or(stripped);
+            break;
+        }
+    }
+    let trimmed_end = rest.trim_end();
+    let rest = trimmed_end
+        .strip_suffix("*/")
+        .or_else(|| trimmed_end.strip_suffix("\"\"\""))
+        .or_else(|| trimmed_end.strip_suffix("'''"))
+        .unwrap_or(trimmed_end);
+    rest.to_string()
 }
 
 /// §FS-workspace.5: a member-local scan must still recognize marker-qualified
@@ -243,6 +524,7 @@ fn scan_fallback_qualified_citations(
     config: &Config,
     is_md: bool,
     already_seen: &BTreeSet<usize>,
+    inline_sites: &BTreeMap<usize, InlineCitationSite>,
     findings: &mut Findings,
 ) {
     if config.marker.is_empty() {
@@ -285,6 +567,7 @@ fn scan_fallback_qualified_citations(
             column: marker_start + 1,
             has_marker: true,
             text: scan_line[marker_start..token_end].to_string(),
+            inline_site: inline_sites.get(&lineno).cloned(),
         });
     }
 }
@@ -370,6 +653,7 @@ fn scan_workspace_qualified_pass(
     config: &Config,
     is_md: bool,
     targets: &[WorkspaceCitationTarget],
+    inline_sites: &BTreeMap<usize, InlineCitationSite>,
     findings: &mut Findings,
 ) {
     if config.marker.is_empty() || targets.is_empty() {
@@ -415,6 +699,7 @@ fn scan_workspace_qualified_pass(
             column: marker_start + 1,
             has_marker: true,
             text: scan_line[marker_start..token_end].to_string(),
+            inline_site: inline_sites.get(&lineno).cloned(),
         });
     }
 }
