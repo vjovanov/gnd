@@ -44,42 +44,52 @@ pub fn command_check(args: &[String]) -> ExitCode {
         eprintln!("error: unsupported check format `{format}`");
         return ExitCode::from(2);
     }
-    let mut config = match resolve_workspace_config(&path) {
-        Ok(config) => config,
+    let run = match run_check(&path, path_provided, require_grounding) {
+        Ok(run) => run,
         Err(err) => {
             eprintln!("error: {err:#}");
             return ExitCode::from(2);
         }
     };
+    let format = format_override.unwrap_or_else(|| run.config.output_format.clone());
+    if !matches!(format.as_str(), "text" | "json") {
+        eprintln!("error: unsupported check format `{format}`");
+        return ExitCode::from(2);
+    }
+    if format == "json" {
+        print_json_report(&run.config, &run.report);
+    } else {
+        print_report(&run.config, &run.report);
+    }
+    if run.had_scan_errors {
+        ExitCode::from(2)
+    } else if run.report.errors.is_empty() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
+}
+
+struct CheckRun {
+    config: Config,
+    report: CheckReport,
+    had_scan_errors: bool,
+}
+
+fn run_check(path: &Path, path_provided: bool, force_require_grounding: bool) -> Result<CheckRun> {
+    let mut config = resolve_workspace_config(path)?;
     // `--require-grounding` only ever turns the check on for this run; it never
     // turns off a `[reference] require_grounding = true` set in the config.
-    if require_grounding {
+    if force_require_grounding {
         config.require_grounding = true;
     }
-    if config.workspace_declared && is_workspace_root_scope(&config, &path, path_provided) {
-        return command_check_workspace(config, format_override, require_grounding);
+    if config.workspace_declared && is_workspace_root_scope(&config, path, path_provided) {
+        return run_workspace_check(config, force_require_grounding);
     }
-    let (findings, scan_errors) = match scan_tree(&config, Some(&path), path_provided) {
-        Ok(out) => out,
-        Err(e) => {
-            eprintln!("error: {:#}", e);
-            return ExitCode::from(2);
-        }
-    };
+
+    let (findings, scan_errors) = scan_tree(&config, Some(path), path_provided)?;
     let mut report = check_findings(&findings, &config);
-    // A file that could not be read mid-walk is reported as a CLI-shaped
-    // `error: <path>: <reason>` finding (§FS-check.2): the walk continued, the
-    // findings below are real, but the view of the tree was incomplete → exit 2.
-    let had_scan_errors = !scan_errors.is_empty();
-    for (file, message) in scan_errors {
-        report.errors.push(Diagnostic {
-            code: "io",
-            path: Some(file),
-            line: None,
-            message,
-            sites: Vec::new(),
-        });
-    }
+    let had_scan_errors = append_scan_errors(&mut report, scan_errors);
     sort_diagnostics(&mut report.errors);
     // §FS-check.2.2: a walk that read no files and turned up nothing to report is
     // almost always a misconfigured scope, not a clean repo — say so on stderr
@@ -90,39 +100,21 @@ pub fn command_check(args: &[String]) -> ExitCode {
     if findings.scanned_files.is_empty() && report.errors.is_empty() && report.warnings.is_empty() {
         report
             .warnings
-            .push(empty_scan_warning(&config, &path, path_provided));
+            .push(empty_scan_warning(&config, path, path_provided));
     }
-    let format = format_override.unwrap_or_else(|| config.output_format.clone());
-    if !matches!(format.as_str(), "text" | "json") {
-        eprintln!("error: unsupported check format `{format}`");
-        return ExitCode::from(2);
-    }
-    if format == "json" {
-        print_json_report(&config, &report);
-    } else {
-        print_report(&config, &report);
-    }
-    if had_scan_errors {
-        ExitCode::from(2)
-    } else if report.errors.is_empty() {
-        ExitCode::SUCCESS
-    } else {
-        ExitCode::FAILURE
-    }
+
+    Ok(CheckRun {
+        config,
+        report,
+        had_scan_errors,
+    })
 }
 
-fn command_check_workspace(
+fn run_workspace_check(
     mut root_config: Config,
-    format_override: Option<String>,
     force_require_grounding: bool,
-) -> ExitCode {
-    let mut projects = match load_workspace_projects(&mut root_config) {
-        Ok(projects) => projects,
-        Err(err) => {
-            eprintln!("error: {err:#}");
-            return ExitCode::from(2);
-        }
-    };
+) -> Result<CheckRun> {
+    let mut projects = load_workspace_projects(&mut root_config)?;
     // §FS-check.3.5: `--require-grounding` propagates to every member's
     // config. The flag only affects checking, not scanning, so applying it
     // after the load is equivalent to setting it before.
@@ -157,16 +149,7 @@ fn command_check_workspace(
             !project_report.errors.is_empty() || !project_report.warnings.is_empty();
         report.errors.append(&mut project_report.errors);
         report.warnings.append(&mut project_report.warnings);
-        had_scan_errors |= !project.scan_errors.is_empty();
-        for (file, message) in &project.scan_errors {
-            report.errors.push(Diagnostic {
-                code: "io",
-                path: Some(file.clone()),
-                line: None,
-                message: message.clone(),
-                sites: Vec::new(),
-            });
-        }
+        had_scan_errors |= append_scan_errors(&mut report, project.scan_errors.iter().cloned());
         // §FS-check.2.2: same empty-scan warning as the single-project path —
         // a member that scanned zero files and reported nothing is almost
         // always a misconfigured scope, not a clean repo.
@@ -181,19 +164,33 @@ fn command_check_workspace(
     }
     sort_diagnostics(&mut report.errors);
     sort_diagnostics(&mut report.warnings);
-    let format = format_override.unwrap_or_else(|| root_config.output_format.clone());
-    if format == "json" {
-        print_json_report(&root_config, &report);
-    } else {
-        print_report(&root_config, &report);
+
+    Ok(CheckRun {
+        config: root_config,
+        report,
+        had_scan_errors,
+    })
+}
+
+fn append_scan_errors(
+    report: &mut CheckReport,
+    scan_errors: impl IntoIterator<Item = (PathBuf, String)>,
+) -> bool {
+    let mut had_scan_errors = false;
+    for (file, message) in scan_errors {
+        had_scan_errors = true;
+        // A file that could not be read mid-walk is reported as a CLI-shaped
+        // `error: <path>: <reason>` finding (§FS-check.2): the walk continued,
+        // the findings below are real, but the view of the tree was incomplete.
+        report.errors.push(Diagnostic {
+            code: "io",
+            path: Some(file),
+            line: None,
+            message,
+            sites: Vec::new(),
+        });
     }
-    if had_scan_errors {
-        ExitCode::from(2)
-    } else if report.errors.is_empty() {
-        ExitCode::SUCCESS
-    } else {
-        ExitCode::FAILURE
-    }
+    had_scan_errors
 }
 
 fn is_workspace_root_scope(config: &Config, path: &Path, path_provided: bool) -> bool {
@@ -217,7 +214,7 @@ fn resolve_workspace_config(path: &Path) -> Result<Config> {
 }
 
 /// §AR-workspace.6: a workspace-declared scan must never descend into member
-/// roots. The boundary is the same list that `command_check_workspace`
+/// roots. The boundary is the same list that `run_workspace_check`
 /// computes; setting it on the Config makes the scanner skip those subtrees.
 fn apply_workspace_boundary(config: &mut Config) -> Result<()> {
     if !config.workspace_declared {

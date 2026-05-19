@@ -403,8 +403,8 @@ fn parse_config_file(read_path: &Path, report_path: &Path, config: &mut Config) 
     // §AR-workspace.5.2: every post-parse invariant runs on every config
     // load, not gated on which section happened to appear. `project_name` is
     // free-form metadata (§FS-config.3); the slug check against the alias
-    // grammar happens once, where it matters, at alias derivation in
-    // `command_check_workspace` (§AR-workspace.5.3). The workspace member
+    // grammar happens once, where it matters, at workspace-project loading
+    // (§AR-workspace.5.3). The workspace member
     // list, by contrast, is shape-checked here — an entry like
     // `members = ["/abs/path"]` is wrong before we even look at it.
     if let Some(source) = &config.workspace_members_source {

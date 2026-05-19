@@ -78,76 +78,8 @@ pub fn scan(path: &Path) -> Result<Findings> {
 /// without CLI argument parsing, stdout/stderr rendering, or exit-code mapping
 /// (§FS-distribution.3.1, §RM-core-cli-split.3).
 pub fn check(path: &Path) -> Result<Report> {
-    let mut config = resolve_workspace_config(path)?;
-    if config.workspace_declared && is_workspace_root_scope(&config, path, true) {
-        let report = check_workspace(&mut config)?;
-        return Ok(public_report(&config, report));
-    }
-    let (findings, scan_errors) = scan_tree(&config, Some(path), true)?;
-    let mut report = check_findings(&findings, &config);
-    for (file, message) in scan_errors {
-        report.errors.push(Diagnostic {
-            code: "io",
-            path: Some(file),
-            line: None,
-            message,
-            sites: Vec::new(),
-        });
-    }
-    sort_diagnostics(&mut report.errors);
-    if findings.scanned_files.is_empty() && report.errors.is_empty() && report.warnings.is_empty() {
-        report.warnings.push(empty_scan_warning(&config, path, true));
-    }
-    Ok(public_report(&config, report))
-}
-
-fn check_workspace(root_config: &mut Config) -> Result<CheckReport> {
-    let projects = load_workspace_projects(root_config)?;
-    let workspace = projects
-        .iter()
-        .map(|project| {
-            (
-                project.alias.clone(),
-                WorkspaceCheckTarget {
-                    findings: &project.findings,
-                    config: &project.config,
-                },
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
-    let mut report = CheckReport::default();
-    for project in &projects {
-        let mut project_report = check_with_workspace(
-            &project.findings,
-            &project.config,
-            Some(&project.alias),
-            &workspace,
-        );
-        let project_has_findings =
-            !project_report.errors.is_empty() || !project_report.warnings.is_empty();
-        report.errors.append(&mut project_report.errors);
-        report.warnings.append(&mut project_report.warnings);
-        for (file, message) in &project.scan_errors {
-            report.errors.push(Diagnostic {
-                code: "io",
-                path: Some(file.clone()),
-                line: None,
-                message: message.clone(),
-                sites: Vec::new(),
-            });
-        }
-        if project.findings.scanned_files.is_empty()
-            && project.scan_errors.is_empty()
-            && !project_has_findings
-        {
-            report
-                .warnings
-                .push(empty_scan_warning(&project.config, &project.config.root, true));
-        }
-    }
-    sort_diagnostics(&mut report.errors);
-    sort_diagnostics(&mut report.warnings);
-    Ok(report)
+    let run = run_check(path, true, false)?;
+    Ok(public_report(&run.config, run.report))
 }
 
 fn public_report(config: &Config, report: CheckReport) -> Report {
