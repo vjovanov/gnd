@@ -31,6 +31,7 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 
 ### Fixed
 
+- [§FS-distribution.4](functional-spec/FS-distribution.md#4-release-process): release recovery runs for pre-split tags now accept the historical root `[package] version` manifest shape as well as the new workspace-package version. PR #20.
 - [§AR-scanner.6](architecture/AR-scanner.md#6-e2e-case-declarations) / [§RM-self-host](roadmap.md#rm-self-host-guard-the-self-host-loop-in-ci): ordinary scans now treat direct E2E case directories as manifest boundaries, so nested fixture repos do not pollute the outer report under the canonical default config. PR #18.
 - [§AR-ci.7](architecture/AR-ci.md#7-pull-request-changelog-gate) / [§FS-distribution.4](functional-spec/FS-distribution.md#4-release-process): the local pre-push hook now runs the PR changelog-entry gate once `gh` can resolve the current branch's pull request number. PR #18.
 
