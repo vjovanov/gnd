@@ -275,7 +275,9 @@ fn print_subcommand_help(cmd: &str) {
             println!(
                 "  --cross-refs   wrap citations as Markdown links to targets          e.g. grund fmt --write --cross-refs"
             );
-            println!("                 also runs on --write when [fmt.cross_refs].enabled = true");
+            println!(
+                "                 also runs by default on --write; set [fmt.cross_refs].enabled = false to opt out"
+            );
             println!();
             println!(
                 "With neither --check nor --write, fmt prints the would-be changes and exits 1 if any (a dry run)."

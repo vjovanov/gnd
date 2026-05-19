@@ -337,7 +337,7 @@ ID), at the cost of needing to type a disambiguating letter first.
 
 ### 8.5 `grund fmt --cross-refs`
 
-The link wrapper ([§FS-fmt.6](FS-fmt.md#6-cross-reference-emission-with---cross-refs)) becomes workspace-aware when invoked at the
+The link wrapper ([§FS-fmt.6](FS-fmt.md#6-cross-reference-emission)) becomes workspace-aware when invoked at the
 workspace root.
 
 - A qualified citation `<§>api/FS-login` in `docs/index.md` wraps to

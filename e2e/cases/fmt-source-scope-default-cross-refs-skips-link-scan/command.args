@@ -1,0 +1,1 @@
+fmt {repo_copy}/src/app.rs --write

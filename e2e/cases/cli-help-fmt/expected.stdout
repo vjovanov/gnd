@@ -8,7 +8,7 @@ Options:
   --write        apply the changes in place                           e.g. grund fmt --write
   --marker       also prefix bare `<ID>` tokens with the marker        e.g. grund fmt --write --marker
   --cross-refs   wrap citations as Markdown links to targets          e.g. grund fmt --write --cross-refs
-                 also runs on --write when [fmt.cross_refs].enabled = true
+                 also runs by default on --write; set [fmt.cross_refs].enabled = false to opt out
 
 With neither --check nor --write, fmt prints the would-be changes and exits 1 if any (a dry run).
 --write prints `rewrote N references:` then one `  <path> (count)` line per file touched.

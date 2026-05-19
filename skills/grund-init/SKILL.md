@@ -239,10 +239,10 @@ Keep true for CI and shared logs.
 
 `enabled`
 
-Default: `false`.
+Default: `true`.
 Pros true: Markdown citations can become normal links for rendered docs.
 Cons true: extra churn and renderer-specific anchors.
-Recommend false initially; use `grund fmt --cross-refs` explicitly.
+Recommend true unless the repo intentionally keeps citations unwrapped in Markdown; set false to opt out.
 
 `anchor_format`
 

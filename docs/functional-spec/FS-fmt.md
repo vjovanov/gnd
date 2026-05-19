@@ -11,7 +11,7 @@ grund fmt [<path>] [--check] [--marker] [--cross-refs] [--write]
 - `<path>` — directory or file. Defaults to the current directory.
 - `--check` — explicit form of the default behavior: report what would change; exit non-zero if any change would be made; do not write. Provided as a flag for CI clarity (a script that says `grund fmt --check` is unambiguous about intent).
 - `--marker` — also rewrite bare citations (`FS-check`) to marker-prefixed (`§FS-check`). Off by default to preserve existing repos that have not opted in.
-- `--cross-refs` — in `.md` files only, also wrap each marker-prefixed citation in a clickable Markdown link to the declaration body. Per §6. Off by default; opt-in because the link target is path-relative and not every repo wants the rewrite. Implements [§DF-md-link-emission](../decisions/functional/DF-md-link-emission.md#df-md-link-emission-grund-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations).
+- `--cross-refs` — in `.md` files only, also wrap each marker-prefixed citation in a clickable Markdown link to the declaration body. Per §6. This forces the cross-reference pass for one invocation; generated configs set `[fmt.cross_refs] enabled = true`, so `grund fmt --write` also runs it by default unless the repo opts out. Implements [§DF-md-link-emission](../decisions/functional/DF-md-link-emission.md#df-md-link-emission-grund-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations).
 - `--write` — write the transformed contents back to disk. Exit 0 even when changes were made (the changes were the requested operation, not a failure).
 
 `--check` and `--write` are mutually exclusive. Without either, the default is `--check`.
@@ -66,7 +66,7 @@ Three reasons:
 
 Marker, trigger, and the recognized `KIND` set are read from `grund.toml` per [§GOAL-configurable](../goals.md#goal-configurable-every-default-is-overridable). The defaults are `§` and `$$` as decided in [§DF-reference-marker](../decisions/functional/DF-reference-marker.md#df-reference-marker-use--as-the-reference-marker-with--as-the-typing-trigger).
 
-## 6. Cross-reference emission (with `--cross-refs`)
+## 6. Cross-reference emission
 
 A free convenience layer on top of the ID system: render each citation as a clickable cross-reference to the declaration body — without giving up any of the polyglot, refactor-safe properties IDs already provide. Decided in [§DF-md-link-emission](../decisions/functional/DF-md-link-emission.md#df-md-link-emission-grund-fmt-may-emit-clickable-markdown-links-alongside--prefixed-citations).
 
@@ -110,23 +110,24 @@ In addition to the never-rewrite rules in §2.3:
 
 `--cross-refs` operates on marker-prefixed citations. When run together with `--marker`, the marker pass runs first (bare → marker), then the link pass wraps the now-marker-prefixed citations. When run without `--marker`, bare citations are left bare and unwrapped — wrapping only the marked ones gives a consistent, predictable output instead of two mixed forms.
 
-### 6.6 Why `--cross-refs` is opt-in
+### 6.6 Why generated configs enable cross-references
 
-Three reasons, all about preserving [§GOAL-no-silent-breakage](../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path):
+Generated `.agents/grund.toml` files set `[fmt.cross_refs] enabled = true`, and the built-in default is the same. This makes rendered Markdown useful by default while keeping the ID citation as the source of truth. The default favors GitHub code review and external discovery over the cleaner editor-only source view, per [§DF-md-link-default-on](../decisions/functional/DF-md-link-default-on.md#df-md-link-default-on-markdown-cross-reference-links-default-on-for-github-review-and-discovery):
 
-1. The path inside the link is computed from the current location of citation and declaration. Repos that move files frequently (without running `grund fmt`) would see noisy diffs as paths rebase.
-2. Some projects render their Markdown through tools that produce different anchor slugs than `#3-1` (e.g., Pandoc). For those projects, the configurable anchor format (§6.7) is the right answer; until then, opting in is the conservative default.
-3. Citations remain the source of truth. Wrapping them in links is a presentation-layer convenience; making it the default would imply that the rendered Markdown view is canonical, which it is not.
+1. The source text still contains the exact citation, only wrapped as `[§ID](target)`; `grund check`, `grund show`, and `grund refs` continue to resolve the citation, not the Markdown URL.
+2. The pass runs automatically only for `grund fmt --write` scopes that contain Markdown files; source-only scopes such as `grund fmt src/app.rs --write` stay on the lightweight marker/trigger path unless `--cross-refs` is passed.
+3. Repos that do not want generated Markdown links can set `enabled = false`; the generated config writes the key explicitly so the opt-out is visible.
+4. Projects with non-GitHub renderers keep the default link behavior but choose a matching `anchor_format` (§6.7), instead of disabling links entirely.
 
 ### 6.7 Configurability
 
 ```toml
 [fmt.cross_refs]
-enabled       = false      # default; --cross-refs overrides per-invocation
+enabled       = true       # default; false opts out of generated Markdown links
 anchor_format = "github"   # default; named renderer profile per §DF-md-link-anchor-strategy.2.3
 ```
 
-`[fmt.cross_refs]` is the home for cross-reference settings. Today it carries two keys — `enabled` (the opt-in toggle) and `anchor_format` (which renderer's anchor-slug algorithm the Markdown link form uses). `anchor_format` accepts one of the named profiles defined in [§DF-md-link-anchor-strategy.2.3](../decisions/functional/DF-md-link-anchor-strategy.md#23-renderer-profiles):
+`[fmt.cross_refs]` is the home for cross-reference settings. Today it carries two keys — `enabled` (the default-on toggle for `fmt --write`) and `anchor_format` (which renderer's anchor-slug algorithm the Markdown link form uses). `anchor_format` accepts one of the named profiles defined in [§DF-md-link-anchor-strategy.2.3](../decisions/functional/DF-md-link-anchor-strategy.md#23-renderer-profiles):
 
 - `github` (default) — GitHub's slugger; covers the most common host.
 - `gitlab` — GitLab's slugger.
@@ -134,8 +135,8 @@ anchor_format = "github"   # default; named renderer profile per §DF-md-link-an
 - `pandoc` — Pandoc's `auto_identifiers` algorithm.
 - `none` — emit no anchor; produce a file-level link with no fragment.
 
-When `enabled = true`, the cross-reference pass runs on every `grund fmt --write` invocation without requiring `--cross-refs`. This is for repos that have committed to the convention. When a future `grund` adds a second markup family (the introduction to §6), that family's settings live under this same `[fmt.cross_refs]` block (a new key, or a sub-table such as `[fmt.cross_refs.asciidoc]`) — additive, so a v1 config that only set `anchor_format` keeps working and `grund_config_version` is unchanged ([§FS-config.5](FS-config.md#5-schema-versioning) bump rules).
+When `enabled = true`, the cross-reference pass runs on every `grund fmt --write` invocation whose rewrite scope contains at least one Markdown file, without requiring `--cross-refs`. Source-only scopes do not pay the full-project link-target scan because no file in that scope can be wrapped. When `enabled = false`, `grund fmt --write` skips link emission unless `--cross-refs` is passed for that invocation. When a future `grund` adds a second markup family (the introduction to §6), that family's settings live under this same `[fmt.cross_refs]` block (a new key, or a sub-table such as `[fmt.cross_refs.asciidoc]`) — additive, so a v1 config that only set `anchor_format` keeps working and `grund_config_version` is unchanged ([§FS-config.5](FS-config.md#5-schema-versioning) bump rules).
 
 ### 6.8 Measurable
 
-E2E fixtures cover: wrap-on-first-run, `[fmt.cross_refs].enabled = true` causing `grund fmt --write` to run the cross-reference pass without the flag, no-op on second-run (idempotency), re-derive on heading rename (a wrap pointing at the old slug is rewritten to the new one in a single `fmt` pass), re-derive on file move, correct relative path across `docs/` subdirectories, a bare-ID citation linking to the declaration's own heading anchor ([§DF-declaration-anchor](../decisions/functional/DF-declaration-anchor.md#df-declaration-anchor-a-bare-id-markdown-link-points-at-the-declarations-heading-anchor)), source-file declaration link with no anchor, `anchor_format = "none"` produces file-only links, each named renderer profile (`github`, `gitlab`, `mkdocs`, `pandoc`) produces its expected slug for a curated heading set — for `github`, that set includes headings whose punctuation closes up into runs of `-` that GitHub keeps and a naive collapser would not (`## A — B` → `#a--b`; [§DF-github-anchor-fidelity](../decisions/functional/DF-github-anchor-fidelity.md#df-github-anchor-fidelity-the-github-anchor-profile-reproduces-github-slugger-exactly)) and a section heading that itself carries a citation, with another citation pointing at that section (the anchor derives from the heading's rendered text, so it is identical before and after `--cross-refs` wraps the heading's own citation — i.e. the wrap is idempotent over a citation that lives in a section heading) — fenced-block exemption, dangling-citation skipped, declaration-line skipped, `--cross-refs` without `--marker` on a tree containing both forms.
+E2E fixtures cover: wrap-on-first-run, the default `enabled = true` causing `grund fmt --write` to run the cross-reference pass without the flag, source-only `fmt --write` skipping the default link-target scan, `enabled = false` preserving trigger-only `fmt --write` unless `--cross-refs` is passed, no-op on second-run (idempotency), re-derive on heading rename (a wrap pointing at the old slug is rewritten to the new one in a single `fmt` pass), re-derive on file move, correct relative path across `docs/` subdirectories, a bare-ID citation linking to the declaration's own heading anchor ([§DF-declaration-anchor](../decisions/functional/DF-declaration-anchor.md#df-declaration-anchor-a-bare-id-markdown-link-points-at-the-declarations-heading-anchor)), source-file declaration link with no anchor, `anchor_format = "none"` produces file-only links, each named renderer profile (`github`, `gitlab`, `mkdocs`, `pandoc`) produces its expected slug for a curated heading set — for `github`, that set includes headings whose punctuation closes up into runs of `-` that GitHub keeps and a naive collapser would not (`## A — B` → `#a--b`; [§DF-github-anchor-fidelity](../decisions/functional/DF-github-anchor-fidelity.md#df-github-anchor-fidelity-the-github-anchor-profile-reproduces-github-slugger-exactly)) and a section heading that itself carries a citation, with another citation pointing at that section (the anchor derives from the heading's rendered text, so it is identical before and after `--cross-refs` wraps the heading's own citation — i.e. the wrap is idempotent over a citation that lives in a section heading) — fenced-block exemption, dangling-citation skipped, declaration-line skipped, `--cross-refs` without `--marker` on a tree containing both forms.
