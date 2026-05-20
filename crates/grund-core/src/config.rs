@@ -552,7 +552,7 @@ fn parse_string_list(path: &Path, line: usize, value: &str) -> Result<Vec<String
         .collect()
 }
 
-pub fn command_config(args: &[String]) -> ExitCode {
+fn command_config(args: &[String]) -> ExitCode {
     let Some(action) = args.first().map(|arg| arg.as_str()) else {
         eprintln!("error: expected `config validate` or `config show`");
         return ExitCode::from(2);

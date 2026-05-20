@@ -81,7 +81,7 @@ impl std::error::Error for InitError {}
 /// (§FS-init.4). Non-interactive — every choice is a flag (§FS-non-goals.10).
 /// With `--dry-run`, every line is reported with a `would-` prefix and nothing
 /// is written to disk.
-pub fn command_init(args: &[String]) -> ExitCode {
+fn command_init(args: &[String]) -> ExitCode {
     let mut path: Option<PathBuf> = None;
     let mut name: Option<String> = None;
     let mut docs = false;

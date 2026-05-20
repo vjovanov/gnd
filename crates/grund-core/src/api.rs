@@ -67,6 +67,30 @@ pub struct Report {
     pub warnings: Vec<Finding>,
 }
 
+#[derive(Clone)]
+pub struct CheckOpts {
+    pub path: PathBuf,
+    pub path_provided: bool,
+    pub require_grounding: bool,
+}
+
+impl Default for CheckOpts {
+    fn default() -> Self {
+        Self {
+            path: PathBuf::from("."),
+            path_provided: false,
+            require_grounding: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckOutput {
+    pub output_format: String,
+    pub report: Report,
+    pub had_scan_errors: bool,
+}
+
 /// Scan one project tree and return the raw scanner findings. This is the
 /// embedding surface later frontends share instead of re-reading files.
 pub fn scan(path: &Path) -> Result<Findings> {
@@ -78,8 +102,23 @@ pub fn scan(path: &Path) -> Result<Findings> {
 /// without CLI argument parsing, stdout/stderr rendering, or exit-code mapping
 /// (§FS-distribution.3.1, §RM-core-cli-split.3).
 pub fn check(path: &Path) -> Result<Report> {
-    let run = run_check(path, true, false)?;
-    Ok(public_report(&run.config, run.report))
+    Ok(check_with_opts(CheckOpts {
+        path: path.to_path_buf(),
+        path_provided: true,
+        require_grounding: false,
+    })?
+    .report)
+}
+
+/// Programmatic `check` with the same scope and grounding options as the CLI,
+/// returning data instead of printing a report or mapping a process exit.
+pub fn check_with_opts(opts: CheckOpts) -> Result<CheckOutput> {
+    let run = run_check(&opts.path, opts.path_provided, opts.require_grounding)?;
+    Ok(CheckOutput {
+        output_format: run.config.output_format.clone(),
+        report: public_report(&run.config, run.report),
+        had_scan_errors: run.had_scan_errors,
+    })
 }
 
 fn public_report(config: &Config, report: CheckReport) -> Report {
@@ -116,21 +155,44 @@ fn public_finding(config: &Config, severity: &'static str, diagnostic: Diagnosti
 }
 
 fn public_path(config: &Config, path: &Path) -> String {
-    format_path(path.strip_prefix(&config.root).unwrap_or(path))
+    display_path(config, path)
 }
 
 /// Programmatic declaration read. This mirrors `grund show` resolution but
 /// returns the structured body instead of printing it.
 pub fn show(id_arg: &str, opts: ShowOpts) -> Result<ShowOutput> {
-    let context = load_workspace_context(&opts.path, true)?;
+    show_with_scope(id_arg, opts, true)
+}
+
+#[doc(hidden)]
+pub fn show_with_scope(id_arg: &str, opts: ShowOpts, path_provided: bool) -> Result<ShowOutput> {
+    let context = load_workspace_context(&opts.path, path_provided)?;
     let (alias, raw_id) = split_qualified_id_arg(id_arg)?;
     let project = match alias.as_deref() {
         Some(name) => context
             .project_by_alias(name)
-            .ok_or_else(|| anyhow!("unknown project alias `{name}`"))?,
-        None => context
-            .current_project()
-            .ok_or_else(|| anyhow!("unqualified ID requires a project alias when include_root = false"))?,
+            .ok_or_else(|| {
+                if !context.workspace_loaded {
+                    anyhow!(
+                        "unknown project alias `{name}`\nnote: workspace aliases are defined in the root .agents/grund.toml under [workspace]"
+                    )
+                } else {
+                    anyhow!(
+                        "unknown project alias `{name}`\nknown aliases: {}",
+                        context.aliases().join(", ")
+                    )
+                }
+            })?,
+        None => context.current_project().ok_or_else(|| {
+            let known = context.aliases().join(", ");
+            if known.is_empty() {
+                anyhow!("unqualified ID requires a project alias when include_root = false")
+            } else {
+                anyhow!(
+                    "unqualified ID requires a project alias when include_root = false\nknown aliases: {known}"
+                )
+            }
+        })?,
     };
     if let Some((file, message)) = project.scan_errors.first() {
         return Err(anyhow!(
@@ -167,6 +229,100 @@ pub fn show(id_arg: &str, opts: ShowOpts) -> Result<ShowOutput> {
         output.json = Some(json);
     }
     Ok(output)
+}
+
+#[derive(Clone)]
+pub struct CompleteIdsOpts {
+    pub path: PathBuf,
+    pub path_provided: bool,
+    pub prefix: String,
+    pub sections: bool,
+}
+
+impl Default for CompleteIdsOpts {
+    fn default() -> Self {
+        Self {
+            path: PathBuf::from("."),
+            path_provided: false,
+            prefix: String::new(),
+            sections: false,
+        }
+    }
+}
+
+/// Dynamic ID completion candidates for shell frontends. Config or scan errors
+/// are returned to the caller so command frontends can decide whether to hide
+/// them during tab completion.
+pub fn complete_ids(opts: CompleteIdsOpts) -> Result<Vec<String>> {
+    let context = load_workspace_context(&opts.path, opts.path_provided)?;
+    let current_config = context
+        .current_project()
+        .map(|project| &project.config)
+        .unwrap_or_else(|| context.render_config());
+    let mut candidates = BTreeSet::new();
+    if let Some(slash) = opts.prefix.find('/') {
+        let (alias_prefix, id_prefix) = opts.prefix.split_at(slash);
+        let id_prefix = &id_prefix[1..];
+        if !context.workspace_loaded {
+            return Ok(Vec::new());
+        }
+        let Some(project) = context.project_by_alias(alias_prefix) else {
+            return Ok(Vec::new());
+        };
+        let complete_sections = opts.sections || id_prefix.contains(&project.config.section_separator);
+        add_complete_id_candidates(
+            &mut candidates,
+            Some(alias_prefix),
+            &project.config,
+            &project.findings,
+            complete_sections,
+        );
+    } else {
+        let complete_sections = opts.sections || opts.prefix.contains(&current_config.section_separator);
+        if let Some(current_project) = context.current_project() {
+            add_complete_id_candidates(
+                &mut candidates,
+                None,
+                current_config,
+                &current_project.findings,
+                complete_sections,
+            );
+        }
+        if context.workspace_loaded {
+            for alias in context.aliases() {
+                candidates.insert(format!("{alias}/"));
+            }
+        }
+    }
+    Ok(candidates
+        .into_iter()
+        .filter(|candidate| candidate.starts_with(&opts.prefix))
+        .collect())
+}
+
+fn add_complete_id_candidates(
+    candidates: &mut BTreeSet<String>,
+    alias: Option<&str>,
+    config: &Config,
+    findings: &Findings,
+    include_sections: bool,
+) {
+    let qualifier = alias.map(|alias| format!("{alias}/")).unwrap_or_default();
+    for (id, decls) in &findings.declarations {
+        let rendered = render_id(config, id);
+        if include_sections {
+            for decl in decls {
+                for section in decl.sections.keys() {
+                    candidates.insert(format!(
+                        "{}{}{}{}",
+                        qualifier, rendered, config.section_separator, section
+                    ));
+                }
+            }
+        } else {
+            candidates.insert(format!("{qualifier}{rendered}"));
+        }
+    }
 }
 
 #[derive(Clone)]

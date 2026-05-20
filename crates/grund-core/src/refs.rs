@@ -3,7 +3,7 @@
 /// a grep cannot be. Shares the scanner with `check` so the two never disagree on
 /// what counts as a citation (§FS-refs.5). Empty results, including undeclared IDs
 /// with no citations, exit `0` (§FS-refs.4).
-pub fn command_refs(args: &[String]) -> ExitCode {
+fn command_refs(args: &[String]) -> ExitCode {
     if args.is_empty() {
         eprintln!("error: refs requires an ID");
         return ExitCode::from(2);

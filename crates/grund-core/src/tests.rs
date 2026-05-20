@@ -717,6 +717,18 @@ members = ["packages/*"]
         assert_eq!(shown.body, "Lead.\n");
         assert_eq!(shown.line, 1);
 
+        let shown_literal = show(
+            "FS-001-alpha",
+            ShowOpts {
+                path: root.clone(),
+                section: None,
+                mode: ShowMode::Lead,
+                format: ShowFormat::Text,
+            },
+        )
+        .expect("public show api keeps literal construction source-compatible");
+        assert_eq!(shown_literal.body, "Lead.\n");
+
         let shown_json = show(
             "FS-001-alpha",
             ShowOpts {

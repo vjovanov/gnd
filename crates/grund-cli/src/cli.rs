@@ -7,6 +7,389 @@ fn command_agent_setup_instructions(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+fn command_check(args: &[String]) -> ExitCode {
+    let mut path = PathBuf::from(".");
+    let mut path_provided = false;
+    let mut format_override = None;
+    let mut require_grounding = false;
+    let mut idx = 0;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            other if other.starts_with("--format=") => {
+                format_override = Some(other.trim_start_matches("--format=").to_string());
+            }
+            "--format" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --format requires a value");
+                    return ExitCode::from(2);
+                }
+                format_override = Some(args[idx].clone());
+            }
+            "--require-grounding" => require_grounding = true,
+            other if other.starts_with('-') => {
+                eprintln!("error: unknown flag `{other}`");
+                return ExitCode::from(2);
+            }
+            other => {
+                if path_provided {
+                    eprintln!("error: check takes at most one path argument");
+                    return ExitCode::from(2);
+                }
+                path = PathBuf::from(other);
+                path_provided = true;
+            }
+        }
+        idx += 1;
+    }
+    if let Some(format) = &format_override
+        && !matches!(format.as_str(), "text" | "json")
+    {
+        eprintln!("error: unsupported check format `{format}`");
+        return ExitCode::from(2);
+    }
+    let output = match check_with_opts(CheckOpts {
+        path,
+        path_provided,
+        require_grounding,
+    }) {
+        Ok(output) => output,
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            return ExitCode::from(2);
+        }
+    };
+    let format = format_override.unwrap_or(output.output_format);
+    if !matches!(format.as_str(), "text" | "json") {
+        eprintln!("error: unsupported check format `{format}`");
+        return ExitCode::from(2);
+    }
+    if format == "json" {
+        render_check_json(&output.report);
+    } else {
+        render_check_text(&output.report);
+    }
+    if output.had_scan_errors {
+        ExitCode::from(2)
+    } else if output.report.errors.is_empty() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
+}
+
+fn sorted_findings(report: &Report) -> Vec<(&'static str, &Finding)> {
+    let mut findings = report
+        .warnings
+        .iter()
+        .map(|finding| ("warning", finding))
+        .chain(report.errors.iter().map(|finding| ("error", finding)))
+        .collect::<Vec<_>>();
+    findings.sort_by(|(_, a), (_, b)| {
+        (
+            a.path.as_deref(),
+            a.line.unwrap_or(0),
+            a.message.as_str(),
+        )
+            .cmp(&(
+                b.path.as_deref(),
+                b.line.unwrap_or(0),
+                b.message.as_str(),
+            ))
+    });
+    findings
+}
+
+fn render_check_text(report: &Report) {
+    if report.errors.is_empty() && report.warnings.is_empty() {
+        println!("success");
+        return;
+    }
+    for (severity, finding) in sorted_findings(report) {
+        let line = match (finding.path.as_deref(), finding.line) {
+            (Some(path), Some(line)) => format!("{path}:{line}: {}", finding.message),
+            (Some(path), None) => format!("{severity}: {path}: {}", finding.message),
+            _ => format!("{severity}: {}", finding.message),
+        };
+        if finding.line.is_some() {
+            println!("{line}");
+        } else {
+            eprintln!("{line}");
+        }
+    }
+}
+
+fn render_check_json(report: &Report) {
+    for (severity, finding) in sorted_findings(report) {
+        let object = render_finding_json(severity, finding);
+        if finding.line.is_some() {
+            println!("{object}");
+        } else {
+            eprintln!("{object}");
+        }
+    }
+}
+
+fn render_finding_json(severity: &str, finding: &Finding) -> String {
+    let path = finding
+        .path
+        .as_deref()
+        .map(|path| format!("\"{}\"", json_escape(path)))
+        .unwrap_or_else(|| "null".to_string());
+    let line = finding
+        .line
+        .map(|line| line.to_string())
+        .unwrap_or_else(|| "null".to_string());
+    let sites = if finding.sites.is_empty() {
+        "null".to_string()
+    } else {
+        let values = finding
+            .sites
+            .iter()
+            .map(|site| {
+                format!(
+                    "{{\"path\":\"{}\",\"line\":{}}}",
+                    json_escape(&site.path),
+                    site.line
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!("[{}]", values)
+    };
+    format!(
+        "{{\"severity\":\"{}\",\"path\":{},\"line\":{},\"code\":\"{}\",\"message\":\"{}\",\"sites\":{}}}",
+        severity,
+        path,
+        line,
+        finding.code,
+        json_escape(&finding.message),
+        sites
+    )
+}
+
+fn command_show(args: &[String]) -> ExitCode {
+    command_show_impl(args, false)
+}
+
+fn command_show_default(args: &[String]) -> ExitCode {
+    command_show_impl(args, true)
+}
+
+fn looks_like_subcommand_typo(arg: &str) -> bool {
+    !arg.is_empty() && !arg.contains('-') && !arg.contains('/') && !arg.contains('.')
+}
+
+fn command_show_impl(args: &[String], default_invocation: bool) -> ExitCode {
+    if args.is_empty() {
+        eprintln!("error: show requires an ID");
+        return ExitCode::from(2);
+    }
+    let mut id_arg = None;
+    let mut path = PathBuf::from(".");
+    let mut path_provided = false;
+    let mut mode = ShowMode::Lead;
+    let mut mode_flag: Option<&'static str> = None;
+    let mut section_override = None;
+    let mut format = "text".to_string();
+    let mut idx = 0;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--brief" => {
+                if let Some(previous) = mode_flag {
+                    eprintln!("error: {previous} and --brief cannot be used together");
+                    return ExitCode::from(2);
+                }
+                mode_flag = Some("--brief");
+                mode = ShowMode::Brief;
+            }
+            "--toc" => {
+                if let Some(previous) = mode_flag {
+                    eprintln!("error: {previous} and --toc cannot be used together");
+                    return ExitCode::from(2);
+                }
+                mode_flag = Some("--toc");
+                mode = ShowMode::Toc;
+            }
+            "--full" => {
+                if let Some(previous) = mode_flag {
+                    eprintln!("error: {previous} and --full cannot be used together");
+                    return ExitCode::from(2);
+                }
+                mode_flag = Some("--full");
+                mode = ShowMode::Full;
+            }
+            other if other.starts_with("--format=") => {
+                format = other.trim_start_matches("--format=").to_string();
+            }
+            "--section" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --section requires a value");
+                    return ExitCode::from(2);
+                }
+                section_override = Some(args[idx].clone());
+            }
+            "--path" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --path requires a value");
+                    return ExitCode::from(2);
+                }
+                path = PathBuf::from(&args[idx]);
+                path_provided = true;
+            }
+            "--format" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --format requires a value");
+                    return ExitCode::from(2);
+                }
+                format = args[idx].clone();
+            }
+            other if other.starts_with('-') => {
+                eprintln!("error: unknown flag `{other}`");
+                return ExitCode::from(2);
+            }
+            other if id_arg.is_none() => id_arg = Some(other.to_string()),
+            other => {
+                if path_provided {
+                    eprintln!("error: show takes an ID and at most one path argument");
+                    return ExitCode::from(2);
+                }
+                path = PathBuf::from(other);
+                path_provided = true;
+            }
+        }
+        idx += 1;
+    }
+    let Some(id_arg) = id_arg else {
+        eprintln!("error: show requires an ID");
+        return ExitCode::from(2);
+    };
+    let Some(show_format) = parse_show_format(&format) else {
+        eprintln!("error: unsupported show format `{format}`");
+        return ExitCode::from(2);
+    };
+    match show_with_scope(
+        &id_arg,
+        ShowOpts {
+            path: path.clone(),
+            section: section_override,
+            mode,
+            format: show_format,
+        },
+        path_provided,
+    ) {
+        Ok(output) => {
+            if format == "json" {
+                println!("{}", output.json.unwrap_or_default());
+            } else {
+                print!("{}", output.body);
+            }
+            ExitCode::SUCCESS
+        }
+        Err(err) => render_show_error(&id_arg, &path, default_invocation, &format, err),
+    }
+}
+
+fn render_show_error(
+    id_arg: &str,
+    path: &Path,
+    default_invocation: bool,
+    format: &str,
+    err: impl std::fmt::Display,
+) -> ExitCode {
+    let message = format!("{err:#}");
+    if default_invocation && message.starts_with("unknown project alias") && Path::new(id_arg).exists() {
+        eprintln!("invalid ID `{id_arg}`");
+        print_id_format_hint(path);
+        eprintln!("hint: run `grund check {id_arg}` to validate a path");
+        return ExitCode::FAILURE;
+    }
+    let query_error_code = show_query_error_code(&message);
+    if format == "json"
+        && let Some(code) = query_error_code
+    {
+        print_bare_query_json(code, &message);
+        return ExitCode::FAILURE;
+    }
+    if query_error_code.is_none() {
+        eprintln!("error: {message}");
+        if default_invocation {
+            eprintln!("hint: run `grund check {id_arg}` to validate a path");
+        }
+        return ExitCode::from(2);
+    }
+    eprintln!("{message}");
+    if message.starts_with("invalid ID") {
+        print_id_format_hint(path);
+        if default_invocation {
+            eprintln!("hint: run `grund check {id_arg}` to validate a path");
+            if looks_like_subcommand_typo(id_arg) {
+                eprintln!("hint: run `grund --help` for the list of subcommands");
+            }
+        }
+    } else if message.starts_with("ID not found:") {
+        eprintln!(
+            "hint: run `grund list` to see every declared ID, or `grund id <KIND> \"<title>\"` to propose a new one"
+        );
+    } else if message.starts_with("section not found:") {
+        let base_id = effective_config(path)
+            .ok()
+            .and_then(|config| {
+                id_arg
+                    .rsplit_once(&config.section_separator)
+                    .map(|(base, _)| base.to_string())
+            })
+            .unwrap_or_else(|| id_arg.to_string());
+        eprintln!("hint: run `grund {base_id} --toc` to print the lead with the section map");
+    }
+    ExitCode::FAILURE
+}
+
+fn print_bare_query_json(code: &'static str, message: &str) {
+    eprintln!(
+        "{{\"severity\":\"error\",\"path\":null,\"line\":null,\"code\":\"{}\",\"message\":\"{}\",\"sites\":null}}",
+        code,
+        json_escape(message)
+    );
+}
+
+fn print_id_format_hint(path: &Path) {
+    if let Ok(config) = effective_config(path) {
+        eprintln!(
+            "hint: this repo's [id] format is `{}` (run `grund config show`); `grund list` shows the IDs that exist",
+            config.id_format
+        );
+    }
+}
+
+fn show_query_error_code(message: &str) -> Option<&'static str> {
+    if message.starts_with("ID not found:") {
+        Some("not-found")
+    } else if message.starts_with("section not found:") {
+        Some("missing-section")
+    } else if message.starts_with("invalid ID") {
+        Some("invalid-id")
+    } else if message.starts_with("ambiguous ID:") {
+        Some("ambiguous")
+    } else if message.starts_with("broken stub:") {
+        Some("broken-stub")
+    } else {
+        None
+    }
+}
+
+fn parse_show_format(format: &str) -> Option<ShowFormat> {
+    match format {
+        "text" => Some(ShowFormat::Text),
+        "md" => Some(ShowFormat::Markdown),
+        "json" => Some(ShowFormat::Json),
+        _ => None,
+    }
+}
+
 fn command_list(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
@@ -957,6 +1340,224 @@ fn format_toml_string_list(values: &[String]) -> String {
 
 fn escape_toml_basic(raw: &str) -> String {
     raw.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn command_complete(args: &[String]) -> ExitCode {
+    match args.first().map(|arg| arg.as_str()) {
+        Some("ids") => command_complete_ids(&args[1..]),
+        _ => {
+            eprintln!("error: expected `complete ids`");
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn command_complete_ids(args: &[String]) -> ExitCode {
+    let mut path = PathBuf::from(".");
+    let mut path_provided = false;
+    let mut prefix = String::new();
+    let mut force_sections = false;
+    let mut idx = 0;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--prefix" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --prefix requires a value");
+                    return ExitCode::from(2);
+                }
+                prefix = args[idx].clone();
+            }
+            other if other.starts_with("--prefix=") => {
+                prefix = other.trim_start_matches("--prefix=").to_string();
+            }
+            "--sections" => force_sections = true,
+            "--path" => {
+                idx += 1;
+                if idx >= args.len() {
+                    eprintln!("error: --path requires a value");
+                    return ExitCode::from(2);
+                }
+                path = PathBuf::from(&args[idx]);
+                path_provided = true;
+            }
+            other if other.starts_with('-') => {
+                eprintln!("error: unknown flag `{other}`");
+                return ExitCode::from(2);
+            }
+            other => {
+                path = PathBuf::from(other);
+                path_provided = true;
+            }
+        }
+        idx += 1;
+    }
+    let candidates = match complete_ids(CompleteIdsOpts {
+        path,
+        path_provided,
+        prefix,
+        sections: force_sections,
+    }) {
+        Ok(candidates) => candidates,
+        Err(_) => return ExitCode::SUCCESS,
+    };
+    for candidate in candidates {
+        println!("{candidate}");
+    }
+    ExitCode::SUCCESS
+}
+
+fn command_completions(args: &[String]) -> ExitCode {
+    if args.is_empty() {
+        eprintln!("error: completions requires <bash|zsh|fish>");
+        return ExitCode::from(2);
+    }
+    if args.len() > 1 {
+        eprintln!("error: completions takes exactly one shell argument");
+        return ExitCode::from(2);
+    }
+    match args[0].as_str() {
+        "bash" => {
+            print_bash_completion();
+            ExitCode::SUCCESS
+        }
+        "zsh" => {
+            print_zsh_completion();
+            ExitCode::SUCCESS
+        }
+        "fish" => {
+            print_fish_completion();
+            ExitCode::SUCCESS
+        }
+        other => {
+            eprintln!("error: unsupported shell `{other}`");
+            eprintln!("known shells: bash, zsh, fish");
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn print_bash_completion() {
+    print!(
+        r#"# bash completion for grund
+_grund_complete_ids() {{
+    local cur="${{COMP_WORDS[COMP_CWORD]}}"
+    mapfile -t COMPREPLY < <(grund complete ids --prefix "$cur" 2>/dev/null)
+    for candidate in "${{COMPREPLY[@]}}"; do
+        if [[ "$candidate" == */ ]]; then
+            compopt -o nospace 2>/dev/null
+            break
+        fi
+    done
+}}
+
+_grund() {{
+    local cur="${{COMP_WORDS[COMP_CWORD]}}"
+    local sub="${{COMP_WORDS[1]}}"
+    COMPREPLY=()
+
+    if [[ $COMP_CWORD -eq 1 ]]; then
+        local commands=($(compgen -W "check show list refs cover fmt id init config agent-setup-instructions completions" -- "$cur"))
+        # IDs start with an uppercase kind (FS-…, GOAL-…), but workspace aliases
+        # are lowercase (`api/FS-login`). Once the user has typed a non-flag
+        # prefix, ask the helper for matching IDs and aliases.
+        if [[ -n "$cur" && "$cur" != -* ]]; then
+            _grund_complete_ids
+        fi
+        COMPREPLY=("${{commands[@]}}" "${{COMPREPLY[@]}}")
+        return 0
+    fi
+
+    case "$sub" in
+        show|refs)
+            _grund_complete_ids
+            return 0
+            ;;
+    esac
+}}
+
+complete -F _grund grund
+"#
+    );
+}
+
+fn print_zsh_completion() {
+    println!(
+        r#"#compdef grund
+
+_grund_ids() {{
+  local -a raw bare aliases
+  raw=("${{(@f)$(grund complete ids --prefix "$words[CURRENT]" 2>/dev/null)}}")
+  for candidate in $raw; do
+    if [[ -z "$candidate" ]]; then
+      continue
+    fi
+    if [[ "$candidate" == */ ]]; then
+      aliases+=("$candidate")
+    else
+      bare+=("$candidate")
+    fi
+  done
+  if (( ${{#aliases}} > 0 )); then
+    compadd -S '' -a aliases
+  fi
+  if (( ${{#bare}} > 0 )); then
+    _describe 'grund ids' bare
+  fi
+}}
+
+_grund() {{
+  local -a commands
+  commands=(
+    'check:validate every reference in a repo'
+    'show:print one declaration body by ID'
+    'list:list declared IDs'
+    'refs:list citations of an ID'
+    'cover:group citations by file'
+    'fmt:normalize citation syntax'
+    'id:emit the next conflict-free ID'
+    'init:scaffold AGENTS.md and config'
+    'config:inspect the effective config'
+    'agent-setup-instructions:print the guided setup instructions for AI agents'
+    'completions:print shell completion script'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe 'grund command' commands
+    # IDs start with an uppercase kind, but workspace aliases are lowercase.
+    # Once a non-flag prefix exists, ask the helper for matching IDs/aliases.
+    if [[ -n "$words[CURRENT]" && "$words[CURRENT]" != -* ]]; then
+      _grund_ids
+    fi
+    return
+  fi
+
+  case "$words[2]" in
+    show|refs) _grund_ids ;;
+    *) _files ;;
+  esac
+}}
+
+_grund "$@"
+"#
+    );
+}
+
+fn print_fish_completion() {
+    println!(
+        r#"# fish completion for grund
+function __grund_complete_ids
+    set -l token (commandline -ct)
+    grund complete ids --prefix "$token" 2>/dev/null
+end
+
+complete -c grund -f -n "__fish_use_subcommand" -a "check show list refs cover fmt id init config agent-setup-instructions completions"
+# IDs start with an uppercase kind, but workspace aliases are lowercase. Once a
+# non-flag prefix exists, ask the helper for matching IDs/aliases.
+complete -c grund -f -k -n "__fish_use_subcommand; and test -n (commandline -ct); and not string match -qr '^-' -- (commandline -ct)" -a "(__grund_complete_ids)"
+complete -c grund -f -k -n "__fish_seen_subcommand_from show refs" -a "(__grund_complete_ids)"
+"#
+    );
 }
 
 fn command_output_format(

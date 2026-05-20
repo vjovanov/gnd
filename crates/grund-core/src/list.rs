@@ -3,7 +3,7 @@
 /// §FS-list.3), optionally filtered to one kind or to declarations nothing cites
 /// (the same set as the §FS-check.4.1 warning). The discovery side of the loop:
 /// how an agent finds the right `<ID>` before citing it (§FS-list.5).
-pub fn command_list(args: &[String]) -> ExitCode {
+fn command_list(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
     let mut kind_filter: BTreeSet<String> = BTreeSet::new();
