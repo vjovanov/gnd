@@ -81,11 +81,10 @@ fn command_list(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let format = format_override.unwrap_or_else(|| output.output_format.clone());
-    if !matches!(format.as_str(), "text" | "json") {
-        eprintln!("error: unsupported list format `{format}`");
-        return ExitCode::from(2);
-    }
+    let format = match command_output_format("list", &output.output_format, format_override) {
+        Ok(format) => format,
+        Err(code) => return code,
+    };
 
     if summary {
         render_list_summary(&output.summaries, output.workspace, &format);
@@ -97,14 +96,7 @@ fn command_list(args: &[String]) -> ExitCode {
         render_list_text(&output.entries);
     }
 
-    if output.scan_errors.is_empty() {
-        ExitCode::SUCCESS
-    } else {
-        for err in &output.scan_errors {
-            eprintln!("error: {}: {}", err.path, err.message);
-        }
-        ExitCode::from(2)
-    }
+    exit_after_scan_errors(&output.scan_errors)
 }
 
 fn render_list_summary(summaries: &[grund_core::ListSummary], workspace: bool, format: &str) {
@@ -271,11 +263,10 @@ fn command_refs(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let format = format_override.unwrap_or_else(|| output.output_format.clone());
-    if !matches!(format.as_str(), "text" | "json") {
-        eprintln!("error: unsupported refs format `{format}`");
-        return ExitCode::from(2);
-    }
+    let format = match command_output_format("refs", &output.output_format, format_override) {
+        Ok(format) => format,
+        Err(code) => return code,
+    };
     if let Some(note) = &output.note {
         eprintln!("note: {note}");
     }
@@ -291,14 +282,7 @@ fn command_refs(args: &[String]) -> ExitCode {
         }
     }
 
-    if output.scan_errors.is_empty() {
-        ExitCode::SUCCESS
-    } else {
-        for err in &output.scan_errors {
-            eprintln!("error: {}: {}", err.path, err.message);
-        }
-        ExitCode::from(2)
-    }
+    exit_after_scan_errors(&output.scan_errors)
 }
 
 fn render_refs_summary(hits: &[RefHit], workspace: bool, format: &str) {
@@ -524,11 +508,10 @@ fn command_cover(args: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let format = format_override.unwrap_or_else(|| output.output_format.clone());
-    if !matches!(format.as_str(), "text" | "json") {
-        eprintln!("error: unsupported cover format `{format}`");
-        return ExitCode::from(2);
-    }
+    let format = match command_output_format("cover", &output.output_format, format_override) {
+        Ok(format) => format,
+        Err(code) => return code,
+    };
 
     if format == "json" {
         for entry in &output.entries {
@@ -557,14 +540,7 @@ fn command_cover(args: &[String]) -> ExitCode {
         }
     }
 
-    if output.scan_errors.is_empty() {
-        ExitCode::SUCCESS
-    } else {
-        for err in &output.scan_errors {
-            eprintln!("error: {}: {}", err.path, err.message);
-        }
-        ExitCode::from(2)
-    }
+    exit_after_scan_errors(&output.scan_errors)
 }
 
 fn render_cover_citation_json(citation: &CoverCitation) -> String {
@@ -949,6 +925,30 @@ fn format_toml_string_list(values: &[String]) -> String {
 
 fn escape_toml_basic(raw: &str) -> String {
     raw.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn command_output_format(
+    command: &str,
+    configured: &str,
+    override_format: Option<String>,
+) -> Result<String, ExitCode> {
+    let format = override_format.unwrap_or_else(|| configured.to_string());
+    if matches!(format.as_str(), "text" | "json") {
+        Ok(format)
+    } else {
+        eprintln!("error: unsupported {command} format `{format}`");
+        Err(ExitCode::from(2))
+    }
+}
+
+fn exit_after_scan_errors(scan_errors: &[ApiScanError]) -> ExitCode {
+    if scan_errors.is_empty() {
+        return ExitCode::SUCCESS;
+    }
+    for err in scan_errors {
+        eprintln!("error: {}: {}", err.path, err.message);
+    }
+    ExitCode::from(2)
 }
 
 fn json_escape(raw: &str) -> String {
