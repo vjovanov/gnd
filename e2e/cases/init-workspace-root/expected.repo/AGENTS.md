@@ -26,6 +26,14 @@ A `§<ID>` is a pointer to a fact, not a file path. Resolve it with `grund` and 
 - [E2E](e2e/cases): Executable user scenarios
 - [RM](docs/roadmap.md): Planned milestones and sequencing
 
+### Project namespaces
+
+A namespace is a project boundary, not a docs folder. The current project is the local namespace: cite its IDs as `§<ID>`.
+
+Create or use a separate namespace when work introduces an independently checked app, package, service, or subproject. Give that project its own `.agents/grund.toml`, add it to the workspace root's `[workspace] members`, run `grund init` there, and set a stable `project_name`.
+
+Do not create a namespace for a regular module or component that still belongs to this project. Cite across namespaces as `§alias/<ID>` and run `grund check` from the workspace root.
+
 ### Workspace members
 
 Cross-project citations use §alias/<ID>.
