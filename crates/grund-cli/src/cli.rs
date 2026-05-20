@@ -498,10 +498,28 @@ fn command_cover(args: &[String]) -> ExitCode {
         }
         idx += 1;
     }
-    let output = match cover(CoverOpts {
+    let opts = CoverOpts {
         path,
         path_provided,
-    }) {
+    };
+    if format_override.as_deref() == Some("json") {
+        let output = match cover(opts.clone()) {
+            Ok(output) => output,
+            Err(err) => {
+                eprintln!("error: {err:#}");
+                return ExitCode::from(2);
+            }
+        };
+        let format = match command_output_format("cover", &output.output_format, format_override) {
+            Ok(format) => format,
+            Err(code) => return code,
+        };
+        debug_assert_eq!(format, "json");
+        render_cover_json(&output.entries);
+        return exit_after_scan_errors(&output.scan_errors);
+    }
+
+    let output = match cover_text(opts.clone()) {
         Ok(output) => output,
         Err(err) => {
             eprintln!("error: {err:#}");
@@ -512,35 +530,49 @@ fn command_cover(args: &[String]) -> ExitCode {
         Ok(format) => format,
         Err(code) => return code,
     };
-
     if format == "json" {
-        for entry in &output.entries {
-            let citation_json = entry
-                .citations
-                .iter()
-                .map(render_cover_citation_json)
-                .collect::<Vec<_>>()
-                .join(",");
-            println!(
-                "{{\"path\":\"{}\",\"citations\":[{}]}}",
-                json_escape(&entry.path),
-                citation_json
-            );
-        }
-    } else {
-        for entry in &output.entries {
-            println!("{}:", entry.path);
-            if entry.citations.is_empty() {
-                println!("  (no citations)");
-            } else {
-                for citation in &entry.citations {
-                    println!("  {}:{} {}", citation.line, citation.column, citation.text);
-                }
+        let output = match cover(opts) {
+            Ok(output) => output,
+            Err(err) => {
+                eprintln!("error: {err:#}");
+                return ExitCode::from(2);
+            }
+        };
+        render_cover_json(&output.entries);
+        return exit_after_scan_errors(&output.scan_errors);
+    }
+
+    render_cover_text(&output.entries);
+    exit_after_scan_errors(&output.scan_errors)
+}
+
+fn render_cover_json(entries: &[grund_core::CoverEntry]) {
+    for entry in entries {
+        let citation_json = entry
+            .citations
+            .iter()
+            .map(render_cover_citation_json)
+            .collect::<Vec<_>>()
+            .join(",");
+        println!(
+            "{{\"path\":\"{}\",\"citations\":[{}]}}",
+            json_escape(&entry.path),
+            citation_json
+        );
+    }
+}
+
+fn render_cover_text(entries: &[CoverTextEntry]) {
+    for entry in entries {
+        println!("{}:", entry.path);
+        if entry.citations.is_empty() {
+            println!("  (no citations)");
+        } else {
+            for citation in &entry.citations {
+                println!("  {}:{} {}", citation.line, citation.column, citation.text);
             }
         }
     }
-
-    exit_after_scan_errors(&output.scan_errors)
 }
 
 fn render_cover_citation_json(citation: &CoverCitation) -> String {
