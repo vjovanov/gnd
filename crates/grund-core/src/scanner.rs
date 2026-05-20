@@ -53,6 +53,16 @@ fn scan_file(
     workspace_targets: &[WorkspaceCitationTarget],
 ) -> Result<()> {
     let text = fs::read_to_string(path)?;
+    scan_file_text(path, &text, config, findings, workspace_targets)
+}
+
+fn scan_file_text(
+    path: &Path,
+    text: &str,
+    config: &Config,
+    findings: &mut Findings,
+    workspace_targets: &[WorkspaceCitationTarget],
+) -> Result<()> {
     let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
     let is_py = path.extension().and_then(|e| e.to_str()) == Some("py");
     let inline_sites = inline_citation_sites(&text, is_md, is_py, config, workspace_targets);
@@ -1084,9 +1094,15 @@ fn scan_one_file(
     file: &Path,
     config: &Config,
     workspace_targets: &[WorkspaceCitationTarget],
+    overlays: &TextOverlays,
 ) -> FileScanResult {
     let mut findings = Findings::default();
-    match scan_file(file, config, &mut findings, workspace_targets) {
+    let result = if let Some(text) = overlay_text(overlays, file) {
+        scan_file_text(file, text, config, &mut findings, workspace_targets)
+    } else {
+        scan_file(file, config, &mut findings, workspace_targets)
+    };
+    match result {
         Ok(()) => {
             findings.scanned_files.push(file.to_path_buf());
             (file.to_path_buf(), Ok(findings))
@@ -1111,10 +1127,11 @@ fn scan_file_results(
     files: &[PathBuf],
     config: &Config,
     workspace_targets: &[WorkspaceCitationTarget],
+    overlays: &TextOverlays,
 ) -> Vec<FileScanResult> {
     files
         .par_iter()
-        .map(|file| scan_one_file(file, config, workspace_targets))
+        .map(|file| scan_one_file(file, config, workspace_targets, overlays))
         .collect::<Vec<_>>()
 }
 
@@ -1147,6 +1164,7 @@ fn scan_tree_with_workspace(
         explicit_scope,
         workspace_targets,
         PARALLEL_SCAN_MIN_FILES,
+        &TextOverlays::new(),
     )
 }
 
@@ -1156,12 +1174,14 @@ fn scan_tree_with_workspace_threshold(
     explicit_scope: bool,
     workspace_targets: &[WorkspaceCitationTarget],
     parallel_min_files: usize,
+    overlays: &TextOverlays,
 ) -> Result<(Findings, Vec<ScanError>)> {
     let mut findings = Findings::default();
     let mut errors = Vec::new();
-    let files = walk_scannable_files(config, scope, explicit_scope)?;
+    let mut files = walk_scannable_files(config, scope, explicit_scope)?;
+    add_overlay_scan_files(config, scope, explicit_scope, overlays, &mut files)?;
     if files.len() >= parallel_min_files {
-        for (file, result) in scan_file_results(&files, config, workspace_targets) {
+        for (file, result) in scan_file_results(&files, config, workspace_targets, overlays) {
             match result {
                 Ok(file_findings) => merge_findings(&mut findings, file_findings),
                 Err(message) => errors.push((file, message)),
@@ -1169,7 +1189,7 @@ fn scan_tree_with_workspace_threshold(
         }
     } else {
         for file in files {
-            match scan_one_file(&file, config, workspace_targets) {
+            match scan_one_file(&file, config, workspace_targets, overlays) {
                 (_, Ok(file_findings)) => merge_findings(&mut findings, file_findings),
                 (_, Err(message)) => errors.push((file, message)),
             }
@@ -1192,6 +1212,192 @@ fn scan_tree_with_workspace_threshold(
         });
     }
     Ok((findings, errors))
+}
+
+fn scan_tree_with_workspace_overlays(
+    config: &Config,
+    scope: Option<&Path>,
+    explicit_scope: bool,
+    workspace_targets: &[WorkspaceCitationTarget],
+    overlays: &TextOverlays,
+) -> Result<(Findings, Vec<ScanError>)> {
+    scan_tree_with_workspace_threshold(
+        config,
+        scope,
+        explicit_scope,
+        workspace_targets,
+        PARALLEL_SCAN_MIN_FILES,
+        overlays,
+    )
+}
+
+fn add_overlay_scan_files(
+    config: &Config,
+    scope: Option<&Path>,
+    explicit_scope: bool,
+    overlays: &TextOverlays,
+    files: &mut Vec<PathBuf>,
+) -> Result<()> {
+    if overlays.is_empty() {
+        return Ok(());
+    }
+    let roots = scan_roots(config, scope, explicit_scope)?;
+    for path in overlays.keys() {
+        if !is_scannable(path, config) {
+            continue;
+        }
+        let path = normalize_path_lexically(path);
+        if !roots.iter().any(|root| path_starts_with(&path, root)) {
+            continue;
+        }
+        if files.iter().any(|file| paths_same_location(file, &path)) {
+            continue;
+        }
+        if path.exists() || !new_overlay_file_passes_walk_filters(config, &roots, &path) {
+            continue;
+        }
+        files.push(path);
+    }
+    files.sort_by_key(|path| sort_path_key(path));
+    Ok(())
+}
+
+fn new_overlay_file_passes_walk_filters(config: &Config, roots: &[PathBuf], path: &Path) -> bool {
+    roots.iter().any(|root| {
+        let root = canonicalize_existing_prefix(root);
+        let path = canonicalize_existing_prefix(path);
+        if path == root || !path.starts_with(&root) {
+            return false;
+        }
+        if config
+            .workspace_boundary_roots
+            .iter()
+            .any(|boundary| path_starts_with(&path, boundary))
+        {
+            return false;
+        }
+        let Ok(relative) = path.strip_prefix(&root) else {
+            return false;
+        };
+        let components: Vec<_> = relative
+            .components()
+            .filter_map(|component| match component {
+                Component::Normal(name) => name.to_str(),
+                _ => None,
+            })
+            .collect();
+        if components
+            .iter()
+            .any(|component| component.starts_with('.'))
+        {
+            return false;
+        }
+        if components
+            .iter()
+            .take(components.len().saturating_sub(1))
+            .any(|component| config.exclude.iter().any(|excluded| excluded == component))
+        {
+            return false;
+        }
+        let e2e_cases_root = config
+            .kinds
+            .iter()
+            .find(|kind| kind.prefix == "E2E")
+            .and_then(|kind| kind.folder.as_deref())
+            .map(|folder| config.root.join(folder));
+        let mut ancestor = path.parent();
+        while let Some(dir) = ancestor {
+            if dir == root {
+                break;
+            }
+            if is_direct_e2e_case_dir(dir, e2e_cases_root.as_deref(), config) {
+                return false;
+            }
+            ancestor = dir.parent();
+        }
+        !path_ignored_by_gitignore(config, &root, &path)
+    })
+}
+
+fn path_ignored_by_gitignore(config: &Config, root: &Path, path: &Path) -> bool {
+    if !config.respect_gitignore {
+        return false;
+    }
+    let Some(parent) = path.parent() else {
+        return false;
+    };
+    let mut dirs = Vec::new();
+    let mut cursor = Some(parent);
+    while let Some(dir) = cursor {
+        dirs.push(dir);
+        if dir == root {
+            break;
+        }
+        cursor = dir.parent();
+    }
+    dirs.reverse();
+    let mut ignored = false;
+    for dir in dirs {
+        let gitignore = dir.join(".gitignore");
+        if !gitignore.is_file() {
+            continue;
+        }
+        let mut builder = ignore::gitignore::GitignoreBuilder::new(dir);
+        if builder.add(&gitignore).is_some() {
+            continue;
+        }
+        let Ok(matcher) = builder.build() else {
+            continue;
+        };
+        let matched = matcher.matched_path_or_any_parents(path, false);
+        if matched.is_ignore() {
+            ignored = true;
+        } else if matched.is_whitelist() {
+            ignored = false;
+        }
+    }
+    ignored
+}
+
+fn path_starts_with(path: &Path, root: &Path) -> bool {
+    let path = canonicalize_existing_prefix(path);
+    let root = canonicalize_existing_prefix(root);
+    path == root || path.starts_with(root)
+}
+
+fn canonicalize_existing_prefix(path: &Path) -> PathBuf {
+    let path = if path.is_absolute() {
+        normalize_path_lexically(path)
+    } else {
+        std::env::current_dir()
+            .map(|cwd| normalize_path_lexically(&cwd.join(path)))
+            .unwrap_or_else(|_| normalize_path_lexically(path))
+    };
+    if let Ok(canonical) = fs::canonicalize(&path) {
+        return canonical;
+    }
+    let mut suffix = PathBuf::new();
+    let mut cursor = path.as_path();
+    while !cursor.exists() {
+        let Some(name) = cursor.file_name() else {
+            break;
+        };
+        suffix = Path::new(name).join(suffix);
+        let Some(parent) = cursor.parent() else {
+            break;
+        };
+        cursor = parent;
+    }
+    fs::canonicalize(cursor)
+        .unwrap_or_else(|_| normalize_path_lexically(cursor))
+        .join(suffix)
+}
+
+fn overlay_text<'a>(overlays: &'a TextOverlays, path: &Path) -> Option<&'a str> {
+    overlays
+        .get(&normalize_path_lexically(path))
+        .or_else(|| overlays.get(path))
+        .map(String::as_str)
 }
 
 /// Scan helper for point-query subcommands (`show`, `id`): any unreadable file

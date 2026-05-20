@@ -26,6 +26,7 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 
 ### Added
 
+- [§FS-lsp](functional-spec/FS-lsp.md#fs-lsp-grund-will-ship-an-optional-lsp-server) / [§AR-lsp](architecture/AR-lsp.md#ar-lsp-how-the-lsp-server-is-built): add the optional `grund-lsp` binary with LSP diagnostics, `show --toc` hover previews, go-to-definition, find-references, document links for resolving citations, and live `$$` trigger formatting. PR #25.
 - [§AR-benchmarks](architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands) / [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets): add the generated 10k-file benchmark fixture, record instruction-count baselines, and make pull-request CI fail on >5% Callgrind instruction-count regressions. PR #19.
 - [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli) / [§FS-distribution.3.1](functional-spec/FS-distribution.md#31-rust-grund-core-crate): add the dedicated `crates/grund-cli` frontend package, make the root manifest a virtual workspace, expose the initial `grund-core` embedding API (`check`, `show`, `scan`, `Report`, `Findings`, `ShowOpts`), and move the remaining CLI surfaces (`refs`, `list`, `cover`, `fmt`, `id`, `init`, config inspection) onto data-returning core APIs with text/JSON rendering and exit-code mapping in `grund-cli`. PR #20, PR #21.
 - [§RM-parallel-scan](roadmap.md#rm-parallel-scan-parallel-per-file-scanning-for-large-repo-throughput) / [§AR-scanner](architecture/AR-scanner.md#ar-scanner-how-grund-discovers-declarations-and-citations): scan large sorted file lists and workspace projects in parallel while merging findings in deterministic path order, and publish updated benchmark results for the parallel path. PR #22.
@@ -39,6 +40,7 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 
 ### Fixed
 
+- [§FS-lsp.1.3](functional-spec/FS-lsp.md#13-go-to-definition) / [§FS-lsp.1.3.2](functional-spec/FS-lsp.md#132-document-links): make Markdown declaration titles navigate as whole-title spans, make inline-spec stub titles link to the source doc-comment declaration, and keep source-comment citation references visible from Markdown navigation. PR #25.
 - [§AR-ci](architecture/AR-ci.md#ar-ci-ci-mirrors-the-local-pre-commit-gate): CI cache restore/save failures no longer abort a matrix job before the actual checks run. PR #22.
 - [§FS-distribution.4](functional-spec/FS-distribution.md#4-release-process): release recovery runs for pre-split tags now accept the historical root `[package] version` manifest shape as well as the new workspace-package version. PR #20.
 - [§AR-scanner.6](architecture/AR-scanner.md#6-e2e-case-declarations) / [§RM-self-host](roadmap.md#rm-self-host-guard-the-self-host-loop-in-ci): ordinary scans now treat direct E2E case directories as manifest boundaries, so nested fixture repos do not pollute the outer report under the canonical default config. PR #18.
