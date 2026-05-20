@@ -30,6 +30,10 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 - [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli) / [§FS-distribution.3.1](functional-spec/FS-distribution.md#31-rust-grund-core-crate): add the dedicated `crates/grund-cli` frontend package, make the root manifest a virtual workspace, expose the initial `grund-core` embedding API (`check`, `show`, `scan`, `Report`, `Findings`, `ShowOpts`), and move the remaining CLI surfaces (`refs`, `list`, `cover`, `fmt`, `id`, `init`, config inspection) onto data-returning core APIs with text/JSON rendering and exit-code mapping in `grund-cli`. PR #20, PR #21.
 - [§RM-parallel-scan](roadmap.md#rm-parallel-scan-parallel-per-file-scanning-for-large-repo-throughput) / [§AR-scanner](architecture/AR-scanner.md#ar-scanner-how-grund-discovers-declarations-and-citations): scan large sorted file lists and workspace projects in parallel while merging findings in deterministic path order, and publish updated benchmark results for the parallel path. PR #22.
 
+### Changed
+
+- [§RM-parallel-scan](roadmap.md#rm-parallel-scan-parallel-per-file-scanning-for-large-repo-throughput) / [§FS-distribution.4](functional-spec/FS-distribution.md#4-release-process): move completed roadmap work out of the active queue and keep package-name verification documented as part of the release process rather than as a standalone roadmap milestone. PR #23.
+
 ### Fixed
 
 - [§AR-ci](architecture/AR-ci.md#ar-ci-ci-mirrors-the-local-pre-commit-gate): CI cache restore/save failures no longer abort a matrix job before the actual checks run. PR #22.
