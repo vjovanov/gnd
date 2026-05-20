@@ -11,7 +11,7 @@ Guide the user through `grund` adoption. `grund init` itself is non-interactive,
 
 1. Inspect the target repo before asking questions. Find existing specs, artifact types, roadmaps, changelogs, decisions, plans, tests, and agent instruction files before recommending anything.
 2. Present a short "detected repo shape" summary and recommended setup.
-3. If existing specs or spec-like artifacts are present, show the canonical GRUND artifact types beside the detected project-specific sections/tags/document classes, then ask which artifact model to adopt before writing config or refactoring docs.
+3. If existing specs or spec-like artifacts are present, show the canonical `grund` artifact types beside the detected project-specific sections/tags/document classes, then ask which artifact model to adopt before writing config or refactoring docs.
 4. Ask each remaining setup/config question below. For every question, include the recommended value, repo evidence, pros, cons, and when to choose something else.
 5. Write `.agents/grund.toml` from the analysis before running `grund init`, so generated guidance reflects the repository's actual grammar, marker, strict mode, kinds, artifact folders, and scan scope.
 6. Run `grund init [path] [--name NAME] [--force]`, adding `--docs` only when the repo is fresh or the user selected a canonical-layout migration that needs the scaffold. Preview the run with `--dry-run` if the user wants to inspect what will change before committing.
@@ -54,16 +54,16 @@ Ask first:
 
 - Target path: default `.`
 - Project name: default target directory basename
-- Artifact model when existing specs are detected: canonical GRUND, canonical core plus project-specific extras, or existing structure with citations
+- Artifact model when existing specs are detected: canonical `grund`, canonical core plus project-specific extras, or existing structure with citations
 - Scaffold docs/e2e with `--docs`: default no for existing repos, yes for fresh repos
 - Existing file behavior: append/update default, or `--force`
 
 ## Existing Specs Adoption
 
-When the repo already contains specs, requirements, ADRs, RFCs, design docs, plans, tests, or other spec-like artifacts, do not silently scaffold over them or refactor them into canonical GRUND folders. First show the user:
+When the repo already contains specs, requirements, ADRs, RFCs, design docs, plans, tests, or other spec-like artifacts, do not silently scaffold over them or refactor them into canonical `grund` folders. First show the user:
 
-- The canonical GRUND artifact types:
-  - `GND` — reason / grounding doc
+- The canonical `grund` artifact types:
+  - `GRUND` — reason / grounding doc
   - `GOAL` — project goals
   - `FS` — functional specs
   - `AR` — architecture specs
@@ -77,8 +77,8 @@ Then ask the user to choose one adoption model:
 
 | Option | When to recommend it | What the agent does |
 |---|---|---|
-| Canonical GRUND | Fresh or lightly documented repos, or users who explicitly want to reorganize around GRUND conventions. | Use `GND`, `GOAL`, `FS`, `AR`, `DF`, `DA`, `E2E`, and `RM` as the complete artifact model; add or refactor docs toward canonical homes only after user confirmation. |
-| Canonical core plus project-specific extras | Repos with useful existing ADRs/RFCs/requirements but no clear behavior-vs-architecture backbone. | Use `GND`, `GOAL`, `FS`, and `AR` as the grounding backbone, then add custom `[[kinds]]` for project-specific artifacts. |
+| Canonical `grund` | Fresh or lightly documented repos, or users who explicitly want to reorganize around `grund` conventions. | Use `GRUND`, `GOAL`, `FS`, `AR`, `DF`, `DA`, `E2E`, and `RM` as the complete artifact model; add or refactor docs toward canonical homes only after user confirmation. |
+| Canonical core plus project-specific extras | Repos with useful existing ADRs/RFCs/requirements but no clear behavior-vs-architecture backbone. | Use `GRUND`, `GOAL`, `FS`, and `AR` as the grounding backbone, then add custom `[[kinds]]` for project-specific artifacts. |
 | Existing structure with citations | Mature repos with a strong existing taxonomy or high migration cost. | Preserve current sections/tags/document classes, configure `[[kinds]]` and `[scan]` around them, and add `grund` citations/declarations without forcing canonical folders. |
 
 The question should include a recommendation grounded in the inventory. Do not write `.agents/grund.toml`, run `grund init --docs`, move documents, rename headings, or add bulk citations until the user chooses the adoption model. Once selected, use the model to decide whether the setup is only config plus entrypoint refresh, or a broader docs refactor with a visible plan.
@@ -184,7 +184,7 @@ Relax only to match existing IDs.
 
 ### `[[kinds]]`
 
-Default kinds: `GND`, `GOAL`, `FS`, `AR`, `DF`, `DA`, `E2E`, `RM`.
+Default kinds: `GRUND`, `GOAL`, `FS`, `AR`, `DF`, `DA`, `E2E`, `RM`.
 
 Ask whether to keep defaults, remove unused kinds, or add project-specific kinds.
 
