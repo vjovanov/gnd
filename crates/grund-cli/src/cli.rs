@@ -439,7 +439,8 @@ fn command_init(args: &[String]) -> ExitCode {
     }) {
         Ok(output) => output,
         Err(err) => {
-            eprintln!("error: {err:#}");
+            render_init_output(&err.output);
+            eprintln!("error: {err}");
             return ExitCode::from(2);
         }
     };
