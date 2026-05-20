@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, anyhow};
 use ignore::WalkBuilder;
 use once_cell::sync::Lazy;
+use rayon::prelude::*;
 use regex::Regex;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;

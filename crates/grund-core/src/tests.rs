@@ -26,6 +26,76 @@ mod tests {
         std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
     }
 
+    fn findings_signature(config: &Config, findings: &Findings) -> Vec<String> {
+        let mut rows = Vec::new();
+        for (id, declarations) in &findings.declarations {
+            for declaration in declarations {
+                rows.push(format!(
+                    "decl|{}|{}|{}|{}|{}|{}|{}",
+                    render_id(config, id),
+                    sort_path_key(&declaration.file),
+                    declaration.line,
+                    declaration.heading_level,
+                    declaration.is_stub,
+                    declaration.title.as_deref().unwrap_or(""),
+                    declaration
+                        .defined_in
+                        .as_ref()
+                        .map(|path| format_path(path))
+                        .unwrap_or_default()
+                ));
+                for (section, info) in &declaration.sections {
+                    rows.push(format!(
+                        "section|{}|{}|{}|{}|{}",
+                        render_id(config, id),
+                        section,
+                        info.title,
+                        info.line,
+                        info.heading_level
+                    ));
+                }
+                if let Some(case) = &declaration.e2e_case {
+                    rows.push(format!(
+                        "e2e|{}|{}|{}|{}|{}",
+                        render_id(config, id),
+                        sort_path_key(&case.dir),
+                        case.expected_exit,
+                        case.args.join(" "),
+                        case.fixtures
+                            .iter()
+                            .map(|path| format_path(path))
+                            .collect::<Vec<_>>()
+                            .join(",")
+                    ));
+                }
+            }
+        }
+        for citation in &findings.citations {
+            rows.push(format!(
+                "cite|{}|{}|{}|{}|{}|{}|{}|{}",
+                citation.namespace.as_deref().unwrap_or(""),
+                render_id(config, &citation.id),
+                citation.section.as_deref().unwrap_or(""),
+                sort_path_key(&citation.file),
+                citation.line,
+                citation.column,
+                citation.has_marker,
+                citation.text
+            ));
+        }
+        for file in &findings.scanned_files {
+            rows.push(format!("file|{}", sort_path_key(file)));
+        }
+        rows
+    }
+
+    fn scan_errors_signature(errors: Vec<ScanError>) -> Vec<String> {
+        errors
+            .into_iter()
+            .map(|(path, message)| format!("{}|{}", sort_path_key(&path), message))
+            .collect()
+    }
+
     #[test]
     fn report_path_rendering_uses_forward_slashes() {
         assert_eq!(
@@ -45,6 +115,134 @@ mod tests {
 
     fn current_marker() -> &'static str {
         "## Grounding with grund (v2)"
+    }
+
+    #[test]
+    fn parallel_file_scan_matches_sequential_scan() {
+        let root = test_root("parallel_file_scan_matches_sequential_scan");
+        write(
+            &root.join("docs/functional-spec/FS-001-root.md"),
+            "# FS-001-root: Root\n\n## 1. Contract\nReferenced by source files.\n",
+        );
+        for idx in 0..300 {
+            write(
+                &root.join(format!("src/module-{idx:03}.rs")),
+                &format!("// §FS-001-root.1\npub fn module_{idx:03}() {{}}\n"),
+            );
+        }
+
+        let config = Config::default_for(root.clone());
+        let (sequential, sequential_errors) =
+            scan_tree_with_workspace_threshold(&config, Some(&root), true, &[], usize::MAX)
+                .expect("sequential scan");
+        let (parallel, parallel_errors) =
+            scan_tree_with_workspace_threshold(&config, Some(&root), true, &[], 1)
+                .expect("parallel scan");
+
+        assert_eq!(
+            findings_signature(&config, &parallel),
+            findings_signature(&config, &sequential),
+            "parallel file scanning must merge to the same Findings as the sequential path"
+        );
+        assert_eq!(
+            scan_errors_signature(parallel_errors),
+            scan_errors_signature(sequential_errors),
+            "parallel file scanning must preserve scan-error ordering"
+        );
+    }
+
+    #[test]
+    fn parallel_workspace_scan_matches_sequential_project_scans() {
+        let root = test_root("parallel_workspace_scan_matches_sequential_project_scans");
+        write(
+            &root.join(".agents/grund.toml"),
+            r#"[workspace]
+members = ["packages/*"]
+"#,
+        );
+        write(
+            &root.join("docs/functional-spec/FS-001-root.md"),
+            "# FS-001-root: Root\n\nMentions §alpha/FS-001-alpha and §beta/FS-001-beta.\n",
+        );
+        write(
+            &root.join("packages/alpha/docs/functional-spec/FS-001-alpha.md"),
+            "# FS-001-alpha: Alpha\n\nMentions §root/FS-001-root.\n",
+        );
+        write(
+            &root.join("packages/beta/docs/functional-spec/FS-001-beta.md"),
+            "# FS-001-beta: Beta\n\nMentions §alpha/FS-001-alpha.\n",
+        );
+
+        let mut root_config = resolve_workspace_config(&root).expect("workspace config");
+        let member_roots = expand_workspace_members(&root_config).expect("members");
+        root_config.workspace_boundary_roots = member_roots.clone();
+        let mut entries = vec![("root".to_string(), root_config.clone())];
+        for member_root in member_roots {
+            let member_config = load_config_at_with_report_base(
+                &member_root,
+                &root_config.cli_base,
+                Some(&root_config.root),
+            )
+            .expect("member config");
+            let alias = member_root
+                .file_name()
+                .and_then(|name| name.to_str())
+                .expect("member alias")
+                .to_string();
+            entries.push((alias, member_config));
+        }
+        let targets = entries
+            .iter()
+            .map(|(alias, config)| WorkspaceCitationTarget {
+                alias: alias.clone(),
+                config: config.clone(),
+            })
+            .collect::<Vec<_>>();
+
+        let sequential = entries
+            .iter()
+            .map(|(alias, config)| {
+                let (findings, errors) = scan_tree_with_workspace_threshold(
+                    config,
+                    Some(&config.root),
+                    true,
+                    &targets,
+                    usize::MAX,
+                )
+                .expect("sequential workspace project scan");
+                (
+                    alias.clone(),
+                    findings_signature(config, &findings),
+                    scan_errors_signature(errors),
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut parallel = entries
+            .into_par_iter()
+            .map(|(alias, config)| {
+                let (findings, errors) = scan_tree_with_workspace_threshold(
+                    &config,
+                    Some(&config.root),
+                    true,
+                    &targets,
+                    1,
+                )
+                .expect("parallel workspace project scan");
+                (
+                    alias,
+                    findings_signature(&config, &findings),
+                    scan_errors_signature(errors),
+                )
+            })
+            .collect::<Vec<_>>();
+        parallel.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut sequential_sorted = sequential;
+        sequential_sorted.sort_by(|a, b| a.0.cmp(&b.0));
+
+        assert_eq!(
+            parallel, sequential_sorted,
+            "parallel workspace project scanning must preserve each project's scanner output"
+        );
     }
 
     #[test]
@@ -462,7 +660,6 @@ mod tests {
         let cover_output = cover(CoverOpts {
             path: root.clone(),
             path_provided: true,
-            ..CoverOpts::default()
         })
         .expect("public cover api");
         assert!(

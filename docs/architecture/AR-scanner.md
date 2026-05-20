@@ -12,7 +12,7 @@ Directory-level skip rules:
 - Build/output directories named in the skip list (`target`, `node_modules`, `.git`, `dist`, `build`, `.venv` by default — [§FS-config.3.5](../functional-spec/FS-config.md#35-scan--what-gets-walked)) are skipped at any depth.
 - The skip list is configurable per [§GOAL-configurable](../goals.md#goal-configurable-every-default-is-overridable) and [§FS-config.3.5](../functional-spec/FS-config.md#35-scan--what-gets-walked).
 
-Files are filtered by extension to those that can plausibly contain specs or inline declarations: `.md` and a curated list of source-file extensions.
+Files are filtered by extension to those that can plausibly contain specs or inline declarations: `.md` and a curated list of source-file extensions. The walk itself produces one sorted file list before scanning starts. Small lists are scanned sequentially; large lists may scan files in parallel, but each file writes into a private result and the merge always happens in sorted path order. That preserves the byte-for-byte report ordering required by [§FS-errors.4](../functional-spec/FS-errors.md#4-determinism) while allowing the hot full-tree commands to use multiple cores once the thread-pool overhead is worth paying ([§RM-parallel-scan](../roadmap.md#rm-parallel-scan-parallel-per-file-scanning-for-large-repo-throughput)).
 
 ### 1.1 Respecting `.gitignore` and friends
 
@@ -65,6 +65,8 @@ The scanner produces a `Findings` struct containing:
 - `citations: Vec<Citation>` — each with the referenced ID, optional section, file, line, and start column, plus whether it was written marker-prefixed or bare.
 
 This is the only structured output the scanner produces. Everything downstream (checking, showing, IDE diagnostics) operates on this data structure.
+
+When file scanning runs in parallel, each per-file result is merged as though the sorted file list had been scanned sequentially: declarations for duplicate IDs keep path order, citations keep path/line/column order, and `scanned_files` keeps the sorted file order. Workspace scans use the same per-file rule with the workspace target list already loaded, so `§<alias>/<ID>` citations are still parsed during that one read of the citing file rather than by a second pass.
 
 ## 4. Inline declarations in language doc-comments
 

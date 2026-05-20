@@ -385,7 +385,7 @@ pub fn cover(opts: CoverOpts) -> Result<CoverOutput> {
         .map(|(file, citations)| CoverEntry {
             path: display_path(&config, file),
             citations: citations
-                .into_iter()
+                .iter()
                 .map(|citation| CoverCitation {
                     path: display_path(&config, &citation.file),
                     line: citation.line,
