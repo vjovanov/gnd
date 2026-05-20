@@ -12,6 +12,8 @@ When a new pre-commit hook is added, the same change must ensure CI can run it. 
 
 The full Rust build and test matrix still runs on every configured operating system. The pre-commit gate may run on one representative CI platform when the hooks are platform-independent, because its job is policy parity with local commits, not cross-platform behavior coverage. Platform-specific behavior belongs in the build and test jobs.
 
+CI dependency and build caches are performance optimizations only. A cache restore/save failure must not abort the matrix before the actual checks run; the job should continue cold and let `fmt`, the changelog gate, Python tests, pre-commit, build, self-check, tests, or benchmarks decide pass/fail.
+
 ## 3. Current hooks
 
 The current pre-commit gate runs the same Rust format/build/test commands that development CI runs: `cargo fmt --all -- --check`, `cargo build --workspace --all-targets --locked` with warnings denied, and `cargo test --workspace --all-targets --locked`. The test hook also runs at `pre-push`, so a contributor who commits while a test is transiently broken still gets the same local stop before sending the branch. The changelog PR-entry gate also runs at `pre-push` when the current branch already has a GitHub pull request number, so follow-up pushes cannot miss the `docs/changelog.md` `## Unreleased` entry CI will require.
