@@ -350,10 +350,10 @@ fn default_kind_file(prefix: &str) -> Option<&'static str> {
 /// §FS-id.2).
 fn default_kind_title(prefix: &str) -> Option<&'static str> {
     match prefix {
-        "GND" => Some("Reason for existence"),
-        "GOAL" => Some("Outcomes the project is trying to achieve"),
-        "FS" => Some("User-visible behavior and requirements"),
-        "AR" => Some("System design and technical structure"),
+        "GND" => Some("Why: project motivation"),
+        "GOAL" => Some("Where: project direction and outcomes"),
+        "FS" => Some("What: behavior, requirements, and constraints"),
+        "AR" => Some("How: high-level implementation, structure, and design"),
         "DA" => Some("Architecture decisions and tradeoffs"),
         "DF" => Some("Product behavior decisions and tradeoffs"),
         "E2E" => Some("Executable user scenarios"),

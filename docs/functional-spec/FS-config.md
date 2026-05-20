@@ -112,22 +112,22 @@ The defaults declare the canonical eight, in this order:
 [[kinds]]
 prefix = "GND"
 file   = "docs/grund.md"
-title  = "Reason for existence"
+title  = "Why: project motivation"
 
 [[kinds]]
 prefix = "GOAL"
 file   = "docs/goals.md"
-title  = "Outcomes the project is trying to achieve"
+title  = "Where: project direction and outcomes"
 
 [[kinds]]
 prefix = "FS"
 folder = "docs/functional-spec"
-title  = "User-visible behavior and requirements"
+title  = "What: behavior, requirements, and constraints"
 
 [[kinds]]
 prefix = "AR"
 folder = "docs/architecture"
-title  = "System design and technical structure"
+title  = "How: high-level implementation, structure, and design"
 
 [[kinds]]
 prefix = "DF"
