@@ -46,7 +46,7 @@ Unchanged from [§DF-show-token-cheap-reads.2.3](DF-show-token-cheap-reads.md#23
 ## 3. Why this fits grund's goals
 
 - [§GOAL-token-economy](../../goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file) / [§GOAL-friendliness-first](../../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) — the cheapest read is now the default. An agent that reaches for `grund show <ID>` without thinking gets the right amount of spec, not 15 KB.
-- [§GND-grund](../../grund.md#gnd-grund-agents-stay-grounded-in-the-spec) — grounding is more likely when grounding is cheap. The four-level ladder gives an agent a deliberate next move at every rung.
+- [§GRUND-grund](../../grund.md#grund-grund-agents-stay-grounded-in-the-spec) — grounding is more likely when grounding is cheap. The four-level ladder gives an agent a deliberate next move at every rung.
 - [§GOAL-no-silent-breakage](../../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — this is a user-visible output change. It ships through the managed `AGENTS.md` block version bump and a release note; the `--full` flag remains the way to get the prior default.
 
 ## 4. Consequences

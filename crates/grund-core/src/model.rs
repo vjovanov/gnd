@@ -127,7 +127,7 @@ pub struct ShowSection {
 /// One `[[kinds]]` entry: prefix plus the folder its declarations live in and the
 /// human title `grund id` prints (§FS-config.3.4). When `file` is set, every
 /// declaration of this kind must live in that exact file — a *single-file kind*,
-/// used by `GND`/`GOAL`/`RM` whose IDs all live in one document
+/// used by `GRUND`/`GOAL`/`RM` whose IDs all live in one document
 /// (`docs/grund.md`, `docs/goals.md`, `docs/roadmap.md`).
 #[derive(Clone)]
 pub struct KindConfig {
@@ -192,7 +192,7 @@ pub struct Config {
     pub grammar: Grammar,
 }
 
-const DEFAULT_KINDS: &[&str] = &["GND", "GOAL", "FS", "AR", "DF", "DA", "E2E", "RM"];
+const DEFAULT_KINDS: &[&str] = &["GRUND", "GOAL", "FS", "AR", "DF", "DA", "E2E", "RM"];
 const DEFAULT_ID_FORMAT: &str = "{kind}-{number}-{slug}";
 const DEFAULT_SECTION_SEPARATOR: &str = ".";
 const DEFAULT_NUMBER_PATTERN: &str = r"\d+";
@@ -326,7 +326,7 @@ fn default_kind_folder(prefix: &str) -> Option<&'static str> {
         "DA" => Some("docs/decisions/architectural"),
         "DF" => Some("docs/decisions/functional"),
         "E2E" => Some("e2e/cases"),
-        // GND, GOAL, RM are single-file kinds — see `default_kind_file`. A
+        // GRUND, GOAL, RM are single-file kinds — see `default_kind_file`. A
         // kind can always be broken up later by swapping `file = "…"` for
         // `folder = "…"` and moving the document into the folder.
         _ => None,
@@ -334,12 +334,12 @@ fn default_kind_folder(prefix: &str) -> Option<&'static str> {
 }
 
 /// Default single-file home for the three kinds whose declarations all live in
-/// one document — `GND` in `docs/grund.md`, `GOAL` in `docs/goals.md`, `RM`
+/// one document — `GRUND` in `docs/grund.md`, `GOAL` in `docs/goals.md`, `RM`
 /// in `docs/roadmap.md` (§FS-config.3.4). Other built-in kinds have no `file`
 /// (each declaration is its own file).
 fn default_kind_file(prefix: &str) -> Option<&'static str> {
     match prefix {
-        "GND" => Some("docs/grund.md"),
+        "GRUND" => Some("docs/grund.md"),
         "GOAL" => Some("docs/goals.md"),
         "RM" => Some("docs/roadmap.md"),
         _ => None,
@@ -350,7 +350,7 @@ fn default_kind_file(prefix: &str) -> Option<&'static str> {
 /// §FS-id.2).
 fn default_kind_title(prefix: &str) -> Option<&'static str> {
     match prefix {
-        "GND" => Some("Why: project motivation"),
+        "GRUND" => Some("Why: project motivation"),
         "GOAL" => Some("Where: project direction and outcomes"),
         "FS" => Some("What: behavior, requirements, and constraints"),
         "AR" => Some("How: high-level implementation, structure, and design"),

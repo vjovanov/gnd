@@ -74,7 +74,7 @@ The link emission is a transformation on the source `.md` file (a sibling of the
 
 | Approach | Why rejected |
 |---|---|
-| Markdown links as the source of truth (delete the ID grammar) | Loses the polyglot property entirely — the reason `grund` exists per [§GOAL-polyglot-citation](../../goals.md#goal-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) and [§GND-grund](../../grund.md#gnd-grund-agents-stay-grounded-in-the-spec). Source comments cannot host clickable Markdown. |
+| Markdown links as the source of truth (delete the ID grammar) | Loses the polyglot property entirely — the reason `grund` exists per [§GOAL-polyglot-citation](../../goals.md#goal-polyglot-citation-ids-cite-cleanly-from-anywhere-they-are-useful) and [§GRUND-grund](../../grund.md#grund-grund-agents-stay-grounded-in-the-spec). Source comments cannot host clickable Markdown. |
 | Render IDs to links at publish time, in a downstream tool | Pushes the work to every consumer — MkDocs plugin, GitHub Action, IDE preview — and gives each one a chance to disagree on the link target. Doing it once in `grund fmt` keeps two installs in agreement ([§FS-non-goals.13](../../functional-spec/FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)). |
 | Always emit links with no config knob | Leaves path-churn-heavy repos no escape hatch. The chosen default keeps links on for generated/new configs but preserves `enabled = false` as a visible opt-out. |
 | Heading-text slugs for anchors | Brittle under heading edits; would force `fmt` to rewrite anchors whenever prose changes; runs counter to "IDs survive refactors" — the property this project exists to defend. |

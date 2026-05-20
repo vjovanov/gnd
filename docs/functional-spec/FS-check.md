@@ -114,7 +114,7 @@ A kind configured with `file = "<path>"` in [[kinds]] ([§FS-config.3.4](FS-conf
 docs/notes.md:42: GOAL-foo must be declared in docs/goals.md (single-file kind)
 ```
 
-Stubs (`# <ID>: [<text>](<path>)`) are exempt — they are pointers from a kind's home folder to an inline declaration elsewhere, which is a multi-file-kind feature; a single-file kind has no stubs because there is no folder to redirect from. This is the canonical mechanism that keeps `GND`, `GOAL`, and `RM` declarations consolidated in their respective documents, and what makes "one file, all goals inline" a checked invariant rather than a convention.
+Stubs (`# <ID>: [<text>](<path>)`) are exempt — they are pointers from a kind's home folder to an inline declaration elsewhere, which is a multi-file-kind feature; a single-file kind has no stubs because there is no folder to redirect from. This is the canonical mechanism that keeps `GRUND`, `GOAL`, and `RM` declarations consolidated in their respective documents, and what makes "one file, all goals inline" a checked invariant rather than a convention.
 
 ### 3.8 Cross-project citation failure
 

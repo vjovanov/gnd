@@ -1,2 +1,2 @@
 error: unknown kind `NOPE`
-known kinds: GND, GOAL, FS, AR, DF, DA, E2E, RM
+known kinds: GRUND, GOAL, FS, AR, DF, DA, E2E, RM

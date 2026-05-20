@@ -19,7 +19,7 @@ section_heading_levels = "strict"
 slug_pattern = "[a-z][a-z0-9-]*"
 
 [[kinds]]
-prefix = "GND"
+prefix = "GRUND"
 title = "Why: project motivation"
 
 [[kinds]]

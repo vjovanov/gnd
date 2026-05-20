@@ -14,7 +14,7 @@
 2. **Re-read before you edit.** `grund <ID>.<section>` pulls just that subsection into context — no full-file reads, no token bloat.
 3. **No dangling pointers.** `grund check` validates that every cited ID resolves — in `.md`, Rust `///`, Java doc-comments, Python docstrings, Go `//`, JSDoc, every doc-comment form `grund` knows about.
 
-Off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) only handle `.md` and only validate `[text](url)`. A `§FS-events.4` cited from `src/bus.rs` is invisible to them. That gap is what `grund` exists to close: Lychee checks whether Markdown links still open; `grund` checks whether your code still knows why it exists. Lychee is the link checker; `grund` is the intent checker. Both belong in CI; they guard different failure modes. [§GND-grund.1](docs/grund.md#1-what-grund-does-about-it)
+Off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) only handle `.md` and only validate `[text](url)`. A `§FS-events.4` cited from `src/bus.rs` is invisible to them. That gap is what `grund` exists to close: Lychee checks whether Markdown links still open; `grund` checks whether your code still knows why it exists. Lychee is the link checker; `grund` is the intent checker. Both belong in CI; they guard different failure modes. [§GRUND-grund.1](docs/grund.md#1-what-grund-does-about-it)
 
 `grund` measures CI performance by instruction count, not stopwatch time: the current snapshot is 299,672,739 Callgrind `Ir` for `grund check .` and 1,055,099,244 `Ir` for the generated 10k-file fixture, with pull requests gated at 5% growth.
 
@@ -23,13 +23,13 @@ Off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) only hand
 Before anything can be cited, the target has to exist. A declaration is a heading whose first token is the ID — `grund`'s own reason for being lives at [`docs/grund.md`](docs/grund.md):
 
 ```markdown
-# GND-grund: agents stay grounded in the spec
+# GRUND-grund: agents stay grounded in the spec
 
 Keep agents grounded in the spec — fewer bugs, cheaper LLM context,
 faster onboarding. …
 ```
 
-That heading lives in the configured home for its kind (`GND` → `docs/grund.md`, `FS` → `docs/functional-spec/`, `GOAL` → `docs/goals.md`, and so on — see [§4](#4-the-structure-that-gets-cited)). Once it's declared, any code, doc, or test can cite `§GND-grund` and `grund check` will resolve it.
+That heading lives in the configured home for its kind (`GRUND` → `docs/grund.md`, `FS` → `docs/functional-spec/`, `GOAL` → `docs/goals.md`, and so on — see [§4](#4-the-structure-that-gets-cited)). Once it's declared, any code, doc, or test can cite `§GRUND-grund` and `grund check` will resolve it.
 
 ## 1. Cite as you write
 
@@ -133,7 +133,7 @@ Every fact in a `grund` repo has a stable ID. The default kinds (configurable):
 
 | Kind | What it is | Where it lives |
 | --- | --- | --- |
-| `GND` | Why: project motivation | `docs/grund.md` (one declaration, all of it inline) |
+| `GRUND` | Why: project motivation | `docs/grund.md` (one declaration, all of it inline) |
 | `GOAL` | Where: project direction and outcomes | `docs/goals.md` (one file, all goals inline) |
 | `FS` | What: behavior, requirements, and constraints | `docs/functional-spec/` |
 | `AR` | How: high-level implementation, structure, and design | `docs/architecture/` — **or inline in a class / module doc-comment** |
@@ -152,7 +152,7 @@ Every fact in a `grund` repo has a stable ID. The default kinds (configurable):
    │     │        │       │         │       └─ dotted path of arbitrary depth (.3, .3.1, …)
    │     │        │       │         └───────── [a-z0-9][a-z0-9-]*  (default slug_pattern)
    │     │        │       └─────────────────── optional ordinal (e.g., 001)
-   │     │        └─────────────────────────── GND│GOAL|FS│AR│DF│DA│E2E│RM│DISC|[custom]
+   │     │        └─────────────────────────── GRUND│GOAL|FS│AR│DF│DA│E2E│RM│DISC|[custom]
    │     └──────────────────────────────────── project alias for subprojects or monorepo
    └────────────────────────────────────────── citation marker (writing only)
 ```

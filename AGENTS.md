@@ -2,7 +2,7 @@
 
 ## Grounding with grund (v2)
 
-This project uses [`grund`](https://github.com/vjovanov/grund): every spec, goal, decision, and end-to-end test has a stable ID `<KIND>-<slug>[.<section>]` (`KIND ∈ {GND, GOAL, FS, AR, DF, DA, E2E, RM, DISC}`), cited with the marker `§` — e.g. `§FS-user-login.3.1` (the `FS-user-login` here is a shape illustration, not a real ID in this repo). Type `$$` in a grund-aware editor and it becomes `§`. Bare ID-shaped tokens are ignored — `[reference] strict = true` is set in `.agents/grund.toml`, so only `§`-prefixed citations are checked.
+This project uses [`grund`](https://github.com/vjovanov/grund): every spec, goal, decision, and end-to-end test has a stable ID `<KIND>-<slug>[.<section>]` (`KIND ∈ {GRUND, GOAL, FS, AR, DF, DA, E2E, RM, DISC}`), cited with the marker `§` — e.g. `§FS-user-login.3.1` (the `FS-user-login` here is a shape illustration, not a real ID in this repo). Type `$$` in a grund-aware editor and it becomes `§`. Bare ID-shaped tokens are ignored — `[reference] strict = true` is set in `.agents/grund.toml`, so only `§`-prefixed citations are checked.
 
 ### Grounding from a citation
 
@@ -17,7 +17,7 @@ A `§<ID>` is a pointer to a fact, not a file path. Resolve it with `grund` and 
 
 ### Project map
 
-- [GND](docs/grund.md): Why: project motivation
+- [GRUND](docs/grund.md): Why: project motivation
 - [GOAL](docs/goals.md): Where: project direction and outcomes
 - [FS](docs/functional-spec): What: behavior, requirements, and constraints
 - [AR](docs/architecture): How: high-level implementation, structure, and design

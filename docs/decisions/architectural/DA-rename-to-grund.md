@@ -8,7 +8,7 @@
 
 The working title carried through pre-release development was `gnd` — chosen in [§DA-reference-checker-name](DA-reference-checker-name.md#da-reference-checker-name-name-for-the-spec-reference-checker-tool) as a terse, cargo-clean abbreviation for "ground." Two costs accumulated against it:
 
-- **Registry friction.** The unscoped `gnd` is a dormant squat on npm, and PyPI serves `GND` releases — so [§DA-pypi-package-name](DA-pypi-package-name.md#da-pypi-package-name-pypi-uses-gnd-cli-as-the-package-name) had already had to fall back to `gnd-cli` on PyPI (and npm), splitting the install name from the binary name. Each registry needed its own caveat.
+- **Registry friction.** The unscoped `gnd` is a dormant squat on npm, and PyPI serves releases under that occupied package name — so [§DA-pypi-package-name](DA-pypi-package-name.md#da-pypi-package-name-pypi-uses-gnd-cli-as-the-package-name) had already had to fall back to `gnd-cli` on PyPI (and npm), splitting the install name from the binary name. Each registry needed its own caveat.
 - **Searchability.** `gnd` is the universal electrical-engineering abbreviation for *ground*; "gnd" alone is unsearchable, and the name carried no meaning a reader could land on.
 
 No `gnd` binary or package was ever published — `0.1.0` is the first release — so the name is still free to change at zero cost to any consumer. The pre-release review asked for a name that is (a) short and CLI-friendly, (b) clean on crates.io, npm, and PyPI without a `-cli` workaround if possible, and (c) *says* what the tool does.
