@@ -15,25 +15,34 @@ use lsp_types::{
     TextDocumentSyncKind, TextDocumentSyncOptions, TextEdit, Url,
 };
 use serde_json::Value;
+use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 pub fn run() -> Result<()> {
     let (connection, io_threads) = Connection::stdio();
-    let server_capabilities = serde_json::to_value(server_capabilities())?;
-    let initialize_value = connection.initialize(server_capabilities)?;
+    let (initialize_id, initialize_value) = connection.initialize_start()?;
     let initialize_params: InitializeParams = serde_json::from_value(initialize_value)?;
     let root = initialize_root(&initialize_params)?;
     let mut server = Server::new(connection, root)?;
-    server.refresh()?;
+    let initialize_result = json!({
+        "capabilities": server_capabilities(&server.snapshot.trigger),
+        "serverInfo": {
+            "name": "grund-lsp",
+            "version": env!("CARGO_PKG_VERSION"),
+        },
+    });
+    server
+        .connection
+        .initialize_finish(initialize_id, initialize_result)?;
     server.publish_diagnostics()?;
     server.event_loop()?;
     io_threads.join()?;
     Ok(())
 }
 
-fn server_capabilities() -> ServerCapabilities {
+fn server_capabilities(trigger: &str) -> ServerCapabilities {
     ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Options(
             TextDocumentSyncOptions {
@@ -51,16 +60,26 @@ fn server_capabilities() -> ServerCapabilities {
             work_done_progress_options: Default::default(),
         }),
         document_on_type_formatting_provider: Some(DocumentOnTypeFormattingOptions {
-            first_trigger_character: "$".to_string(),
-            more_trigger_character: Some(
-                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._/"
-                    .chars()
-                    .map(|ch| ch.to_string())
-                    .collect(),
-            ),
+            first_trigger_character: trigger
+                .chars()
+                .next()
+                .map(|ch| ch.to_string())
+                .unwrap_or_else(|| "$".to_string()),
+            more_trigger_character: Some(on_type_trigger_characters(trigger)),
         }),
         ..ServerCapabilities::default()
     }
+}
+
+fn on_type_trigger_characters(trigger: &str) -> Vec<String> {
+    let mut chars = BTreeSet::new();
+    for ch in '!'..='~' {
+        chars.insert(ch.to_string());
+    }
+    for ch in trigger.chars() {
+        chars.insert(ch.to_string());
+    }
+    chars.into_iter().collect()
 }
 
 fn initialize_root(params: &InitializeParams) -> Result<PathBuf> {
@@ -238,15 +257,25 @@ impl Server {
 
     fn definition(&self, params: Value) -> Result<Option<GotoDefinitionResponse>> {
         let params: TextDocumentPositionParams = serde_json::from_value(params)?;
-        let Some(Token::Citation(citation)) =
-            self.token_at(&params.text_document.uri, params.position)
-        else {
+        let Some(token) = self.token_at(&params.text_document.uri, params.position) else {
             return Ok(None);
         };
-        let Some(location) = self.citation_location(citation) else {
-            return Ok(None);
-        };
-        Ok(Some(GotoDefinitionResponse::Scalar(location)))
+        match token {
+            Token::Citation(citation) => {
+                let Some(location) = self.citation_location(citation) else {
+                    return Ok(None);
+                };
+                Ok(Some(GotoDefinitionResponse::Scalar(location)))
+            }
+            Token::Declaration(decl) => {
+                let locations = self.citation_locations_for_declaration(decl);
+                if locations.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(GotoDefinitionResponse::Array(locations)))
+                }
+            }
+        }
     }
 
     fn references(&self, params: Value) -> Result<Option<Vec<Location>>> {
@@ -310,6 +339,27 @@ impl Server {
         Ok(Some(locations))
     }
 
+    fn citation_locations_for_declaration(&self, decl: &LspDeclaration) -> Vec<Location> {
+        self.snapshot
+            .citations
+            .iter()
+            .filter(|citation| {
+                citation.query_id == decl.query_id
+                    || query_matches_declaration(
+                        &decl.query_id,
+                        &citation.query_id,
+                        &decl.section_separator,
+                    )
+            })
+            .filter_map(|citation| {
+                Some(Location {
+                    uri: path_uri(&citation.path)?,
+                    range: citation_range(citation, self),
+                })
+            })
+            .collect()
+    }
+
     fn document_links(&self, params: Value) -> Result<Option<Vec<DocumentLink>>> {
         let params: lsp_types::DocumentLinkParams = serde_json::from_value(params)?;
         let Some(path) = params
@@ -330,7 +380,7 @@ impl Server {
                 let location = self.citation_location(citation)?;
                 Some(DocumentLink {
                     range: citation_range(citation, self),
-                    target: Some(location.uri),
+                    target: document_link_target(citation).or(Some(location.uri)),
                     tooltip: Some(format!("Open {}", citation.query_id)),
                     data: None,
                 })
@@ -706,6 +756,12 @@ fn path_uri(path: &Path) -> Option<Url> {
     Url::from_file_path(path).ok()
 }
 
+fn document_link_target(citation: &LspCitation) -> Option<Url> {
+    let mut uri = path_uri(citation.target_path.as_ref()?)?;
+    uri.set_fragment(Some(&format!("L{}", citation.target_line?)));
+    Some(uri)
+}
+
 fn file_uri_with_line(path: &Path, line: usize) -> Option<String> {
     let mut uri = path_uri(path)?;
     uri.set_fragment(Some(&format!("L{line}")));
@@ -830,6 +886,22 @@ mod tests {
     }
 
     #[test]
+    fn on_type_capabilities_cover_configured_trigger_punctuation() {
+        let capabilities = server_capabilities("%%");
+        let Some(DocumentOnTypeFormattingOptions {
+            first_trigger_character,
+            more_trigger_character,
+        }) = capabilities.document_on_type_formatting_provider
+        else {
+            panic!("on-type formatting capability");
+        };
+        assert_eq!(first_trigger_character, "%");
+        let more = more_trigger_character.expect("more trigger characters");
+        assert!(more.iter().any(|ch| ch == "%"));
+        assert!(more.iter().any(|ch| ch == ":"));
+    }
+
+    #[test]
     fn on_type_formatting_accepts_configured_id_punctuation() {
         let root = test_root("on_type_formatting_accepts_configured_id_punctuation");
         write(
@@ -855,6 +927,33 @@ mod tests {
                 .first()
                 .map(|edit| edit.new_text.as_str()),
             Some("§")
+        );
+    }
+
+    #[test]
+    fn document_link_targets_include_line_fragment() {
+        let root = test_root("document_link_targets_include_line_fragment");
+        let path = root.join("docs/functional-spec/FS-login.md");
+        write(&path, "# FS-login: Login\n");
+        let marker = "\u{00a7}";
+        let citation = LspCitation {
+            project: None,
+            path: root.join("src/lib.rs"),
+            display_path: "src/lib.rs".to_string(),
+            line: 1,
+            column: 5,
+            text: format!("{marker}FS-login"),
+            query_id: "FS-login".to_string(),
+            declaration_query_id: "FS-login".to_string(),
+            section_separator: ".".to_string(),
+            target_path: Some(path),
+            target_line: Some(7),
+        };
+        assert_eq!(
+            document_link_target(&citation)
+                .expect("document link target")
+                .fragment(),
+            Some("L7")
         );
     }
 }

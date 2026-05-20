@@ -213,6 +213,92 @@ cargo install grund
 
 That installs the `grund` binary from the [`grund` crate on crates.io](https://crates.io/crates/grund) onto your `PATH`. npm and PyPI bindings are planned — see [`FS-distribution`](docs/functional-spec/FS-distribution.md).
 
+### Editor LSP
+
+Install the optional language server separately when you want editor diagnostics,
+hover previews, definition jumps, document links, references, and live `$$` →
+`§` formatting:
+
+```bash
+cargo install grund-lsp
+```
+
+When testing from this repository before a release, build it locally instead:
+
+```bash
+cargo install --path crates/grund-lsp
+grund-lsp --version
+```
+
+The server speaks LSP over stdio. Configure your editor to launch `grund-lsp`
+from the workspace root; there is no daemon or socket.
+
+**Helix** (`languages.toml`):
+
+```toml
+[language-server.grund-lsp]
+command = "grund-lsp"
+
+[[language]]
+name = "markdown"
+language-servers = ["grund-lsp"]
+```
+
+Add the same `language-servers = ["grund-lsp"]` entry to any source languages
+whose files are in your `[scan] extensions`.
+
+**Neovim** (built-in LSP):
+
+```lua
+vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
+  pattern = { "*.md", "*.rs", "*.py", "*.go", "*.js", "*.ts" },
+  callback = function(args)
+    vim.lsp.start({
+      name = "grund-lsp",
+      cmd = { "grund-lsp" },
+      root_dir = vim.fs.root(args.buf, { ".agents/grund.toml", "AGENTS.md", ".git" }),
+    })
+  end,
+})
+```
+
+**Zed** (`settings.json`):
+
+```json
+{
+  "lsp": {
+    "grund-lsp": {
+      "binary": { "path": "grund-lsp" }
+    }
+  },
+  "languages": {
+    "Markdown": { "language_servers": ["grund-lsp"] },
+    "Rust": { "language_servers": ["grund-lsp"] }
+  }
+}
+```
+
+**Emacs** (`eglot`):
+
+```elisp
+(add-to-list 'eglot-server-programs
+             '((markdown-mode rust-mode python-mode go-mode js-mode typescript-mode)
+               . ("grund-lsp")))
+```
+
+**VSCode**: install a generic LSP client extension, set its command to
+`grund-lsp`, and enable it for Markdown plus the source file types in your
+`[scan] extensions`. A first-party VSCode extension is intentionally not shipped.
+
+**IntelliJ family**: install LSP4IJ, add a server named `grund-lsp`, set the
+command to `grund-lsp`, and apply it to Markdown plus the source file patterns
+you scan.
+
+To check the wiring, open a file containing a resolving citation such as
+`§FS-check`: hover should show `grund show --toc` content, go-to-definition
+should jump to the declaration, and typing `$$FS-check` should rewrite the
+trigger to `§FS-check`.
+
 ## Set up a repo
 
 ```bash
