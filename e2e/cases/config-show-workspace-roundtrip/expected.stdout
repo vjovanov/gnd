@@ -20,21 +20,21 @@ slug_pattern = "[a-z][a-z0-9-]*"
 
 [[kinds]]
 prefix = "GND"
-title = "Reason for existence"
+title = "Why: project motivation"
 
 [[kinds]]
 prefix = "GOAL"
-title = "Outcomes the project is trying to achieve"
+title = "Where: project direction and outcomes"
 
 [[kinds]]
 prefix = "FS"
 folder = "docs/functional-spec"
-title = "User-visible behavior and requirements"
+title = "What: behavior, requirements, and constraints"
 
 [[kinds]]
 prefix = "AR"
 folder = "docs/architecture"
-title = "System design and technical structure"
+title = "How: high-level implementation, structure, and design"
 
 [[kinds]]
 prefix = "DF"

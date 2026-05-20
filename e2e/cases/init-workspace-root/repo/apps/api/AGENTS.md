@@ -6,4 +6,4 @@ This project uses [`grund`](https://github.com/vjovanov/grund): every spec, goal
 
 ### Project map
 
-- [GND](docs/grund.md): Reason for existence
+- [GND](docs/grund.md): Why: project motivation

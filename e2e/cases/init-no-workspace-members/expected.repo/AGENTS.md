@@ -17,10 +17,10 @@ A `§<ID>` is a pointer to a fact, not a file path. Resolve it with `grund` and 
 
 ### Project map
 
-- [GND](docs/grund.md): Reason for existence
-- [GOAL](docs/goals.md): Outcomes the project is trying to achieve
-- [FS](docs/functional-spec): User-visible behavior and requirements
-- [AR](docs/architecture): System design and technical structure
+- [GND](docs/grund.md): Why: project motivation
+- [GOAL](docs/goals.md): Where: project direction and outcomes
+- [FS](docs/functional-spec): What: behavior, requirements, and constraints
+- [AR](docs/architecture): How: high-level implementation, structure, and design
 - [DF](docs/decisions/functional): Product behavior decisions and tradeoffs
 - [DA](docs/decisions/architectural): Architecture decisions and tradeoffs
 - [E2E](e2e/cases): Executable user scenarios
