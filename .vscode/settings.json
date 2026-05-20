@@ -1,13 +1,7 @@
 {
   "glspc.server": {
-    "command": "cargo",
-    "commandArguments": [
-      "run",
-      "-q",
-      "-p",
-      "grund-lsp",
-      "--"
-    ]
+    "command": "/home/vjovanov/.cargo/bin/grund-lsp",
+    "commandArguments": []
   },
   "glspc.server.languageId": [
     "markdown",

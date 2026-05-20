@@ -1,9 +1,9 @@
 //! LSP transport over stdio. §AR-lsp.4
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use grund_core::{
-    Finding, LspCitation, LspDeclaration, LspSnapshot, LspSnapshotOpts, ShowFormat, ShowMode,
-    ShowOpts, can_replace_trigger_at, lsp_snapshot, show_with_overlays,
+    can_replace_trigger_at, lsp_snapshot, show_with_overlays, Finding, LspCitation, LspDeclaration,
+    LspSnapshot, LspSnapshotOpts, LspStub, ShowFormat, ShowMode, ShowOpts,
 };
 use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
@@ -14,8 +14,8 @@ use lsp_types::{
     TextDocumentContentChangeEvent, TextDocumentPositionParams, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextDocumentSyncOptions, TextEdit, Url,
 };
-use serde_json::Value;
 use serde_json::json;
+use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -276,6 +276,12 @@ impl Server {
                     Ok(Some(GotoDefinitionResponse::Array(locations)))
                 }
             }
+            Token::Stub(stub) => self
+                .stub_target_location(stub)
+                .map(GotoDefinitionResponse::Scalar)
+                .map(Some)
+                .map(Ok)
+                .unwrap_or(Ok(None)),
         }
     }
 
@@ -336,6 +342,26 @@ impl Server {
                     }
                 }
             }
+            Token::Stub(stub) => {
+                if include_decl && let Some(location) = self.stub_target_location(stub) {
+                    locations.push(location);
+                }
+                for citation in &self.snapshot.citations {
+                    if (citation.declaration_query_id == stub.query_id
+                        || query_matches_declaration(
+                            &stub.query_id,
+                            &citation.query_id,
+                            &stub.section_separator,
+                        ))
+                        && let Some(uri) = path_uri(&citation.path)
+                    {
+                        locations.push(Location {
+                            uri,
+                            range: citation_range(citation, self),
+                        });
+                    }
+                }
+            }
         }
         Ok(Some(locations))
     }
@@ -372,7 +398,7 @@ impl Server {
         else {
             return Ok(Some(Vec::new()));
         };
-        let links = self
+        let mut links = self
             .snapshot
             .citations
             .iter()
@@ -386,7 +412,32 @@ impl Server {
                     data: None,
                 })
             })
-            .collect();
+            .collect::<Vec<_>>();
+        links.extend(
+            self.snapshot
+                .declarations
+                .iter()
+                .filter(|decl| normalize_path(&decl.path) == path)
+                .filter(|decl| is_markdown_path(&decl.path))
+                .map(|decl| DocumentLink {
+                    range: declaration_range(decl, self),
+                    target: declaration_document_link_target(decl),
+                    tooltip: Some(format!("Open {}", decl.query_id)),
+                    data: None,
+                }),
+        );
+        links.extend(
+            self.snapshot
+                .stubs
+                .iter()
+                .filter(|stub| normalize_path(&stub.path) == path)
+                .map(|stub| DocumentLink {
+                    range: stub_range(stub, self),
+                    target: stub_document_link_target(stub),
+                    tooltip: Some(format!("Open {}", stub.query_id)),
+                    data: None,
+                }),
+        );
         Ok(Some(links))
     }
 
@@ -522,6 +573,15 @@ impl Server {
                     })
                     .map(Token::Declaration)
             })
+            .or_else(|| {
+                self.snapshot
+                    .stubs
+                    .iter()
+                    .find(|stub| {
+                        same_path(&stub.path, &path) && contains(stub_range(stub, self), position)
+                    })
+                    .map(Token::Stub)
+            })
     }
 
     fn citation_location(&self, citation: &LspCitation) -> Option<Location> {
@@ -540,6 +600,18 @@ impl Server {
         Some(Location {
             uri: path_uri(&decl.path)?,
             range: declaration_range(decl, self),
+        })
+    }
+
+    fn stub_target_location(&self, stub: &LspStub) -> Option<Location> {
+        Some(Location {
+            uri: path_uri(&stub.target_path)?,
+            range: single_line_range(
+                &stub.target_path,
+                stub.target_line,
+                1,
+                stub.query_id.len().max(1),
+            ),
         })
     }
 
@@ -590,6 +662,7 @@ impl Server {
 enum Token<'a> {
     Citation(&'a LspCitation),
     Declaration(&'a LspDeclaration),
+    Stub(&'a LspStub),
 }
 
 impl<'a> Token<'a> {
@@ -597,6 +670,7 @@ impl<'a> Token<'a> {
         match self {
             Token::Citation(citation) => &citation.query_id,
             Token::Declaration(decl) => &decl.query_id,
+            Token::Stub(stub) => &stub.query_id,
         }
     }
 
@@ -604,6 +678,7 @@ impl<'a> Token<'a> {
         match self {
             Token::Citation(citation) => citation_range(citation, server),
             Token::Declaration(decl) => declaration_range(decl, server),
+            Token::Stub(stub) => stub_range(stub, server),
         }
     }
 }
@@ -624,6 +699,10 @@ fn citation_range(citation: &LspCitation, server: &Server) -> Range {
 
 fn declaration_range(decl: &LspDeclaration, server: &Server) -> Range {
     token_range(server, &decl.path, decl.line, decl.column, &decl.text)
+}
+
+fn stub_range(stub: &LspStub, server: &Server) -> Range {
+    token_range(server, &stub.path, stub.line, stub.column, &stub.text)
 }
 
 fn token_range(server: &Server, path: &Path, line: usize, column: usize, text: &str) -> Range {
@@ -721,6 +800,12 @@ fn same_path(left: &Path, right: &Path) -> bool {
     normalize_path(left) == normalize_path(right)
 }
 
+fn is_markdown_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"))
+}
+
 fn normalize_path(path: impl AsRef<Path>) -> PathBuf {
     canonicalize_existing_prefix(path.as_ref())
 }
@@ -760,6 +845,18 @@ fn path_uri(path: &Path) -> Option<Url> {
 fn document_link_target(citation: &LspCitation) -> Option<Url> {
     let mut uri = path_uri(citation.target_path.as_ref()?)?;
     uri.set_fragment(Some(&format!("L{}", citation.target_line?)));
+    Some(uri)
+}
+
+fn declaration_document_link_target(decl: &LspDeclaration) -> Option<Url> {
+    let mut uri = path_uri(&decl.path)?;
+    uri.set_fragment(Some(&format!("L{}", decl.line)));
+    Some(uri)
+}
+
+fn stub_document_link_target(stub: &LspStub) -> Option<Url> {
+    let mut uri = path_uri(&stub.target_path)?;
+    uri.set_fragment(Some(&format!("L{}", stub.target_line)));
     Some(uri)
 }
 

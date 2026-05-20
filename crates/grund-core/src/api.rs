@@ -506,6 +506,7 @@ pub struct LspSnapshot {
     pub workspace: bool,
     pub report: Report,
     pub declarations: Vec<LspDeclaration>,
+    pub stubs: Vec<LspStub>,
     pub citations: Vec<LspCitation>,
     pub scan_errors: Vec<ApiScanError>,
 }
@@ -520,6 +521,22 @@ pub struct LspDeclaration {
     pub text: String,
     pub query_id: String,
     pub section_separator: String,
+}
+
+/// LSP token for an inline-spec stub title whose definition follows to the
+/// source doc-comment declaration. §FS-lsp.1.3
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LspStub {
+    pub project: Option<String>,
+    pub path: PathBuf,
+    pub display_path: String,
+    pub line: usize,
+    pub column: usize,
+    pub text: String,
+    pub query_id: String,
+    pub section_separator: String,
+    pub target_path: PathBuf,
+    pub target_line: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -546,6 +563,7 @@ pub fn lsp_snapshot(opts: LspSnapshotOpts) -> Result<LspSnapshot> {
     let render_config = context.render_config().clone();
     let report = public_report(&render_config, check_workspace_context(&context, false));
     let mut declarations = Vec::new();
+    let mut stubs = Vec::new();
     let mut citations = Vec::new();
     let mut scan_errors = Vec::new();
 
@@ -567,6 +585,7 @@ pub fn lsp_snapshot(opts: LspSnapshotOpts) -> Result<LspSnapshot> {
                 (sort_path_key(&a.file), a.line).cmp(&(sort_path_key(&b.file), b.line))
             });
             for home in homes {
+                let (column, text) = declaration_range_parts(home, &rendered, &overlays);
                 declarations.push(LspDeclaration {
                     project: context.workspace_loaded.then(|| project.alias.clone()),
                     path: absolutize_path(&home.file),
@@ -576,11 +595,36 @@ pub fn lsp_snapshot(opts: LspSnapshotOpts) -> Result<LspSnapshot> {
                         display_path(&project.config, &home.file)
                     },
                     line: home.line,
-                    column: declaration_column(home, &rendered, &overlays),
-                    text: rendered.clone(),
+                    column,
+                    text,
                     query_id: query_id.clone(),
                     section_separator: project.config.section_separator.clone(),
                 });
+            }
+            for stub in decls
+                .iter()
+                .filter(|decl| is_stub_for_inline_decl(&project.config.root, decl, decls))
+            {
+                let target = lsp_target_for_stub(project, stub, decls);
+                if let Some((target_path, target_line)) = target {
+                    let (column, text) = declaration_range_parts(stub, &rendered, &overlays);
+                    stubs.push(LspStub {
+                        project: context.workspace_loaded.then(|| project.alias.clone()),
+                        path: absolutize_path(&stub.file),
+                        display_path: if context.workspace_loaded {
+                            display_path(context.render_config(), &stub.file)
+                        } else {
+                            display_path(&project.config, &stub.file)
+                        },
+                        line: stub.line,
+                        column,
+                        text,
+                        query_id: query_id.clone(),
+                        section_separator: project.config.section_separator.clone(),
+                        target_path: absolutize_path(&target_path),
+                        target_line,
+                    });
+                }
             }
         }
         for citation in &project.findings.citations {
@@ -590,7 +634,12 @@ pub fn lsp_snapshot(opts: LspSnapshotOpts) -> Result<LspSnapshot> {
             };
             let rendered_id = target_project
                 .map(|target| render_id(&target.config, &citation.id))
-                .unwrap_or_else(|| citation.text.trim_start_matches(&render_config.marker).to_string());
+                .unwrap_or_else(|| {
+                    citation
+                        .text
+                        .trim_start_matches(&render_config.marker)
+                        .to_string()
+                });
             let query_id = target_project
                 .map(|target| {
                     lsp_query_id(
@@ -636,6 +685,14 @@ pub fn lsp_snapshot(opts: LspSnapshotOpts) -> Result<LspSnapshot> {
             &b.text,
         ))
     });
+    stubs.sort_by(|a, b| {
+        (sort_path_key(&a.path), a.line, a.column, &a.text).cmp(&(
+            sort_path_key(&b.path),
+            b.line,
+            b.column,
+            &b.text,
+        ))
+    });
     citations.sort_by(|a, b| {
         (sort_path_key(&a.path), a.line, a.column, &a.text).cmp(&(
             sort_path_key(&b.path),
@@ -652,6 +709,7 @@ pub fn lsp_snapshot(opts: LspSnapshotOpts) -> Result<LspSnapshot> {
         workspace: context.workspace_loaded,
         report,
         declarations,
+        stubs,
         citations,
         scan_errors,
     })
@@ -770,7 +828,24 @@ fn lsp_target_for_citation(
     Some((home.file.clone(), home.line))
 }
 
-fn declaration_column(decl: &Declaration, rendered_id: &str, overlays: &TextOverlays) -> usize {
+fn lsp_target_for_stub(
+    project: &WorkspaceProject,
+    stub: &Declaration,
+    decls: &[Declaration],
+) -> Option<(PathBuf, usize)> {
+    let target = stub.defined_in.as_ref()?;
+    let resolved = resolve_stub_target(&project.config.root, &stub.file, target);
+    let inline = decls
+        .iter()
+        .find(|decl| paths_same_location(&decl.file, &resolved) && decl.file != stub.file)?;
+    Some((inline.file.clone(), inline.line))
+}
+
+fn declaration_range_parts(
+    decl: &Declaration,
+    rendered_id: &str,
+    overlays: &TextOverlays,
+) -> (usize, String) {
     overlay_text(overlays, &decl.file)
         .map(str::to_string)
         .or_else(|| fs::read_to_string(&decl.file).ok())
@@ -779,8 +854,17 @@ fn declaration_column(decl: &Declaration, rendered_id: &str, overlays: &TextOver
                 .nth(decl.line.saturating_sub(1))
                 .map(str::to_string)
         })
-        .and_then(|line| line.find(rendered_id).map(|idx| idx + 1))
-        .unwrap_or(1)
+        .and_then(|line| {
+            let start = line.find(rendered_id)?;
+            let end = line.trim_end().len();
+            let text = line
+                .get(start..end)
+                .filter(|text| !text.is_empty())
+                .unwrap_or(rendered_id)
+                .to_string();
+            Some((start + 1, text))
+        })
+        .unwrap_or_else(|| (1, rendered_id.to_string()))
 }
 
 fn absolutize_path(path: &Path) -> PathBuf {

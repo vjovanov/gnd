@@ -20,15 +20,15 @@ The hover content is Markdown. Any resolving `§<ID>` citation inside that hover
 
 ### 1.3 Go-to-definition
 
-`textDocument/definition` on a citation jumps to the declaration's `path:line`. For a stub-and-inline-source pair ([§FS-check.3.4](FS-check.md#34-broken-inline-spec-stub)), the server follows the stub's link and lands on the inline declaration line directly — the user does not stop at the stub.
+`textDocument/definition` on a citation jumps to the declaration's `path:line`. For a stub-and-inline-source pair ([§FS-check.3.4](FS-check.md#34-broken-inline-spec-stub)), the server follows the stub's link and lands on the inline declaration line directly — the user does not stop at the stub. The same is true when definition is invoked anywhere on the stub heading's ID or title text: `# AR-foo: [src/lib.rs](...)` is one navigable title span that jumps to the inline `AR-foo` declaration in the source doc-comment. Normal Markdown declaration headings use the same whole-title span for navigation, so the clickable range is not limited to the ID token.
 
 #### 1.3.1 References from declarations
 
-`textDocument/references` on a declaration ID returns every citation of that ID, the same set `grund refs <ID>` reports ([§FS-refs](FS-refs.md#fs-refs-grund-lists-every-citation-of-an-id)). The same request on a citation returns that citation's target ID usages too, so editors can show "find usages" from either side of the relationship.
+`textDocument/references` on a declaration ID or anywhere in its Markdown title returns every citation of that ID, including citations in scanned source-code comments, the same set `grund refs <ID>` reports ([§FS-refs](FS-refs.md#fs-refs-grund-lists-every-citation-of-an-id)). The same request on a citation returns that citation's target ID usages too, so editors can show "find usages" from either side of the relationship.
 
 #### 1.3.2 Document links
 
-`textDocument/documentLink` marks each resolving citation token as a link to its declaration target. Editors that render LSP document links therefore show `§<ID>` references as visibly clickable links even in source files where Markdown cross-reference emission cannot run ([§FS-fmt.6.1](FS-fmt.md#61-scope)).
+`textDocument/documentLink` marks each resolving citation token as a link to its declaration target. In Markdown files, the whole declaration heading ID/title span is also a document link; inline-spec stubs link to the source doc-comment declaration, and ordinary Markdown declarations link to their own declaration line. Editors that render LSP document links therefore show `§<ID>` references and declaration titles as visibly clickable links even in source files where Markdown cross-reference emission cannot run ([§FS-fmt.6.1](FS-fmt.md#61-scope)).
 
 The link target is a file URI with a line fragment (`#L<n>`) for the resolved
 declaration line. Editors that ignore file-URI fragments may open the
