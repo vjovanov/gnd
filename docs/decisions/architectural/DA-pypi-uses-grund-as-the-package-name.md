@@ -6,7 +6,7 @@
 
 ## 1. Context
 
-[§DA-rename-to-grund](DA-rename-to-grund.md#da-rename-to-grund-rename-gnd-to-grund-before-first-publish) renamed the product before first publish and kept `grund-cli` as the npm/PyPI CLI package name pending [§RM-distribution-naming](../../roadmap.md#rm-distribution-naming-verify-package-names-before-first-publish). That was conservative: npm's unscoped `grund` package is occupied, while PyPI `grund` appeared free but still needed a final live-registry check.
+[§DA-rename-to-grund](DA-rename-to-grund.md#da-rename-to-grund-rename-gnd-to-grund-before-first-publish) renamed the product before first publish and kept `grund-cli` as the npm/PyPI CLI package name pending a final live-registry check. That was conservative: npm's unscoped `grund` package is occupied, while PyPI `grund` appeared free but still needed verification.
 
 The final pre-release check found PyPI `grund` available and npm `grund` still externally occupied. This is the last point where the PyPI name can be made friendlier without migration cost: no `grund` wheel has shipped yet.
 

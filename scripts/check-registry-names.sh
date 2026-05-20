@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Pre-release package-name guard for §RM-distribution-naming.
+# Pre-release package-name guard for §FS-distribution.4.
 # Claimed future package names must be either available or already owned by this
 # repository. The bare "grund" name on npm — a dormant low-use squat
 # (§DA-rename-to-grund / §DA-pypi-uses-grund-as-the-package-name) — is reported
