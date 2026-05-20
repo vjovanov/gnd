@@ -782,9 +782,11 @@ members = ["packages/*"]
             .find(|citation| citation.display_path == "src/lib.rs")
             .expect("source citation");
         assert_eq!(citation.query_id, "FS-001-alpha.1");
+        let expected_target =
+            canonical_test_path(&lsp_root.join("docs/functional-spec/FS-001-alpha.md"));
         assert_eq!(
-            citation.target_path.as_deref(),
-            Some(lsp_root.join("docs/functional-spec/FS-001-alpha.md").as_path())
+            citation.target_path.as_deref().map(canonical_test_path),
+            Some(expected_target)
         );
         assert_eq!(citation.target_line, Some(5));
         assert!(is_valid_id_token(&lsp_root, "FS-001-alpha.1").expect("valid id token"));
