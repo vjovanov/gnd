@@ -1,6 +1,6 @@
 # FS-lsp: grund will ship an optional LSP server
 
-`grund` will ship an optional Language Server Protocol server, `grund-lsp`, as a separate binary that any LSP-aware editor can talk to: VSCode, Neovim, Emacs (eglot or lsp-mode), Helix, Zed, Sublime Text, and the IntelliJ family via LSP4IJ. Users who want editor integration install `grund-lsp` and configure their editor once; users who do not — CI pipelines, pre-commit hooks, contributors who only run `grund check` — install nothing extra and pay no dependency cost. The architectural choice (separate binary rather than a Cargo feature or a bundled library) is decided in [§DA-lsp-optional](../decisions/architectural/DA-lsp-optional.md#da-lsp-optional-lsp-server-ships-as-a-separate-optional-binary); the build is tracked as a roadmap milestone in `docs/roadmap.md`. The current shipped surface is the `grund` CLI alone; this file is the contract `grund-lsp` will meet when it lands.
+`grund` ships an optional Language Server Protocol server, `grund-lsp`, as a separate binary that any LSP-aware editor can talk to: VSCode, Neovim, Emacs (eglot or lsp-mode), Helix, Zed, Sublime Text, and the IntelliJ family via LSP4IJ. Users who want editor integration install `grund-lsp` and configure their editor once; users who do not — CI pipelines, pre-commit hooks, contributors who only run `grund check` — install nothing extra and pay no dependency cost. The architectural choice (separate binary rather than a Cargo feature or a bundled library) is decided in [§DA-lsp-optional](../decisions/architectural/DA-lsp-optional.md#da-lsp-optional-lsp-server-ships-as-a-separate-optional-binary); the build is tracked as a roadmap milestone in `docs/roadmap.md`.
 
 `grund` does not ship per-editor wrappers. The only first-party editor surface is the LSP server; per-editor configuration is one-time work the user does, with example snippets in the README. See [§FS-non-goals](FS-non-goals.md#fs-non-goals-what-grund-will-deliberately-not-do) for the non-goal that pins this.
 
@@ -14,11 +14,21 @@ The minimum viable set — everything the server speaks at version 1.0.
 
 ### 1.2 Hover preview
 
-`textDocument/hover` on a citation returns the body `grund <ID>` would print ([§FS-show.2.1](FS-show.md#21-whole-declaration-default)), or the body of the requested section if the citation includes one ([§FS-show.2.2](FS-show.md#22-section)). When the declaration's home is in source code (a stub points at `src/bus.rs`), the hover body is the comment-stripped prose per [§FS-show.2.3.2](FS-show.md#232-stripping-comment-markers) — the same content the CLI returns. There is no separate "IDE-only" rendering; hover and the ID query produce the same bytes.
+`textDocument/hover` on a citation returns the body `grund <ID> --toc` would print ([§FS-show.2.1.2](FS-show.md#212-section-map---toc)), or the `--toc` body of the requested section if the citation includes one ([§FS-show.2.2](FS-show.md#22-section)). When the declaration's home is in source code (a stub points at `src/bus.rs`), the hover body is the comment-stripped prose per [§FS-show.2.3.2](FS-show.md#232-stripping-comment-markers) — the same content the CLI returns. There is no separate "IDE-only" rendering; hover and the `show --toc` query produce the same bytes.
+
+The hover content is Markdown. Any resolving `§<ID>` citation inside that hover body is emitted as a normal link to its declaration target, so users can keep following the grounding graph without closing the hover.
 
 ### 1.3 Go-to-definition
 
 `textDocument/definition` on a citation jumps to the declaration's `path:line`. For a stub-and-inline-source pair ([§FS-check.3.4](FS-check.md#34-broken-inline-spec-stub)), the server follows the stub's link and lands on the inline declaration line directly — the user does not stop at the stub.
+
+#### 1.3.1 References from declarations
+
+`textDocument/references` on a declaration ID returns every citation of that ID, the same set `grund refs <ID>` reports ([§FS-refs](FS-refs.md#fs-refs-grund-lists-every-citation-of-an-id)). The same request on a citation returns that citation's target ID usages too, so editors can show "find usages" from either side of the relationship.
+
+#### 1.3.2 Document links
+
+`textDocument/documentLink` marks each resolving citation token as a link to its declaration target. Editors that render LSP document links therefore show `§<ID>` references as visibly clickable links even in source files where Markdown cross-reference emission cannot run ([§FS-fmt.6.1](FS-fmt.md#61-scope)).
 
 ### 1.4 Live trigger transform
 
@@ -67,7 +77,7 @@ Editor-side LSP configuration (server arguments, workspace folders) is the user'
 
 ## 4. Determinism and parity with the CLI
 
-Same input + same config → same diagnostics, same hover body, same definition target, byte-for-byte ([§FS-non-goals.13](FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)). An e2e fixture per LSP capability runs the same `e2e/cases/*` corpus through the LSP and the CLI and asserts the LSP's published diagnostics match the CLI's report and the LSP's hover body matches `grund <ID>`.
+Same input + same config → same diagnostics, same hover body, same definition target, byte-for-byte ([§FS-non-goals.13](FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree)). An e2e fixture per LSP capability runs the same `e2e/cases/*` corpus through the LSP and the CLI and asserts the LSP's published diagnostics match the CLI's report and the LSP's hover body matches `grund <ID> --toc`.
 
 The LSP server does not have an "interactive" mode, a confirmation prompt, or any user-visible state that the CLI lacks ([§FS-non-goals.10](FS-non-goals.md#10-interactive-mode)). It is the same engine with a different transport.
 

@@ -53,6 +53,16 @@ fn scan_file(
     workspace_targets: &[WorkspaceCitationTarget],
 ) -> Result<()> {
     let text = fs::read_to_string(path)?;
+    scan_file_text(path, &text, config, findings, workspace_targets)
+}
+
+fn scan_file_text(
+    path: &Path,
+    text: &str,
+    config: &Config,
+    findings: &mut Findings,
+    workspace_targets: &[WorkspaceCitationTarget],
+) -> Result<()> {
     let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
     let is_py = path.extension().and_then(|e| e.to_str()) == Some("py");
     let inline_sites = inline_citation_sites(&text, is_md, is_py, config, workspace_targets);
@@ -1084,9 +1094,15 @@ fn scan_one_file(
     file: &Path,
     config: &Config,
     workspace_targets: &[WorkspaceCitationTarget],
+    overlays: &TextOverlays,
 ) -> FileScanResult {
     let mut findings = Findings::default();
-    match scan_file(file, config, &mut findings, workspace_targets) {
+    let result = if let Some(text) = overlay_text(overlays, file) {
+        scan_file_text(file, text, config, &mut findings, workspace_targets)
+    } else {
+        scan_file(file, config, &mut findings, workspace_targets)
+    };
+    match result {
         Ok(()) => {
             findings.scanned_files.push(file.to_path_buf());
             (file.to_path_buf(), Ok(findings))
@@ -1111,10 +1127,11 @@ fn scan_file_results(
     files: &[PathBuf],
     config: &Config,
     workspace_targets: &[WorkspaceCitationTarget],
+    overlays: &TextOverlays,
 ) -> Vec<FileScanResult> {
     files
         .par_iter()
-        .map(|file| scan_one_file(file, config, workspace_targets))
+        .map(|file| scan_one_file(file, config, workspace_targets, overlays))
         .collect::<Vec<_>>()
 }
 
@@ -1147,6 +1164,7 @@ fn scan_tree_with_workspace(
         explicit_scope,
         workspace_targets,
         PARALLEL_SCAN_MIN_FILES,
+        &TextOverlays::new(),
     )
 }
 
@@ -1156,12 +1174,14 @@ fn scan_tree_with_workspace_threshold(
     explicit_scope: bool,
     workspace_targets: &[WorkspaceCitationTarget],
     parallel_min_files: usize,
+    overlays: &TextOverlays,
 ) -> Result<(Findings, Vec<ScanError>)> {
     let mut findings = Findings::default();
     let mut errors = Vec::new();
-    let files = walk_scannable_files(config, scope, explicit_scope)?;
+    let mut files = walk_scannable_files(config, scope, explicit_scope)?;
+    add_overlay_scan_files(config, scope, explicit_scope, overlays, &mut files)?;
     if files.len() >= parallel_min_files {
-        for (file, result) in scan_file_results(&files, config, workspace_targets) {
+        for (file, result) in scan_file_results(&files, config, workspace_targets, overlays) {
             match result {
                 Ok(file_findings) => merge_findings(&mut findings, file_findings),
                 Err(message) => errors.push((file, message)),
@@ -1169,7 +1189,7 @@ fn scan_tree_with_workspace_threshold(
         }
     } else {
         for file in files {
-            match scan_one_file(&file, config, workspace_targets) {
+            match scan_one_file(&file, config, workspace_targets, overlays) {
                 (_, Ok(file_findings)) => merge_findings(&mut findings, file_findings),
                 (_, Err(message)) => errors.push((file, message)),
             }
@@ -1192,6 +1212,63 @@ fn scan_tree_with_workspace_threshold(
         });
     }
     Ok((findings, errors))
+}
+
+fn scan_tree_with_workspace_overlays(
+    config: &Config,
+    scope: Option<&Path>,
+    explicit_scope: bool,
+    workspace_targets: &[WorkspaceCitationTarget],
+    overlays: &TextOverlays,
+) -> Result<(Findings, Vec<ScanError>)> {
+    scan_tree_with_workspace_threshold(
+        config,
+        scope,
+        explicit_scope,
+        workspace_targets,
+        PARALLEL_SCAN_MIN_FILES,
+        overlays,
+    )
+}
+
+fn add_overlay_scan_files(
+    config: &Config,
+    scope: Option<&Path>,
+    explicit_scope: bool,
+    overlays: &TextOverlays,
+    files: &mut Vec<PathBuf>,
+) -> Result<()> {
+    if overlays.is_empty() {
+        return Ok(());
+    }
+    let roots = scan_roots(config, scope, explicit_scope)?;
+    for path in overlays.keys() {
+        if !is_scannable(path, config) {
+            continue;
+        }
+        let path = normalize_path_lexically(path);
+        if !roots.iter().any(|root| path_starts_with(&path, root)) {
+            continue;
+        }
+        if !files.iter().any(|file| paths_same_location(file, &path)) {
+            files.push(path);
+        }
+    }
+    files.sort_by_key(|path| sort_path_key(path));
+    Ok(())
+}
+
+fn path_starts_with(path: &Path, root: &Path) -> bool {
+    let path = fs::canonicalize(path).unwrap_or_else(|_| normalize_path_lexically(path));
+    let root = fs::canonicalize(root).unwrap_or_else(|_| normalize_path_lexically(root));
+    path == root || path.starts_with(root)
+}
+
+fn overlay_text<'a>(overlays: &'a TextOverlays, path: &Path) -> Option<&'a str> {
+    overlays
+        .get(&normalize_path_lexically(path))
+        .or_else(|| overlays.get(path))
+        .map(String::as_str)
 }
 
 /// Scan helper for point-query subcommands (`show`, `id`): any unreadable file

@@ -6,6 +6,26 @@ fn show_declaration(
     mode: ShowRenderMode,
     include_heading: bool,
 ) -> Result<ShowOutput> {
+    show_declaration_with_overlays(
+        config,
+        findings,
+        id,
+        section,
+        mode,
+        include_heading,
+        &TextOverlays::new(),
+    )
+}
+
+fn show_declaration_with_overlays(
+    config: &Config,
+    findings: &Findings,
+    id: &Id,
+    section: Option<&str>,
+    mode: ShowRenderMode,
+    include_heading: bool,
+    overlays: &TextOverlays,
+) -> Result<ShowOutput> {
     let root = &config.root;
     let decls = findings
         .declarations
@@ -57,7 +77,7 @@ fn show_declaration(
             ));
         }
     }
-    extract_declaration_body(&file, id, section, mode, include_heading, config)
+    extract_declaration_body(&file, id, section, mode, include_heading, config, overlays)
 }
 
 /// Render an e2e case as an ID-query body: the invocation, expected exit, and
@@ -141,6 +161,7 @@ fn extract_declaration_body(
     mode: ShowRenderMode,
     include_heading: bool,
     config: &Config,
+    overlays: &TextOverlays,
 ) -> Result<ShowOutput> {
     // `--toc` = the default lead, then a blank line, then the nested section
     // headings (§FS-show.2.1.2). Internally: compose the Default body with an
@@ -153,9 +174,17 @@ fn extract_declaration_body(
             ShowRenderMode::Default,
             include_heading,
             config,
+            overlays,
         )?;
-        let outline_output =
-            extract_declaration_body(path, id, section, ShowRenderMode::Outline, false, config)?;
+        let outline_output = extract_declaration_body(
+            path,
+            id,
+            section,
+            ShowRenderMode::Outline,
+            false,
+            config,
+            overlays,
+        )?;
         default_output.body = join_with_blank(&default_output.body, &outline_output.body);
         default_output.sections = outline_output.sections;
         return Ok(default_output);
@@ -175,12 +204,13 @@ fn extract_declaration_body(
             ShowRenderMode::Default,
             want_h1_for_default,
             config,
+            overlays,
         )?;
         output.body = truncate_to_first_paragraph(&output.body);
         return Ok(output);
     }
 
-    let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    let text = read_text_with_overlays(path, overlays)?;
     let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
     let is_py = path.extension().and_then(|e| e.to_str()) == Some("py");
     let mut in_decl = false;
@@ -331,6 +361,14 @@ fn extract_declaration_body(
         json: None,
         sections,
     })
+}
+
+fn read_text_with_overlays(path: &Path, overlays: &TextOverlays) -> Result<String> {
+    if let Some(text) = overlay_text(overlays, path) {
+        Ok(text.to_string())
+    } else {
+        fs::read_to_string(path).with_context(|| format!("read {}", path.display()))
+    }
 }
 
 /// `--toc` joins the default body with the section-map body, separated by one

@@ -1,0 +1,775 @@
+//! LSP transport over stdio. §AR-lsp.4
+
+use anyhow::{Context, Result, anyhow};
+use grund_core::{
+    Finding, LspCitation, LspDeclaration, LspSnapshot, LspSnapshotOpts, ShowFormat, ShowMode,
+    ShowOpts, can_replace_trigger_at, lsp_snapshot, show_with_overlays,
+};
+use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
+use lsp_types::{
+    Diagnostic, DiagnosticSeverity, DocumentLink, DocumentLinkOptions,
+    DocumentOnTypeFormattingOptions, DocumentOnTypeFormattingParams, GotoDefinitionResponse, Hover,
+    HoverContents, InitializeParams, Location, MarkupContent, MarkupKind, OneOf, Position,
+    PublishDiagnosticsParams, Range, ReferenceParams, ServerCapabilities,
+    TextDocumentContentChangeEvent, TextDocumentPositionParams, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextDocumentSyncOptions, TextEdit, Url,
+};
+use serde_json::Value;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::path::{Path, PathBuf};
+
+pub fn run() -> Result<()> {
+    let (connection, io_threads) = Connection::stdio();
+    let server_capabilities = serde_json::to_value(server_capabilities())?;
+    let initialize_value = connection.initialize(server_capabilities)?;
+    let initialize_params: InitializeParams = serde_json::from_value(initialize_value)?;
+    let root = initialize_root(&initialize_params)?;
+    let mut server = Server::new(connection, root)?;
+    server.refresh()?;
+    server.publish_diagnostics()?;
+    server.event_loop()?;
+    io_threads.join()?;
+    Ok(())
+}
+
+fn server_capabilities() -> ServerCapabilities {
+    ServerCapabilities {
+        text_document_sync: Some(TextDocumentSyncCapability::Options(
+            TextDocumentSyncOptions {
+                open_close: Some(true),
+                change: Some(TextDocumentSyncKind::FULL),
+                save: Some(lsp_types::TextDocumentSyncSaveOptions::Supported(true)),
+                ..TextDocumentSyncOptions::default()
+            },
+        )),
+        hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
+        definition_provider: Some(OneOf::Left(true)),
+        references_provider: Some(OneOf::Left(true)),
+        document_link_provider: Some(DocumentLinkOptions {
+            resolve_provider: Some(false),
+            work_done_progress_options: Default::default(),
+        }),
+        document_on_type_formatting_provider: Some(DocumentOnTypeFormattingOptions {
+            first_trigger_character: "$".to_string(),
+            more_trigger_character: Some(
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._/"
+                    .chars()
+                    .map(|ch| ch.to_string())
+                    .collect(),
+            ),
+        }),
+        ..ServerCapabilities::default()
+    }
+}
+
+fn initialize_root(params: &InitializeParams) -> Result<PathBuf> {
+    if let Some(folder) = params
+        .workspace_folders
+        .as_ref()
+        .and_then(|folders| folders.first())
+    {
+        return folder
+            .uri
+            .to_file_path()
+            .map_err(|_| anyhow!("workspace folder URI is not a file URI: {}", folder.uri));
+    }
+    #[allow(deprecated)]
+    if let Some(uri) = &params.root_uri {
+        return uri
+            .to_file_path()
+            .map_err(|_| anyhow!("initialize rootUri is not a file URI: {uri}"));
+    }
+    std::env::current_dir().context("resolve current directory")
+}
+
+struct Server {
+    connection: Connection,
+    root: PathBuf,
+    snapshot: LspSnapshot,
+    open_docs: BTreeMap<Url, String>,
+    diagnostic_uris: BTreeSet<Url>,
+}
+
+impl Server {
+    fn new(connection: Connection, root: PathBuf) -> Result<Self> {
+        let snapshot = lsp_snapshot(LspSnapshotOpts {
+            path: root.clone(),
+            path_provided: true,
+            open_documents: BTreeMap::new(),
+        })?;
+        Ok(Self {
+            connection,
+            root,
+            snapshot,
+            open_docs: BTreeMap::new(),
+            diagnostic_uris: BTreeSet::new(),
+        })
+    }
+
+    fn event_loop(&mut self) -> Result<()> {
+        while let Ok(message) = self.connection.receiver.recv() {
+            match message {
+                Message::Request(request) => {
+                    if self.connection.handle_shutdown(&request)? {
+                        return Ok(());
+                    }
+                    self.handle_request(request)?;
+                }
+                Message::Notification(notification) => self.handle_notification(notification)?,
+                Message::Response(_) => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn refresh(&mut self) -> Result<()> {
+        self.snapshot = lsp_snapshot(LspSnapshotOpts {
+            path: self.root.clone(),
+            path_provided: true,
+            open_documents: self.open_document_overlays(),
+        })?;
+        Ok(())
+    }
+
+    fn handle_request(&mut self, request: Request) -> Result<()> {
+        let id = request.id.clone();
+        let response = match request.method.as_str() {
+            "textDocument/hover" => self.request_ok(id, self.hover(request.params)?),
+            "textDocument/definition" => self.request_ok(id, self.definition(request.params)?),
+            "textDocument/references" => self.request_ok(id, self.references(request.params)?),
+            "textDocument/documentLink" => {
+                self.request_ok(id, self.document_links(request.params)?)
+            }
+            "textDocument/onTypeFormatting" => {
+                self.request_ok(id, self.on_type_formatting(request.params)?)
+            }
+            _ => Response::new_err(
+                id,
+                lsp_server::ErrorCode::MethodNotFound as i32,
+                format!("unsupported request `{}`", request.method),
+            ),
+        };
+        self.connection.sender.send(Message::Response(response))?;
+        Ok(())
+    }
+
+    fn request_ok(&self, id: RequestId, value: impl serde::Serialize) -> Response {
+        Response::new_ok(id, value)
+    }
+
+    fn handle_notification(&mut self, notification: Notification) -> Result<()> {
+        match notification.method.as_str() {
+            "initialized" => {
+                self.refresh()?;
+                self.publish_diagnostics()?;
+            }
+            "textDocument/didOpen" => {
+                let params: lsp_types::DidOpenTextDocumentParams =
+                    serde_json::from_value(notification.params)?;
+                self.open_docs
+                    .insert(params.text_document.uri, params.text_document.text);
+                self.refresh()?;
+                self.publish_diagnostics()?;
+            }
+            "textDocument/didChange" => {
+                let params: lsp_types::DidChangeTextDocumentParams =
+                    serde_json::from_value(notification.params)?;
+                if let Some(text) = full_change_text(params.content_changes) {
+                    self.open_docs.insert(params.text_document.uri, text);
+                }
+                self.refresh()?;
+                self.publish_diagnostics()?;
+            }
+            "textDocument/didSave" => {
+                let params: lsp_types::DidSaveTextDocumentParams =
+                    serde_json::from_value(notification.params)?;
+                if let Some(text) = params.text {
+                    self.open_docs.insert(params.text_document.uri, text);
+                } else {
+                    self.open_docs.remove(&params.text_document.uri);
+                }
+                self.refresh()?;
+                self.publish_diagnostics()?;
+            }
+            "textDocument/didClose" => {
+                let params: lsp_types::DidCloseTextDocumentParams =
+                    serde_json::from_value(notification.params)?;
+                self.open_docs.remove(&params.text_document.uri);
+                self.refresh()?;
+                self.publish_diagnostics()?;
+            }
+            "workspace/didChangeWatchedFiles" => {
+                self.refresh()?;
+                self.publish_diagnostics()?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn hover(&self, params: Value) -> Result<Option<Hover>> {
+        let params: TextDocumentPositionParams = serde_json::from_value(params)?;
+        let Some(token) = self.token_at(&params.text_document.uri, params.position) else {
+            return Ok(None);
+        };
+        let body = match show_with_overlays(
+            token.query_id(),
+            ShowOpts {
+                path: self.root.clone(),
+                section: None,
+                mode: ShowMode::Toc,
+                format: ShowFormat::Markdown,
+            },
+            self.open_document_overlays(),
+        ) {
+            Ok(output) => output.body,
+            Err(_) => return Ok(None),
+        };
+        let body = self.linkify_hover_body(&body);
+        Ok(Some(Hover {
+            contents: HoverContents::Markup(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: body,
+            }),
+            range: Some(token.range(self)),
+        }))
+    }
+
+    fn definition(&self, params: Value) -> Result<Option<GotoDefinitionResponse>> {
+        let params: TextDocumentPositionParams = serde_json::from_value(params)?;
+        let Some(Token::Citation(citation)) =
+            self.token_at(&params.text_document.uri, params.position)
+        else {
+            return Ok(None);
+        };
+        let Some(location) = self.citation_location(citation) else {
+            return Ok(None);
+        };
+        Ok(Some(GotoDefinitionResponse::Scalar(location)))
+    }
+
+    fn references(&self, params: Value) -> Result<Option<Vec<Location>>> {
+        let params: ReferenceParams = serde_json::from_value(params)?;
+        let Some(token) = self.token_at(
+            &params.text_document_position.text_document.uri,
+            params.text_document_position.position,
+        ) else {
+            return Ok(None);
+        };
+        let include_decl = params.context.include_declaration;
+        let mut locations = Vec::new();
+        match token {
+            Token::Declaration(decl) => {
+                if include_decl && let Some(location) = self.declaration_location(decl) {
+                    locations.push(location);
+                }
+                for citation in &self.snapshot.citations {
+                    if (citation.query_id == decl.query_id
+                        || query_matches_declaration(
+                            &decl.query_id,
+                            &citation.query_id,
+                            &decl.section_separator,
+                        ))
+                        && let Some(uri) = path_uri(&citation.path)
+                    {
+                        locations.push(Location {
+                            uri,
+                            range: citation_range(citation, self),
+                        });
+                    }
+                }
+            }
+            Token::Citation(source) => {
+                if include_decl {
+                    for decl in &self.snapshot.declarations {
+                        if decl.query_id == source.declaration_query_id
+                            && let Some(location) = self.declaration_location(decl)
+                        {
+                            locations.push(location);
+                        }
+                    }
+                }
+                for citation in &self.snapshot.citations {
+                    if (citation.declaration_query_id == source.declaration_query_id
+                        || query_matches_declaration(
+                            &source.declaration_query_id,
+                            &citation.query_id,
+                            &source.section_separator,
+                        ))
+                        && let Some(uri) = path_uri(&citation.path)
+                    {
+                        locations.push(Location {
+                            uri,
+                            range: citation_range(citation, self),
+                        });
+                    }
+                }
+            }
+        }
+        Ok(Some(locations))
+    }
+
+    fn document_links(&self, params: Value) -> Result<Option<Vec<DocumentLink>>> {
+        let params: lsp_types::DocumentLinkParams = serde_json::from_value(params)?;
+        let Some(path) = params
+            .text_document
+            .uri
+            .to_file_path()
+            .ok()
+            .map(normalize_path)
+        else {
+            return Ok(Some(Vec::new()));
+        };
+        let links = self
+            .snapshot
+            .citations
+            .iter()
+            .filter(|citation| normalize_path(&citation.path) == path)
+            .filter_map(|citation| {
+                let location = self.citation_location(citation)?;
+                Some(DocumentLink {
+                    range: citation_range(citation, self),
+                    target: Some(location.uri),
+                    tooltip: Some(format!("Open {}", citation.query_id)),
+                    data: None,
+                })
+            })
+            .collect();
+        Ok(Some(links))
+    }
+
+    fn on_type_formatting(&self, params: Value) -> Result<Option<Vec<TextEdit>>> {
+        let params: DocumentOnTypeFormattingParams = serde_json::from_value(params)?;
+        let uri = params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        let Some(line) = self.line_text(&uri, position.line) else {
+            return Ok(Some(Vec::new()));
+        };
+        let cursor = utf16_to_byte(&line, position.character);
+        let Some(trigger_start) = line[..cursor].rfind(&self.snapshot.trigger) else {
+            return Ok(Some(Vec::new()));
+        };
+        let token = &line[trigger_start + self.snapshot.trigger.len()..cursor];
+        if token.is_empty() || !is_id_token_candidate(token) {
+            return Ok(Some(Vec::new()));
+        }
+        let Some(path) = uri.to_file_path().ok() else {
+            return Ok(Some(Vec::new()));
+        };
+        if !can_replace_trigger_at(&path, &line, trigger_start, token)? {
+            return Ok(Some(Vec::new()));
+        }
+        let start = byte_to_utf16(&line, trigger_start);
+        let end = byte_to_utf16(&line, trigger_start + self.snapshot.trigger.len());
+        Ok(Some(vec![TextEdit {
+            range: Range {
+                start: Position {
+                    line: position.line,
+                    character: start,
+                },
+                end: Position {
+                    line: position.line,
+                    character: end,
+                },
+            },
+            new_text: self.snapshot.marker.clone(),
+        }]))
+    }
+
+    fn publish_diagnostics(&mut self) -> Result<()> {
+        let mut by_uri: BTreeMap<Url, Vec<Diagnostic>> = BTreeMap::new();
+        for finding in self.snapshot.report.errors.clone() {
+            if let Some((uri, diagnostic)) =
+                self.diagnostic_for_finding(finding, DiagnosticSeverity::ERROR)
+            {
+                by_uri.entry(uri).or_default().push(diagnostic);
+            }
+        }
+        for finding in self.snapshot.report.warnings.clone() {
+            if let Some((uri, diagnostic)) =
+                self.diagnostic_for_finding(finding, DiagnosticSeverity::WARNING)
+            {
+                by_uri.entry(uri).or_default().push(diagnostic);
+            }
+        }
+        let next_diagnostic_uris: BTreeSet<Url> = by_uri.keys().cloned().collect();
+        for uri in self.diagnostic_uris.difference(&next_diagnostic_uris) {
+            self.connection
+                .sender
+                .send(Message::Notification(Notification::new(
+                    "textDocument/publishDiagnostics".to_string(),
+                    PublishDiagnosticsParams {
+                        uri: uri.clone(),
+                        diagnostics: Vec::new(),
+                        version: None,
+                    },
+                )))?;
+        }
+        self.diagnostic_uris = next_diagnostic_uris;
+        for (uri, diagnostics) in by_uri {
+            self.connection
+                .sender
+                .send(Message::Notification(Notification::new(
+                    "textDocument/publishDiagnostics".to_string(),
+                    PublishDiagnosticsParams {
+                        uri,
+                        diagnostics,
+                        version: None,
+                    },
+                )))?;
+        }
+        Ok(())
+    }
+
+    fn diagnostic_for_finding(
+        &self,
+        finding: Finding,
+        severity: DiagnosticSeverity,
+    ) -> Option<(Url, Diagnostic)> {
+        let path = finding.path.as_deref()?;
+        let path = if Path::new(path).is_absolute() {
+            PathBuf::from(path)
+        } else {
+            self.snapshot.root.join(path)
+        };
+        let uri = path_uri(&path)?;
+        let line = finding.line.unwrap_or(1).saturating_sub(1) as u32;
+        let range = self
+            .range_for_finding(&path, finding.line)
+            .unwrap_or_else(|| Range {
+                start: Position { line, character: 0 },
+                end: Position { line, character: 1 },
+            });
+        Some((
+            uri,
+            Diagnostic {
+                range,
+                severity: Some(severity),
+                code: Some(lsp_types::NumberOrString::String(finding.code.to_string())),
+                source: Some("grund".to_string()),
+                message: finding.message,
+                ..Diagnostic::default()
+            },
+        ))
+    }
+
+    fn range_for_finding(&self, path: &Path, line: Option<usize>) -> Option<Range> {
+        let line = line?;
+        self.snapshot
+            .citations
+            .iter()
+            .find(|citation| same_path(&citation.path, path) && citation.line == line)
+            .map(|citation| citation_range(citation, self))
+            .or_else(|| {
+                self.snapshot
+                    .declarations
+                    .iter()
+                    .find(|decl| same_path(&decl.path, path) && decl.line == line)
+                    .map(|decl| declaration_range(decl, self))
+            })
+    }
+
+    fn token_at(&self, uri: &Url, position: Position) -> Option<Token<'_>> {
+        let path = uri.to_file_path().ok().map(normalize_path)?;
+        self.snapshot
+            .citations
+            .iter()
+            .find(|citation| {
+                same_path(&citation.path, &path)
+                    && contains(citation_range(citation, self), position)
+            })
+            .map(Token::Citation)
+            .or_else(|| {
+                self.snapshot
+                    .declarations
+                    .iter()
+                    .find(|decl| {
+                        same_path(&decl.path, &path)
+                            && contains(declaration_range(decl, self), position)
+                    })
+                    .map(Token::Declaration)
+            })
+    }
+
+    fn citation_location(&self, citation: &LspCitation) -> Option<Location> {
+        Some(Location {
+            uri: path_uri(citation.target_path.as_ref()?)?,
+            range: single_line_range(
+                citation.target_path.as_ref()?,
+                citation.target_line?,
+                1,
+                citation.query_id.len().max(1),
+            ),
+        })
+    }
+
+    fn declaration_location(&self, decl: &LspDeclaration) -> Option<Location> {
+        Some(Location {
+            uri: path_uri(&decl.path)?,
+            range: declaration_range(decl, self),
+        })
+    }
+
+    fn linkify_hover_body(&self, body: &str) -> String {
+        let mut links = Vec::new();
+        for citation in &self.snapshot.citations {
+            if let (Some(path), Some(line)) = (&citation.target_path, citation.target_line)
+                && let Some(uri) = file_uri_with_line(path, line)
+            {
+                links.push((
+                    format!("{}{}", self.snapshot.marker, citation.query_id),
+                    uri,
+                ));
+            }
+        }
+        links.sort_by(|a, b| b.0.len().cmp(&a.0.len()).then_with(|| a.0.cmp(&b.0)));
+        links.dedup_by(|a, b| a.0 == b.0);
+        let mut out = body.to_string();
+        for (token, uri) in links {
+            out = replace_unlinked_token(&out, &token, &uri);
+        }
+        out
+    }
+
+    fn line_text(&self, uri: &Url, zero_based_line: u32) -> Option<String> {
+        if let Some(text) = self.open_docs.get(uri) {
+            return text
+                .lines()
+                .nth(zero_based_line as usize)
+                .map(str::to_string);
+        }
+        let path = uri.to_file_path().ok()?;
+        fs::read_to_string(path)
+            .ok()?
+            .lines()
+            .nth(zero_based_line as usize)
+            .map(str::to_string)
+    }
+
+    fn open_document_overlays(&self) -> BTreeMap<PathBuf, String> {
+        self.open_docs
+            .iter()
+            .filter_map(|(uri, text)| uri.to_file_path().ok().map(|path| (path, text.clone())))
+            .collect()
+    }
+}
+
+enum Token<'a> {
+    Citation(&'a LspCitation),
+    Declaration(&'a LspDeclaration),
+}
+
+impl<'a> Token<'a> {
+    fn query_id(&self) -> &'a str {
+        match self {
+            Token::Citation(citation) => &citation.query_id,
+            Token::Declaration(decl) => &decl.query_id,
+        }
+    }
+
+    fn range(&self, server: &Server) -> Range {
+        match self {
+            Token::Citation(citation) => citation_range(citation, server),
+            Token::Declaration(decl) => declaration_range(decl, server),
+        }
+    }
+}
+
+fn full_change_text(changes: Vec<TextDocumentContentChangeEvent>) -> Option<String> {
+    changes.into_iter().last().map(|change| change.text)
+}
+
+fn citation_range(citation: &LspCitation, server: &Server) -> Range {
+    token_range(
+        server,
+        &citation.path,
+        citation.line,
+        citation.column,
+        &citation.text,
+    )
+}
+
+fn declaration_range(decl: &LspDeclaration, server: &Server) -> Range {
+    token_range(server, &decl.path, decl.line, decl.column, &decl.text)
+}
+
+fn token_range(server: &Server, path: &Path, line: usize, column: usize, text: &str) -> Range {
+    let zero_line = line.saturating_sub(1) as u32;
+    let line_text = path_uri(path)
+        .and_then(|uri| server.line_text(&uri, zero_line))
+        .or_else(|| {
+            fs::read_to_string(path)
+                .ok()
+                .and_then(|body| body.lines().nth(line.saturating_sub(1)).map(str::to_string))
+        });
+    if let Some(line_text) = line_text {
+        let start_byte = column.saturating_sub(1).min(line_text.len());
+        let end_byte = start_byte.saturating_add(text.len()).min(line_text.len());
+        return Range {
+            start: Position {
+                line: zero_line,
+                character: byte_to_utf16(&line_text, start_byte),
+            },
+            end: Position {
+                line: zero_line,
+                character: byte_to_utf16(&line_text, end_byte),
+            },
+        };
+    }
+    Range {
+        start: Position {
+            line: zero_line,
+            character: column.saturating_sub(1) as u32,
+        },
+        end: Position {
+            line: zero_line,
+            character: column.saturating_sub(1).saturating_add(text.len()) as u32,
+        },
+    }
+}
+
+fn single_line_range(path: &Path, line: usize, column: usize, width: usize) -> Range {
+    let zero_line = line.saturating_sub(1) as u32;
+    let line_text = fs::read_to_string(path)
+        .ok()
+        .and_then(|body| body.lines().nth(line.saturating_sub(1)).map(str::to_string));
+    if let Some(line_text) = line_text {
+        let start_byte = column.saturating_sub(1).min(line_text.len());
+        let end_byte = start_byte.saturating_add(width).min(line_text.len());
+        return Range {
+            start: Position {
+                line: zero_line,
+                character: byte_to_utf16(&line_text, start_byte),
+            },
+            end: Position {
+                line: zero_line,
+                character: byte_to_utf16(&line_text, end_byte),
+            },
+        };
+    }
+    Range {
+        start: Position {
+            line: zero_line,
+            character: column.saturating_sub(1) as u32,
+        },
+        end: Position {
+            line: zero_line,
+            character: column.saturating_sub(1).saturating_add(width) as u32,
+        },
+    }
+}
+
+fn contains(range: Range, position: Position) -> bool {
+    if position.line != range.start.line || position.line != range.end.line {
+        return false;
+    }
+    position.character >= range.start.character && position.character < range.end.character
+}
+
+fn byte_to_utf16(line: &str, byte_idx: usize) -> u32 {
+    line[..byte_idx.min(line.len())]
+        .chars()
+        .map(|ch| ch.len_utf16() as u32)
+        .sum()
+}
+
+fn utf16_to_byte(line: &str, utf16_idx: u32) -> usize {
+    let mut units = 0;
+    for (idx, ch) in line.char_indices() {
+        if units >= utf16_idx {
+            return idx;
+        }
+        units += ch.len_utf16() as u32;
+    }
+    line.len()
+}
+
+fn same_path(left: &Path, right: &Path) -> bool {
+    normalize_path(left) == normalize_path(right)
+}
+
+fn normalize_path(path: impl AsRef<Path>) -> PathBuf {
+    fs::canonicalize(path.as_ref()).unwrap_or_else(|_| path.as_ref().to_path_buf())
+}
+
+fn path_uri(path: &Path) -> Option<Url> {
+    Url::from_file_path(path).ok()
+}
+
+fn file_uri_with_line(path: &Path, line: usize) -> Option<String> {
+    let mut uri = path_uri(path)?;
+    uri.set_fragment(Some(&format!("L{line}")));
+    Some(uri.to_string())
+}
+
+fn replace_unlinked_token(body: &str, token: &str, uri: &str) -> String {
+    let mut out = String::with_capacity(body.len());
+    let mut rest = body;
+    while let Some(idx) = rest.find(token) {
+        let before = &rest[..idx];
+        out.push_str(before);
+        let prev = before.chars().last().or_else(|| out.chars().last());
+        if prev == Some('[') {
+            out.push_str(token);
+        } else {
+            out.push('[');
+            out.push_str(token);
+            out.push_str("](");
+            out.push_str(uri);
+            out.push(')');
+        }
+        rest = &rest[idx + token.len()..];
+    }
+    out.push_str(rest);
+    out
+}
+
+fn query_matches_declaration(
+    declaration_query: &str,
+    citation_query: &str,
+    section_separator: &str,
+) -> bool {
+    citation_query
+        .strip_prefix(declaration_query)
+        .is_some_and(|tail| tail.starts_with(section_separator))
+}
+
+fn is_id_token_candidate(token: &str) -> bool {
+    token
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '/'))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hover_linkifier_preserves_existing_markdown_links() {
+        let linked = replace_unlinked_token(
+            "See §FS-lsp and [§FS-lsp](already).",
+            "§FS-lsp",
+            "file:///tmp/FS-lsp.md#L1",
+        );
+        assert_eq!(
+            linked,
+            "See [§FS-lsp](file:///tmp/FS-lsp.md#L1) and [§FS-lsp](already)."
+        );
+    }
+
+    #[test]
+    fn declaration_reference_match_includes_section_citations() {
+        assert!(query_matches_declaration("FS-lsp", "FS-lsp.1", "."));
+        assert!(query_matches_declaration("FS-lsp", "FS-lsp/1", "/"));
+        assert!(!query_matches_declaration("FS-lsp", "FS-lsp-extra.1", "."));
+    }
+
+    #[test]
+    fn utf16_position_conversion_handles_non_ascii() {
+        let line = "a§𐐀b";
+        let byte = utf16_to_byte(line, 2);
+        assert_eq!(&line[..byte], "a§");
+        assert_eq!(byte_to_utf16(line, byte), 2);
+    }
+}

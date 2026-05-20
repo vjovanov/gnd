@@ -89,6 +89,8 @@ struct WorkspaceCitationTarget {
     config: Config,
 }
 
+type TextOverlays = BTreeMap<PathBuf, String>;
+
 /// Everything the scanner found in one tree walk — declarations grouped by ID
 /// (so duplicates surface, §FS-check.3.3) and citations in encounter order. This
 /// is the scanner's whole output; the checker (§AR-checker) consumes it without
