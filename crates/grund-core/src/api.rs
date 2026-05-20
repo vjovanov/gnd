@@ -331,12 +331,27 @@ pub struct CoverOutput {
     pub scan_errors: Vec<ApiScanError>,
 }
 
-/// Programmatic `cover`: group local citations by scanned file without choosing
-/// a CLI output format or process exit code (§RM-core-cli-split).
-pub fn cover(opts: CoverOpts) -> Result<CoverOutput> {
-    let config = resolve_workspace_config(&opts.path)?;
-    let (findings, scan_errors) = scan_tree(&config, Some(&opts.path), opts.path_provided)?;
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CoverTextCitation {
+    pub line: usize,
+    pub column: usize,
+    pub text: String,
+}
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CoverTextEntry {
+    pub path: String,
+    pub citations: Vec<CoverTextCitation>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct CoverTextOutput {
+    pub output_format: String,
+    pub entries: Vec<CoverTextEntry>,
+    pub scan_errors: Vec<ApiScanError>,
+}
+
+fn cover_citations_by_file(findings: &Findings) -> BTreeMap<PathBuf, Vec<&Citation>> {
     let mut by_file: BTreeMap<PathBuf, Vec<&Citation>> = BTreeMap::new();
     for file in &findings.scanned_files {
         by_file.entry(file.clone()).or_default();
@@ -353,7 +368,16 @@ pub fn cover(opts: CoverOpts) -> Result<CoverOutput> {
     for citations in by_file.values_mut() {
         citations.sort_by_key(|citation| (citation.line, citation.column));
     }
+    by_file
+}
 
+/// Programmatic `cover`: group local citations by scanned file without choosing
+/// a CLI output format or process exit code (§RM-core-cli-split).
+pub fn cover(opts: CoverOpts) -> Result<CoverOutput> {
+    let config = resolve_workspace_config(&opts.path)?;
+    let (findings, scan_errors) = scan_tree(&config, Some(&opts.path), opts.path_provided)?;
+
+    let by_file = cover_citations_by_file(&findings);
     let mut cover_entries = by_file.iter().collect::<Vec<_>>();
     cover_entries.sort_by_key(|(file, _)| display_path(&config, file));
     let entries = cover_entries
@@ -379,6 +403,54 @@ pub fn cover(opts: CoverOpts) -> Result<CoverOutput> {
         .map(|(path, message)| api_scan_error(&config, path, message))
         .collect();
     Ok(CoverOutput {
+        output_format: config.output_format.clone(),
+        entries,
+        scan_errors,
+    })
+}
+
+/// Programmatic text-oriented `cover`: return only the citation fields needed
+/// for the default human-readable cover view while still leaving rendering to
+/// frontends (§RM-core-cli-split).
+pub fn cover_text(opts: CoverOpts) -> Result<CoverTextOutput> {
+    let config = resolve_workspace_config(&opts.path)?;
+    let (findings, scan_errors) = scan_tree(&config, Some(&opts.path), opts.path_provided)?;
+
+    let mut by_file: BTreeMap<PathBuf, Vec<CoverTextCitation>> = BTreeMap::new();
+    for file in findings.scanned_files {
+        by_file.entry(file).or_default();
+    }
+    for citation in findings.citations {
+        if citation.namespace.is_some() {
+            continue;
+        }
+        by_file
+            .entry(citation.file)
+            .or_default()
+            .push(CoverTextCitation {
+                line: citation.line,
+                column: citation.column,
+                text: citation.text,
+            });
+    }
+    for citations in by_file.values_mut() {
+        citations.sort_by_key(|citation| (citation.line, citation.column));
+    }
+
+    let mut cover_entries = by_file
+        .into_iter()
+        .map(|(file, citations)| (display_path(&config, &file), citations))
+        .collect::<Vec<_>>();
+    cover_entries.sort_by(|(left, _), (right, _)| left.cmp(right));
+    let entries = cover_entries
+        .into_iter()
+        .map(|(path, citations)| CoverTextEntry { path, citations })
+        .collect();
+    let scan_errors = scan_errors
+        .iter()
+        .map(|(path, message)| api_scan_error(&config, path, message))
+        .collect();
+    Ok(CoverTextOutput {
         output_format: config.output_format.clone(),
         entries,
         scan_errors,
