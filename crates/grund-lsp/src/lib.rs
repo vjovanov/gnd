@@ -38,6 +38,7 @@ pub fn run() -> Result<()> {
         .initialize_finish(initialize_id, initialize_result)?;
     server.publish_diagnostics()?;
     server.event_loop()?;
+    drop(server);
     io_threads.join()?;
     Ok(())
 }
