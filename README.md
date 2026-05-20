@@ -1,7 +1,7 @@
 # grund
 
 [![CI](https://github.com/vjovanov/grund/actions/workflows/ci.yml/badge.svg)](https://github.com/vjovanov/grund/actions/workflows/ci.yml)
-[![grund check: ~574k LoC/s](https://img.shields.io/badge/grund%20check-~574k%20LoC%2Fs-brightgreen.svg)](docs/benchmarks.md)
+[![grund check: ~722k LoC/s](https://img.shields.io/badge/grund%20check-~722k%20LoC%2Fs-brightgreen.svg)](docs/benchmarks.md)
 [![crates.io](https://img.shields.io/crates/v/grund.svg)](https://crates.io/crates/grund)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -16,7 +16,7 @@
 
 Off-the-shelf Markdown link checkers (`lychee`, `markdown-link-check`) only handle `.md` and only validate `[text](url)`. A `§FS-events.4` cited from `src/bus.rs` is invisible to them. That gap is what `grund` exists to close: Lychee checks whether Markdown links still open; `grund` checks whether your code still knows why it exists. Lychee is the link checker; `grund` is the intent checker. Both belong in CI; they guard different failure modes. [§GND-grund.1](docs/grund.md#1-what-grund-does-about-it)
 
-`grund` measures CI performance by instruction count, not stopwatch time: the current baseline is 278,278,428 Callgrind `Ir` for `grund check .` and 1,005,903,713 `Ir` for the generated 10k-file fixture, with pull requests gated at 5% growth.
+`grund` measures CI performance by instruction count, not stopwatch time: the current snapshot is 299,672,739 Callgrind `Ir` for `grund check .` and 1,055,099,244 `Ir` for the generated 10k-file fixture, with pull requests gated at 5% growth.
 
 ## 0. Specify your intent
 
