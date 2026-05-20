@@ -21,15 +21,15 @@ from pathlib import Path
 DEFAULT_LYCHEE_PATHS = ["README.md", "docs", "examples"]
 MARKUP_EXTENSIONS = {".md", ".markdown", ".html", ".htm"}
 INSTRUCTION_BASELINE = [
-    ("check", "this repo", "278,278,428", "401,210,807"),
-    ("check_large_10k", "generated 10k-file fixture", "1,005,903,713", "1,376,884,638"),
-    ("list", "this repo", "269,695,929", "388,661,924"),
-    ("show_brief", "this repo", "263,844,566", "380,785,790"),
-    ("show", "this repo", "263,985,111", "380,938,329"),
-    ("show_full", "this repo", "271,194,777", "391,665,351"),
-    ("refs", "this repo", "263,821,734", "380,473,397"),
-    ("cover", "this repo", "281,832,923", "405,581,555"),
-    ("fmt_check", "this repo", "318,959,988", "458,600,950"),
+    ("check", "this repo", "299,672,739", "431,943,109"),
+    ("check_large_10k", "generated 10k-file fixture", "1,055,099,244", "1,475,491,249"),
+    ("list", "this repo", "289,680,670", "417,771,050"),
+    ("show_brief", "this repo", "284,142,202", "409,995,654"),
+    ("show", "this repo", "284,116,880", "410,041,898"),
+    ("show_full", "this repo", "290,702,550", "419,471,481"),
+    ("refs", "this repo", "284,135,903", "410,102,297"),
+    ("cover", "this repo", "301,086,562", "433,510,661"),
+    ("fmt_check", "this repo", "349,977,643", "502,904,379"),
 ]
 
 
@@ -336,8 +336,8 @@ def write_report(
         "The release-blocking meter is Callgrind instruction count, not wall-clock time "
         "([§DA-benchmark-instruction-counting](decisions/architectural/DA-benchmark-instruction-counting.md#da-benchmark-instruction-counting-the-performance-harness-counts-instructions-not-wall-clock-seconds)). "
         "Pull-request CI compares against the current base branch and fails when `Ir` grows by more than 5% "
-        "([§AR-ci.5](architecture/AR-ci.md#5-benchmark-job)); the table below is the committed human-readable baseline from "
-        "`cargo bench -p grund --features bench --locked --bench instructions -- --save-baseline=main --save-summary=json` on 2026-05-19.",
+        "([§AR-ci.5](architecture/AR-ci.md#5-benchmark-job)); the table below is the committed human-readable snapshot from "
+        "`cargo bench -p grund --features bench --locked --bench instructions -- --save-summary=json` on 2026-05-20.",
         "",
         "| Benchmark | Input | Instructions (`Ir`) | Estimated Cycles |",
         "|---|---|---:|---:|",
