@@ -216,19 +216,42 @@ fn load_workspace_projects(root_config: &mut Config) -> Result<Vec<WorkspaceProj
         .collect::<Vec<_>>();
 
     // Stage 3: scan every project under its own config, with the workspace
-    // targets in scope.
-    let mut projects: Vec<WorkspaceProject> = Vec::new();
-    for (alias, config) in entries {
-        let (findings, scan_errors) =
-            scan_tree_with_workspace(&config, Some(&config.root), true, &targets)?;
-        projects.push(WorkspaceProject {
-            alias,
-            config,
-            findings,
-            scan_errors,
-        });
-    }
-    Ok(projects)
+    // targets in scope. Project scans are independent once aliases and target
+    // grammars are validated; sort by the original entry index before returning
+    // so root/member ordering stays byte-deterministic.
+    let mut indexed = if entries.len() >= 2 {
+        entries
+            .into_par_iter()
+            .enumerate()
+            .map(|(index, (alias, config))| (index, load_workspace_project(alias, config, &targets)))
+            .collect::<Vec<_>>()
+    } else {
+        entries
+            .into_iter()
+            .enumerate()
+            .map(|(index, (alias, config))| (index, load_workspace_project(alias, config, &targets)))
+            .collect::<Vec<_>>()
+    };
+    indexed.sort_by_key(|(index, _)| *index);
+    indexed
+        .into_iter()
+        .map(|(_, project)| project)
+        .collect::<Result<Vec<_>>>()
+}
+
+fn load_workspace_project(
+    alias: String,
+    config: Config,
+    targets: &[WorkspaceCitationTarget],
+) -> Result<WorkspaceProject> {
+    let (findings, scan_errors) =
+        scan_tree_with_workspace(&config, Some(&config.root), true, targets)?;
+    Ok(WorkspaceProject {
+        alias,
+        config,
+        findings,
+        scan_errors,
+    })
 }
 
 /// Split a CLI ID argument that may carry a qualifying `<alias>/` prefix

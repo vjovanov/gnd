@@ -1,5 +1,7 @@
 /// A dotfile or dot-directory — same convention used by the scanner walker
 /// and by `expand_workspace_members` to skip `.git`, `.agents`, `.cache`, etc.
+const PARALLEL_SCAN_MIN_FILES: usize = 256;
+
 fn is_hidden(path: &Path) -> bool {
     path.file_name()
         .and_then(|n| n.to_str())
@@ -1076,6 +1078,46 @@ fn scan_roots(config: &Config, scope: Option<&Path>, explicit_scope: bool) -> Re
 /// fatal, `check` and `refs` report it and exit 2 with a still-printed report.
 type ScanError = (PathBuf, String);
 
+type FileScanResult = (PathBuf, std::result::Result<Findings, String>);
+
+fn scan_one_file(
+    file: &Path,
+    config: &Config,
+    workspace_targets: &[WorkspaceCitationTarget],
+) -> FileScanResult {
+    let mut findings = Findings::default();
+    match scan_file(file, config, &mut findings, workspace_targets) {
+        Ok(()) => {
+            findings.scanned_files.push(file.to_path_buf());
+            (file.to_path_buf(), Ok(findings))
+        }
+        Err(err) => (file.to_path_buf(), Err(format!("{err:#}"))),
+    }
+}
+
+fn merge_findings(target: &mut Findings, mut source: Findings) {
+    for (id, mut declarations) in source.declarations {
+        target
+            .declarations
+            .entry(id)
+            .or_default()
+            .append(&mut declarations);
+    }
+    target.citations.append(&mut source.citations);
+    target.scanned_files.append(&mut source.scanned_files);
+}
+
+fn scan_file_results(
+    files: &[PathBuf],
+    config: &Config,
+    workspace_targets: &[WorkspaceCitationTarget],
+) -> Vec<FileScanResult> {
+    files
+        .par_iter()
+        .map(|file| scan_one_file(file, config, workspace_targets))
+        .collect::<Vec<_>>()
+}
+
 /// One full tree walk: scan every file (§AR-scanner.2) plus the e2e case
 /// directories (§AR-scanner.6), collecting unreadable files rather than aborting
 /// so `check` can report them and keep going (§FS-check.2). The wrapper around
@@ -1099,12 +1141,38 @@ fn scan_tree_with_workspace(
     explicit_scope: bool,
     workspace_targets: &[WorkspaceCitationTarget],
 ) -> Result<(Findings, Vec<ScanError>)> {
+    scan_tree_with_workspace_threshold(
+        config,
+        scope,
+        explicit_scope,
+        workspace_targets,
+        PARALLEL_SCAN_MIN_FILES,
+    )
+}
+
+fn scan_tree_with_workspace_threshold(
+    config: &Config,
+    scope: Option<&Path>,
+    explicit_scope: bool,
+    workspace_targets: &[WorkspaceCitationTarget],
+    parallel_min_files: usize,
+) -> Result<(Findings, Vec<ScanError>)> {
     let mut findings = Findings::default();
     let mut errors = Vec::new();
-    for file in walk_scannable_files(config, scope, explicit_scope)? {
-        match scan_file(&file, config, &mut findings, workspace_targets) {
-            Ok(()) => findings.scanned_files.push(file),
-            Err(err) => errors.push((file, format!("{err:#}"))),
+    let files = walk_scannable_files(config, scope, explicit_scope)?;
+    if files.len() >= parallel_min_files {
+        for (file, result) in scan_file_results(&files, config, workspace_targets) {
+            match result {
+                Ok(file_findings) => merge_findings(&mut findings, file_findings),
+                Err(message) => errors.push((file, message)),
+            }
+        }
+    } else {
+        for file in files {
+            match scan_one_file(&file, config, workspace_targets) {
+                (_, Ok(file_findings)) => merge_findings(&mut findings, file_findings),
+                (_, Err(message)) => errors.push((file, message)),
+            }
         }
     }
     if let Err(err) = scan_e2e_cases(config, scope, explicit_scope, &mut findings) {
