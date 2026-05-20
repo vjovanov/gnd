@@ -122,6 +122,39 @@ fn init_docs_form_emits_full_scaffold_and_check_is_clean() {
 }
 
 #[test]
+fn init_failed_docs_write_reports_prior_progress() {
+    // §FS-init.2.2 / §FS-init.4: init reports touched paths as it goes. If a
+    // later scaffold write fails, the user still needs the transcript for the
+    // files that were already created.
+    let target = workdir("init_failed_docs_write_reports_prior_progress");
+    fs::write(target.join("docs"), "not a directory").expect("write docs file");
+
+    let output = run_grund(
+        &["init", target.to_str().unwrap(), "--docs"],
+        manifest_dir(),
+    );
+    assert!(
+        !output.status.success(),
+        "init should fail when docs/ is a file"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("wrote AGENTS.md"),
+        "stderr should include prior AGENTS.md write, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("wrote .agents/grund.toml"),
+        "stderr should include prior config write, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("error: "),
+        "stderr should include final error, got:\n{stderr}"
+    );
+    assert!(target.join("AGENTS.md").is_file());
+    assert!(target.join(".agents/grund.toml").is_file());
+}
+
+#[test]
 fn init_generated_config_comments_list_constrained_values() {
     // §FS-init.2.4: the generated config is a teaching surface, so non-boolean
     // constrained keys carry inline comments listing their accepted values.

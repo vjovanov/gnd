@@ -39,6 +39,36 @@ pub struct InitOutput {
     pub next: Option<InitNext>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InitError {
+    pub output: InitOutput,
+    pub message: String,
+}
+
+impl InitError {
+    fn new(message: impl Into<String>) -> Self {
+        Self {
+            output: InitOutput::default(),
+            message: message.into(),
+        }
+    }
+
+    fn with_events(events: Vec<InitEvent>, message: impl Into<String>) -> Self {
+        Self {
+            output: InitOutput { events, next: None },
+            message: message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for InitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.message.fmt(f)
+    }
+}
+
+impl std::error::Error for InitError {}
+
 /// `grund init [path] [--name N] [--docs] [--force] [--dry-run] [agent flags]` —
 /// scaffold a repo for `grund` (§FS-init.1): write or update the selected agent
 /// entrypoint(s) and `.agents/grund.toml` (and, with `--docs`, the `docs/`+`e2e/`
@@ -107,7 +137,8 @@ pub fn command_init(args: &[String]) -> ExitCode {
     }) {
         Ok(output) => output,
         Err(err) => {
-            eprintln!("error: {err:#}");
+            print_init_output(&err.output);
+            eprintln!("error: {err}");
             return ExitCode::from(2);
         }
     };
@@ -115,7 +146,7 @@ pub fn command_init(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-pub fn init(opts: InitOpts) -> Result<InitOutput> {
+pub fn init(opts: InitOpts) -> std::result::Result<InitOutput, InitError> {
     let InitOpts {
         target,
         name,
@@ -125,24 +156,30 @@ pub fn init(opts: InitOpts) -> Result<InitOutput> {
         agent_selection,
     } = opts;
     if !target.exists() {
-        return Err(anyhow!(
+        return Err(InitError::new(format!(
             "target directory does not exist: {}",
             target.display()
-        ));
+        )));
     }
     if !target.is_dir() {
-        return Err(anyhow!("target is not a directory: {}", target.display()));
+        return Err(InitError::new(format!(
+            "target is not a directory: {}",
+            target.display()
+        )));
     }
 
     let resolved_name = match name {
         Some(value) => value,
-        None => derive_default_name(&target)?,
+        None => derive_default_name(&target).map_err(|err| InitError::new(err.to_string()))?,
     };
 
     let agent_entrypoints = match selected_init_agent_entrypoints(&target, &agent_selection) {
         Ok(entrypoints) => entrypoints,
         Err((path, message)) => {
-            return Err(anyhow!("inspect {}: {message}", path.display()));
+            return Err(InitError::new(format!(
+                "inspect {}: {message}",
+                path.display()
+            )));
         }
     };
 
@@ -182,7 +219,7 @@ pub fn init(opts: InitOpts) -> Result<InitOutput> {
                 any_change |= event_is_change(&event);
                 events.push(event);
             }
-            Err(message) => return Err(anyhow!("{message}")),
+            Err(message) => return Err(InitError::with_events(events, message)),
         }
         workflow_entrypoint = Some(CANONICAL_AGENT_ENTRYPOINT.to_string());
     }
@@ -210,7 +247,10 @@ pub fn init(opts: InitOpts) -> Result<InitOutput> {
                     }
                     Ok(AgentsUpdateResult::Unchanged) => events.push(InitEvent { verb: "exists", path: rel }),
                     Err(err) => {
-                        return Err(anyhow!("update {}: {err}", path.display()));
+                        return Err(InitError::with_events(
+                            events,
+                            format!("update {}: {err}", path.display()),
+                        ));
                     }
                 }
             }
@@ -219,12 +259,18 @@ pub fn init(opts: InitOpts) -> Result<InitOutput> {
                     && let Some(parent) = path.parent()
                     && let Err(err) = fs::create_dir_all(parent)
                 {
-                    return Err(anyhow!("create {}: {err}", parent.display()));
+                    return Err(InitError::with_events(
+                        events,
+                        format!("create {}: {err}", parent.display()),
+                    ));
                 }
                 if !dry_run
                     && let Err(err) = fs::write(&path, &agents_block)
                 {
-                    return Err(anyhow!("write {}: {err}", path.display()));
+                    return Err(InitError::with_events(
+                        events,
+                        format!("write {}: {err}", path.display()),
+                    ));
                 }
                 events.push(InitEvent { verb: verb_wrote(dry_run), path: rel });
                 any_change = true;
@@ -247,12 +293,18 @@ pub fn init(opts: InitOpts) -> Result<InitOutput> {
             && let Some(parent) = config_dest.parent()
             && let Err(err) = fs::create_dir_all(parent)
         {
-            return Err(anyhow!("create {}: {err}", parent.display()));
+            return Err(InitError::with_events(
+                events,
+                format!("create {}: {err}", parent.display()),
+            ));
         }
         if !dry_run
             && let Err(err) = fs::write(&config_dest, render_grund_toml(&resolved_name))
         {
-            return Err(anyhow!("write {}: {err}", config_dest.display()));
+            return Err(InitError::with_events(
+                events,
+                format!("write {}: {err}", config_dest.display()),
+            ));
         }
         events.push(InitEvent { verb: verb_wrote(dry_run), path: config_rel.to_string() });
         any_change = true;
@@ -269,12 +321,18 @@ pub fn init(opts: InitOpts) -> Result<InitOutput> {
             && let Some(parent) = dest.parent()
             && let Err(err) = fs::create_dir_all(parent)
         {
-            return Err(anyhow!("create {}: {err}", parent.display()));
+            return Err(InitError::with_events(
+                events,
+                format!("create {}: {err}", parent.display()),
+            ));
         }
         if !dry_run
             && let Err(err) = fs::write(&dest, contents)
         {
-            return Err(anyhow!("write {}: {err}", dest.display()));
+            return Err(InitError::with_events(
+                events,
+                format!("write {}: {err}", dest.display()),
+            ));
         }
         events.push(InitEvent { verb: verb_wrote(dry_run), path: rel.to_string() });
         any_change = true;
