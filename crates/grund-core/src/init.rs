@@ -1,3 +1,44 @@
+#[derive(Clone)]
+pub struct InitOpts {
+    pub target: PathBuf,
+    pub name: Option<String>,
+    pub docs: bool,
+    pub force: bool,
+    pub dry_run: bool,
+    pub agent_selection: InitAgentEntrypointSelection,
+}
+
+impl Default for InitOpts {
+    fn default() -> Self {
+        Self {
+            target: PathBuf::from("."),
+            name: None,
+            docs: false,
+            force: false,
+            dry_run: false,
+            agent_selection: InitAgentEntrypointSelection::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InitEvent {
+    pub verb: &'static str,
+    pub path: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InitNext {
+    pub docs: bool,
+    pub entrypoint: String,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct InitOutput {
+    pub events: Vec<InitEvent>,
+    pub next: Option<InitNext>,
+}
+
 /// `grund init [path] [--name N] [--docs] [--force] [--dry-run] [agent flags]` —
 /// scaffold a repo for `grund` (§FS-init.1): write or update the selected agent
 /// entrypoint(s) and `.agents/grund.toml` (and, with `--docs`, the `docs/`+`e2e/`
@@ -56,35 +97,52 @@ pub fn command_init(args: &[String]) -> ExitCode {
         idx += 1;
     }
 
-    let target = path.unwrap_or_else(|| PathBuf::from("."));
+    let output = match init(InitOpts {
+        target: path.unwrap_or_else(|| PathBuf::from(".")),
+        name,
+        docs,
+        force,
+        dry_run,
+        agent_selection,
+    }) {
+        Ok(output) => output,
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            return ExitCode::from(2);
+        }
+    };
+    print_init_output(&output);
+    ExitCode::SUCCESS
+}
+
+pub fn init(opts: InitOpts) -> Result<InitOutput> {
+    let InitOpts {
+        target,
+        name,
+        docs,
+        force,
+        dry_run,
+        agent_selection,
+    } = opts;
     if !target.exists() {
-        eprintln!(
-            "error: target directory does not exist: {}",
+        return Err(anyhow!(
+            "target directory does not exist: {}",
             target.display()
-        );
-        return ExitCode::from(2);
+        ));
     }
     if !target.is_dir() {
-        eprintln!("error: target is not a directory: {}", target.display());
-        return ExitCode::from(2);
+        return Err(anyhow!("target is not a directory: {}", target.display()));
     }
 
     let resolved_name = match name {
         Some(value) => value,
-        None => match derive_default_name(&target) {
-            Ok(value) => value,
-            Err(err) => {
-                eprintln!("error: {err}");
-                return ExitCode::from(2);
-            }
-        },
+        None => derive_default_name(&target)?,
     };
 
     let agent_entrypoints = match selected_init_agent_entrypoints(&target, &agent_selection) {
         Ok(entrypoints) => entrypoints,
         Err((path, message)) => {
-            eprintln!("error: inspect {}: {message}", path.display());
-            return ExitCode::from(2);
+            return Err(anyhow!("inspect {}: {message}", path.display()));
         }
     };
 
@@ -110,6 +168,7 @@ pub fn command_init(args: &[String]) -> ExitCode {
     // The `next:` block is suppressed when every reported path is `exists `,
     // since the user already has a complete grund setup (§FS-init.2.2).
     let mut any_change = false;
+    let mut events = Vec::new();
     if agent_entrypoints.canonical {
         match write_or_update_canonical_agent_entrypoint(
             &target,
@@ -119,8 +178,11 @@ pub fn command_init(args: &[String]) -> ExitCode {
             force,
             dry_run,
         ) {
-            Ok(changed) => any_change |= changed,
-            Err(()) => return ExitCode::from(2),
+            Ok(event) => {
+                any_change |= event_is_change(&event);
+                events.push(event);
+            }
+            Err(message) => return Err(anyhow!("{message}")),
         }
         workflow_entrypoint = Some(CANONICAL_AGENT_ENTRYPOINT.to_string());
     }
@@ -139,17 +201,16 @@ pub fn command_init(args: &[String]) -> ExitCode {
             InitCompanionAgentEntrypoint::Existing(path) => {
                 match update_agents_block(&path, &agents_block, &rel, dry_run) {
                     Ok(AgentsUpdateResult::Appended) => {
-                        eprintln!("{} {rel}", verb_appended(dry_run));
+                        events.push(InitEvent { verb: verb_appended(dry_run), path: rel });
                         any_change = true;
                     }
                     Ok(AgentsUpdateResult::Updated) => {
-                        eprintln!("{} {rel}", verb_updated(dry_run));
+                        events.push(InitEvent { verb: verb_updated(dry_run), path: rel });
                         any_change = true;
                     }
-                    Ok(AgentsUpdateResult::Unchanged) => eprintln!("exists {rel}"),
+                    Ok(AgentsUpdateResult::Unchanged) => events.push(InitEvent { verb: "exists", path: rel }),
                     Err(err) => {
-                        eprintln!("error: update {}: {err}", path.display());
-                        return ExitCode::from(2);
+                        return Err(anyhow!("update {}: {err}", path.display()));
                     }
                 }
             }
@@ -158,16 +219,14 @@ pub fn command_init(args: &[String]) -> ExitCode {
                     && let Some(parent) = path.parent()
                     && let Err(err) = fs::create_dir_all(parent)
                 {
-                    eprintln!("error: create {}: {err}", parent.display());
-                    return ExitCode::from(2);
+                    return Err(anyhow!("create {}: {err}", parent.display()));
                 }
                 if !dry_run
                     && let Err(err) = fs::write(&path, &agents_block)
                 {
-                    eprintln!("error: write {}: {err}", path.display());
-                    return ExitCode::from(2);
+                    return Err(anyhow!("write {}: {err}", path.display()));
                 }
-                eprintln!("{} {rel}", verb_wrote(dry_run));
+                events.push(InitEvent { verb: verb_wrote(dry_run), path: rel });
                 any_change = true;
             }
         }
@@ -182,22 +241,20 @@ pub fn command_init(args: &[String]) -> ExitCode {
     let config_rel = ".agents/grund.toml";
     let config_dest = target.join(config_rel);
     if config_dest.exists() {
-        eprintln!("exists {config_rel}");
+        events.push(InitEvent { verb: "exists", path: config_rel.to_string() });
     } else {
         if !dry_run
             && let Some(parent) = config_dest.parent()
             && let Err(err) = fs::create_dir_all(parent)
         {
-            eprintln!("error: create {}: {err}", parent.display());
-            return ExitCode::from(2);
+            return Err(anyhow!("create {}: {err}", parent.display()));
         }
         if !dry_run
             && let Err(err) = fs::write(&config_dest, render_grund_toml(&resolved_name))
         {
-            eprintln!("error: write {}: {err}", config_dest.display());
-            return ExitCode::from(2);
+            return Err(anyhow!("write {}: {err}", config_dest.display()));
         }
-        eprintln!("{} {config_rel}", verb_wrote(dry_run));
+        events.push(InitEvent { verb: verb_wrote(dry_run), path: config_rel.to_string() });
         any_change = true;
     }
 
@@ -205,31 +262,42 @@ pub fn command_init(args: &[String]) -> ExitCode {
     for (rel, contents) in &files {
         let dest = target.join(rel);
         if !force && dest.exists() {
-            eprintln!("exists {rel}");
+            events.push(InitEvent { verb: "exists", path: rel.to_string() });
             continue;
         }
         if !dry_run
             && let Some(parent) = dest.parent()
             && let Err(err) = fs::create_dir_all(parent)
         {
-            eprintln!("error: create {}: {err}", parent.display());
-            return ExitCode::from(2);
+            return Err(anyhow!("create {}: {err}", parent.display()));
         }
         if !dry_run
             && let Err(err) = fs::write(&dest, contents)
         {
-            eprintln!("error: write {}: {err}", dest.display());
-            return ExitCode::from(2);
+            return Err(anyhow!("write {}: {err}", dest.display()));
         }
-        eprintln!("{} {rel}", verb_wrote(dry_run));
+        events.push(InitEvent { verb: verb_wrote(dry_run), path: rel.to_string() });
         any_change = true;
     }
 
-    if any_change {
-        print_next_block(docs, workflow_entrypoint.as_deref());
-    }
+    let next = any_change.then(|| InitNext {
+        docs,
+        entrypoint: workflow_entrypoint.unwrap_or_else(|| CANONICAL_AGENT_ENTRYPOINT.to_string()),
+    });
+    Ok(InitOutput { events, next })
+}
 
-    ExitCode::SUCCESS
+fn print_init_output(output: &InitOutput) {
+    for event in &output.events {
+        eprintln!("{} {}", event.verb, event.path);
+    }
+    if let Some(next) = &output.next {
+        print_next_block(next.docs, Some(&next.entrypoint));
+    }
+}
+
+fn event_is_change(event: &InitEvent) -> bool {
+    event.verb != "exists"
 }
 
 /// The trailing `next:` guidance block (§FS-init.2.2). Suppressed by the caller
@@ -334,10 +402,8 @@ enum AgentsUpdateResult {
     Unchanged,
 }
 
-/// Returns `Ok(changed)` where `changed` indicates whether the run rewrote
-/// (or, under `--dry-run`, would rewrite) the canonical entrypoint — used to
-/// decide whether the `next:` block prints. `Err(())` signals an I/O failure
-/// already reported on stderr.
+/// Returns the file event for the canonical entrypoint, or an already formatted
+/// I/O message for the caller to surface.
 fn write_or_update_canonical_agent_entrypoint(
     target: &Path,
     rel: &str,
@@ -345,43 +411,40 @@ fn write_or_update_canonical_agent_entrypoint(
     block: &str,
     force: bool,
     dry_run: bool,
-) -> Result<bool, ()> {
+) -> Result<InitEvent, String> {
     let dest = target.join(rel);
     if !force && dest.exists() {
         match update_agents_block(&dest, block, rel, dry_run) {
-            Ok(AgentsUpdateResult::Appended) => {
-                eprintln!("{} {rel}", verb_appended(dry_run));
-                Ok(true)
-            }
-            Ok(AgentsUpdateResult::Updated) => {
-                eprintln!("{} {rel}", verb_updated(dry_run));
-                Ok(true)
-            }
-            Ok(AgentsUpdateResult::Unchanged) => {
-                eprintln!("exists {rel}");
-                Ok(false)
-            }
-            Err(err) => {
-                eprintln!("error: update {}: {err}", dest.display());
-                Err(())
-            }
+            Ok(AgentsUpdateResult::Appended) => Ok(InitEvent {
+                verb: verb_appended(dry_run),
+                path: rel.to_string(),
+            }),
+            Ok(AgentsUpdateResult::Updated) => Ok(InitEvent {
+                verb: verb_updated(dry_run),
+                path: rel.to_string(),
+            }),
+            Ok(AgentsUpdateResult::Unchanged) => Ok(InitEvent {
+                verb: "exists",
+                path: rel.to_string(),
+            }),
+            Err(err) => Err(format!("update {}: {err}", dest.display())),
         }
     } else {
         if !dry_run
             && let Some(parent) = dest.parent()
             && let Err(err) = fs::create_dir_all(parent)
         {
-            eprintln!("error: create {}: {err}", parent.display());
-            return Err(());
+            return Err(format!("create {}: {err}", parent.display()));
         }
         if !dry_run
             && let Err(err) = fs::write(&dest, contents)
         {
-            eprintln!("error: write {}: {err}", dest.display());
-            return Err(());
+            return Err(format!("write {}: {err}", dest.display()));
         }
-        eprintln!("{} {rel}", verb_wrote(dry_run));
-        Ok(true)
+        Ok(InitEvent {
+            verb: verb_wrote(dry_run),
+            path: rel.to_string(),
+        })
     }
 }
 

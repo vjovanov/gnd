@@ -16,7 +16,7 @@ grund/
 └── e2e/
 ```
 
-This split keeps CLI behavior byte-identical while giving `grund-lsp` and the language bindings a library package they can depend on. `grund-core` exposes the embedding API (`check`, `show`, `Report`, `Findings`, `ShowOpts`) and still carries a small set of command-adapter functions for the existing CLI surfaces during the transition; the user-facing binary, help text, version handling, SIGPIPE setup, and top-level command dispatch live in `grund-cli`.
+This split keeps CLI behavior byte-identical while giving `grund-lsp` and the language bindings a library package they can depend on. `grund-core` exposes data-returning APIs for the CLI surfaces (`check`, `show`, `refs`, `list`, `cover`, `fmt`, `id`, `init`, and config inspection); the user-facing binary, help text, version handling, SIGPIPE setup, top-level command dispatch, flag parsing, text/JSON rendering, and exit-code mapping live in `grund-cli`.
 
 Final frontend layout:
 
@@ -41,14 +41,20 @@ Every check, every show, every regex, every walker invocation lives in `grund-co
 - `grund_core::scan(root: &Path) -> Result<Findings>`
 - `grund_core::check(root: &Path) -> Result<Report>`
 - `grund_core::show(id: &str, opts: ShowOpts) -> Result<ShowOutput>`
-- `grund::refs(findings: &Findings, id: &str, section: Option<&str>) -> Vec<Citation>` ([§FS-refs](../functional-spec/FS-refs.md#fs-refs-grund-lists-every-citation-of-an-id))
+- `grund_core::refs(opts: RefsOpts) -> Result<RefsOutput>` ([§FS-refs](../functional-spec/FS-refs.md#fs-refs-grund-lists-every-citation-of-an-id))
+- `grund_core::list(opts: ListOpts) -> Result<ListOutput>`
+- `grund_core::cover(opts: CoverOpts) -> Result<CoverOutput>`
+- `grund_core::format_references(opts: FmtOpts) -> Result<FmtOutput>`
+- `grund_core::propose_id(kind, title, opts) -> Result<IdProposalOutcome>`
+- `grund_core::init(opts: InitOpts) -> Result<InitOutput>`
+- `grund_core::effective_config(path)` / `grund_core::validate_config(path)`
 - The `Findings`, `Declaration`, `Citation`, `Report` data types.
 
-The embedding API returns data; callers decide what to do with it. CLI compatibility adapters remain inside `grund-core` until each subcommand has a stable data-returning API.
+The embedding API returns data; callers decide what to do with it. The deprecated `grund_core::main_entry()` compatibility path remains for existing 0.4 consumers, but the published `grund` CLI now owns command parsing, terminal rendering, and exit-code policy.
 
 ## 3. grund-cli: the CLI binary
 
-The Cargo package named `grund`. It imports `grund-core`, owns the installed binary, prints help/version output, restores SIGPIPE, and routes top-level commands to the command adapters. This is what `cargo install grund` produces and what the npm/PyPI packages wrap. Synchronous; no async runtime, no LSP types, no JSON-RPC.
+The Cargo package named `grund`. It imports `grund-core`, owns the installed binary, prints help/version output, restores SIGPIPE, and routes top-level commands to CLI-local wrappers over the data APIs. This is what `cargo install grund` produces and what the npm/PyPI packages wrap. Synchronous; no async runtime, no LSP types, no JSON-RPC.
 
 ## 4. grund-lsp: the LSP server binary
 
