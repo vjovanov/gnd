@@ -32,6 +32,7 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 
 ### Changed
 
+- [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli) / [§AR-bindings](architecture/AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms): finish the core/CLI boundary for the LSP and binding work by moving `check`, `show`, and shell-completion argument parsing/rendering into `crates/grund-cli`, adding `grund-core` data APIs for optioned checks and dynamic ID completion, and leaving only private compatibility command adapters behind `grund_core::main_entry()`. PR #24.
 - [§RM-parallel-scan](roadmap.md#rm-parallel-scan-parallel-per-file-scanning-for-large-repo-throughput) / [§FS-distribution.4](functional-spec/FS-distribution.md#4-release-process): move completed roadmap work out of the active queue and keep package-name verification documented as part of the release process rather than as a standalone roadmap milestone. PR #23.
 
 ### Fixed

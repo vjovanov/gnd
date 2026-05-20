@@ -40,6 +40,7 @@ Every check, every show, every regex, every walker invocation lives in `grund-co
 
 - `grund_core::scan(root: &Path) -> Result<Findings>`
 - `grund_core::check(root: &Path) -> Result<Report>`
+- `grund_core::check_with_opts(opts: CheckOpts) -> Result<CheckOutput>`
 - `grund_core::show(id: &str, opts: ShowOpts) -> Result<ShowOutput>`
 - `grund_core::refs(opts: RefsOpts) -> Result<RefsOutput>` ([§FS-refs](../functional-spec/FS-refs.md#fs-refs-grund-lists-every-citation-of-an-id))
 - `grund_core::list(opts: ListOpts) -> Result<ListOutput>`
@@ -47,10 +48,11 @@ Every check, every show, every regex, every walker invocation lives in `grund-co
 - `grund_core::format_references(opts: FmtOpts) -> Result<FmtOutput>`
 - `grund_core::propose_id(kind, title, opts) -> Result<IdProposalOutcome>`
 - `grund_core::init(opts: InitOpts) -> Result<InitOutput>`
+- `grund_core::complete_ids(opts: CompleteIdsOpts) -> Result<Vec<String>>`
 - `grund_core::effective_config(path)` / `grund_core::validate_config(path)`
 - The `Findings`, `Declaration`, `Citation`, `Report` data types.
 
-The embedding API returns data; callers decide what to do with it. The deprecated `grund_core::main_entry()` compatibility path remains for existing 0.4 consumers, but the published `grund` CLI now owns command parsing, terminal rendering, and exit-code policy.
+The embedding API returns data; callers decide what to do with it. The deprecated `grund_core::main_entry()` compatibility path remains for existing 0.4 consumers, but the published `grund` CLI owns command parsing, terminal rendering, and exit-code policy and imports no `grund_core::command_*` symbol.
 
 ## 3. grund-cli: the CLI binary
 

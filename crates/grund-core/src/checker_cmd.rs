@@ -1,7 +1,7 @@
 /// `grund check [path] [--format text|json]`: scan the tree, run the checker
 /// (§FS-check), print the report, and exit `0` clean
 /// / `1` on a finding / `2` on a CLI or I/O error (§FS-check.2.1, §FS-cli.5).
-pub fn command_check(args: &[String]) -> ExitCode {
+fn command_check(args: &[String]) -> ExitCode {
     let mut path = PathBuf::from(".");
     let mut path_provided = false;
     let mut format_override = None;

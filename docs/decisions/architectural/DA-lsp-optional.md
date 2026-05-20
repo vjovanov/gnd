@@ -47,7 +47,7 @@ A separate package on every registry means the LSP's release cadence can decoupl
 - The workspace gains a third crate: `crates/grund-lsp/`. [§AR-bindings.1](../../architecture/AR-bindings.md#1-target-workspace-layout) is updated to list it alongside `grund-core`, `grund-cli`, `grund-node`, and `grund-py`.
 - Three new packages are published, one per registry: `grund-lsp` on cargo, npm, and PyPI. [§FS-distribution.1](../../functional-spec/FS-distribution.md#1-targets) is updated to list them.
 - [§FS-lsp.2.1](../../functional-spec/FS-lsp.md#21-install) ("Install") states that the CLI install does not pull in `grund-lsp` transitively; the inverse is also true (`grund-lsp` does not pull in the CLI binary).
-- The roadmap item [§RM-lsp](../../roadmap.md#rm-lsp-ship-the-optional-lsp-server) owns shipping the crate and the published packages. It depends on [§RM-core-cli-split](../../roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli) (the workspace split) — that prerequisite must land first so `grund-lsp` has a `grund-core` to depend on.
+- The roadmap item [§RM-lsp](../../roadmap.md#rm-lsp-ship-the-optional-lsp-server) owns shipping the crate and the published packages. It builds on the shipped [§RM-core-cli-split](../../roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli) workspace split, so `grund-lsp` has a `grund-core` crate to depend on.
 - [§FS-non-goals](../../functional-spec/FS-non-goals.md#fs-non-goals-what-grund-will-deliberately-not-do) adds an explicit entry: first-party per-editor plugins (VSCode/IntelliJ/Vim/Emacs wrappers) are out of scope. The LSP server is the only editor surface; editor configuration is the user's one-time work.
 
 ## 5. Alternatives considered

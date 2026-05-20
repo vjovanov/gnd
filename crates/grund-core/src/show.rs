@@ -5,14 +5,14 @@
 /// `--full` for everything (§FS-show.2.1.3); a section with `.<section>` or `--section`
 /// (§FS-show.2.2). Ambiguous IDs and missing IDs/sections exit `1` with a hint
 /// (§FS-show.2.2.1, §FS-show.3).
-pub fn command_show(args: &[String]) -> ExitCode {
+fn command_show(args: &[String]) -> ExitCode {
     command_show_impl(args, false)
 }
 
 /// Default `grund <ID>` dispatch (§FS-cli.1): identical to explicit `show`,
 /// except invalid-ID diagnostics also remind users that path validation is now
 /// explicit as `grund check <path>`.
-pub fn command_show_default(args: &[String]) -> ExitCode {
+fn command_show_default(args: &[String]) -> ExitCode {
     command_show_impl(args, true)
 }
 

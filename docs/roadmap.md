@@ -2,31 +2,11 @@
 
 What `grund` plans to ship next, in priority order. Each item has a stable ID — `RM-<slug>` under this repo's `[id] format` ([§FS-config.3.2](functional-spec/FS-config.md#32-id--id-grammar)); `RM` is a configured `[[kinds]]` prefix ([§FS-config.3.4](functional-spec/FS-config.md#34-kinds--recognized-prefixes)), so `grund check` validates `§RM-…` citations like any other. Items may be cited from anywhere — commits, PRs, the changelog, other specs. Shipped items move their detail to `docs/changelog.md` and keep a one-line pointer in §"Shipped milestones" below so the citation does not dangle; cancelled items stay in place with a `~~strikethrough~~` title and a one-line reason.
 
-The check engine, the retrieval surface (`grund <ID>`, `grund refs`, including E2E case manifests), the coverage index (`grund cover`), bulk normalization (`grund fmt`, including `--marker` and `--cross-refs`), config loading (`.agents/grund.toml` plus `grund config show` / `grund config validate`), `grund init`, `grund id`, the opt-in grounding floor ([§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in)), the token-cheap read surfaces ([§RM-token-cheap-grounding](roadmap.md#rm-token-cheap-grounding-token-cheap-read-surfaces-for-agents)), the e2e corpus, the benchmark baseline/gate ([§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets)), the live registry-name guard ([§FS-distribution.4](functional-spec/FS-distribution.md#4-release-process)), and parallel per-file scanning ([§RM-parallel-scan](roadmap.md#rm-parallel-scan-parallel-per-file-scanning-for-large-repo-throughput)) are all shipped — see `docs/changelog.md`. Two arcs remain. The **distribution arc**: split the single binary into a `grund-core` library plus thin frontends, publish on npm and PyPI alongside cargo, ship the optional LSP server, and add `grund check --watch`. And the **grounding arc** (the third layer of [§GOAL-agent-grounding.1](goals.md#1-the-three-layers), diff-gated enforcement): build on [§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in) and [§FS-cover](functional-spec/FS-cover.md#fs-cover-grund-groups-citations-by-scanned-file) toward a diff-aware co-change gate — implementation cannot change without the spec it grounds in and without a test of it — via a pre-commit / CI recipe that consumes `grund cover` ([§RM-cochange-gate](roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test)). Four standalone items sit outside both arcs: [§RM-declaration-near-miss](roadmap.md#rm-declaration-near-miss-warn-on-a-heading-that-looks-like-a-declaration-but-does-not-match-id-format) adds a warning for a heading that looks like a declaration but does not match the configured `[id] format`, [§RM-positioning](roadmap.md#rm-positioning-the-lychee-contrast-and-the-instruction-count-framing-in-readme-and-landing-copy) keeps the README/landing pitch paired with the benchmark story, [§RM-gap-report](roadmap.md#rm-gap-report-orphan-and-uncovered-id-reports) inverts the [§FS-cover](functional-spec/FS-cover.md#fs-cover-grund-groups-citations-by-scanned-file) index into an orphan / uncovered-ID report, and [§RM-positioning-trace-tools](roadmap.md#rm-positioning-trace-tools-position-grund-against-requirements-traceability-tools-in-readme) extends the README positioning to the requirements-traceability neighbourhood (OFT, Sphinx-Needs, TRLC, Doorstop, Duvet, SARA). The IDed milestones below project both arcs onto reviewable units of work.
-
-## RM-core-cli-split: split grund-core from grund-cli
-
-Workspace split before bindings ship. The package boundary is in place: `crates/grund-core` is the shared engine crate, and `crates/grund-cli` is the Cargo package named `grund`. The remaining cleanup is to replace the compatibility command adapters with narrower data-returning APIs for each CLI subcommand, so CLI-only parsing/rendering can leave `grund-core` completely.
-
-The important part is not just crate shape; it is making `grund-core` a real public engine API. `grund-core` now exposes the promised Rust embedding surface — `check`, `show`, `Report`, `Findings`, `ShowOpts` — in [§FS-distribution.3.1](functional-spec/FS-distribution.md#31-rust-grund-core-crate). The next cleanup is to give `refs`, `list`, `cover`, `fmt`, `id`, `init`, and config inspection equivalent data-returning APIs before [§RM-lsp](roadmap.md#rm-lsp-ship-the-optional-lsp-server) and before the npm/PyPI bindings in [§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine).
-
-### 1. What
-
-Done: `grund-core` library crate exists and owns the current scanner/checker/show/fmt/config implementation; `crates/grund-cli` owns the installed `grund` binary, top-level dispatch, help, version output, and SIGPIPE setup; and `grund-core` exposes the initial embedding API matching [§FS-distribution.3.1](functional-spec/FS-distribution.md#31-rust-grund-core-crate). Remaining: replace subcommand-level compatibility adapters with structured APIs so text/JSON rendering and exit-code mapping live entirely in `grund-cli`.
-
-### 2. Why now
-
-[§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine) publishes three bindings from one engine; bindings need a library, not a binary. Splitting first also makes the e2e harness call into the engine directly and keeps CLI concerns (exit codes, rendering) from leaking into scanner internals.
-
-### 3. Measurable
-
-`grund-core` compiles standalone; `grund-cli`, the planned `grund-node`, and `grund-py` all consume it without duplicating scanner or checker code. The full e2e suite passes byte-identical reports before and after the split.
-
-An embedding smoke test calls the public `grund-core` API directly — no CLI argument parser, no stdout renderer — and obtains the same `Report` / `show` data shape the CLI later renders.
+The check engine, the retrieval surface (`grund <ID>`, `grund refs`, including E2E case manifests), the coverage index (`grund cover`), bulk normalization (`grund fmt`, including `--marker` and `--cross-refs`), config loading (`.agents/grund.toml` plus `grund config show` / `grund config validate`), `grund init`, `grund id`, the opt-in grounding floor ([§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in)), the token-cheap read surfaces ([§RM-token-cheap-grounding](roadmap.md#rm-token-cheap-grounding-token-cheap-read-surfaces-for-agents)), the e2e corpus, the benchmark baseline/gate ([§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets)), the live registry-name guard ([§FS-distribution.4](functional-spec/FS-distribution.md#4-release-process)), the `grund-core` / `grund-cli` workspace split with data-returning core APIs ([§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli)), and parallel per-file scanning ([§RM-parallel-scan](roadmap.md#rm-parallel-scan-parallel-per-file-scanning-for-large-repo-throughput)) are all shipped — see `docs/changelog.md`. Two arcs remain. The **distribution arc**: publish on npm and PyPI alongside cargo, ship the optional LSP server, and add `grund check --watch`. And the **grounding arc** (the third layer of [§GOAL-agent-grounding.1](goals.md#1-the-three-layers), diff-gated enforcement): build on [§FS-check.3.6](functional-spec/FS-check.md#36-ungrounded-source-file-opt-in) and [§FS-cover](functional-spec/FS-cover.md#fs-cover-grund-groups-citations-by-scanned-file) toward a diff-aware co-change gate — implementation cannot change without the spec it grounds in and without a test of it — via a pre-commit / CI recipe that consumes `grund cover` ([§RM-cochange-gate](roadmap.md#rm-cochange-gate-a-pre-commit--ci-recipe--no-impl-change-without-spec-and-test)). Four standalone items sit outside both arcs: [§RM-declaration-near-miss](roadmap.md#rm-declaration-near-miss-warn-on-a-heading-that-looks-like-a-declaration-but-does-not-match-id-format) adds a warning for a heading that looks like a declaration but does not match the configured `[id] format`, [§RM-positioning](roadmap.md#rm-positioning-the-lychee-contrast-and-the-instruction-count-framing-in-readme-and-landing-copy) keeps the README/landing pitch paired with the benchmark story, [§RM-gap-report](roadmap.md#rm-gap-report-orphan-and-uncovered-id-reports) inverts the [§FS-cover](functional-spec/FS-cover.md#fs-cover-grund-groups-citations-by-scanned-file) index into an orphan / uncovered-ID report, and [§RM-positioning-trace-tools](roadmap.md#rm-positioning-trace-tools-position-grund-against-requirements-traceability-tools-in-readme) extends the README positioning to the requirements-traceability neighbourhood (OFT, Sphinx-Needs, TRLC, Doorstop, Duvet, SARA). The IDed milestones below project both arcs onto reviewable units of work.
 
 ## RM-distribution: cargo + npm + pypi from one engine
 
-Per [§FS-distribution](functional-spec/FS-distribution.md#fs-distribution-grund-distribution-targets) and [§AR-bindings](architecture/AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms). Builds on the workspace split ([§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli)).
+Per [§FS-distribution](functional-spec/FS-distribution.md#fs-distribution-grund-distribution-targets) and [§AR-bindings](architecture/AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms). Builds on the shipped workspace split ([§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli)).
 
 ### 1. What
 
@@ -54,11 +34,11 @@ Distribution: separate package on each registry ([§FS-distribution.1](functiona
 
 ### 2. Why now
 
-[§GND-grund.1](grund.md#1-what-grund-does-about-it) keeps Markdown links peripheral and centers verify/refactor-safe/extract — three pillars all satisfied by CLI-shaped surfaces. Editor integration is then a UX layer over those, and the cheapest non-zero answer is one LSP server every editor can talk to. Shipping this after [§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine) (bindings) and [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli) (workspace split) means the engine is already factored as a library and the registries are already wired.
+[§GND-grund.1](grund.md#1-what-grund-does-about-it) keeps Markdown links peripheral and centers verify/refactor-safe/extract — three pillars all satisfied by CLI-shaped surfaces. Editor integration is then a UX layer over those, and the cheapest non-zero answer is one LSP server every editor can talk to. The workspace split is already shipped ([§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli)); shipping this after [§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine) means the engine is factored as a library and the registries are already wired.
 
 ### 3. Depends on
 
-- [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli) must land first; without `grund-core` as a library, `grund-lsp` has nothing to depend on.
+- [§RM-distribution](roadmap.md#rm-distribution-cargo--npm--pypi-from-one-engine) should land first so the registry publishing path exists before `grund-lsp` adds another package to it.
 
 ### 4. Measurable
 
@@ -76,7 +56,7 @@ Together with [§RM-lsp](roadmap.md#rm-lsp-ship-the-optional-lsp-server), this s
 
 ### 2. Why now
 
-`grund-lsp` ([§RM-lsp](roadmap.md#rm-lsp-ship-the-optional-lsp-server)) covers editor users; `--watch` covers everyone else with zero editor configuration, and it is small once the engine is a library ([§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli)). Sequenced after [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli) so the watcher calls `grund-core::scan`/`check` rather than re-implementing the walk.
+`grund-lsp` ([§RM-lsp](roadmap.md#rm-lsp-ship-the-optional-lsp-server)) covers editor users; `--watch` covers everyone else with zero editor configuration, and it is small now that the engine is a library ([§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli)). The watcher calls `grund-core::scan`/`check` rather than re-implementing the walk.
 
 ### 3. Measurable
 
@@ -201,6 +181,14 @@ The README (and landing page, if any) carries a "vs. traceability tools" section
 ## Shipped milestones
 
 Done milestones leave their full record in `docs/changelog.md` (the `Implemented` block of the latest release). They keep a one-line declaration here so existing `§RM-…` citations still resolve — the changelog has the detail.
+
+## RM-core-cli-split: split grund-core from grund-cli
+
+Shipped. The root manifest is now a virtual workspace, `crates/grund-core` is the shared engine crate, `crates/grund-cli` is the Cargo package named `grund`, and `grund-core` exposes data-returning APIs for the CLI surfaces (`check`, `show`, `refs`, `list`, `cover`, `fmt`, `id`, `init`, dynamic completions, and config inspection) while the CLI owns parsing, rendering, and exit-code mapping — see `docs/changelog.md`, [§AR-bindings](architecture/AR-bindings.md#ar-bindings-target-shape-for-exposing-the-rust-engine-on-three-platforms), and [§FS-distribution.3.1](functional-spec/FS-distribution.md#31-rust-grund-core-crate).
+
+### 3. Measurable
+
+The public embedding smoke test calls the `grund-core` APIs directly — no CLI argument parser, no stdout renderer — and obtains the same data shape the CLI later renders. The CLI e2e harness exercises the dedicated `crates/grund-cli` frontend and keeps byte-identical reports. `crates/grund-cli` imports no `grund_core::command_*` symbol; any remaining core command adapters are private compatibility glue for the deprecated `grund_core::main_entry()` path, not the frontend boundary.
 
 ## RM-benchmarks: a benchmark harness for the §GOAL-fast-feedback budgets
 
