@@ -671,7 +671,35 @@ fn same_path(left: &Path, right: &Path) -> bool {
 }
 
 fn normalize_path(path: impl AsRef<Path>) -> PathBuf {
-    fs::canonicalize(path.as_ref()).unwrap_or_else(|_| path.as_ref().to_path_buf())
+    canonicalize_existing_prefix(path.as_ref())
+}
+
+fn canonicalize_existing_prefix(path: &Path) -> PathBuf {
+    let path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map(|cwd| cwd.join(path))
+            .unwrap_or_else(|_| path.to_path_buf())
+    };
+    if let Ok(canonical) = fs::canonicalize(&path) {
+        return canonical;
+    }
+    let mut suffix = PathBuf::new();
+    let mut cursor = path.as_path();
+    while !cursor.exists() {
+        let Some(name) = cursor.file_name() else {
+            break;
+        };
+        suffix = Path::new(name).join(suffix);
+        let Some(parent) = cursor.parent() else {
+            break;
+        };
+        cursor = parent;
+    }
+    fs::canonicalize(cursor)
+        .unwrap_or_else(|_| cursor.to_path_buf())
+        .join(suffix)
 }
 
 fn path_uri(path: &Path) -> Option<Url> {

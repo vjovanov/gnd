@@ -1264,8 +1264,8 @@ fn add_overlay_scan_files(
 
 fn new_overlay_file_passes_walk_filters(config: &Config, roots: &[PathBuf], path: &Path) -> bool {
     roots.iter().any(|root| {
-        let root = fs::canonicalize(root).unwrap_or_else(|_| normalize_path_lexically(root));
-        let path = normalize_path_lexically(path);
+        let root = canonicalize_existing_prefix(root);
+        let path = canonicalize_existing_prefix(path);
         if path == root || !path.starts_with(&root) {
             return false;
         }
@@ -1360,9 +1360,37 @@ fn path_ignored_by_gitignore(config: &Config, root: &Path, path: &Path) -> bool 
 }
 
 fn path_starts_with(path: &Path, root: &Path) -> bool {
-    let path = fs::canonicalize(path).unwrap_or_else(|_| normalize_path_lexically(path));
-    let root = fs::canonicalize(root).unwrap_or_else(|_| normalize_path_lexically(root));
+    let path = canonicalize_existing_prefix(path);
+    let root = canonicalize_existing_prefix(root);
     path == root || path.starts_with(root)
+}
+
+fn canonicalize_existing_prefix(path: &Path) -> PathBuf {
+    let path = if path.is_absolute() {
+        normalize_path_lexically(path)
+    } else {
+        std::env::current_dir()
+            .map(|cwd| normalize_path_lexically(&cwd.join(path)))
+            .unwrap_or_else(|_| normalize_path_lexically(path))
+    };
+    if let Ok(canonical) = fs::canonicalize(&path) {
+        return canonical;
+    }
+    let mut suffix = PathBuf::new();
+    let mut cursor = path.as_path();
+    while !cursor.exists() {
+        let Some(name) = cursor.file_name() else {
+            break;
+        };
+        suffix = Path::new(name).join(suffix);
+        let Some(parent) = cursor.parent() else {
+            break;
+        };
+        cursor = parent;
+    }
+    fs::canonicalize(cursor)
+        .unwrap_or_else(|_| normalize_path_lexically(cursor))
+        .join(suffix)
 }
 
 fn overlay_text<'a>(overlays: &'a TextOverlays, path: &Path) -> Option<&'a str> {

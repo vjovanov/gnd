@@ -784,15 +784,7 @@ fn declaration_column(decl: &Declaration, rendered_id: &str, overlays: &TextOver
 }
 
 fn absolutize_path(path: &Path) -> PathBuf {
-    fs::canonicalize(path).unwrap_or_else(|_| {
-        if path.is_absolute() {
-            normalize_path_lexically(path)
-        } else {
-            std::env::current_dir()
-                .map(|cwd| normalize_path_lexically(&cwd.join(path)))
-                .unwrap_or_else(|_| path.to_path_buf())
-        }
-    })
+    canonicalize_existing_prefix(path)
 }
 
 #[derive(Clone)]
