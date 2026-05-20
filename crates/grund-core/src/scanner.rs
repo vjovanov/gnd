@@ -1250,12 +1250,113 @@ fn add_overlay_scan_files(
         if !roots.iter().any(|root| path_starts_with(&path, root)) {
             continue;
         }
-        if !files.iter().any(|file| paths_same_location(file, &path)) {
-            files.push(path);
+        if files.iter().any(|file| paths_same_location(file, &path)) {
+            continue;
         }
+        if path.exists() || !new_overlay_file_passes_walk_filters(config, &roots, &path) {
+            continue;
+        }
+        files.push(path);
     }
     files.sort_by_key(|path| sort_path_key(path));
     Ok(())
+}
+
+fn new_overlay_file_passes_walk_filters(config: &Config, roots: &[PathBuf], path: &Path) -> bool {
+    roots.iter().any(|root| {
+        let root = fs::canonicalize(root).unwrap_or_else(|_| normalize_path_lexically(root));
+        let path = normalize_path_lexically(path);
+        if path == root || !path.starts_with(&root) {
+            return false;
+        }
+        if config
+            .workspace_boundary_roots
+            .iter()
+            .any(|boundary| path_starts_with(&path, boundary))
+        {
+            return false;
+        }
+        let Ok(relative) = path.strip_prefix(&root) else {
+            return false;
+        };
+        let components: Vec<_> = relative
+            .components()
+            .filter_map(|component| match component {
+                Component::Normal(name) => name.to_str(),
+                _ => None,
+            })
+            .collect();
+        if components
+            .iter()
+            .any(|component| component.starts_with('.'))
+        {
+            return false;
+        }
+        if components
+            .iter()
+            .take(components.len().saturating_sub(1))
+            .any(|component| config.exclude.iter().any(|excluded| excluded == component))
+        {
+            return false;
+        }
+        let e2e_cases_root = config
+            .kinds
+            .iter()
+            .find(|kind| kind.prefix == "E2E")
+            .and_then(|kind| kind.folder.as_deref())
+            .map(|folder| config.root.join(folder));
+        let mut ancestor = path.parent();
+        while let Some(dir) = ancestor {
+            if dir == root {
+                break;
+            }
+            if is_direct_e2e_case_dir(dir, e2e_cases_root.as_deref(), config) {
+                return false;
+            }
+            ancestor = dir.parent();
+        }
+        !path_ignored_by_gitignore(config, &root, &path)
+    })
+}
+
+fn path_ignored_by_gitignore(config: &Config, root: &Path, path: &Path) -> bool {
+    if !config.respect_gitignore {
+        return false;
+    }
+    let Some(parent) = path.parent() else {
+        return false;
+    };
+    let mut dirs = Vec::new();
+    let mut cursor = Some(parent);
+    while let Some(dir) = cursor {
+        dirs.push(dir);
+        if dir == root {
+            break;
+        }
+        cursor = dir.parent();
+    }
+    dirs.reverse();
+    let mut ignored = false;
+    for dir in dirs {
+        let gitignore = dir.join(".gitignore");
+        if !gitignore.is_file() {
+            continue;
+        }
+        let mut builder = ignore::gitignore::GitignoreBuilder::new(dir);
+        if builder.add(&gitignore).is_some() {
+            continue;
+        }
+        let Ok(matcher) = builder.build() else {
+            continue;
+        };
+        let matched = matcher.matched_path_or_any_parents(path, false);
+        if matched.is_ignore() {
+            ignored = true;
+        } else if matched.is_whitelist() {
+            ignored = false;
+        }
+    }
+    ignored
 }
 
 fn path_starts_with(path: &Path, root: &Path) -> bool {

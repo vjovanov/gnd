@@ -764,12 +764,19 @@ members = ["packages/*"]
         );
 
         let lsp_root = test_root("public_embedding_api_lsp_snapshot");
-        write(&lsp_root.join(".agents/grund.toml"), "grund_config_version = 1\n");
+        write(
+            &lsp_root.join(".agents/grund.toml"),
+            "grund_config_version = 1\n[scan]\nexclude = [\"ignored\"]\n",
+        );
+        write(&lsp_root.join(".gitignore"), "gitignored/\n");
         write(
             &lsp_root.join("docs/functional-spec/FS-001-alpha.md"),
             "# FS-001-alpha: Alpha\n\nLead.\n\n## 1. Detail\nMore.\n",
         );
         write(&lsp_root.join("src/lib.rs"), "//! §FS-001-alpha.1\n");
+        write(&lsp_root.join("ignored/open.rs"), "//! §FS-001-alpha\n");
+        write(&lsp_root.join(".hidden/open.rs"), "//! §FS-001-alpha\n");
+        write(&lsp_root.join("gitignored/open.rs"), "//! §FS-001-alpha\n");
         let snapshot = lsp_snapshot(LspSnapshotOpts {
             path: lsp_root.clone(),
             path_provided: true,
@@ -811,6 +818,56 @@ members = ["packages/*"]
                     && error.message == "unknown reference FS-999-missing"),
             "unsaved overlay citation should drive diagnostics"
         );
+
+        let mut open_documents = BTreeMap::new();
+        open_documents.insert(
+            lsp_root.join("ignored/open.rs"),
+            "//! §FS-999-excluded\n".to_string(),
+        );
+        open_documents.insert(
+            lsp_root.join(".hidden/open.rs"),
+            "//! §FS-999-hidden\n".to_string(),
+        );
+        open_documents.insert(
+            lsp_root.join("gitignored/open.rs"),
+            "//! §FS-999-gitignored\n".to_string(),
+        );
+        open_documents.insert(
+            lsp_root.join("gitignored/new.rs"),
+            "//! §FS-999-unsaved-gitignored\n".to_string(),
+        );
+        let snapshot = lsp_snapshot(LspSnapshotOpts {
+            path: lsp_root.clone(),
+            path_provided: true,
+            open_documents,
+        })
+        .expect("lsp snapshot respects scanner filters for overlays");
+        assert!(
+            snapshot
+                .report
+                .errors
+                .iter()
+                .all(|error| !matches!(error.code, "dangling")),
+            "ignored overlay files must not create diagnostics"
+        );
+
+        let mut open_documents = BTreeMap::new();
+        open_documents.insert(
+            lsp_root.join("docs/functional-spec/FS-002-beta.md"),
+            "# FS-002-beta: Beta\n\nUnsaved beta.\n".to_string(),
+        );
+        let snapshot = lsp_snapshot(LspSnapshotOpts {
+            path: lsp_root.clone(),
+            path_provided: true,
+            open_documents,
+        })
+        .expect("lsp snapshot reads declaration columns from overlays");
+        let declaration = snapshot
+            .declarations
+            .iter()
+            .find(|decl| decl.query_id == "FS-002-beta")
+            .expect("unsaved declaration");
+        assert_eq!(declaration.column, 3);
 
         let mut open_documents = BTreeMap::new();
         open_documents.insert(

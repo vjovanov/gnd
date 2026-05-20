@@ -576,7 +576,7 @@ pub fn lsp_snapshot(opts: LspSnapshotOpts) -> Result<LspSnapshot> {
                         display_path(&project.config, &home.file)
                     },
                     line: home.line,
-                    column: declaration_column(home, &rendered),
+                    column: declaration_column(home, &rendered, &overlays),
                     text: rendered.clone(),
                     query_id: query_id.clone(),
                     section_separator: project.config.section_separator.clone(),
@@ -770,10 +770,15 @@ fn lsp_target_for_citation(
     Some((home.file.clone(), home.line))
 }
 
-fn declaration_column(decl: &Declaration, rendered_id: &str) -> usize {
-    fs::read_to_string(&decl.file)
-        .ok()
-        .and_then(|text| text.lines().nth(decl.line.saturating_sub(1)).map(str::to_string))
+fn declaration_column(decl: &Declaration, rendered_id: &str, overlays: &TextOverlays) -> usize {
+    overlay_text(overlays, &decl.file)
+        .map(str::to_string)
+        .or_else(|| fs::read_to_string(&decl.file).ok())
+        .and_then(|text| {
+            text.lines()
+                .nth(decl.line.saturating_sub(1))
+                .map(str::to_string)
+        })
         .and_then(|line| line.find(rendered_id).map(|idx| idx + 1))
         .unwrap_or(1)
 }

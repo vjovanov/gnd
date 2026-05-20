@@ -346,35 +346,16 @@ impl Server {
         let Some(line) = self.line_text(&uri, position.line) else {
             return Ok(Some(Vec::new()));
         };
-        let cursor = utf16_to_byte(&line, position.character);
-        let Some(trigger_start) = line[..cursor].rfind(&self.snapshot.trigger) else {
-            return Ok(Some(Vec::new()));
-        };
-        let token = &line[trigger_start + self.snapshot.trigger.len()..cursor];
-        if token.is_empty() || !is_id_token_candidate(token) {
-            return Ok(Some(Vec::new()));
-        }
         let Some(path) = uri.to_file_path().ok() else {
             return Ok(Some(Vec::new()));
         };
-        if !can_replace_trigger_at(&path, &line, trigger_start, token)? {
-            return Ok(Some(Vec::new()));
-        }
-        let start = byte_to_utf16(&line, trigger_start);
-        let end = byte_to_utf16(&line, trigger_start + self.snapshot.trigger.len());
-        Ok(Some(vec![TextEdit {
-            range: Range {
-                start: Position {
-                    line: position.line,
-                    character: start,
-                },
-                end: Position {
-                    line: position.line,
-                    character: end,
-                },
-            },
-            new_text: self.snapshot.marker.clone(),
-        }]))
+        on_type_replacement_for_line(
+            &path,
+            &line,
+            position,
+            &self.snapshot.trigger,
+            &self.snapshot.marker,
+        )
     }
 
     fn publish_diagnostics(&mut self) -> Result<()> {
@@ -735,15 +716,62 @@ fn query_matches_declaration(
         .is_some_and(|tail| tail.starts_with(section_separator))
 }
 
-fn is_id_token_candidate(token: &str) -> bool {
-    token
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '/'))
+fn on_type_replacement_for_line(
+    path: &Path,
+    line: &str,
+    position: Position,
+    trigger: &str,
+    marker: &str,
+) -> Result<Option<Vec<TextEdit>>> {
+    let cursor = utf16_to_byte(line, position.character);
+    let Some(trigger_start) = line[..cursor].rfind(trigger) else {
+        return Ok(Some(Vec::new()));
+    };
+    let token = &line[trigger_start + trigger.len()..cursor];
+    if token.is_empty() || !can_replace_trigger_at(path, line, trigger_start, token)? {
+        return Ok(Some(Vec::new()));
+    }
+    let start = byte_to_utf16(line, trigger_start);
+    let end = byte_to_utf16(line, trigger_start + trigger.len());
+    Ok(Some(vec![TextEdit {
+        range: Range {
+            start: Position {
+                line: position.line,
+                character: start,
+            },
+            end: Position {
+                line: position.line,
+                character: end,
+            },
+        },
+        new_text: marker.to_string(),
+    }]))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+
+    fn test_root(name: &str) -> PathBuf {
+        let unique = format!(
+            "{}-{}-{:?}",
+            name,
+            std::process::id(),
+            std::thread::current().id()
+        );
+        let dir = std::env::temp_dir().join("grund-lsp-tests").join(unique);
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("create test root");
+        dir
+    }
+
+    fn write(path: &Path, text: &str) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("create parent");
+        }
+        fs::write(path, text).expect("write fixture");
+    }
 
     #[test]
     fn hover_linkifier_preserves_existing_markdown_links() {
@@ -771,5 +799,34 @@ mod tests {
         let byte = utf16_to_byte(line, 2);
         assert_eq!(&line[..byte], "a§");
         assert_eq!(byte_to_utf16(line, byte), 2);
+    }
+
+    #[test]
+    fn on_type_formatting_accepts_configured_id_punctuation() {
+        let root = test_root("on_type_formatting_accepts_configured_id_punctuation");
+        write(
+            &root.join(".agents/grund.toml"),
+            "grund_config_version = 1\n[id]\nformat = \"{kind}:{slug}\"\n",
+        );
+        let path = root.join("src/lib.rs");
+        write(&path, "//! $$FS:login\n");
+        let edits = on_type_replacement_for_line(
+            &path,
+            "//! $$FS:login",
+            Position {
+                line: 0,
+                character: "//! $$FS:login".len() as u32,
+            },
+            "$$",
+            "§",
+        )
+        .expect("formatting check");
+        assert_eq!(
+            edits
+                .expect("formatting response")
+                .first()
+                .map(|edit| edit.new_text.as_str()),
+            Some("§")
+        );
     }
 }
