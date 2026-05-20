@@ -96,15 +96,15 @@ enum AgentEntrypoint {
     Zed,
 }
 
-#[derive(Default)]
-struct InitAgentEntrypointSelection {
-    canonical: bool,
-    claude: bool,
-    gemini: bool,
-    copilot: bool,
-    cursor: bool,
-    windsurf: bool,
-    zed: bool,
+#[derive(Clone, Default)]
+pub struct InitAgentEntrypointSelection {
+    pub canonical: bool,
+    pub claude: bool,
+    pub gemini: bool,
+    pub copilot: bool,
+    pub cursor: bool,
+    pub windsurf: bool,
+    pub zed: bool,
 }
 
 impl InitAgentEntrypointSelection {

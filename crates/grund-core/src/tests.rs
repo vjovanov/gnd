@@ -429,13 +429,85 @@ mod tests {
     #[test]
     fn public_embedding_api_checks_and_shows_without_cli_dispatch() {
         let root = test_root("public_embedding_api_checks_and_shows_without_cli_dispatch");
+        write(&root.join(".agents/grund.toml"), "grund_config_version = 1\n");
         write(
             &root.join("docs/functional-spec/FS-001-alpha.md"),
             "# FS-001-alpha: Alpha\n\nLead.\n",
         );
+        write(&root.join("src/lib.rs"), "//! §FS-001-alpha\n");
 
         let report = check(&root).expect("public check api");
         assert!(report.errors.is_empty(), "expected no errors");
+
+        let catalog = list(ListOpts {
+            path: root.clone(),
+            path_provided: true,
+            ..ListOpts::default()
+        })
+        .expect("public list api");
+        assert_eq!(catalog.entries.len(), 1);
+        assert_eq!(catalog.entries[0].id, "FS-001-alpha");
+        assert_eq!(catalog.entries[0].refs, 1);
+
+        let refs_output = refs(RefsOpts {
+            path: root.clone(),
+            path_provided: true,
+            id: "FS-001-alpha".to_string(),
+            ..RefsOpts::default()
+        })
+        .expect("public refs api");
+        assert_eq!(refs_output.hits.len(), 1);
+        assert_eq!(refs_output.hits[0].path, "src/lib.rs");
+
+        let cover_output = cover(CoverOpts {
+            path: root.clone(),
+            path_provided: true,
+            ..CoverOpts::default()
+        })
+        .expect("public cover api");
+        assert!(
+            cover_output
+                .entries
+                .iter()
+                .any(|entry| entry.path == "src/lib.rs" && entry.citations.len() == 1),
+            "cover should expose source citation entries"
+        );
+
+        write(&root.join("docs/note.md"), "See $$FS-001-alpha.\n");
+        let fmt_output = format_references(FmtOpts {
+            path: root.join("docs/note.md"),
+            path_provided: true,
+            ..FmtOpts::default()
+        })
+        .expect("public fmt api");
+        assert_eq!(fmt_output.changes.len(), 1);
+        assert_eq!(fmt_output.changes[0].label, "trigger → marker");
+
+        let proposed = propose_id(
+            "FS",
+            "Beta",
+            IdOpts {
+                path: root.clone(),
+                path_provided: true,
+                ..IdOpts::default()
+            },
+        )
+        .expect("public id api");
+        assert_eq!(
+            proposed,
+            IdProposalOutcome::Proposed(IdProposal {
+                id: "FS-002-beta".to_string(),
+                kind: "FS".to_string(),
+                number: Some(2),
+                slug: "beta".to_string(),
+                folder: Some("docs/functional-spec".to_string()),
+                e2e_case_dir: None,
+            })
+        );
+
+        validate_config(&root).expect("public config validate api");
+        let config = effective_config(&root).expect("public config api");
+        assert_eq!(config.id_format, "{kind}-{number}-{slug}");
 
         let shown = show(
             "FS-001-alpha",
@@ -459,12 +531,27 @@ mod tests {
         .expect("public show json api");
         let expected_json = format!(
             "{{\"id\":\"FS-001-alpha\",\"section\":null,\"body\":\"Lead.\\n\",\"path\":\"{}\",\"line\":1}}",
-            format_path(&shown_json.path)
+            "docs/functional-spec/FS-001-alpha.md"
         );
         assert_eq!(
             shown_json.json.as_deref(),
             Some(expected_json.as_str())
         );
+
+        let init_root = test_root("public_embedding_api_init_dry_run");
+        let init_output = init(InitOpts {
+            target: init_root,
+            dry_run: true,
+            ..InitOpts::default()
+        })
+        .expect("public init api");
+        assert!(
+            init_output
+                .events
+                .iter()
+                .any(|event| event.verb == "would-write" && event.path == "AGENTS.md")
+        );
+        assert!(init_output.next.is_some());
     }
 
     #[test]

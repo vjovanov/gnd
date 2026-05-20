@@ -168,3 +168,772 @@ pub fn show(id_arg: &str, opts: ShowOpts) -> Result<ShowOutput> {
     }
     Ok(output)
 }
+
+#[derive(Clone)]
+pub struct IdOpts {
+    pub path: PathBuf,
+    pub path_provided: bool,
+    pub width: usize,
+}
+
+impl Default for IdOpts {
+    fn default() -> Self {
+        Self {
+            path: PathBuf::from("."),
+            path_provided: false,
+            width: 3,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IdProposal {
+    pub id: String,
+    pub kind: String,
+    pub number: Option<u32>,
+    pub slug: String,
+    pub folder: Option<String>,
+    pub e2e_case_dir: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum IdProposalOutcome {
+    Proposed(IdProposal),
+    UnknownKind { kind: String, known: Vec<String> },
+    Rejected { message: String },
+}
+
+/// Programmatic `id`: compute the next conflict-free declaration ID without
+/// parsing CLI flags or printing the text/JSON report (§RM-core-cli-split).
+pub fn propose_id(kind: &str, title: &str, opts: IdOpts) -> Result<IdProposalOutcome> {
+    let config = resolve_workspace_config(&opts.path)?;
+    let Some(kind_config) = config
+        .kinds
+        .iter()
+        .find(|candidate| candidate.prefix == kind)
+    else {
+        return Ok(IdProposalOutcome::UnknownKind {
+            kind: kind.to_string(),
+            known: kind_prefixes(&config.kinds),
+        });
+    };
+    let slug = slugify_title(title, &config.slug_pattern);
+    if slug.is_empty() {
+        return Ok(IdProposalOutcome::Rejected {
+            message: format!("title produces empty slug after normalization: \"{title}\""),
+        });
+    }
+    let findings = scan_tree_strict(&config, Some(&opts.path), opts.path_provided)?;
+    let uses_number = config.id_format.contains("{number}");
+    let number = if uses_number {
+        let max = findings
+            .declarations
+            .keys()
+            .filter(|id| id.kind == kind)
+            .filter_map(|id| id.num)
+            .max()
+            .unwrap_or(0);
+        Some(max + 1)
+    } else {
+        None
+    };
+    let id = Id {
+        kind: kind.to_string(),
+        num: number,
+        slug: if config.id_format.contains("{slug}") {
+            Some(slug.clone())
+        } else {
+            None
+        },
+    };
+    let rendered = format_id(&id, &config, opts.width);
+    if let Some(decls) = findings.declarations.get(&id)
+        && let Some(decl) = decls.first()
+    {
+        return Ok(IdProposalOutcome::Rejected {
+            message: format!(
+                "proposed ID `{}` already declared at {}:{}",
+                rendered,
+                display_path(&config, &decl.file),
+                decl.line
+            ),
+        });
+    }
+    Ok(IdProposalOutcome::Proposed(IdProposal {
+        e2e_case_dir: (kind == "E2E").then(|| e2e_case_dir_name(&config, &rendered)),
+        id: rendered,
+        kind: kind.to_string(),
+        number,
+        slug,
+        folder: kind_config.folder.clone(),
+    }))
+}
+
+/// Load the effective config for a path without rendering it as CLI TOML.
+pub fn effective_config(path: &Path) -> Result<Config> {
+    load_config(path)
+}
+
+/// Validate config discovery/parsing for a path without printing CLI output.
+pub fn validate_config(path: &Path) -> Result<()> {
+    load_config(path).map(|_| ())
+}
+
+#[derive(Clone)]
+pub struct CoverOpts {
+    pub path: PathBuf,
+    pub path_provided: bool,
+}
+
+impl Default for CoverOpts {
+    fn default() -> Self {
+        Self {
+            path: PathBuf::from("."),
+            path_provided: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CoverCitation {
+    pub path: String,
+    pub line: usize,
+    pub column: usize,
+    pub id: String,
+    pub section: Option<String>,
+    pub marker: bool,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CoverEntry {
+    pub path: String,
+    pub citations: Vec<CoverCitation>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ApiScanError {
+    pub path: String,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct CoverOutput {
+    pub output_format: String,
+    pub entries: Vec<CoverEntry>,
+    pub scan_errors: Vec<ApiScanError>,
+}
+
+/// Programmatic `cover`: group local citations by scanned file without choosing
+/// a CLI output format or process exit code (§RM-core-cli-split).
+pub fn cover(opts: CoverOpts) -> Result<CoverOutput> {
+    let config = resolve_workspace_config(&opts.path)?;
+    let (findings, scan_errors) = scan_tree(&config, Some(&opts.path), opts.path_provided)?;
+
+    let mut by_file: BTreeMap<PathBuf, Vec<&Citation>> = BTreeMap::new();
+    for file in &findings.scanned_files {
+        by_file.entry(file.clone()).or_default();
+    }
+    for citation in &findings.citations {
+        if citation.namespace.is_some() {
+            continue;
+        }
+        by_file
+            .entry(citation.file.clone())
+            .or_default()
+            .push(citation);
+    }
+    for citations in by_file.values_mut() {
+        citations.sort_by_key(|citation| (citation.line, citation.column));
+    }
+
+    let mut cover_entries = by_file.iter().collect::<Vec<_>>();
+    cover_entries.sort_by_key(|(file, _)| display_path(&config, file));
+    let entries = cover_entries
+        .into_iter()
+        .map(|(file, citations)| CoverEntry {
+            path: display_path(&config, file),
+            citations: citations
+                .into_iter()
+                .map(|citation| CoverCitation {
+                    path: display_path(&config, &citation.file),
+                    line: citation.line,
+                    column: citation.column,
+                    id: render_id(&config, &citation.id),
+                    section: citation.section.clone(),
+                    marker: citation.has_marker,
+                    text: citation.text.clone(),
+                })
+                .collect(),
+        })
+        .collect();
+    let scan_errors = scan_errors
+        .into_iter()
+        .map(|(path, message)| ApiScanError {
+            path: display_path(&config, &path),
+            message,
+        })
+        .collect();
+    Ok(CoverOutput {
+        output_format: config.output_format.clone(),
+        entries,
+        scan_errors,
+    })
+}
+
+#[derive(Clone)]
+pub struct FmtOpts {
+    pub path: PathBuf,
+    pub path_provided: bool,
+    pub write: bool,
+    pub add_marker: bool,
+    pub cross_refs: bool,
+}
+
+impl Default for FmtOpts {
+    fn default() -> Self {
+        Self {
+            path: PathBuf::from("."),
+            path_provided: false,
+            write: false,
+            add_marker: false,
+            cross_refs: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FmtChange {
+    pub path: String,
+    pub line: usize,
+    pub label: &'static str,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct FmtOutput {
+    pub changes: Vec<FmtChange>,
+}
+
+/// Programmatic `fmt`: run the normalizer and return the changed locations
+/// without printing the CLI report or mapping the exit code (§RM-core-cli-split).
+pub fn format_references(opts: FmtOpts) -> Result<FmtOutput> {
+    let context = load_workspace_context(&opts.path, opts.path_provided)?;
+    let config = context.render_config().clone();
+    let explicit_cross_refs = opts.cross_refs;
+    let workspace_for_wrap = if context.workspace_loaded {
+        Some(&context)
+    } else {
+        None
+    };
+    let mut changes: Vec<(PathBuf, usize, &'static str)> = Vec::new();
+    let walk_all_projects = context.workspace_loaded
+        && (!opts.path_provided
+            || fs::canonicalize(&opts.path)
+                .map(|canonical| canonical == config.root)
+                .unwrap_or(false));
+    if walk_all_projects {
+        for project in &context.projects {
+            let auto_cross_refs = auto_cross_refs_for_scope(
+                &project.config,
+                Some(&project.config.root),
+                true,
+                opts.write,
+            )?;
+            let run_opts = FmtRunOpts {
+                add_marker: opts.add_marker,
+                cross_refs: explicit_cross_refs || auto_cross_refs,
+                write: opts.write,
+                workspace: workspace_for_wrap,
+                precomputed_findings: Some(&project.findings),
+            };
+            changes.append(&mut fmt_tree(
+                &project.config,
+                Some(&project.config.root),
+                true,
+                &run_opts,
+            )?);
+        }
+    } else {
+        let reusable_findings = (!opts.path_provided)
+            .then(|| context.current_project().map(|project| &project.findings))
+            .flatten();
+        let auto_cross_refs =
+            auto_cross_refs_for_scope(&config, Some(&opts.path), opts.path_provided, opts.write)?;
+        let run_opts = FmtRunOpts {
+            add_marker: opts.add_marker,
+            cross_refs: explicit_cross_refs || auto_cross_refs,
+            write: opts.write,
+            workspace: workspace_for_wrap,
+            precomputed_findings: reusable_findings,
+        };
+        changes = fmt_tree(
+            &config,
+            Some(&opts.path),
+            opts.path_provided,
+            &run_opts,
+        )?;
+    }
+
+    Ok(FmtOutput {
+        changes: changes
+            .into_iter()
+            .map(|(path, line, label)| FmtChange {
+                path: display_path(&config, &path),
+                line,
+                label,
+            })
+            .collect(),
+    })
+}
+
+#[derive(Clone)]
+pub struct ListOpts {
+    pub path: PathBuf,
+    pub path_provided: bool,
+    pub kind_filter: BTreeSet<String>,
+    pub project_filter: BTreeSet<String>,
+    pub unused_only: bool,
+}
+
+impl Default for ListOpts {
+    fn default() -> Self {
+        Self {
+            path: PathBuf::from("."),
+            path_provided: false,
+            kind_filter: BTreeSet::new(),
+            project_filter: BTreeSet::new(),
+            unused_only: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ListEntry {
+    pub project: Option<String>,
+    pub id: String,
+    pub kind: String,
+    pub path: String,
+    pub line: usize,
+    pub title: Option<String>,
+    pub stub: bool,
+    pub defines: Option<String>,
+    pub refs: usize,
+    pub duplicate: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ListSummary {
+    pub project: Option<String>,
+    pub kind: String,
+    pub title: String,
+    pub home: String,
+    pub count: usize,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ListOutput {
+    pub output_format: String,
+    pub workspace: bool,
+    pub entries: Vec<ListEntry>,
+    pub summaries: Vec<ListSummary>,
+    pub scan_errors: Vec<ApiScanError>,
+}
+
+/// Programmatic `list`: return the catalog and per-kind summary rows without
+/// selecting text/JSON rendering or an exit code (§RM-core-cli-split).
+pub fn list(opts: ListOpts) -> Result<ListOutput> {
+    let context = load_workspace_context(&opts.path, opts.path_provided)?;
+    if !opts.project_filter.is_empty() && !context.workspace_loaded {
+        return Err(anyhow!(
+            "--project requires workspace mode (no [workspace] block discovered)"
+        ));
+    }
+    for alias in &opts.project_filter {
+        if context.project_by_alias(alias).is_none() {
+            let known = context.aliases().join(", ");
+            return if known.is_empty() {
+                Err(anyhow!("unknown project alias `{alias}`"))
+            } else {
+                Err(anyhow!("unknown project alias `{alias}`\nknown aliases: {known}"))
+            };
+        }
+    }
+    for kind in &opts.kind_filter {
+        let exists = context
+            .projects
+            .iter()
+            .filter(|project| {
+                opts.project_filter.is_empty() || opts.project_filter.contains(&project.alias)
+            })
+            .any(|project| {
+                project
+                    .config
+                    .kinds
+                    .iter()
+                    .any(|candidate| &candidate.prefix == kind)
+            });
+        if !exists {
+            let mut known: Vec<String> = Vec::new();
+            let mut seen: BTreeSet<String> = BTreeSet::new();
+            for project in &context.projects {
+                for k in &project.config.kinds {
+                    if seen.insert(k.prefix.clone()) {
+                        known.push(k.prefix.clone());
+                    }
+                }
+            }
+            return Err(anyhow!(
+                "unknown kind `{kind}`\nknown kinds: {}",
+                known.join(", ")
+            ));
+        }
+    }
+
+    struct Entry<'a> {
+        project_alias: &'a str,
+        project_config: &'a Config,
+        id: &'a Id,
+        home: &'a Declaration,
+        duplicate: bool,
+        refs: usize,
+    }
+
+    let mut ref_counts_by_alias: BTreeMap<&str, BTreeMap<&Id, usize>> = BTreeMap::new();
+    for source in &context.projects {
+        for citation in &source.findings.citations {
+            let target_alias: &str = match &citation.namespace {
+                Some(ns) => ns.as_str(),
+                None => source.alias.as_str(),
+            };
+            *ref_counts_by_alias
+                .entry(target_alias)
+                .or_default()
+                .entry(&citation.id)
+                .or_insert(0) += 1;
+        }
+    }
+    let empty_ref_counts: BTreeMap<&Id, usize> = BTreeMap::new();
+    let mut entries: Vec<Entry<'_>> = Vec::new();
+    let mut scan_errors = Vec::new();
+    for project in &context.projects {
+        if !opts.project_filter.is_empty() && !opts.project_filter.contains(&project.alias) {
+            continue;
+        }
+        for (file, message) in &project.scan_errors {
+            scan_errors.push(ApiScanError {
+                path: display_path(&project.config, file),
+                message: message.clone(),
+            });
+        }
+        let ref_counts: &BTreeMap<&Id, usize> = ref_counts_by_alias
+            .get(project.alias.as_str())
+            .unwrap_or(&empty_ref_counts);
+        for (id, decls) in &project.findings.declarations {
+            if !opts.kind_filter.is_empty() && !opts.kind_filter.contains(&id.kind) {
+                continue;
+            }
+            let refs = ref_counts.get(id).copied().unwrap_or(0);
+            if opts.unused_only && refs > 0 {
+                continue;
+            }
+            if opts.unused_only && id.kind == "E2E" && !opts.kind_filter.contains("E2E") {
+                continue;
+            }
+            let mut homes: Vec<&Declaration> = decls
+                .iter()
+                .filter(|decl| !is_stub_for_inline_decl(&project.config.root, decl, decls))
+                .collect();
+            homes.sort_by(|a, b| {
+                (sort_path_key(&a.file), a.line).cmp(&(sort_path_key(&b.file), b.line))
+            });
+            let duplicate = homes.len() > 1;
+            for home in homes {
+                entries.push(Entry {
+                    project_alias: project.alias.as_str(),
+                    project_config: &project.config,
+                    id,
+                    home,
+                    duplicate,
+                    refs,
+                });
+            }
+        }
+    }
+    if context.workspace_loaded {
+        entries.sort_by(|a, b| {
+            (a.project_alias, a.id, sort_path_key(&a.home.file), a.home.line).cmp(&(
+                b.project_alias,
+                b.id,
+                sort_path_key(&b.home.file),
+                b.home.line,
+            ))
+        });
+    }
+
+    let render_qualified = |entry: &Entry<'_>| -> String {
+        if context.workspace_loaded {
+            format!(
+                "{}/{}",
+                entry.project_alias,
+                render_id(entry.project_config, entry.id)
+            )
+        } else {
+            render_id(entry.project_config, entry.id)
+        }
+    };
+    let render_config = context.render_config();
+    let public_entries = entries
+        .iter()
+        .map(|entry| ListEntry {
+            project: context
+                .workspace_loaded
+                .then(|| entry.project_alias.to_string()),
+            id: render_qualified(entry),
+            kind: entry.id.kind.clone(),
+            path: display_path(render_config, &entry.home.file),
+            line: entry.home.line,
+            title: entry.home.title.clone(),
+            stub: entry.home.is_stub,
+            defines: entry.home.defined_in.as_ref().map(|target| format_path(target)),
+            refs: entry.refs,
+            duplicate: entry.duplicate,
+        })
+        .collect::<Vec<_>>();
+
+    let mut summaries = Vec::new();
+    if context.workspace_loaded {
+        let mut counts: BTreeMap<(String, String), usize> = BTreeMap::new();
+        for entry in &entries {
+            *counts
+                .entry((entry.project_alias.to_string(), entry.id.kind.clone()))
+                .or_insert(0) += 1;
+        }
+        for project in &context.projects {
+            if !opts.project_filter.is_empty() && !opts.project_filter.contains(&project.alias) {
+                continue;
+            }
+            for kind in &project.config.kinds {
+                let count = counts
+                    .get(&(project.alias.clone(), kind.prefix.clone()))
+                    .copied()
+                    .unwrap_or(0);
+                if count == 0 {
+                    continue;
+                }
+                summaries.push(ListSummary {
+                    project: Some(project.alias.clone()),
+                    kind: kind.prefix.clone(),
+                    title: kind.title.clone().unwrap_or_else(|| "Declaration".to_string()),
+                    home: kind.folder.clone().unwrap_or_default(),
+                    count,
+                });
+            }
+        }
+    } else {
+        let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+        for entry in &entries {
+            *counts.entry(&entry.id.kind).or_insert(0) += 1;
+        }
+        for kind in &render_config.kinds {
+            let count = counts.get(kind.prefix.as_str()).copied().unwrap_or(0);
+            if count == 0 {
+                continue;
+            }
+            summaries.push(ListSummary {
+                project: None,
+                kind: kind.prefix.clone(),
+                title: kind.title.clone().unwrap_or_else(|| "Declaration".to_string()),
+                home: kind.folder.clone().unwrap_or_default(),
+                count,
+            });
+        }
+    }
+
+    Ok(ListOutput {
+        output_format: render_config.output_format.clone(),
+        workspace: context.workspace_loaded,
+        entries: public_entries,
+        summaries,
+        scan_errors,
+    })
+}
+
+#[derive(Clone)]
+pub struct RefsOpts {
+    pub path: PathBuf,
+    pub path_provided: bool,
+    pub id: String,
+    pub section: Option<String>,
+}
+
+impl Default for RefsOpts {
+    fn default() -> Self {
+        Self {
+            path: PathBuf::from("."),
+            path_provided: false,
+            id: String::new(),
+            section: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RefHit {
+    pub project: Option<String>,
+    pub path: String,
+    pub line: usize,
+    pub column: usize,
+    pub id: String,
+    pub section: Option<String>,
+    pub marker: bool,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct RefsOutput {
+    pub output_format: String,
+    pub workspace: bool,
+    pub hits: Vec<RefHit>,
+    pub note: Option<String>,
+    pub scan_errors: Vec<ApiScanError>,
+}
+
+/// Programmatic `refs`: resolve an ID query and return all citation sites
+/// without selecting text/summary/JSON rendering (§RM-core-cli-split).
+pub fn refs(opts: RefsOpts) -> Result<RefsOutput> {
+    let context = load_workspace_context(&opts.path, opts.path_provided)?;
+    let current_config = context
+        .current_project()
+        .map(|project| &project.config)
+        .unwrap_or_else(|| context.render_config());
+    let (alias, raw_id) = split_qualified_id_arg(&opts.id).map_err(|err| {
+        anyhow!(
+            "{err:#}\nhint: this repo's [id] format is `{}` (run `grund config show`); `grund list` shows the IDs that exist",
+            current_config.id_format
+        )
+    })?;
+    let target_project = match alias.as_deref() {
+        Some(name) => context.project_by_alias(name).ok_or_else(|| {
+            if !context.workspace_loaded {
+                anyhow!(
+                    "unknown project alias `{name}`\nnote: workspace aliases are defined in the root .agents/grund.toml under [workspace]"
+                )
+            } else {
+                anyhow!(
+                    "unknown project alias `{name}`\nknown aliases: {}",
+                    context.aliases().join(", ")
+                )
+            }
+        })?,
+        None => context.current_project().ok_or_else(|| {
+            let known = context.aliases().join(", ");
+            if known.is_empty() {
+                anyhow!("unqualified ID requires a project alias when include_root = false")
+            } else {
+                anyhow!(
+                    "unqualified ID requires a project alias when include_root = false\nknown aliases: {known}"
+                )
+            }
+        })?,
+    };
+    let target_alias = target_project.alias.as_str();
+    let render_config = &target_project.config;
+    let (id, inline_section) = parse_id_arg(raw_id, &render_config.grammar).map_err(|err| {
+        anyhow!(
+            "{err:#}\nhint: this repo's [id] format is `{}` (run `grund config show`); `grund list` shows the IDs that exist",
+            render_config.id_format
+        )
+    })?;
+    if opts.section.is_some() && inline_section.is_some() {
+        return Err(anyhow!(
+            "--section cannot be combined with an inline section"
+        ));
+    }
+    let section = opts.section.or(inline_section);
+
+    struct Hit<'a> {
+        project: &'a WorkspaceProject,
+        citation: &'a Citation,
+    }
+    let mut hits = Vec::new();
+    let mut scan_errors = Vec::new();
+    for project in &context.projects {
+        for (file, message) in &project.scan_errors {
+            scan_errors.push(ApiScanError {
+                path: display_path(&project.config, file),
+                message: message.clone(),
+            });
+        }
+        let is_target = project.alias == target_alias;
+        for citation in &project.findings.citations {
+            let local_match = citation.namespace.is_none() && is_target;
+            let qualified_match = citation
+                .namespace
+                .as_deref()
+                .map(|ns| ns == target_alias)
+                .unwrap_or(false);
+            if !(local_match || qualified_match) || citation.id != id {
+                continue;
+            }
+            if let Some(expected) = section.as_deref()
+                && citation.section.as_deref() != Some(expected)
+            {
+                continue;
+            }
+            hits.push(Hit { project, citation });
+        }
+    }
+    hits.sort_by(|a, b| {
+        (sort_path_key(&a.citation.file), a.citation.line, a.citation.column).cmp(&(
+            sort_path_key(&b.citation.file),
+            b.citation.line,
+            b.citation.column,
+        ))
+    });
+    let render_path = |project: &WorkspaceProject, path: &Path| -> String {
+        if context.workspace_loaded {
+            display_path(context.render_config(), path)
+        } else {
+            display_path(&project.config, path)
+        }
+    };
+    let public_hits = hits
+        .iter()
+        .map(|hit| RefHit {
+            project: context.workspace_loaded.then(|| hit.project.alias.clone()),
+            path: render_path(hit.project, &hit.citation.file),
+            line: hit.citation.line,
+            column: hit.citation.column,
+            id: render_id(render_config, &hit.citation.id),
+            section: hit.citation.section.clone(),
+            marker: hit.citation.has_marker,
+            text: hit.citation.text.clone(),
+        })
+        .collect::<Vec<_>>();
+    let note = if public_hits.is_empty() && !target_project.findings.declarations.contains_key(&id)
+    {
+        if context.workspace_loaded && alias.is_some() {
+            Some(format!(
+                "{}/{} is neither declared nor cited — run `grund list --project {}` to see {}'s declared IDs",
+                target_alias,
+                render_id(render_config, &id),
+                target_alias,
+                target_alias
+            ))
+        } else {
+            Some(format!(
+                "{} is neither declared nor cited — run `grund list` to see every declared ID",
+                render_id(render_config, &id)
+            ))
+        }
+    } else {
+        None
+    };
+    Ok(RefsOutput {
+        output_format: render_config.output_format.clone(),
+        workspace: context.workspace_loaded,
+        hits: public_hits,
+        note,
+        scan_errors,
+    })
+}

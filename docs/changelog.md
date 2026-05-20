@@ -27,7 +27,7 @@ Only **Unreleased** and the **most recent release** are inline. When a new relea
 ### Added
 
 - [§AR-benchmarks](architecture/AR-benchmarks.md#ar-benchmarks-instruction-counting-benchmarks-for-the-hot-cli-commands) / [§RM-benchmarks](roadmap.md#rm-benchmarks-a-benchmark-harness-for-the-goal-fast-feedback-budgets): add the generated 10k-file benchmark fixture, record instruction-count baselines, and make pull-request CI fail on >5% Callgrind instruction-count regressions. PR #19.
-- [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli) / [§FS-distribution.3.1](functional-spec/FS-distribution.md#31-rust-grund-core-crate): add the dedicated `crates/grund-cli` frontend package, make the root manifest a virtual workspace, and expose the initial `grund-core` embedding API (`check`, `show`, `scan`, `Report`, `Findings`, `ShowOpts`). PR #20.
+- [§RM-core-cli-split](roadmap.md#rm-core-cli-split-split-grund-core-from-grund-cli) / [§FS-distribution.3.1](functional-spec/FS-distribution.md#31-rust-grund-core-crate): add the dedicated `crates/grund-cli` frontend package, make the root manifest a virtual workspace, expose the initial `grund-core` embedding API (`check`, `show`, `scan`, `Report`, `Findings`, `ShowOpts`), and move the remaining CLI surfaces (`refs`, `list`, `cover`, `fmt`, `id`, `init`, config inspection) onto data-returning core APIs with text/JSON rendering and exit-code mapping in `grund-cli`. PR #20.
 
 ### Fixed
 

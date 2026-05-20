@@ -1,10 +1,14 @@
 // §RM-core-cli-split: the `grund` frontend crate owns top-level CLI dispatch.
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use grund_core::{
-    AGENT_SETUP_INSTRUCTIONS, canonical_template_text, command_check, command_complete,
-    command_completions, command_config, command_cover, command_fmt, command_id, command_init,
-    command_list, command_refs, command_show, command_show_default,
+    AGENT_SETUP_INSTRUCTIONS, Config, CoverCitation, CoverOpts, FmtOpts, IdOpts, IdProposal,
+    IdProposalOutcome, InitAgentEntrypointSelection, InitNext, InitOpts, InitOutput, ListEntry,
+    ListOpts, RefHit, RefsOpts, canonical_template_text, command_check, command_complete,
+    command_completions, command_show, command_show_default, cover, effective_config,
+    format_references, init, list, propose_id, refs, validate_config,
 };
 
 const SUBCOMMANDS: &[&str] = &[
