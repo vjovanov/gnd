@@ -645,9 +645,8 @@ fn find_init_workspace_root(target: &Path) -> Option<Config> {
 
 /// Render the §FS-init.2.3.4.15 Workspace Members section, or the empty string
 /// when `target` is not inside a workspace. The leading `\n\n` is the
-/// separator from the preceding `### Project map` block — the template embeds
-/// `{DECLARATION_MAP}{WORKSPACE_MEMBERS}` with no other whitespace, so an empty
-/// value leaves the surrounding spacing unchanged.
+/// separator from the preceding namespace guidance block, so an empty value
+/// leaves the surrounding spacing unchanged.
 fn render_workspace_members_section(
     target: &Path,
     pending_project_name: Option<&str>,
