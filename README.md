@@ -286,9 +286,28 @@ vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
                . ("grund-lsp")))
 ```
 
-**VSCode**: install a generic LSP client extension, set its command to
-`grund-lsp`, and enable it for Markdown plus the source file types in your
-`[scan] extensions`. A first-party VSCode extension is intentionally not shipped.
+**VSCode**: install a generic LSP client extension and configure it to launch
+`grund-lsp` for Markdown plus the source file types in your `[scan] extensions`.
+For example, with the "Generic LSP Client" extension (`zsol.vscode-glspc`):
+
+```json
+{
+  "glspc.server": {
+    "command": "grund-lsp",
+    "commandArguments": []
+  },
+  "glspc.server.languageId": [
+    "markdown",
+    "rust",
+    "python",
+    "go",
+    "javascript",
+    "typescript"
+  ]
+}
+```
+
+A first-party VSCode extension is intentionally not shipped.
 
 **IntelliJ family**: install LSP4IJ, add a server named `grund-lsp`, set the
 command to `grund-lsp`, and apply it to Markdown plus the source file patterns
@@ -297,7 +316,9 @@ you scan.
 To check the wiring, open a file containing a resolving citation such as
 `§FS-check`: hover should show `grund show --toc` content, go-to-definition
 should jump to the declaration, and typing `$$FS-check` should rewrite the
-trigger to `§FS-check`.
+trigger to `§FS-check`. Clickable citation links target the declaration line
+with a `#L<n>` file-URI fragment; if your editor opens the file but ignores that
+fragment, use go-to-definition for the exact line jump ([§FS-lsp.1.3.2](docs/functional-spec/FS-lsp.md#132-document-links)).
 
 ## Set up a repo
 

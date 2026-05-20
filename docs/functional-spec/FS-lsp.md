@@ -30,6 +30,11 @@ The hover content is Markdown. Any resolving `§<ID>` citation inside that hover
 
 `textDocument/documentLink` marks each resolving citation token as a link to its declaration target. Editors that render LSP document links therefore show `§<ID>` references as visibly clickable links even in source files where Markdown cross-reference emission cannot run ([§FS-fmt.6.1](FS-fmt.md#61-scope)).
 
+The link target is a file URI with a line fragment (`#L<n>`) for the resolved
+declaration line. Editors that ignore file-URI fragments may open the
+declaration file without moving the cursor to the line; `textDocument/definition`
+remains the exact-position fallback for those clients.
+
 ### 1.4 Live trigger transform
 
 `textDocument/onTypeFormatting` watches the configured trigger sequence (default `$$`, per [§DF-reference-marker.2.2](../decisions/functional/DF-reference-marker.md#22-trigger)) and replaces it with the marker (default `§`) the moment the trigger is followed by a token matching the repo's `[id] format` ([§FS-config.3.2](FS-config.md#32-id--id-grammar) — `FS-007` under a numbered format, `FS-login` under the slug-only form). This is the live counterpart to `grund fmt`'s bulk trigger pass ([§FS-fmt.2.1](FS-fmt.md#21-trigger-to-marker)) and is what makes the marker practical to type without leaving the keyboard.
