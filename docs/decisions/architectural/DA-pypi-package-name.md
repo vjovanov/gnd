@@ -3,11 +3,11 @@
 **Status:** Superseded
 **Date:** 2026-05-11
 **Supersedes:** [§DA-reference-checker-name](DA-reference-checker-name.md#da-reference-checker-name-name-for-the-spec-reference-checker-tool) for the PyPI package name only.
-**Superseded by:** [§DA-rename-to-grund](DA-rename-to-grund.md#da-rename-to-grund-rename-gnd-to-grund-before-first-publish) — the rename to `grund` voids the PyPI-collision premise below (the `gnd`/`GND` clash does not exist for `grund`); see that record for the package names that actually ship.
+**Superseded by:** [§DA-rename-to-grund](DA-rename-to-grund.md#da-rename-to-grund-rename-gnd-to-grund-before-first-publish) — the rename to `grund` voids the PyPI-collision premise below (the old working-title package clash does not exist for `grund`); see that record for the package names that actually ship.
 
 ## 1. Context
 
-[§DA-reference-checker-name](DA-reference-checker-name.md#da-reference-checker-name-name-for-the-spec-reference-checker-tool) chose `gnd` for the binary and repository, and treated the existing PyPI `gnd` package as a dormant squat that could be ignored later. The final launch review re-checked the registry and found that the name is not available to this project: PyPI already serves `GND` releases, while `gnd-cli` is available on PyPI and is already the planned npm package name.
+[§DA-reference-checker-name](DA-reference-checker-name.md#da-reference-checker-name-name-for-the-spec-reference-checker-tool) chose `gnd` for the binary and repository, and treated the existing PyPI `gnd` package as a dormant squat that could be ignored later. The final launch review re-checked the registry and found that the name is not available to this project: PyPI already serves releases under that occupied package name, while `gnd-cli` is available on PyPI and is already the planned npm package name.
 
 The product must not ask users to install through a name owned by an unrelated project. The binary can still be `gnd`; package-manager names do not have to be identical when a registry namespace is occupied.
 

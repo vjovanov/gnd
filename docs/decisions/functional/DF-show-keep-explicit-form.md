@@ -34,7 +34,7 @@ The pattern is the same as `git log` ≡ `git log HEAD` and `make` running the f
 - [§GOAL-friendliness-first.1](../../goals.md#1-hard-requirements) — the top-level help stays one screen because the dense flag surface lives on `grund show --help`. Every other subcommand pays the same way; `show` should not be the outlier whose help has nowhere to go.
 - [§GOAL-token-economy](../../goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file) — the bare form *is* the cheap default; the explicit form does not change the read economy. The agent-facing recommendation in [§FS-init.2.3](../../functional-spec/FS-init.md#23-generated-agent-entrypoints) teaches `grund <ID>`, and that is what an agent reaches for.
 - [§GOAL-no-silent-breakage](../../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — keeping `show` means the explicit form already used in our own templates, examples, and `agent-setup-instructions` output stays working without a deprecation window. Removing it would force a coordinated rewrite of every doc snippet and every script that uses it, with no behavior gain on the other side.
-- [§GND-grund](../../grund.md#gnd-grund-agents-stay-grounded-in-the-spec) — grounding is more likely when both an agent (cheap bare form) and a human writing a CI script (explicit form) have a comfortable way in.
+- [§GRUND-grund](../../grund.md#grund-grund-agents-stay-grounded-in-the-spec) — grounding is more likely when both an agent (cheap bare form) and a human writing a CI script (explicit form) have a comfortable way in.
 
 ## 4. Consequences
 

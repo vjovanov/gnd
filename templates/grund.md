@@ -1,6 +1,6 @@
 # Why this project exists
 
-Declare the project's reason for being inline as `# GND-NNN-slug: …` — the **grund**: the
+Declare the project's reason for being inline as `# GRUND-NNN-slug: …` — the **grund**: the
 foundation every citation in the tree ultimately climbs toward. One declaration, a paragraph
 or two, in this file.
 

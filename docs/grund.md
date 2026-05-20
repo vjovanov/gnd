@@ -1,4 +1,4 @@
-# GND-grund: agents stay grounded in the spec
+# GRUND-grund: agents stay grounded in the spec
 
 **Keep agents grounded in the spec — fewer bugs, cheaper LLM context, faster onboarding.** On a long-lived codebase with many humans and AIs, the spec drifts: citations rot, decisions get forgotten, e2e tests prove the wrong things, and "the why" lives in someone's head until that someone moves on. Each agent has limited context, and without a shared, mechanically-checked reference frame, knowledge silently fragments.
 

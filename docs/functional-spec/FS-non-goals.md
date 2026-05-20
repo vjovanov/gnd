@@ -34,7 +34,7 @@ A non-goal is not the same as "we'll do it later." Non-goals are commitments. To
 
 ## 8. Generalization beyond the ID scheme
 
-`grund` does not validate other kinds of references — RFC numbers in random codebases, bug tracker IDs, etc. — outside the configured `[[kinds]]`. If a project does not adopt the ID scheme, `grund` has nothing to offer. Reasoning: see [§GND-grund](../grund.md#gnd-grund-agents-stay-grounded-in-the-spec) — generalization dilutes the promise without expanding the audience.
+`grund` does not validate other kinds of references — RFC numbers in random codebases, bug tracker IDs, etc. — outside the configured `[[kinds]]`. If a project does not adopt the ID scheme, `grund` has nothing to offer. Reasoning: see [§GRUND-grund](../grund.md#grund-grund-agents-stay-grounded-in-the-spec) — generalization dilutes the promise without expanding the audience.
 
 ## 9. Severity, exit code, or report-ordering customization
 

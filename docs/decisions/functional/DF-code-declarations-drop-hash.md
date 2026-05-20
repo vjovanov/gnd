@@ -62,7 +62,7 @@ This is **not** landing with the initial change because it would update every ex
 ## 3. Why this fits grund's goals
 
 - [§GOAL-friendliness-first](../../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) — the new form reads as what it is (a label on a prose block) rather than as a misplaced markdown heading. The `#` was confusing exactly the audience the goal is for, and one source declaration form is easier to teach than two while `grund` is still pre-release.
-- [§GND-grund](../../grund.md#gnd-grund-agents-stay-grounded-in-the-spec) — co-locating multiple declarations in one doc-comment (an `AR-` and an `FS-` on the same class) was already legal; the new form makes it readable, which makes it likelier to be used, which improves grounding.
+- [§GRUND-grund](../../grund.md#grund-grund-agents-stay-grounded-in-the-spec) — co-locating multiple declarations in one doc-comment (an `AR-` and an `FS-` on the same class) was already legal; the new form makes it readable, which makes it likelier to be used, which improves grounding.
 
 ## 4. Consequences
 

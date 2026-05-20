@@ -33,7 +33,7 @@ The token economy applies to the read/query surface only. `grund check` diagnost
 ## 3. Why this fits grund's goals
 
 - [§GOAL-token-economy](../../goals.md#goal-token-economy-give-an-agent-the-right-amount-of-spec-not-the-whole-file) / [§GOAL-friendliness-first](../../goals.md#goal-friendliness-first-as-user--and-agent-friendly-as-possible) — grounding should be *cheap*; a 1 KB first read that still names the section to fetch is friendlier to an agent's context budget than a 15 KB body, and the human path is untouched. This is the read ladder that goal asks for.
-- [§GND-grund](../../grund.md#gnd-grund-agents-stay-grounded-in-the-spec) — an agent more likely to ground itself before editing is one for which grounding costs less; the cheaper the brief, the fewer overfetches and skips.
+- [§GRUND-grund](../../grund.md#grund-grund-agents-stay-grounded-in-the-spec) — an agent more likely to ground itself before editing is one for which grounding costs less; the cheaper the brief, the fewer overfetches and skips.
 - [§GOAL-no-silent-breakage](../../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — additive flags break nothing; the `AGENTS.md` guidance change rides the existing managed-block version mechanism.
 - [§FS-non-goals.13](../../functional-spec/FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree) — structural slices stay byte-deterministic; a generative summarizer would not, so it is out of scope.
 

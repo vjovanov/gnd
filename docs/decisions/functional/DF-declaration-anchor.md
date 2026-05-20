@@ -23,7 +23,7 @@ Citations remain the source of truth; this is still a presentation layer ([§DF-
 
 ## 3. Why this fits grund's goals
 
-- [§GND-grund.1](../../grund.md#1-what-grund-does-about-it) — Markdown links are the "cover navigation in rendered docs" layer; a link that drops you at the file top barely covers it. This makes the bare-ID link land where the section-ID link already lands.
+- [§GRUND-grund.1](../../grund.md#1-what-grund-does-about-it) — Markdown links are the "cover navigation in rendered docs" layer; a link that drops you at the file top barely covers it. This makes the bare-ID link land where the section-ID link already lands.
 - [§GOAL-no-silent-breakage](../../goals.md#goal-no-silent-breakage-changes-ship-through-a-deprecation-path) — same conditional-on-`fmt` guarantee as every other `--cross-refs` rewrite: a declaration heading rename produces a one-line `fmt` diff on the next pass ([§DF-md-link-anchor-strategy.2.2](DF-md-link-anchor-strategy.md#22-re-derive-on-every-pass-supersede-fs-fmt63)), not a silently-dead anchor.
 - [§FS-non-goals.13](../../functional-spec/FS-non-goals.md#13-anything-that-would-let-two-grund-installs-disagree) (two installs agree) — still byte-deterministic on `(tree, config)`.
 - [§FS-non-goals.1](../../functional-spec/FS-non-goals.md#1-markdown-link-validation) (no link validation) — `grund check` still does not validate `#fragment`s; the anchor is correct-by-construction at emission, and `lychee --include-fragments` in this repo's pre-commit hook ([§FS-fmt.4](../../functional-spec/FS-fmt.md#4-why-this-exists)) is the repo-local cross-check.
