@@ -317,6 +317,13 @@ pub struct ApiScanError {
     pub message: String,
 }
 
+fn api_scan_error(config: &Config, path: &Path, message: &str) -> ApiScanError {
+    ApiScanError {
+        path: display_path(config, path),
+        message: message.to_string(),
+    }
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct CoverOutput {
     pub output_format: String,
@@ -368,11 +375,8 @@ pub fn cover(opts: CoverOpts) -> Result<CoverOutput> {
         })
         .collect();
     let scan_errors = scan_errors
-        .into_iter()
-        .map(|(path, message)| ApiScanError {
-            path: display_path(&config, &path),
-            message,
-        })
+        .iter()
+        .map(|(path, message)| api_scan_error(&config, path, message))
         .collect();
     Ok(CoverOutput {
         output_format: config.output_format.clone(),
@@ -619,12 +623,12 @@ pub fn list(opts: ListOpts) -> Result<ListOutput> {
         if !opts.project_filter.is_empty() && !opts.project_filter.contains(&project.alias) {
             continue;
         }
-        for (file, message) in &project.scan_errors {
-            scan_errors.push(ApiScanError {
-                path: display_path(&project.config, file),
-                message: message.clone(),
-            });
-        }
+        scan_errors.extend(
+            project
+                .scan_errors
+                .iter()
+                .map(|(file, message)| api_scan_error(&project.config, file, message)),
+        );
         let ref_counts: &BTreeMap<&Id, usize> = ref_counts_by_alias
             .get(project.alias.as_str())
             .unwrap_or(&empty_ref_counts);
@@ -858,12 +862,12 @@ pub fn refs(opts: RefsOpts) -> Result<RefsOutput> {
     let mut hits = Vec::new();
     let mut scan_errors = Vec::new();
     for project in &context.projects {
-        for (file, message) in &project.scan_errors {
-            scan_errors.push(ApiScanError {
-                path: display_path(&project.config, file),
-                message: message.clone(),
-            });
-        }
+        scan_errors.extend(
+            project
+                .scan_errors
+                .iter()
+                .map(|(file, message)| api_scan_error(&project.config, file, message)),
+        );
         let is_target = project.alias == target_alias;
         for citation in &project.findings.citations {
             let local_match = citation.namespace.is_none() && is_target;
